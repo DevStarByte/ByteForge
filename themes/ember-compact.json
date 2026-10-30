@@ -1,0 +1,110 @@
+{
+  // Dense layout for small screens: smaller bars and fonts, warm gradients, no breadcrumbs or command center.
+  "name": "Ember Compact",
+  "type": "dark",
+  "inherits": "ByteForge Dark",
+  "description": "Dense, warm, fire gradients",
+
+  "colors": {
+    "accent": "#ff7a18",
+    "focusBorder": "#ff7a18",
+    "window.background": "#17110e",
+    "sash.hoverBorder": "#ff7a18",
+    "titleBar.background": "linear-gradient(90deg, #2b1a12, #17110e)",
+    "titleBar.border": "#3a2418",
+    "titleBar.logo": "linear-gradient(135deg, #ffb347, #ff7a18, #af002d)",
+    "activityBar.background": "#120d0b",
+    "activityBar.activeBorder": "linear-gradient(180deg, #ffb347, #af002d)",
+    "activityBar.border": "#2a1b13",
+    "sideBar.background": "#17110e",
+    "sideBar.border": "#2a1b13",
+    "sideBarSectionHeader.foreground": "#ffb347",
+    "list.activeSelectionBackground": "#ff7a1833",
+    "editorGroupHeader.background": "#120d0b",
+    "editorGroupHeader.border": "#2a1b13",
+    "tab.activeBackground": "#1d1512",
+    "tab.inactiveBackground": "#120d0b",
+    "tab.border": "#2a1b13",
+    "tab.activeBorderTop": "linear-gradient(90deg, #ffb347, #ff7a18, #af002d)",
+    "editor.background": "#1d1512",
+    "editorGutter.background": "#1d1512",
+    "editor.lineHighlightBackground": "#ff7a180c",
+    "editor.lineHighlightBorder": "transparent",
+    "editor.selectionBackground": "#ff7a1838",
+    "editorCursor.foreground": "#ffb347",
+    "editorLineNumber.activeForeground": "#ffb347",
+    "editorBracketHighlight.foreground1": "#ffb347",
+    "editorBracketHighlight.foreground2": "#ff6f61",
+    "editorBracketHighlight.foreground3": "#ffd8a8",
+    "panel.background": "#17110e",
+    "panel.border": "#2a1b13",
+    "panelTitle.activeBorder": "#ff7a18",
+    "statusBar.background": "linear-gradient(90deg, #ff7a18, #af002d)",
+    "statusBar.foreground": "#fff4e8",
+    "statusBar.border": "transparent",
+    "button.background": "#ff7a18",
+    "button.hoverBackground": "#ff8f3a",
+    "scrollbarSlider.background": "#ff7a1840",
+    "scrollbarSlider.hoverBackground": "#ff7a1870",
+    "welcome.logo": "#ff7a1830"
+  },
+
+  "tokenColors": {
+    "keyword": "#ff8f3a",
+    "keyword - control": "#ff6f61",
+    "string": "#e6c07b",
+    "number": "#ffb347",
+    "class name": "#ffd8a8",
+    "method name": "#f4a261",
+    "comment": { "foreground": "#7a6355", "fontStyle": "italic" }
+  },
+
+  "fonts": {
+    "ui.size": 12,
+    "ui.smallSize": 10,
+    "menuBar.fontSize": 12,
+    "tab.fontSize": 12,
+    "list.fontSize": 12,
+    "statusBar.fontSize": 11,
+    "editor.size": 13,
+    "editor.lineHeight": 1.35,
+    "editor.lineNumberSize": 12
+  },
+
+  "metrics": {
+    "titleBar.height": 30,
+    "titleBar.iconSize": 14,
+    "windowControl.width": 40,
+    "windowControl.iconSize": 12,
+    "menuBarItem.padding": "6,2",
+    "activityBar.width": 40,
+    "activityBar.itemHeight": 40,
+    "activityBar.iconSize": 20,
+    "sideBarHeader.height": 28,
+    "sideBarHeader.padding": "12,0",
+    "list.itemHeight": 20,
+    "list.itemPadding": "6,1",
+    "explorer.iconSize": 13,
+    "tab.height": 30,
+    "tab.padding": "10,0,4,0",
+    "tab.minWidth": 70,
+    "tab.indicatorSize": 2,
+    "panelHeader.height": 28,
+    "statusBar.height": 22,
+    "statusBar.iconSize": 12,
+    "statusBarItem.padding": "6,0",
+    "scrollbar.size": 10,
+    "palette.width": 540
+  },
+
+  "editor": {
+    "gutterPaddingLeft": 8,
+    "gutterPaddingRight": 10,
+    "textPadding": 6
+  },
+
+  "layout": {
+    "commandCenter.visible": false,
+    "breadcrumbs.visible": false
+  }
+}

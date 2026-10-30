@@ -1,0 +1,141 @@
+{
+  // See-through theme: the desktop shows (blurred) through the window. Every layer is painted once, so the
+  // visible opacity is window.background + the panel's own color. Raise the alpha values (last two hex digits)
+  // for more contrast, lower them for more glass. Pill-shaped tabs and activity items, generous rounding.
+  "name": "Glass",
+  "type": "dark",
+  "inherits": "ByteForge Dark",
+  "description": "See-through blurred window, rounded pills",
+
+  "colors": {
+    "accent": "#60cdff",
+    "focusBorder": "#60cdff",
+    "window.background": "#10101060",
+    "window.foreground": "#f0f0f0",
+    "overlay.background": "#00000030",
+    "sash.hoverBorder": "#60cdff",
+
+    "titleBar.background": "#00000030",
+    "titleBar.border": "transparent",
+    "titleBar.logo": "#60cdff",
+    "commandCenter.background": "#ffffff0f",
+    "commandCenter.border": "#ffffff18",
+    "commandCenter.hoverBorder": "#ffffff30",
+    "commandCenter.hoverBackground": "#ffffff1a",
+    "windowControl.hoverBackground": "#ffffff14",
+    "menu.background": "#2b2b2bf0",
+    "menu.selectionBackground": "#ffffff1a",
+    "menu.border": "#ffffff1a",
+
+    "activityBar.background": "#00000018",
+    "activityBar.border": "transparent",
+    "activityBar.activeBorder": "#60cdff",
+    "activityBar.activeBackground": "#ffffff14",
+    "activityBar.hoverBackground": "#ffffff0d",
+    "activityBar.inactiveForeground": "#a0a0a0",
+
+    "sideBar.background": "#00000018",
+    "sideBar.border": "transparent",
+    "list.hoverBackground": "#ffffff0d",
+    "list.activeSelectionBackground": "#ffffff1a",
+
+    "editorGroupHeader.background": "transparent",
+    "editorGroupHeader.border": "transparent",
+    "tab.activeBackground": "#ffffff1a",
+    "tab.activeBorder": "#ffffff20",
+    "tab.inactiveBackground": "transparent",
+    "tab.hoverBackground": "#ffffff0d",
+    "tab.border": "transparent",
+    "tab.activeBorderTop": "transparent",
+    "breadcrumb.background": "transparent",
+
+    "editor.background": "#0c0c0c38",
+    "editorGutter.background": "#0c0c0c38",
+    "editor.lineHighlightBackground": "#ffffff08",
+    "editor.lineHighlightBorder": "transparent",
+    "editor.selectionBackground": "#60cdff40",
+    "editorCursor.foreground": "#60cdff",
+    "editorWidget.background": "#2b2b2bf2",
+    "editorWidget.border": "#ffffff1a",
+
+    "panel.background": "#00000020",
+    "panel.border": "transparent",
+    "panelTitle.activeBorder": "#60cdff",
+    "panelTitle.activeBackground": "#ffffff10",
+
+    "statusBar.background": "#00000030",
+    "statusBar.border": "transparent",
+    "statusBarItem.hoverBackground": "#ffffff14",
+
+    "input.background": "#ffffff0f",
+    "input.border": "#ffffff18",
+    "button.background": "#60cdff",
+    "button.foreground": "#000000",
+    "button.hoverBackground": "#7dd6ff",
+    "quickInput.background": "#2b2b2bf2",
+    "quickInput.border": "#ffffff1a",
+    "scrollbarSlider.background": "#ffffff30",
+    "scrollbarSlider.hoverBackground": "#ffffff50",
+    "welcome.logo": "#60cdff40",
+    "welcome.titleForeground": "#ffffffb0",
+    "welcome.foreground": "#ffffffa0",
+    "foreground.muted": "#ffffffa0",
+    "editorLineNumber.foreground": "#ffffff70",
+    "editorIndentGuide.background": "#ffffff18"
+  },
+
+  "metrics": {
+    "titleBar.height": 40,
+    "titleBar.borderThickness": 0,
+    "commandCenter.radius": 8,
+    "commandCenter.height": 28,
+    "windowControl.radius": 6,
+    "windowControl.width": 44,
+
+    "activityBar.itemHeight": 42,
+    "activityBar.spacing": 4,
+    "activityBar.itemRadius": 8,
+    "activityBar.indicatorLeft.border": 0,
+    "activityBar.indicatorRight.border": 0,
+
+    "list.radius": 6,
+    "list.itemMargin": "6,1",
+    "list.itemHeight": 26,
+
+    "tab.height": 40,
+    "tabStrip.padding": "6,0",
+    "tab.spacing": 4,
+    "tab.margin": "0,5",
+    "tab.radius": 8,
+    "tab.borderThickness": 1,
+    "tab.indicatorSize": 0,
+    "editorGroupHeader.borderThickness": 0,
+    "panel.borderThickness": 0,
+    "panelTab.radius": 6,
+    "panelTab.padding": "10,5",
+    "panelTab.indicator.border": 0,
+    "statusBar.borderThickness": 0,
+    "statusBarItem.radius": 6,
+    "statusBar.height": 26,
+
+    "widget.radius": 10,
+    "palette.radius": 14,
+    "palette.padding": 8,
+    "input.radius": 6,
+    "button.radius": 6,
+    "scrollbar.size": 10,
+    "scrollbar.radius": 5,
+    "scrollbar.thumbMargin": 2
+  },
+
+  "editor": {
+    "selectionRadius": 5,
+    "lineHighlight": "fill"
+  },
+
+  "effects": {
+    "window.backdrop": "mica",
+    "palette.shadow": "0 16 48 0 #000000a0",
+    "widget.shadow": "0 8 24 0 #00000080"
+  }
+}

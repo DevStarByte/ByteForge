@@ -1,0 +1,65 @@
+{
+  // Example of a partial theme: inherits everything from ByteForge Dark and overrides a few keys,
+  // including the layout (side bar on the right) and the editor font size.
+  "name": "Forge Midnight",
+  "type": "dark",
+  "inherits": "ByteForge Dark",
+
+  "colors": {
+    "accent": "#c678dd",
+    "focusBorder": "#c678dd",
+    "window.background": "#13111c",
+    "titleBar.background": "#0f0d17",
+    "titleBar.border": "#0f0d17",
+    "titleBar.logo": "#c678dd",
+    "commandCenter.background": "#1a1726",
+    "commandCenter.border": "#3b2f5c",
+    "commandCenter.hoverBackground": "#251f38",
+    "breadcrumb.background": "#1a1726",
+    "menuBar.background": "#13111c",
+    "activityBar.background": "#0f0d17",
+    "activityBar.activeBorder": "#c678dd",
+    "sideBar.background": "#13111c",
+    "editorGroupHeader.background": "#13111c",
+    "tab.inactiveBackground": "#13111c",
+    "tab.activeBackground": "#1a1726",
+    "tab.activeBorderTop": "#c678dd",
+    "editor.background": "#1a1726",
+    "editorGutter.background": "#1a1726",
+    "editor.lineHighlightBackground": "#251f3880",
+    "editor.selectionBackground": "#44376b",
+    "panel.background": "#13111c",
+    "statusBar.background": "#c678dd",
+    "statusBar.foreground": "#13111c",
+    "statusBar.border": "#c678dd",
+    "list.activeSelectionBackground": "#3b2f5c",
+    "button.background": "#9a4fb4",
+    "button.hoverBackground": "#b45fd0",
+    "panelTitle.activeBorder": "#c678dd",
+    "sash.hoverBorder": "#c678dd",
+    "menu.selectionBackground": "#3b2f5c"
+  },
+
+  "tokenColors": {
+    "keyword": "#c678dd",
+    "keyword - control": "#ff79c6",
+    "class name": "#e5c07b",
+    "record class name": "#e5c07b",
+    "interface name": "#e5c07b",
+    "struct name": "#e5c07b",
+    "method name": "#61afef",
+    "extension method name": "#61afef",
+    "string": "#98c379",
+    "number": "#d19a66",
+    "comment": { "foreground": "#6c6783", "fontStyle": "italic" }
+  },
+
+  "fonts": {
+    "editor.size": 15
+  },
+
+  "layout": {
+    "sideBar.position": "right",
+    "menuBar.visible": true
+  }
+}

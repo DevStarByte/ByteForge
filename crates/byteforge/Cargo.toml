@@ -1,0 +1,21 @@
+[package]
+name = "byteforge"
+version.workspace = true
+edition.workspace = true
+description = "A modular, themeable IDE for C#"
+
+[[bin]]
+name = "byteforge"
+path = "src/main.rs"
+
+[dependencies]
+gpui.workspace = true
+anyhow.workspace = true
+flume.workspace = true
+serde_json.workspace = true
+parking_lot.workspace = true
+log.workspace = true
+bf-core.workspace = true
+bf-text.workspace = true
+bf-syntax.workspace = true
+bf-lsp.workspace = true

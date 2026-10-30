@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = ["crates/bf-core", "crates/bf-text", "crates/bf-syntax", "crates/bf-lsp", "crates/byteforge"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+gpui = "=0.2.2"
+anyhow = "1"
+flume = "0.11"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+json5 = "0.4"
+ropey = "1.6"
+parking_lot = "0.12"
+notify = "6"
+dirs = "5"
+log = "0.4"
+bf-core = { path = "crates/bf-core" }
+bf-text = { path = "crates/bf-text" }
+bf-syntax = { path = "crates/bf-syntax" }
+bf-lsp = { path = "crates/bf-lsp" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+
+[profile.dev.package."*"]
+opt-level = 2

@@ -1,0 +1,11 @@
+[package]
+name = "bf-syntax"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tree-sitter = "0.25"
+tree-sitter-c-sharp = "0.23.5"
+tree-sitter-json = "0.24.8"
+streaming-iterator = "0.1"

@@ -1,0 +1,7 @@
+{
+  // Copy this folder to ~/.config/byteforge/modules/ (Windows: %APPDATA%\byteforge\modules\) and restart ByteForge.
+  "id": "sample.hello",
+  "name": "Hello (Python sample)",
+  "command": "python",
+  "args": ["hello.py"]
+}
