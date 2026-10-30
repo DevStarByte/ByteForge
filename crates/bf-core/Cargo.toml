@@ -1,0 +1,16 @@
+[package]
+name = "bf-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+flume.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+json5.workspace = true
+parking_lot.workspace = true
+notify.workspace = true
+dirs.workspace = true
+log.workspace = true
+similar = "2"

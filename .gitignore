@@ -1,0 +1,6 @@
+/target/
+*.pdb
+.vs/
+.idea/
+.vscode/
+.claude/settings.local.json

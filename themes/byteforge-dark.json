@@ -1,0 +1,482 @@
+{
+  // ByteForge Dark: the reference theme. EVERY key the workbench understands is listed here.
+  // Other themes inherit from this one and only override what they change ("inherits").
+  // Saved changes apply instantly.
+  //
+  // Value formats
+  //   colors      #RGB  #RRGGBB  #RRGGBBAA (alpha last)  named colors  transparent
+  //               linear-gradient(90deg, #ff0080, #7928ca 60%, #2af598)   radial-gradient(#fff, #000)
+  //   sizes       numbers in pixels
+  //   keys ending in padding / margin / border / thickness  →  "all"  "h,v"  or  "left,top,right,bottom"
+  //   keys ending in radius  →  "all" or "topLeft,topRight,bottomRight,bottomLeft"
+  //   keys ending in shadow  →  "x y blur spread color" (comma separated for several), or "none"
+  //   keys ending in weight  →  thin light normal medium semibold bold black, or 100..900
+  "name": "ByteForge Dark",
+  "type": "dark",
+  "description": "Balanced default dark",
+
+  "colors": {
+    // ── general ──
+    "accent": "#0078d4",
+    "focusBorder": "#0078d4",
+    "window.background": "#181818",
+    "window.foreground": "#cccccc",
+    "foreground.muted": "#9d9d9d",
+    "icon.foreground": "#cccccc",
+    "overlay.background": "#00000040",
+    "toolbar.hoverBackground": "#5a5d5e50",
+    "sash.hoverBorder": "#0078d4",
+
+    // ── title bar ──
+    "titleBar.background": "#181818",
+    "titleBar.foreground": "#cccccc",
+    "titleBar.inactiveForeground": "#9d9d9d",
+    "titleBar.border": "#2b2b2b",
+    "titleBar.logo": "#0078d4",
+    "titleIcon.activeForeground": "#ffffff",
+    "commandCenter.background": "#262626",
+    "commandCenter.foreground": "#bbbbbb",
+    "commandCenter.activeForeground": "#e0e0e0",
+    "commandCenter.border": "#3a3a3a",
+    "commandCenter.hoverBorder": "#4a4a4a",
+    "commandCenter.hoverBackground": "#2f2f2f",
+    "windowControl.foreground": "#cccccc",
+    "windowControl.hoverBackground": "#ffffff1a",
+    "windowControl.closeHoverBackground": "#e81123",
+    "windowControl.closeHoverForeground": "#ffffff",
+    "menu.background": "#1f1f1f",
+    "menu.foreground": "#cccccc",
+    "menu.selectionBackground": "#0078d4",
+    "menu.border": "#454545",
+
+    // ── activity bar ──
+    "activityBar.background": "#181818",
+    "activityBar.foreground": "#d7d7d7",
+    "activityBar.inactiveForeground": "#868686",
+    "activityBar.activeBorder": "#0078d4",
+    "activityBar.activeBackground": "transparent",
+    "activityBar.hoverBackground": "transparent",
+    "activityBar.border": "#2b2b2b",
+
+    // ── side bar & lists ──
+    "sideBar.background": "#181818",
+    "sideBar.foreground": "#cccccc",
+    "sideBar.border": "#2b2b2b",
+    "sideBarTitle.foreground": "#cccccc",
+    "sideBarSectionHeader.foreground": "#cccccc",
+    "list.hoverBackground": "#2a2d2e",
+    "list.activeSelectionBackground": "#04395e",
+    "list.activeSelectionForeground": "#ffffff",
+
+    // ── file icons ──
+    "icon.folder": "#dcb67a",
+    "icon.file": "#9d9d9d",
+    "icon.csharp": "#9b4f96",
+    "icon.project": "#a074c4",
+    "icon.json": "#cbcb41",
+    "icon.markup": "#e37933",
+    "icon.markdown": "#519aba",
+
+    // ── tabs & breadcrumbs ──
+    "editorGroupHeader.background": "#181818",
+    "editorGroupHeader.border": "#2b2b2b",
+    "tab.activeBackground": "#1f1f1f",
+    "tab.activeForeground": "#ffffff",
+    "tab.activeBorder": "#2b2b2b",
+    "tab.inactiveBackground": "#181818",
+    "tab.inactiveForeground": "#9d9d9d",
+    "tab.hoverBackground": "#1f1f1f",
+    "tab.border": "#2b2b2b",
+    "tab.activeBorderTop": "#0078d4",
+    "tab.modifiedIndicator": "#cccccc",
+    "breadcrumb.background": "#1f1f1f",
+    "breadcrumb.foreground": "#a9a9a9",
+    "breadcrumb.activeForeground": "#e0e0e0",
+    "breadcrumb.border": "transparent",
+
+    // ── editor ──
+    "editor.background": "#1f1f1f",
+    "editor.foreground": "#d4d4d4",
+    "editor.lineHighlightBackground": "#2a2a2a80",
+    "editor.lineHighlightBorder": "#ffffff10",
+    "editor.selectionBackground": "#264f78",
+    "editor.inactiveSelectionBackground": "#3a3d41",
+    "editor.findMatchBackground": "#9e6a0360",
+    "editor.findMatchBorder": "#c89b3c80",
+    "editorCursor.foreground": "#aeafad",
+    "editorCursor.background": "#1f1f1f",
+    "editorLineNumber.foreground": "#6e7681",
+    "editorLineNumber.activeForeground": "#cccccc",
+    "editorGutter.background": "#1f1f1f",
+    "editorIndentGuide.background": "#404040",
+    "editorWhitespace.foreground": "#e3e4e229",
+    "editorRuler.foreground": "#5a5a5a",
+    "editorBracketMatch.background": "#0064001a",
+    "editorBracketMatch.border": "#888888",
+    "editorBracketHighlight.foreground1": "#ffd700",
+    "editorBracketHighlight.foreground2": "#da70d6",
+    "editorBracketHighlight.foreground3": "#179fff",
+    "editorBracketHighlight.unexpectedBracket.foreground": "#ff1212cc",
+    "editorError.foreground": "#f14c4c",
+    "editorWarning.foreground": "#cca700",
+    "editorInfo.foreground": "#3794ff",
+    "editorWidget.background": "#202020",
+    "editorWidget.border": "#454545",
+    "editorHoverWidget.background": "#202020",
+    "editorHoverWidget.foreground": "#cccccc",
+    "editorHoverWidget.border": "#454545",
+
+    // ── git: gutter markers, diff view, file decorations, badges ──
+    "editorGutter.addedBackground": "#2ea043",
+    "editorGutter.modifiedBackground": "#0078d4",
+    "editorGutter.deletedBackground": "#f85149",
+    "diffEditor.insertedLineBackground": "#2ea04333",
+    "diffEditor.removedLineBackground": "#f8514933",
+    "diffEditor.hunkHeaderBackground": "#0078d422",
+    "gitDecoration.addedResourceForeground": "#81b88b",
+    "gitDecoration.modifiedResourceForeground": "#e2c08d",
+    "gitDecoration.stageModifiedResourceForeground": "#e2c08d",
+    "gitDecoration.deletedResourceForeground": "#c74e39",
+    "gitDecoration.renamedResourceForeground": "#73c991",
+    "gitDecoration.untrackedResourceForeground": "#73c991",
+    "gitDecoration.conflictingResourceForeground": "#e4676b",
+    "activityBarBadge.background": "#0078d4",
+    "activityBarBadge.foreground": "#ffffff",
+    "badge.background": "#616161",
+    "badge.foreground": "#f8f8f8",
+    "errorForeground": "#f85149",
+
+    // ── panel ──
+    "panel.background": "#181818",
+    "panel.border": "#2b2b2b",
+    "panelTitle.activeForeground": "#cccccc",
+    "panelTitle.inactiveForeground": "#9d9d9d",
+    "panelTitle.activeBorder": "#0078d4",
+    "panelTitle.activeBackground": "transparent",
+    "problemsErrorIcon.foreground": "#f14c4c",
+    "problemsWarningIcon.foreground": "#cca700",
+    "problemsInfoIcon.foreground": "#3794ff",
+
+    // ── status bar ──
+    "statusBar.background": "#181818",
+    "statusBar.foreground": "#cccccc",
+    "statusBar.border": "#2b2b2b",
+    "statusBarItem.hoverBackground": "#ffffff1f",
+
+    // ── controls ──
+    "input.background": "#313131",
+    "input.foreground": "#cccccc",
+    "input.border": "#3c3c3c",
+    "input.placeholderForeground": "#989898",
+    "button.background": "#0078d4",
+    "button.foreground": "#ffffff",
+    "button.hoverBackground": "#026ec1",
+    "button.secondaryBackground": "#313131",
+    "button.border": "#ffffff12",
+    "scrollbarSlider.background": "#79797966",
+    "scrollbarSlider.hoverBackground": "#646464b3",
+    "scrollbarSlider.activeBackground": "#bfbfbf66",
+    "quickInput.background": "#222222",
+    "quickInput.foreground": "#cccccc",
+    "quickInput.border": "#454545",
+
+    // ── welcome page ──
+    "welcome.logo": "#0078d430",
+    "welcome.titleForeground": "#5a5a5a",
+    "welcome.foreground": "#8b8b8b"
+  },
+
+  // Keys are Roslyn classification names. "a - b" falls back to "a" when not listed.
+  // Value: a color, or { "foreground": "...", "fontStyle": "bold italic underline" }.
+  "tokenColors": {
+    "keyword": "#569cd6",
+    "keyword - control": "#c586c0",
+    "preprocessor keyword": "#9b9b9b",
+    "preprocessor text": "#9b9b9b",
+    "comment": { "foreground": "#6a9955", "fontStyle": "italic" },
+    "xml doc comment": "#6a9955",
+    "xml doc comment - name": "#4ec9b0",
+    "xml doc comment - attribute name": "#9cdcfe",
+    "excluded code": "#6b6b6b",
+    "string": "#ce9178",
+    "string - verbatim": "#ce9178",
+    "string - escape character": "#d7ba7d",
+    "number": "#b5cea8",
+    "operator": "#d4d4d4",
+    "operator - overloaded": "#dcdcaa",
+    "punctuation": "#d4d4d4",
+    "identifier": "#d4d4d4",
+    "namespace name": "#d4d4d4",
+    "class name": "#4ec9b0",
+    "record class name": "#4ec9b0",
+    "struct name": "#86c691",
+    "record struct name": "#86c691",
+    "interface name": "#b8d7a3",
+    "enum name": "#b8d7a3",
+    "delegate name": "#4ec9b0",
+    "type parameter name": "#b8d7a3",
+    "module name": "#4ec9b0",
+    "method name": "#dcdcaa",
+    "extension method name": "#dcdcaa",
+    "property name": "#9cdcfe",
+    "field name": "#9cdcfe",
+    "event name": "#9cdcfe",
+    "local name": "#9cdcfe",
+    "parameter name": "#9cdcfe",
+    "label name": "#c8c8c8",
+    "constant name": "#4fc1ff",
+    "enum member name": "#4fc1ff",
+    "regex - character class": "#d16969",
+    "regex - anchor": "#dcdcaa",
+    "regex - quantifier": "#d7ba7d",
+    "json - property name": "#9cdcfe",
+    "json - string": "#ce9178"
+  },
+
+  "fonts": {
+    // "default" = bundled Inter. Any comma-separated list of installed fonts works.
+    "ui.family": "default",
+    "ui.size": 13,
+    "ui.smallSize": 11,
+    "ui.weight": "normal",
+    "menuBar.fontSize": 13,
+    "commandCenter.fontSize": 12,
+    "tab.fontSize": 13,
+    "tab.style": "normal",
+    "tab.activeWeight": "normal",
+    "sideBarTitle.fontSize": 11,
+    "sideBarTitle.weight": "normal",
+    "sideBarSectionHeader.fontSize": 11,
+    "sideBarSectionHeader.weight": "bold",
+    "panelTab.fontSize": 11,
+    "list.fontSize": 13,
+    "statusBar.fontSize": 12,
+    "breadcrumb.fontSize": 12,
+    "welcome.titleSize": 44,
+    "welcome.titleWeight": "light",
+    "welcome.lineHeight": 26,
+    "editor.family": "JetBrains Mono, Cascadia Code, Fira Code, Hack, DejaVu Sans Mono, Noto Sans Mono, Liberation Mono, Consolas, monospace",
+    "editor.size": 14,
+    "editor.weight": "normal",
+    "editor.lineHeight": 1.5,
+    "editor.lineNumberSize": 13
+  },
+
+  "metrics": {
+    // ── layout parts ──
+    "panel.width": 420,                  // a side panel (panel in main.order)
+    "titleBar.spacing": 2,
+    "titleBar.titleFontSize": 12,
+    "commandCenter.minWindowWidth": 820, // hide the command center in narrower windows
+    "activityBar.horizontalHeight": 36,  // activity bar inside the side bar
+    "activityBar.horizontalItemWidth": 40,
+    "activityBar.horizontalIconSize": 18,
+    "activityBar.horizontalPadding": 4,
+    "activityBar.indicatorBottom.border": "0,0,0,2",
+    "welcome.spacing": 8,
+    "welcome.columnWidth": 160,
+    // ── git ──
+    "editorGutter.changeWidth": 3,       // width of the added/modified bars in the gutter
+    "editorGutter.changeOffset": 2,      // gap between the bars and the text area
+    "editorGutter.changeRadius": 0,
+    "scm.iconSize": 14,
+    "activityBarBadge.size": 16,
+    // ── title bar ──
+    "titleBar.height": 36,
+    "titleBar.borderThickness": "0,0,0,1",
+    "titleBar.logoSize": 16,
+    "titleBar.iconSize": 16,
+    "titleBar.controlsMargin": "0,0,8,0",
+    "titleBar.inactiveOpacity": 0.6,
+    "titleIcon.padding": 5,
+    "titleIcon.radius": 4,
+    "titleIcon.inactiveOpacity": 0.75,
+    "menuBarItem.padding": "8,4",
+    "menuBarItem.radius": 4,
+    "commandCenter.width": 380,
+    "commandCenter.height": 24,
+    "commandCenter.padding": "8,0",
+    "commandCenter.radius": 6,
+    "commandCenter.borderThickness": 1,
+    "commandCenter.iconSize": 13,
+    "windowControl.width": 46,
+    "windowControl.radius": 0,
+    "windowControl.iconSize": 14,
+
+    // ── activity bar & side bar ──
+    "activityBar.width": 48,
+    "activityBar.itemHeight": 48,
+    "activityBar.iconSize": 24,
+    "activityBar.spacing": 0,
+    "activityBar.itemRadius": 0,
+    "activityBar.indicatorLeft.border": "2,0,0,0",
+    "activityBar.indicatorRight.border": "0,0,2,0",
+    "sideBar.width": 280,
+    "sideBarHeader.height": 35,
+    "sideBarHeader.padding": "20,0",
+    "explorer.iconSize": 15,
+    "explorer.itemSpacing": 6,
+    "list.itemHeight": 22,
+    "list.itemPadding": "8,2",
+    "list.itemMargin": 0,
+    "list.radius": 0,
+
+    // ── tabs & breadcrumbs ──
+    "tab.height": 35,
+    "tabStrip.padding": 0,
+    "tab.spacing": 0,
+    "tab.padding": "12,0,6,0",
+    "tab.margin": 0,
+    "tab.radius": 0,
+    "tab.borderThickness": "0,0,1,0",
+    "tab.minWidth": 90,
+    "tab.indicatorSize": 1,
+    "tab.indicatorRadius": 0,
+    "tab.closeIconSize": 12,
+    "tab.closePadding": 3,
+    "tab.closeMargin": "6,0,0,0",
+    "tab.closeRadius": 4,
+    "tab.modifiedDotSize": 8,
+    "editorGroupHeader.borderThickness": "0,0,0,1",
+    "breadcrumb.height": 22,
+    "breadcrumb.padding": "14,0",
+    "breadcrumb.borderThickness": 0,
+    "breadcrumb.iconSize": 12,
+
+    // ── panel & status bar ──
+    "panel.height": 240,
+    "panel.borderThickness": "0,1,0,0",
+    "panel.iconSize": 14,
+    "panelHeader.height": 35,
+    "panelHeader.padding": "8,0",
+    "panelTab.padding": "4,6",
+    "panelTab.margin": "6,0",
+    "panelTab.radius": 0,
+    "panelTab.indicator.border": "0,0,0,1",
+    "statusBar.height": 24,
+    "statusBar.borderThickness": "0,1,0,0",
+    "statusBar.iconSize": 13,
+    "statusBarItem.padding": "8,0",
+    "statusBarItem.radius": 0,
+
+    // ── widgets & controls ──
+    "widget.radius": 6,
+    "editorWidget.borderThickness": 1,
+    "completion.width": 440,
+    "completion.maxHeight": 300,
+    "completion.padding": 2,
+    "findWidget.inputWidth": 240,
+    "findWidget.padding": 6,
+    "findWidget.radius": "0,0,6,6",
+    "findWidget.borderThickness": "1,0,1,1",
+    "findWidget.iconSize": 14,
+    "palette.width": 620,
+    "palette.maxHeight": 440,
+    "palette.margin": "0,48,0,0",
+    "palette.padding": 6,
+    "palette.radius": 8,
+    "quickInput.borderThickness": 1,
+    "input.radius": 4,
+    "input.padding": "6,4",
+    "input.borderThickness": 1,
+    "button.radius": 4,
+    "button.padding": "12,5",
+    "button.borderThickness": 1,
+    "iconButton.padding": 4,
+    "scrollbar.size": 14,
+    "scrollbar.radius": 0,
+    "scrollbar.thumbMargin": 0,
+    "sash.size": 6,
+    "welcome.logoSize": 96,
+    "editor.caretWidth": 2
+  },
+
+  // Editor look & behavior.
+  "editor": {
+    "cursorStyle": "line",              // line | block | block-outline | underline
+    "cursorBlinking": "smooth",         // blink | smooth | phase | solid
+    "cursorBlinkInterval": 530,
+    "cursorWidth": 2,
+    "smoothCaretAnimation": true,       // caret glides between positions
+    "animationSpeed": 0.05,             // easing time constant (s) for scrolling and caret
+    "lineHighlight": "fill",            // fill | border | gutter | all | none
+    "lineHighlightBorderWidth": 1,
+    "selectionRadius": 3,
+    "renderWhitespace": "none",         // none | leading | all
+    "squiggleStyle": "wavy",            // wavy | line | dotted
+    "bracketPairColorization": true,    // colors: editorBracketHighlight.foreground1..6
+    "matchBrackets": true,
+    "indentGuides": true,
+    "indentGuideWidth": 1,
+    "rulers": "",                       // e.g. "80,120"
+    "textPadding": 8,
+    "gutterPaddingLeft": 16,
+    "gutterPaddingRight": 16
+  },
+
+  "effects": {
+    "window.backdrop": "none",          // none | blur | transparent (mica/acrylic = blur). Use colors with alpha.
+    "palette.shadow": "0 8 28 0 #00000070",
+    "widget.shadow": "0 4 12 0 #00000050"
+  },
+
+  // Layout: every container is an ordered list of parts. Reorder parts to move them, leave them out to
+  // hide them. Lists can be JSON arrays or comma-separated strings. Bars (title, activity, status) also take
+  // any command: "command:<id>" or "command:<id>:<icon>" (e.g. "command:dotnet.build:build"), and "spacer".
+  "layout": {
+    "titleBar.style": "custom",         // custom | native (applies on the next start)
+
+    // The values below are the defaults, shown commented out so themes that inherit this one can still use
+    // the older keys listed at the end. Uncomment and edit a line to change that part of the layout.
+
+    // Rows of the window, top to bottom: titleBar, main, statusBar.
+    // "workbench.order": ["titleBar", "main", "statusBar"],
+    // Columns of the main area, left to right: activityBar, sideBar, editor, panel (a panel listed here
+    // becomes a side panel; otherwise it lives in editor.order).
+    // "main.order": ["activityBar", "sideBar", "editor"],
+    // The editor column, top to bottom: tabs, breadcrumbs, content, panel.
+    // "editor.order": ["tabs", "breadcrumbs", "content", "panel"],
+    // The side bar, top to bottom: header, content, activityBar (a horizontal activity bar).
+    // "sideBar.order": ["header", "content"],
+    // "sideBar.visible": true,            // initial visibility
+    // "sideBar.defaultView": "explorer",  // explorer | search | scm | modules
+    // "panel.visible": false,
+    // "panel.tabs": ["problems", "output"],
+
+    // Title bar zones. Parts: logo, menu, title, commandCenter, branch, layoutControls (= toggleSideBar,
+    // togglePanel, themePicker), windowControls, spacer, commands. The center zone stays centered.
+    // "titleBar.left": ["logo", "menu"],
+    // "titleBar.center": ["commandCenter"],
+    // "titleBar.right": ["layoutControls", "windowControls"],
+    // "menuBar.menus": ["File", "Edit", "View", "Go", "Git", "Run", "Preferences", "Help"],
+
+    // Activity bar items: explorer, search, scm, modules, settings, spacer, commands.
+    // "activityBar.items": ["explorer", "search", "scm", "modules", "spacer", "settings"],
+
+    // Status bar zones. Parts: branch, sync, problems (errors + warnings), errors, warnings, run, modules
+    // (module items, placed by their alignment), position, indent, encoding, eol, language, lsp, spacer, commands.
+    // "statusBar.left": ["branch", "sync", "problems", "run", "modules"],
+    // "statusBar.center": [],
+    // "statusBar.right": ["modules", "position", "indent", "encoding", "eol", "language", "lsp"],
+
+    // "tab.indicatorPosition": "top",     // top | bottom: edge of the active tab that gets the indicator
+
+    // Welcome page: parts (logo, title, shortcuts), its title, and the commands listed as shortcuts.
+    // "welcome.order": ["logo", "title", "shortcuts"],
+    // "welcome.title": "ByteForge",
+    // "welcome.shortcuts": ["file.openFolder", "view.quickOpen", "view.commandPalette", "theme.select", "dotnet.build"]
+
+    // Older keys still work as defaults when the lists above are not set: sideBar.position,
+    // activityBar.position, activityBar.visible, statusBar.visible, tabs.visible, breadcrumbs.visible,
+    // menuBar.visible, commandCenter.visible, titleBar.layoutControls.
+  },
+
+  // Replace any built-in icon with your own SVG path data (24x24 view box). Names: files, search, settings,
+  // close, error, warning, info, chevronUp, chevronDown, chevronRight, play, stop, build, logo, folder, folderOpen,
+  // file, puzzle, windowMinimize, windowMaximize, windowRestore, windowClose, layoutSideBar, layoutSideBarRight,
+  // layoutPanel, palette.
+  "icons": {
+  }
+
+  // Any other top-level object is kept and can be read by modules.
+}

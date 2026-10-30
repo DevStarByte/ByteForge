@@ -1,0 +1,43 @@
+{
+  // Layout showcase: the same colors as ByteForge Dark, but almost every part of the window is moved.
+  "name": "Flipside",
+  "type": "dark",
+  "inherits": "ByteForge Dark",
+  "description": "layout showcase: side panel, tabs at the bottom, activity bar in the side bar",
+
+  "colors": {
+    "accent": "#d18616",
+    "activityBar.activeBorder": "#d18616",
+    "tab.activeBorderTop": "#d18616",
+    "panelTitle.activeBorder": "#d18616",
+    "statusBar.background": "#1d1d1d"
+  },
+
+  "layout": {
+    "workbench.order": ["titleBar", "main", "statusBar"],
+    // The panel becomes a column on the right; the side bar carries the activity bar on top.
+    "main.order": ["sideBar", "editor", "panel"],
+    "sideBar.order": ["activityBar", "content"],
+    "editor.order": ["breadcrumbs", "content", "tabs"],
+    "panel.visible": true,
+    "panel.tabs": ["output", "problems"],
+    "tab.indicatorPosition": "bottom",
+
+    "titleBar.left": ["logo", "title"],
+    "titleBar.center": ["menu"],
+    "titleBar.right": ["branch", "command:dotnet.build:build", "command:dotnet.run:play", "themePicker", "togglePanel", "windowControls"],
+
+    "activityBar.items": ["explorer", "search", "scm", "modules", "spacer", "command:view.commandPalette:search", "settings"],
+
+    "statusBar.left": ["position", "language", "eol"],
+    "statusBar.center": ["branch", "sync"],
+    "statusBar.right": ["problems", "lsp", "modules"],
+
+    "welcome.title": "Flipside",
+    "welcome.shortcuts": ["file.openFolder", "view.quickOpen", "view.scm", "theme.select"]
+  },
+
+  "metrics": {
+    "panel.width": 380
+  }
+}

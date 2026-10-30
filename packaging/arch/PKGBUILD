@@ -1,0 +1,29 @@
+# Maintainer: you <you@example.com>
+# Build from a local checkout:  cd packaging/arch && makepkg -si
+pkgname=byteforge
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="A modular, themeable IDE for C# built with Rust and GPUI"
+arch=('x86_64' 'aarch64')
+license=('MIT')
+depends=('vulkan-icd-loader' 'libxkbcommon' 'libxkbcommon-x11' 'wayland' 'libx11' 'libxcb' 'fontconfig' 'freetype2' 'alsa-lib' 'dotnet-sdk')
+makedepends=('rust' 'cargo' 'cmake' 'clang' 'pkgconf')
+optdepends=('ttf-jetbrains-mono: default editor font'
+            'vulkan-radeon: AMD Vulkan driver'
+            'vulkan-intel: Intel Vulkan driver'
+            'nvidia-utils: NVIDIA Vulkan driver')
+
+build() {
+  cd "$startdir/../.."
+  cargo build --release --locked -p byteforge
+}
+
+package() {
+  cd "$startdir/../.."
+  install -Dm755 target/release/byteforge "$pkgdir/usr/lib/byteforge/byteforge"
+  install -dm755 "$pkgdir/usr/lib/byteforge/themes"
+  install -m644 themes/*.json "$pkgdir/usr/lib/byteforge/themes/"
+  install -dm755 "$pkgdir/usr/bin"
+  ln -s /usr/lib/byteforge/byteforge "$pkgdir/usr/bin/byteforge"
+  install -Dm644 packaging/linux/byteforge.desktop "$pkgdir/usr/share/applications/byteforge.desktop"
+}
