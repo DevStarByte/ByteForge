@@ -6,8 +6,10 @@
 //!
 //! The host starts the command in the module folder and talks newline-delimited JSON over stdio.
 //! Module → host: `registerCommand {id,title,category?,keybinding?}`, `status {id,text,tooltip?,command?,alignment?}`,
-//! `log {text}`, `openFile {path,line?,column?}`, `showView {id}`.
-//! Host → module: `activate {workspace}`, `executeCommand {id}`, `event {name, path?}` (folderOpened, fileSaved, themeChanged).
+//! `log {text}`, `openFile {path,line?,column?}`, `showView {id}`,
+//! `registerFormatter {id,name,extensions}`, `formatResult {requestId,text?|error?}`.
+//! Host → module: `activate {workspace}`, `executeCommand {id}`, `event {name, path?}` (folderOpened, fileSaved, themeChanged),
+//! `format {requestId,path,text}`.
 //! Modules can be written in any language and cannot crash the IDE.
 
 use std::io::{BufRead, BufReader, Write};
@@ -26,8 +28,13 @@ pub struct ModuleManifest {
     pub command: String,
     #[serde(default)]
     pub args: Vec<String>,
+    #[serde(default)]
+    pub description: Option<String>,
     #[serde(skip)]
     pub dir: PathBuf,
+    /// Shipped with ByteForge (removing it disables it); user modules can be deleted.
+    #[serde(skip)]
+    pub builtin: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -37,12 +44,18 @@ pub enum PluginMessage {
     Log { module: String, text: String },
     OpenFile { path: PathBuf, line: Option<usize>, column: Option<usize> },
     ShowView { id: String },
+    /// The module formats files with these extensions (without the dot).
+    RegisterFormatter { module: String, id: String, name: String, extensions: Vec<String> },
+    /// The answer to a `format` request: the formatted text, or why it couldn't be formatted.
+    FormatResult { module: String, request: u64, result: Result<String, String> },
     Exited { module: String, reason: String },
 }
 
-pub fn discover(dirs: &[PathBuf]) -> Vec<ModuleManifest> {
-    let mut found = Vec::new();
-    for dir in dirs {
+/// Finds the modules in the built-in and user folders. A user module with the id of a built-in one
+/// replaces it.
+pub fn discover(builtin: &Path, user: &Path) -> Vec<ModuleManifest> {
+    let mut found: Vec<ModuleManifest> = Vec::new();
+    for (dir, is_builtin) in [(user, false), (builtin, true)] {
         let Ok(entries) = std::fs::read_dir(dir) else { continue };
         for entry in entries.flatten() {
             let manifest = entry.path().join("module.json");
@@ -50,7 +63,10 @@ pub fn discover(dirs: &[PathBuf]) -> Vec<ModuleManifest> {
             match json5::from_str::<ModuleManifest>(&text) {
                 Ok(mut m) => {
                     m.dir = entry.path();
-                    found.push(m);
+                    m.builtin = is_builtin;
+                    if !found.iter().any(|f| f.id == m.id) {
+                        found.push(m);
+                    }
                 }
                 Err(e) => log::warn!("invalid module manifest {}: {e}", manifest.display()),
             }
@@ -120,6 +136,11 @@ impl PluginHandle {
         self.send(json!({ "type": "executeCommand", "id": command }));
     }
 
+    /// Asks a formatter module to format `text` (the content of `path`); answered by `formatResult`.
+    pub fn format(&self, request: u64, path: &Path, text: &str) {
+        self.send(json!({ "type": "format", "requestId": request, "path": path, "text": text }));
+    }
+
     pub fn event(&self, name: &str, path: Option<&Path>) {
         self.send(json!({ "type": "event", "name": name, "path": path }));
     }
@@ -152,6 +173,25 @@ fn parse(module: &str, line: &str) -> Option<PluginMessage> {
             column: v.get("column").and_then(Value::as_u64).map(|n| n as usize),
         },
         "showView" => PluginMessage::ShowView { id: s("id")? },
+        "registerFormatter" => PluginMessage::RegisterFormatter {
+            id: s("id")?,
+            name: s("name").unwrap_or_else(|| module.clone()),
+            extensions: v
+                .get("extensions")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(Value::as_str).map(|e| e.trim_start_matches('.').to_ascii_lowercase()).collect())
+                .unwrap_or_default(),
+            module,
+        },
+        "formatResult" => PluginMessage::FormatResult {
+            request: v.get("requestId")?.as_u64()?,
+            result: match (s("text"), s("error")) {
+                (_, Some(error)) => Err(error),
+                (Some(text), None) => Ok(text),
+                (None, None) => Err("the formatter returned nothing".into()),
+            },
+            module,
+        },
         _ => return None,
     })
 }
@@ -166,5 +206,11 @@ mod tests {
         assert!(matches!(m, PluginMessage::RegisterCommand { ref id, ref keybinding, .. } if id == "a.b" && keybinding.as_deref() == Some("ctrl-alt-h")));
         assert!(parse("m", "not json").is_none());
         assert!(matches!(parse("m", r#"{"type":"status","id":"s","text":"x","alignment":"right"}"#), Some(PluginMessage::Status { right: true, .. })));
+        let f = parse("m", r#"{"type":"registerFormatter","id":"csharpier","name":"CSharpier","extensions":[".cs","CSPROJ"]}"#).unwrap();
+        assert!(matches!(f, PluginMessage::RegisterFormatter { ref extensions, .. } if extensions == &["cs", "csproj"]));
+        let ok = parse("m", r#"{"type":"formatResult","requestId":7,"text":"x"}"#).unwrap();
+        assert!(matches!(ok, PluginMessage::FormatResult { request: 7, result: Ok(ref t), .. } if t == "x"));
+        let err = parse("m", r#"{"type":"formatResult","requestId":8,"error":"syntax"}"#).unwrap();
+        assert!(matches!(err, PluginMessage::FormatResult { request: 8, result: Err(_), .. }));
     }
 }

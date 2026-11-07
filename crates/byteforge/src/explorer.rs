@@ -34,6 +34,10 @@ pub struct Explorer {
     expanded: HashSet<PathBuf>,
     rows: Vec<Row>,
     selected: Option<PathBuf>,
+    /// The file in the active editor tab; it and its folders are highlighted.
+    active: Option<PathBuf>,
+    /// Automatically expand and scroll to the active file when it changes.
+    pub auto_reveal: bool,
     scroll: UniformListScrollHandle,
     focus: FocusHandle,
     menu: Option<(PathBuf, Point<Pixels>)>,
@@ -56,6 +60,8 @@ impl Explorer {
             expanded: HashSet::new(),
             rows: Vec::new(),
             selected: None,
+            active: None,
+            auto_reveal: true,
             scroll: UniformListScrollHandle::new(),
             focus: cx.focus_handle(),
             menu: None,
@@ -102,6 +108,19 @@ impl Explorer {
         }
     }
 
+    /// Marks the file being edited. When it changes (and auto-reveal is on), its folders are expanded and
+    /// it is scrolled into view.
+    pub fn set_active(&mut self, path: Option<&Path>, cx: &mut Context<Self>) {
+        if self.active.as_deref() == path {
+            return;
+        }
+        self.active = path.map(Path::to_path_buf);
+        match path {
+            Some(path) if self.auto_reveal => self.reveal(path, cx),
+            _ => cx.notify(),
+        }
+    }
+
     pub fn set_decorations(&mut self, decorations: HashMap<PathBuf, (char, &'static str)>, cx: &mut Context<Self>) {
         if decorations != self.decorations {
             self.decorations = decorations;
@@ -137,12 +156,16 @@ pub(crate) fn icon_color_key(name: &str, is_dir: bool) -> &'static str {
     if is_dir {
         return "icon.folder";
     }
+    if bf_syntax::is_dockerfile_name(name) || bf_core::docker::is_compose_file_name(name) || name.eq_ignore_ascii_case(".dockerignore") {
+        return "icon.docker";
+    }
     match Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
         "cs" | "csx" => "icon.csharp",
         "csproj" | "sln" | "slnx" | "props" | "targets" | "toml" => "icon.project",
         "json" => "icon.json",
         "xml" | "axaml" | "xaml" | "config" | "resx" => "icon.markup",
         "md" => "icon.markdown",
+        "yml" | "yaml" => "icon.markup",
         _ => "icon.file",
     }
 }
@@ -179,7 +202,16 @@ impl Render for Explorer {
         let spacing = t.m("explorer.itemSpacing", 6.0);
         let entity = cx.entity();
         let selected = self.selected.clone();
+        let active = self.active.clone();
         let count = self.rows.len();
+        let indicator = if t.has("list.activeFileIndicator") {
+            t.c("list.activeFileIndicator")
+        } else if t.has("focusBorder") {
+            t.c("focusBorder")
+        } else {
+            t.c_or("tab.activeBorderTop", 0x0078d4ff)
+        };
+        let indicator_w = t.n("list.activeFileIndicatorWidth", 2.0);
         let header_name = root.file_name().map(|n| n.to_string_lossy().to_uppercase()).unwrap_or_default();
         let header_button = |id: &'static str, name: &'static str, title: &'static str| {
             div().id(id).p(px(3.)).rounded(px(4.)).cursor_pointer().hover(|s| s.bg(t.c("toolbar.hoverBackground"))).tooltip(crate::workbench::tooltip(title)).child(icon(name, px(14.), t.c("icon.foreground")))
@@ -193,7 +225,10 @@ impl Render for Explorer {
                 range
                     .map(|ix| {
                         let row = &explorer.rows[ix];
-                        let is_selected = selected.as_ref() == Some(&row.path);
+                        let is_active = active.as_ref() == Some(&row.path);
+                        // A folder that holds the active file (the trail to it, also visible when collapsed).
+                        let holds_active = row.is_dir && active.as_ref().is_some_and(|a| a.starts_with(&row.path));
+                        let is_selected = selected.as_ref() == Some(&row.path) && !is_active;
                         let expanded = row.is_dir && explorer.expanded.contains(&row.path);
                         let deco = explorer.decorations.get(&row.path).copied();
                         let e1 = entity.clone();
@@ -201,6 +236,7 @@ impl Render for Explorer {
                         let path = row.path.clone();
                         div()
                             .id(ix)
+                            .relative()
                             .w_full()
                             .h(px(row_h))
                             .pl(px(8.0 + row.depth as f32 * 12.0))
@@ -211,8 +247,17 @@ impl Render for Explorer {
                             .rounded(t.radius("list.radius", 0.0))
                             .cursor_pointer()
                             .text_size(t.m("list.fontSize", 13.0))
-                            .when(is_selected, |d| d.bg(t.bg("list.activeSelectionBackground")).text_color(t.c("list.activeSelectionForeground")))
-                            .when(!is_selected, |d| d.hover(|s| s.bg(t.c("list.hoverBackground"))))
+                            .when(is_active, |d| {
+                                let bg = if t.has("list.activeFileBackground") { t.bg("list.activeFileBackground") } else { t.bg("list.activeSelectionBackground") };
+                                let fg = if t.has("list.activeFileForeground") { t.c("list.activeFileForeground") } else { t.c("list.activeSelectionForeground") };
+                                d.bg(bg)
+                                    .text_color(fg)
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .child(div().absolute().left_0().top_0().bottom_0().w(px(indicator_w)).bg(indicator))
+                            })
+                            .when(is_selected, |d| d.bg(t.c("list.hoverBackground")))
+                            .when(!is_active && !is_selected, |d| d.hover(|s| s.bg(t.c("list.hoverBackground"))))
+                            .when(holds_active, |d| d.font_weight(gpui::FontWeight::SEMIBOLD))
                             .child(div().w(px(12.)).when(row.is_dir, |d| {
                                 d.child(icon(if expanded { "chevronDown" } else { "chevronRight" }, px(12.), t.c("icon.foreground")))
                             }))

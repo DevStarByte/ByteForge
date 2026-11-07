@@ -23,6 +23,7 @@ package() {
   install -Dm755 target/release/byteforge "$pkgdir/usr/lib/byteforge/byteforge"
   install -dm755 "$pkgdir/usr/lib/byteforge/themes"
   install -m644 themes/*.json "$pkgdir/usr/lib/byteforge/themes/"
+  cp -r modules "$pkgdir/usr/lib/byteforge/modules"
   install -dm755 "$pkgdir/usr/bin"
   ln -s /usr/lib/byteforge/byteforge "$pkgdir/usr/bin/byteforge"
   install -Dm644 packaging/linux/byteforge.desktop "$pkgdir/usr/share/applications/byteforge.desktop"

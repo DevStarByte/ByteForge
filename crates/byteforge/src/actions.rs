@@ -11,8 +11,43 @@ actions!(
         ToggleSideBar, TogglePanel, ShowExplorer, ShowSearch, ShowProblems, ShowOutput, ShowModules, NextEditor, PreviousEditor,
         SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, About, Build, Run, Test, Clean, Restore, Stop,
         ToggleLineEnding, ReloadCSharp, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
-        GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges
+        GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
+        FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace
     ]
+);
+
+actions!(
+    docker,
+    [ShowDocker, DockerRefresh, DockerBuild, DockerComposeUp, DockerComposeDown, DockerAddSupport, DockerAddCompose, DockerPrune]
+);
+
+/// Builds the image of this Dockerfile in a terminal.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = docker, no_json)]
+pub struct DockerBuildFile {
+    pub path: std::path::PathBuf,
+}
+
+/// `docker compose up` (or `down` when `up` is false) for this Compose file, in a terminal.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = docker, no_json)]
+pub struct DockerComposeFile {
+    pub path: std::path::PathBuf,
+    pub up: bool,
+}
+
+/// Generates a Dockerfile (and `.dockerignore`) for this .NET project.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = docker, no_json)]
+pub struct DockerAddSupportTo {
+    pub path: std::path::PathBuf,
+}
+
+actions!(terminal, [ToggleTerminal, NewTerminal, KillTerminal, TerminalCopy, TerminalPaste, SelectDefaultShell]);
+
+actions!(
+    debug,
+    [StartDebugging, RestartDebugging, Pause, StepOver, StepInto, StepOut, RemoveAllBreakpoints, AttachToProcess]
 );
 
 actions!(
@@ -23,11 +58,33 @@ actions!(
         SelectDocEnd, PageUp, PageDown, SelectPageUp, SelectPageDown, ScrollLineUp, ScrollLineDown, Backspace, DeleteWordLeft,
         Delete, DeleteWordRight, Newline, Tab, Outdent, SelectAll, Copy, Cut, Paste, Undo, Redo, DuplicateLines, DeleteLines,
         MoveLinesUp, MoveLinesDown, ToggleComment, Find, Replace, FindNext, FindPrevious, TriggerCompletion, GoToDefinition,
-        Cancel
+        Cancel, ToggleBreakpoint, QuickFix, FindReferences, RenameSymbol, ShowSignatureHelp, GoToImplementation, GoToTypeDefinition
     ]
 );
 
 actions!(input, [Confirm, InputBackspace, InputDelete, InputLeft, InputRight, InputSelectLeft, InputSelectRight, InputHome, InputEnd, InputSelectAll, InputCopy, InputCut, InputPaste, InputUp, InputDown, InputCancel, InputPageUp, InputPageDown]);
+
+/// Attaches the debugger to a running .NET process (picked in the attach palette).
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = debug, no_json)]
+pub struct AttachToPid {
+    pub pid: u32,
+}
+
+/// Makes `shell` the terminal's default (empty: the login shell, `$SHELL`) and opens a terminal with it.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = terminal, no_json)]
+pub struct SetDefaultShell {
+    pub shell: String,
+}
+
+/// Formats the current document with this formatter (a module formatter id, or "csharp-ls") and makes it
+/// the default.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = workbench, no_json)]
+pub struct UseFormatter {
+    pub id: String,
+}
 
 /// Executes a command contributed by an out-of-process module.
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
@@ -93,11 +150,34 @@ fn builtin() -> Vec<(&'static str, &'static str, &'static str, Box<dyn Action>, 
         ("settings.open", "Open Settings (JSON)", "Preferences", Box::new(OpenSettings), Some("ctrl-,")),
         ("app.about", "About ByteForge", "Help", Box::new(About), None),
         ("dotnet.build", "Build", "Run", Box::new(Build), Some("ctrl-shift-b")),
-        ("dotnet.run", "Run", "Run", Box::new(Run), Some("f5")),
+        ("dotnet.run", "Run Without Debugging", "Run", Box::new(Run), Some("ctrl-f5")),
         ("dotnet.test", "Test", "Run", Box::new(Test), None),
         ("dotnet.clean", "Clean", "Run", Box::new(Clean), None),
         ("dotnet.restore", "Restore", "Run", Box::new(Restore), None),
         ("dotnet.stop", "Stop", "Run", Box::new(Stop), Some("shift-f5")),
+        ("debug.start", "Start Debugging / Continue", "Debug", Box::new(StartDebugging), Some("f5")),
+        ("debug.restart", "Restart", "Debug", Box::new(RestartDebugging), Some("ctrl-shift-f5")),
+        ("debug.pause", "Pause", "Debug", Box::new(Pause), Some("f6")),
+        ("debug.stepOver", "Step Over", "Debug", Box::new(StepOver), Some("f10")),
+        ("debug.stepInto", "Step Into", "Debug", Box::new(StepInto), Some("f11")),
+        ("debug.stepOut", "Step Out", "Debug", Box::new(StepOut), Some("shift-f11")),
+        ("debug.toggleBreakpoint", "Toggle Breakpoint", "Debug", Box::new(ToggleBreakpoint), Some("f9")),
+        ("debug.removeAllBreakpoints", "Remove All Breakpoints", "Debug", Box::new(RemoveAllBreakpoints), None),
+        ("debug.attach", "Attach to .NET Process…", "Debug", Box::new(AttachToProcess), None),
+        ("view.debug", "Run and Debug", "View", Box::new(ShowDebug), Some("ctrl-shift-d")),
+        ("view.debugConsole", "Debug Console", "View", Box::new(ShowDebugConsole), Some("ctrl-shift-y")),
+        ("view.docker", "Docker", "View", Box::new(ShowDocker), None),
+        ("docker.refresh", "Refresh", "Docker", Box::new(DockerRefresh), None),
+        ("docker.build", "Build Image…", "Docker", Box::new(DockerBuild), None),
+        ("docker.composeUp", "Compose Up", "Docker", Box::new(DockerComposeUp), None),
+        ("docker.composeDown", "Compose Down", "Docker", Box::new(DockerComposeDown), None),
+        ("docker.addDockerSupport", "Add Docker Support to Project…", "Docker", Box::new(DockerAddSupport), None),
+        ("docker.addCompose", "Add Docker Compose File", "Docker", Box::new(DockerAddCompose), None),
+        ("docker.prune", "System Prune…", "Docker", Box::new(DockerPrune), None),
+        ("terminal.toggle", "Toggle Terminal", "Terminal", Box::new(ToggleTerminal), Some("ctrl-`")),
+        ("terminal.new", "New Terminal", "Terminal", Box::new(NewTerminal), Some("ctrl-shift-`")),
+        ("terminal.kill", "Kill Terminal", "Terminal", Box::new(KillTerminal), None),
+        ("terminal.selectDefaultShell", "Select Default Shell…", "Terminal", Box::new(SelectDefaultShell), None),
         ("edit.toggleLineEnding", "Toggle Line Ending (LF/CRLF)", "Edit", Box::new(ToggleLineEnding), None),
         ("csharp.reload", "Restart C# Language Server", "C#", Box::new(ReloadCSharp), None),
         ("edit.undo", "Undo", "Edit", Box::new(Undo), None),
@@ -108,6 +188,16 @@ fn builtin() -> Vec<(&'static str, &'static str, &'static str, Box<dyn Action>, 
         ("edit.duplicateLines", "Duplicate Lines", "Edit", Box::new(DuplicateLines), None),
         ("edit.goToDefinition", "Go to Definition", "Go", Box::new(GoToDefinition), None),
         ("edit.triggerSuggest", "Trigger Suggest", "Edit", Box::new(TriggerCompletion), None),
+        ("edit.quickFix", "Quick Fix…", "Edit", Box::new(QuickFix), None),
+        ("edit.findReferences", "Find All References", "Go", Box::new(FindReferences), None),
+        ("edit.goToImplementation", "Go to Implementations", "Go", Box::new(GoToImplementation), None),
+        ("edit.goToTypeDefinition", "Go to Type Definition", "Go", Box::new(GoToTypeDefinition), None),
+        ("view.goToSymbol", "Go to Symbol in Editor…", "Go", Box::new(GoToSymbolInEditor), None),
+        ("view.goToWorkspaceSymbol", "Go to Symbol in Workspace…", "Go", Box::new(GoToSymbolInWorkspace), Some("ctrl-t")),
+        ("edit.rename", "Rename Symbol", "Edit", Box::new(RenameSymbol), None),
+        ("edit.signatureHelp", "Trigger Parameter Hints", "Edit", Box::new(ShowSignatureHelp), None),
+        ("edit.formatDocument", "Format Document", "Edit", Box::new(FormatDocument), Some("shift-alt-f")),
+        ("edit.formatDocumentWith", "Format Document With…", "Edit", Box::new(FormatDocumentWith), None),
     ]
 }
 
@@ -127,6 +217,11 @@ impl Commands {
 
 const EDITOR: &str = "Editor";
 const INPUT: &str = "TextInput";
+const TERMINAL: &str = "Terminal";
+
+/// Ctrl+letter keys that belong to the shell inside the terminal (line editing, history search, ^C, …),
+/// even though some are IDE shortcuts elsewhere. Ctrl+P and Ctrl+J stay with the IDE, like in VS Code.
+const SHELL_KEYS: &str = "abcdefghklmnoqrstuvwxyz";
 
 /// Installs default bindings, then user overrides from settings ("keybindings": { "view.quickOpen": "ctrl-e" }).
 pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
@@ -208,8 +303,21 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         KeyBinding::new("shift-f3", FindPrevious, e),
         KeyBinding::new("ctrl-space", TriggerCompletion, e),
         KeyBinding::new("f12", GoToDefinition, e),
+        KeyBinding::new("ctrl-.", QuickFix, e),
+        KeyBinding::new("shift-f12", FindReferences, e),
+        KeyBinding::new("ctrl-f12", GoToImplementation, e),
+        KeyBinding::new("f2", RenameSymbol, e),
+        KeyBinding::new("ctrl-shift-space", ShowSignatureHelp, e),
         KeyBinding::new("escape", Cancel, e),
     ]);
+
+    let term = Some(TERMINAL);
+    let mut terminal_bindings = vec![KeyBinding::new("ctrl-shift-c", TerminalCopy, term), KeyBinding::new("ctrl-shift-v", TerminalPaste, term), KeyBinding::new("shift-insert", TerminalPaste, term)];
+    for c in SHELL_KEYS.chars() {
+        // NoAction hides the IDE binding here, so the key reaches the terminal's key handler.
+        terminal_bindings.push(KeyBinding::new(&format!("ctrl-{c}"), gpui::NoAction, term));
+    }
+    cx.bind_keys(terminal_bindings);
 
     let i = Some(INPUT);
     cx.bind_keys([

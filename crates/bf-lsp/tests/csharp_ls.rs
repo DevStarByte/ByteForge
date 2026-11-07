@@ -17,6 +17,7 @@ public static class Program
     {
         int x = "s";
         var greeting = "hello";
+        var list = new List<int>();
         Console.WriteLine(greeting);
         Console.Wri
     }
@@ -122,6 +123,7 @@ fn csharp_ls_end_to_end() {
     let deadline = t0 + Duration::from_secs(120);
     let mut ready = false;
     let mut found_error = false;
+    let mut last_diagnostics = Vec::new();
     while !found_error {
         let remaining = deadline.saturating_duration_since(Instant::now());
         let event = events
@@ -154,7 +156,10 @@ fn csharp_ls_end_to_end() {
                     );
                 }
                 found_error = same_file(&path, &program)
-                    && diagnostics.iter().any(|d| d.severity == Severity::Error);
+                    && diagnostics.iter().any(|d| d.code.as_deref() == Some("CS0246"));
+                if same_file(&path, &program) {
+                    last_diagnostics = diagnostics;
+                }
             }
             LspEvent::Progress(p) => println!("[{:>6.1?}] progress: {p}", t0.elapsed()),
             LspEvent::Log(l) => println!(
@@ -163,6 +168,7 @@ fn csharp_ls_end_to_end() {
                 l.chars().take(160).collect::<String>()
             ),
             LspEvent::Exited(reason) => panic!("server exited: {reason}"),
+            LspEvent::ApplyEdit(_) => {}
         }
     }
     assert!(ready);
@@ -201,6 +207,39 @@ fn csharp_ls_end_to_end() {
     );
 
     let t = Instant::now();
+    let references = recv(client.references(&program, find(PROGRAM, "var greeting", 4)), "references");
+    println!("[{:>6.1?}] references: {references:?} (took {:?})", t0.elapsed(), t.elapsed());
+    assert_eq!(references.len(), 2, "declaration + one use expected: {references:?}");
+
+    let t = Instant::now();
+    let rename = recv(client.rename(&program, find(PROGRAM, "(greeting)", 1), "message"), "rename");
+    println!("[{:>6.1?}] rename: {rename:?} (took {:?})", t0.elapsed(), t.elapsed());
+    let renamed: Vec<_> = rename.changes.iter().flat_map(|(_, edits)| edits.iter()).collect();
+    assert_eq!(renamed.len(), 2, "{rename:?}");
+    assert!(renamed.iter().all(|e| e.new_text == "message"));
+
+    let t = Instant::now();
+    let help = recv(client.signature_help(&program, find(PROGRAM, "WriteLine(greeting)", 10)), "signature help");
+    println!("[{:>6.1?}] signature help: {help:?} (took {:?})", t0.elapsed(), t.elapsed());
+    let help = help.expect("no signature help inside Console.WriteLine(…)");
+    assert!(help.signatures.iter().any(|s| s.label.contains("WriteLine")));
+
+    let t = Instant::now();
+    let symbols = recv(client.document_symbols(&program), "document symbols");
+    println!("[{:>6.1?}] document symbols: {:?} (took {:?})", t0.elapsed(), symbols.iter().map(|s| (&s.name, s.kind, s.depth)).collect::<Vec<_>>(), t.elapsed());
+    assert!(symbols.iter().any(|s| s.name.starts_with("Program") && s.kind == "class"), "{symbols:?}");
+    assert!(symbols.iter().any(|s| s.name.starts_with("Main") && s.kind == "method"), "{symbols:?}");
+
+    let t = Instant::now();
+    let found = recv(client.workspace_symbols("Program"), "workspace symbols");
+    println!("[{:>6.1?}] workspace symbols: {found:?} (took {:?})", t0.elapsed(), t.elapsed());
+    assert!(found.iter().any(|s| s.name.starts_with("Program")), "{found:?}");
+
+    let t = Instant::now();
+    let types = recv(client.type_definition(&program, find(PROGRAM, "(greeting)", 1)), "type definition");
+    println!("[{:>6.1?}] type definition of greeting: {types:?} (took {:?})", t0.elapsed(), t.elapsed());
+
+    let t = Instant::now();
     let hover = recv(
         client.hover(&program, find(PROGRAM, "(greeting)", 1)),
         "hover",
@@ -210,6 +249,27 @@ fn csharp_ls_end_to_end() {
         t0.elapsed(),
         t.elapsed()
     );
+
+    // Quick fix for the missing `using` (CS0246 on `List<int>`).
+    let t = Instant::now();
+    let missing: Vec<_> = last_diagnostics.iter().filter(|d| d.code.as_deref() == Some("CS0246")).cloned().collect();
+    let actions = recv(client.code_actions(&program, missing[0].range, &missing), "code actions");
+    println!(
+        "[{:>6.1?}] code actions: {:?} (took {:?})",
+        t0.elapsed(),
+        actions.iter().map(|a| (&a.title, &a.kind, a.edit.is_some())).collect::<Vec<_>>(),
+        t.elapsed()
+    );
+    let fix = actions
+        .iter()
+        .find(|a| a.title.contains("System.Collections.Generic"))
+        .unwrap_or_else(|| panic!("no `using System.Collections.Generic` fix in {:?}", actions.iter().map(|a| &a.title).collect::<Vec<_>>()))
+        .clone();
+    let fix = if fix.edit.is_some() { fix } else { recv(client.resolve_code_action(&fix), "resolve code action") };
+    let edit = fix.edit.expect("the fix has no edit");
+    let inserted: String = edit.changes.iter().flat_map(|(_, edits)| edits.iter().map(|e| e.new_text.clone())).collect();
+    println!("           edit: {edit:?}");
+    assert!(inserted.contains("System.Collections.Generic") || inserted.contains("List"), "unexpected edit {edit:?}");
 
     let t = Instant::now();
     let tokens = recv(client.semantic_tokens(&program), "semantic tokens");

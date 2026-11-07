@@ -14,12 +14,45 @@ UI is styled from theme files that reload live.
     smooth, phase or solid), rainbow brackets, matching-bracket highlight, indent guides, visible whitespace,
     rulers and diagnostic squiggles.
 - **C# intelligence** via the **csharp-ls** language server (Roslyn-based, LSP): semantic highlighting,
-  diagnostics, completion, hover and go-to-definition (F12 / Ctrl+Click).
+  diagnostics, completion, Markdown hover, go-to-definition (F12 / Ctrl+Click), **Find All References** (Shift+F12, in
+  a References panel grouped by file), **Go to Implementations** (Ctrl+F12) and **Type Definition**, **Go to Symbol**
+  in the file ("@" in Go to File) or the whole workspace (Ctrl+T, "#"), **Rename Symbol** (F2, across files), **parameter hints** while typing a call
+  (Ctrl+Shift+Space; the arrows switch overloads) and **quick fixes**: Ctrl+. on an
+  error or warning lists the fixes (add a `using`, generate a type, …) and refactorings; picking one applies it,
+  also across files.
+- **Razor** (`.razor` components, `.cshtml` pages and views): tree-sitter highlighting of directives, control
+  flow, embedded C# and HTML markup, `@* *@` comment toggling, and Razor compile errors from `dotnet build` as
+  squiggles and in Problems.
+- **Debugger** (netcoredbg over the Debug Adapter Protocol): F5 builds the startup project and runs it under the
+  debugger. ASP.NET Core apps get the URLs and environment of their `launchSettings.json` profile, and the
+  browser opens once the app listens. You can also attach to a running .NET process.
+  - breakpoints in `.cs`, `.razor` and `.cshtml` files (click left of the line numbers or press F9). They follow
+    your edits and are saved per folder.
+  - step over/into/out, pause, restart, stop. The paused line is highlighted.
+  - a Run and Debug view (`Ctrl+Shift+D`) with call stack, expandable variables and the breakpoint list
+  - a Debug Console with program output and expression evaluation in the selected frame
+- **Formatting**: Format Document (Shift+Alt+F), optional format on save. **CSharpier** is the default
+  formatter for C# and MSBuild/XML files. It's a built-in module you can remove (and restore) in the Modules view; without it, or with
+  `"editor.defaultFormatter": "csharp-ls"`, csharp-ls (Roslyn) formats C#. "Format Document With…" switches.
+- **Integrated terminal** (`` Ctrl+` ``): your shell (`$SHELL`, e.g. fish) on a real PTY, run by Alacritty's
+  terminal engine and drawn in the panel. It supports 256 and true colors, scrollback, mouse selection,
+  Ctrl+Shift+C/V copy and paste (middle-click pastes), and several terminals at once. Shell keys like Ctrl+R,
+  Ctrl+W and Ctrl+K go to the shell while the terminal is focused.
+- **Docker**: Dockerfile and Compose (YAML) highlighting, and a Docker view with the workspace's Dockerfiles and
+  Compose files (build, compose up/down), containers grouped by Compose project (start, stop, restart, logs, shell,
+  remove) and images (run, remove). "Docker: Add Docker Support to Project…" generates a multi-stage Dockerfile and
+  `.dockerignore` for a .NET project, like Visual Studio; "Add Docker Compose File" a `compose.yaml` for them.
+  Interactive commands run in the terminal. Set `"docker.composeCommand": "docker-compose"` for the standalone tool.
+- **XML** highlighting for MSBuild and .NET files (`.csproj`, `.props`, `.targets`, `.slnx`, `.config`, `.resx`,
+  `.xaml`, `.nuspec`, …), with MSBuild references (`$(Property)`, `@(Item)`, `%(Metadata)`) in their own color and
+  `<!-- -->` comment toggling.
 - **Instant syntax colors** from **tree-sitter**, computed around the viewport on background threads.
   Semantic colors are layered on top as they arrive.
 - **Workbench:**
   - a custom title bar with menus, a search box ("command center"), layout toggles and window controls
-  - an activity bar, a lazily expanded file explorer with create/rename/delete, and search in files
+  - an activity bar, a lazily expanded file explorer with create/rename/delete, and search in files. The file
+    you're editing is highlighted with an accent bar, its folders are shown in bold, and the tree follows
+    as you switch tabs.
   - tabs, breadcrumbs, and Problems and Output panels
   - a status bar, a command palette (`Ctrl+Shift+P`), go to file (`Ctrl+P`) and go to line (`Ctrl+G`)
   - a theme picker with live preview and color swatches (`Ctrl+K`).
@@ -31,7 +64,11 @@ UI is styled from theme files that reload live.
   - change markers in the editor gutter (added, modified, deleted lines, compared with HEAD)
   - colored names and status letters in the explorer, and a diff tab for any change ("Git: Open Changes")
   - unmodified editors reload when a pull, checkout or discard changes their files on disk
-- **.NET CLI**: build, run, test, clean and restore, with output streamed into the Output panel.
+- **.NET CLI**: build, run, test, clean and restore, with output streamed into the Output panel and compiler
+  errors collected in Problems.
+- **Clickable file references** in Output, the Debug Console (click) and the terminal (Ctrl+Click): MSBuild
+  errors (`File.cs(12,5)`), .NET stack traces (`in /src/File.cs:line 42`), `path:line:col` and plain paths open at
+  that line.
 - **Modules**: out-of-process plugins in any language that speak JSON over stdio. They add commands, key
   bindings and status bar items, and they receive workspace events. A broken module can't crash the IDE.
 
@@ -43,6 +80,11 @@ You need Rust (stable, 1.85+), the .NET SDK, and the C# language server:
 dotnet tool install -g csharp-ls
 cargo run --release -p byteforge -- ~/code/my-project
 ```
+
+For debugging you also need [netcoredbg](https://github.com/Samsung/netcoredbg): on Arch, use the AUR package
+`netcoredbg`. Elsewhere, unpack a release to `~/.local/share/netcoredbg/`, or set `"debug.netcoredbgPath"`. ASP.NET
+Core, Razor and Blazor projects also need the ASP.NET Core runtime and targeting pack (Arch: `aspnet-runtime`
+and `aspnet-targeting-pack`).
 
 ### Arch Linux
 
@@ -62,9 +104,11 @@ your theme's `layout` section to keep server-side decorations. That setting take
 ```
 crates/
   bf-text     rope buffer, undo, and the editing model (caret, selection, every editing command); UI-free and tested
-  bf-syntax   tree-sitter highlighting (C#, JSON) emitting theme token names; incremental and viewport-ranged
+  bf-syntax   tree-sitter highlighting (C#, JSON, Razor, XML) emitting theme token names; incremental and viewport-ranged
   bf-lsp      LSP client (std threads + flume channels, no async runtime); tested live against csharp-ls
-  bf-core     paths, settings, themes (inheritance, hot reload), workspace index/watcher, search, dotnet runner, module host
+  bf-dap      Debug Adapter Protocol client in the same style; tested live against netcoredbg
+  bf-core     paths, settings, themes (inheritance, hot reload), workspace index/watcher, search, dotnet runner,
+              debug helpers (launch profiles, target assembly, build diagnostics), module host
   byteforge   the GPUI app: workbench, editor element, palette, explorer, search, theme → GPUI mapping, icons
 themes/       built-in themes (byteforge-dark.json documents every key)
 samples/      hello-module (Python) — an example out-of-process module
@@ -173,7 +217,15 @@ comma-separated strings:
   "editor.tabSize": 4, "editor.insertSpaces": true, "editor.smoothScrolling": true,
   "files.exclude": ["bin", "obj", ".git", "node_modules", "target"],
   "csharp.languageServer": "",                         // custom path to csharp-ls (optional)
-  "dotnet.project": "src/MyApp/MyApp.csproj",          // build/run target (optional)
+  "dotnet.project": "src/MyApp/MyApp.csproj",          // build/run/debug target (optional)
+  "dotnet.launchProfile": "https",                     // launchSettings.json profile (default: first "Project" one)
+  "debug.netcoredbgPath": "",                          // custom path to netcoredbg (optional)
+  "debug.justMyCode": true, "debug.stopAtEntry": false, "debug.openBrowser": true,
+  "debug.breakOnExceptions": ["user-unhandled"],       // or ["all"], or []
+  "terminal.shell": "/usr/bin/fish", "terminal.args": [],  // default: your login shell ($SHELL); also set by
+                                                     // "Terminal: Select Default Shell…" (palette or the panel button)
+  "editor.formatOnSave": false, "editor.defaultFormatter": "csharpier",   // or "csharp-ls"
+  "explorer.autoReveal": true,                         // expand and scroll the tree to the file you switch to
   "keybindings": { "view.quickOpen": "ctrl-e", "theme.select": "" },   // "" unbinds
   "modules.disabled": ["sample.hello"]
 }
@@ -188,7 +240,13 @@ comma-separated strings:
 | Ctrl+/ (Ctrl+# on DE) | Toggle comment | Alt+↑/↓ | Move lines |
 | Ctrl+D | Duplicate lines | Ctrl+Shift+K | Delete lines |
 | Ctrl+B / Ctrl+J | Toggle side bar / panel | Ctrl+Shift+E / F | Explorer / Search |
-| Ctrl+Shift+B | Build | F5 / Shift+F5 | Run / Stop |
+| Ctrl+Shift+B | Build | F5 | Start debugging / Continue |
+| Ctrl+F5 | Run without debugging | Shift+F5 | Stop |
+| F9 | Toggle breakpoint | F10 / F11 / Shift+F11 | Step over / into / out |
+| F6 | Pause | Ctrl+Shift+F5 | Restart debugging |
+| Ctrl+Shift+D | Run and Debug | Ctrl+Shift+Y | Debug Console |
+| Ctrl+` | Toggle terminal | Ctrl+Shift+` | New terminal |
+| Ctrl+. | Quick fix / refactor at the cursor | Shift+Alt+F | Format document |
 | Ctrl+K | Color theme | Ctrl+Tab | Next editor |
 | Ctrl+Shift+G | Source Control | | |
 
@@ -204,6 +262,8 @@ ByteForge starts the command in that folder and exchanges one JSON object per li
 
 - **Module → IDE:**
   - `{"type":"registerCommand","id","title","category","keybinding"}`
+  - `{"type":"registerFormatter","id","name","extensions":["cs","csproj"]}`: become a formatter for these files
+  - `{"type":"formatResult","requestId","text"}` or `{…,"error"}`: the answer to a `format` request
   - `{"type":"status","id","text","tooltip","command","alignment":"left|right"}`
   - `{"type":"log","text"}`
   - `{"type":"openFile","path","line","column"}`
@@ -211,17 +271,31 @@ ByteForge starts the command in that folder and exchanges one JSON object per li
 - **IDE → module:**
   - `{"type":"activate","workspace"}`
   - `{"type":"executeCommand","id"}`
+  - `{"type":"format","requestId","path","text"}` (formatter modules only)
   - `{"type":"event","name":"folderOpened|fileSaved|themeChanged","path"}`
 
 `samples/hello-module` is a complete Python example: a command with a key binding plus a status bar clock.
+`modules/csharpier` is the built-in formatter module. Built-in modules live in `<install dir>/modules/`; a user module with
+the same id replaces one. The Modules view removes modules (built-in ones are only turned off and can be restored) and
+uninstalls user modules.
+
+The CSharpier module uses a version pinned in the project's dotnet tool manifest (`dotnet tool install csharpier`
+in the repository), else a global one. Without either, the status bar offers to run `dotnet tool install -g csharpier`.
+It needs `python3`.
 
 ## Limitations and next steps
 
-- The Linux build has not been compiled or run in this environment yet (development happened on Windows).
-  GPUI's Linux backend is the one Zed ships, so expect it to work, but treat the first Arch build as a test.
+- The Linux build compiles on Arch. `libc` is pinned to 0.2.189 in `Cargo.lock` because newer versions removed
+  `ENOATTR`, which `xattr` 0.2 (pulled in by GPUI) still needs.
 - csharp-ls loads the project from the opened folder. Very large solutions take a while before diagnostics
   appear (the status bar shows progress).
 - IME composition is basic: committed text is inserted, but there's no inline pre-edit display.
 - Git: pull is fast-forward only, there is no merge-conflict editor, no side-by-side diff and no blame yet.
-- Not implemented yet: debugger (netcoredbg/DAP), integrated terminal, folding, minimap, multi-cursor and
+- Razor has no language server yet: there is no completion or hover in `.razor`/`.cshtml` files, and errors appear
+  after a build. A `<` inside an inline `<script>` confuses the Razor grammar, so colors after it can be wrong.
+- Debugging: there are no conditional breakpoints, watch expressions or data tips yet. Blazor WebAssembly code runs
+  in the browser and can't be debugged; Blazor Server and the server side of hosted apps can.
+- Terminal: mouse reporting for full-screen programs (clicking inside vim or htop) and IME pre-edit aren't
+  supported yet.
+- Not implemented yet: folding, minimap, multi-cursor and
   split editors. Modules can't add custom UI views yet, only commands, status items and logs.

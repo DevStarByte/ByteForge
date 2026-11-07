@@ -63,6 +63,8 @@ pub struct EditorState {
     pub auto_close: bool,
     pub read_only: bool,
     pub line_comment: Option<&'static str>,
+    /// Used by [`EditorState::toggle_comment`] when there is no line comment (e.g. Razor's `@*` `*@`).
+    pub block_comment: Option<(&'static str, &'static str)>,
 }
 
 impl EditorState {
@@ -77,6 +79,7 @@ impl EditorState {
             auto_close: true,
             read_only: false,
             line_comment: None,
+            block_comment: None,
         }
     }
 
@@ -418,7 +421,11 @@ impl EditorState {
     }
 
     pub fn toggle_comment(&mut self) {
-        let Some(prefix) = self.line_comment else { return };
+        let (prefix, suffix) = match (self.line_comment, self.block_comment) {
+            (Some(prefix), _) => (prefix, ""),
+            (None, Some((open, close))) => (open, close),
+            (None, None) => return,
+        };
         if self.read_only {
             return;
         }
@@ -428,7 +435,7 @@ impl EditorState {
         if non_empty.is_empty() {
             return;
         }
-        let uncomment = non_empty.iter().all(|l| l.trim_start().starts_with(prefix));
+        let uncomment = non_empty.iter().all(|l| l.trim_start().starts_with(prefix) && l.trim_end().ends_with(suffix));
         let min_indent = non_empty.iter().map(|l| l.chars().take_while(|c| c.is_whitespace()).count()).min().unwrap_or(0);
         let had_selection = self.has_selection();
 
@@ -439,6 +446,16 @@ impl EditorState {
                 continue;
             }
             if uncomment {
+                if !suffix.is_empty() {
+                    // Remove the suffix first so the prefix columns stay valid.
+                    let end = text.trim_end().len();
+                    let mut byte = end - suffix.len();
+                    if text[..byte].ends_with(' ') {
+                        byte -= 1;
+                    }
+                    let (from, to) = (text[..byte].chars().count(), text[..end].chars().count());
+                    self.buffer.replace(Point::new(l, from), Point::new(l, to), "");
+                }
                 let byte = text.find(prefix).unwrap_or(0);
                 let col = text[..byte].chars().count();
                 let mut len = prefix.chars().count();
@@ -447,6 +464,10 @@ impl EditorState {
                 }
                 self.buffer.replace(Point::new(l, col), Point::new(l, col + len), "");
             } else {
+                if !suffix.is_empty() {
+                    let end = text.trim_end().chars().count();
+                    self.buffer.replace(Point::new(l, end), Point::new(l, end), &format!(" {suffix}"));
+                }
                 self.buffer.replace(Point::new(l, min_indent), Point::new(l, min_indent), &format!("{prefix} "));
             }
         }
@@ -666,6 +687,18 @@ mod tests {
         assert_eq!(e.buffer.text(), "// a\n//   b");
         e.toggle_comment();
         assert_eq!(e.buffer.text(), "a\n  b");
+    }
+
+    #[test]
+    fn toggle_block_comment_round_trip() {
+        let mut e = editor("<p>a</p>\n  @x");
+        e.line_comment = None;
+        e.block_comment = Some(("@*", "*@"));
+        e.select(Point::new(0, 0), Point::new(1, 4));
+        e.toggle_comment();
+        assert_eq!(e.buffer.text(), "@* <p>a</p> *@\n@*   @x *@");
+        e.toggle_comment();
+        assert_eq!(e.buffer.text(), "<p>a</p>\n  @x");
     }
 
     #[test]

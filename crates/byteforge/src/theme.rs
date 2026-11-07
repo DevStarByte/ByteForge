@@ -202,6 +202,11 @@ impl Theme {
         self.colors.get(key).copied().unwrap_or(gpui::transparent_black())
     }
 
+    /// Color for a key, or `fallback` (0xRRGGBBAA) when the theme doesn't set it.
+    pub fn c_or(&self, key: &str, fallback: u32) -> Hsla {
+        self.colors.get(key).copied().unwrap_or_else(|| gpui::rgba(fallback).into())
+    }
+
     pub fn has(&self, key: &str) -> bool {
         self.colors.contains_key(key)
     }
@@ -278,15 +283,29 @@ impl Theme {
         self.data.effects.get(key).map(String::as_str)
     }
 
-    /// Token style for a classification ("a - b" falls back to "a").
+    /// Token style for a classification ("a - b" falls back to "a"). Markup kinds that a theme doesn't
+    /// define fall back to a related code kind, so every theme colors Razor files.
     pub fn token(&self, kind: &str) -> Option<&TokenStyle> {
         let mut key = kind;
         loop {
             if let Some(style) = self.tokens.get(key) {
                 return Some(style);
             }
-            key = &key[..key.rfind(" - ")?];
+            match key.rfind(" - ") {
+                Some(i) => key = &key[..i],
+                None => break,
+            }
         }
+        let fallback = match key {
+            "html element name" => "keyword",
+            "html attribute name" => "property name",
+            "html attribute value" => "string",
+            "html tag delimiter" => "punctuation",
+            "razor transition" | "razor directive" => "preprocessor keyword",
+            "xml" => "string - escape character",
+            _ => return None,
+        };
+        self.token(fallback)
     }
 
     pub fn bracket_colors(&self) -> Vec<Hsla> {

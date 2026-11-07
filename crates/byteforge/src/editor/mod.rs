@@ -40,6 +40,27 @@ pub enum EditorEvent {
     CaretMoved,
     DiagnosticsChanged,
     Navigate(PathBuf, Point),
+    /// Breakpoints were toggled, or edits moved them.
+    BreakpointsChanged,
+    /// A code action (quick fix, refactoring) was picked; the workbench resolves and applies it.
+    ApplyCodeAction(Box<bf_lsp::CodeAction>),
+    /// Several results to list in the References panel (Find All References, implementations, …), e.g.
+    /// `title` = "references to 'Count'".
+    Locations { title: String, locations: Vec<bf_lsp::Location> },
+    /// Rename Symbol (F2) on `symbol` at `at`: the workbench asks for the new name, then calls
+    /// [`EditorView::rename_symbol`].
+    RenameRequested { symbol: String, at: Point },
+    /// The language server's edits for a rename, to apply across files.
+    ApplyWorkspaceEdit(Box<bf_lsp::WorkspaceEdit>),
+    /// A status message for the Output panel (e.g. "nothing to rename here").
+    Log(String),
+}
+
+/// A breakpoint in the gutter (0-based line). `verified` is false while the debugger couldn't bind it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Breakpoint {
+    pub line: usize,
+    pub verified: bool,
 }
 
 struct SyntaxState {
@@ -60,6 +81,28 @@ struct Completion {
     start: Point,
     items: Arc<Vec<CompletionItem>>,
     filtered: Vec<usize>,
+    selected: usize,
+}
+
+/// A hover popup for the word in `range` (end exclusive, one line).
+struct Hover {
+    range: (Point, Point),
+    /// Markdown from the language server (empty when only diagnostics are shown).
+    text: String,
+}
+
+/// Parameter hints for the call around the caret.
+struct SignatureState {
+    help: bf_lsp::SignatureHelp,
+    /// Overload shown (starts at the server's active signature; the arrows switch).
+    selected: usize,
+}
+
+/// The Quick Fix menu (Ctrl+.).
+struct ActionMenu {
+    at: Point,
+    /// `None` while the server is asked.
+    items: Option<Vec<bf_lsp::CodeAction>>,
     selected: usize,
 }
 
@@ -93,6 +136,8 @@ pub(crate) struct Layout {
     pub text_left: f32,
     pub char_width: f32,
     pub line_height: f32,
+    /// Width of the breakpoint margin at the left of the gutter (0 when hidden).
+    pub glyph: f32,
 }
 
 pub struct EditorView {
@@ -117,8 +162,16 @@ pub struct EditorView {
     pub diagnostics: Vec<Diagnostic>,
     completion: Option<Completion>,
     completion_task: Option<Task<()>>,
-    hover: Option<(Point, String)>,
+    hover: Option<Hover>,
+    signature: Option<SignatureState>,
+    signature_task: Option<Task<()>>,
+    action_menu: Option<ActionMenu>,
+    action_task: Option<Task<()>>,
+    /// The word a hover request is waiting for.
+    hover_pending: Option<(Point, Point)>,
     hover_task: Option<Task<()>>,
+    /// Where the hover popup was painted, so moving the pointer onto it doesn't close it.
+    hover_bounds: std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<gpui::Pixels>>>>,
     find: Option<FindState>,
 
     pub(crate) scroll: (f32, f32),
@@ -142,6 +195,18 @@ pub struct EditorView {
     git_task: Option<Task<()>>,
     /// Whole-line backgrounds as theme color keys (used by the diff view).
     pub line_backgrounds: Vec<(usize, &'static str)>,
+    /// Shows the breakpoint margin at the left of the gutter; clicking it toggles breakpoints.
+    pub glyph_margin: bool,
+    /// Sorted by line, one per line.
+    pub breakpoints: Vec<Breakpoint>,
+    /// Where the debugger is paused: (0-based line, whether it's the top frame).
+    pub exec_line: Option<(usize, bool)>,
+    /// Underlines file references (`File.cs(12,5)`, `path:line`) and opens them on click (Ctrl+Click in
+    /// editable views). Relative paths resolve against `link_root`.
+    pub detect_links: bool,
+    pub link_root: Option<PathBuf>,
+    /// File references per line text, so the file system is only asked once per distinct line.
+    pub(crate) link_cache: std::collections::HashMap<String, Arc<Vec<bf_core::links::FileLink>>>,
 }
 
 impl EventEmitter<EditorEvent> for EditorView {}
@@ -159,7 +224,13 @@ impl EditorView {
         state.line_comment = match language {
             Some(Language::CSharp) => Some("//"),
             Some(Language::Json) => Some("//"),
-            None => None,
+            Some(Language::Dockerfile | Language::Yaml) => Some("#"),
+            Some(Language::Razor | Language::Xml) | None => None,
+        };
+        state.block_comment = match language {
+            Some(Language::Razor) => Some(("@*", "*@")),
+            Some(Language::Xml) => Some(("<!--", "-->")),
+            _ => None,
         };
         // Parse the buffer's text, not the raw file: CRLF is normalized to LF, and highlight byte offsets
         // must match the text that is displayed.
@@ -189,9 +260,15 @@ impl EditorView {
             lsp_version: 0,
             diagnostics: Vec::new(),
             completion: None,
+            signature: None,
+            signature_task: None,
             completion_task: None,
             hover: None,
+            action_menu: None,
+            action_task: None,
+            hover_pending: None,
             hover_task: None,
+            hover_bounds: Default::default(),
             find: None,
             scroll: (0.0, 0.0),
             scroll_target: (0.0, 0.0),
@@ -211,6 +288,12 @@ impl EditorView {
             git_marks: Vec::new(),
             git_task: None,
             line_backgrounds: Vec::new(),
+            glyph_margin: false,
+            breakpoints: Vec::new(),
+            exec_line: None,
+            detect_links: false,
+            link_root: None,
+            link_cache: Default::default(),
         };
         view.state.buffer.take_changes();
         view.schedule_highlight(cx);
@@ -289,10 +372,17 @@ impl EditorView {
         if let Some(min_line) = changes.iter().map(|c| c.start.line).min() {
             self.depth_cache.truncate(min_line + 1);
         }
+        let breakpoints_before = self.breakpoints.clone();
         for c in &changes {
             shift_spans(&mut self.syntax_spans, c);
             shift_spans(&mut self.semantic_spans, c);
             shift_diagnostics(&mut self.diagnostics, c);
+            shift_breakpoints(&mut self.breakpoints, c);
+            if let Some((line, _)) = &mut self.exec_line
+                && *line > c.old_end.line
+            {
+                *line = (*line as isize + c.new_end.line as isize - c.old_end.line as isize).max(0) as usize;
+            }
             let delta = c.new_end.line as isize - c.old_end.line as isize;
             if delta != 0 {
                 for mark in &mut self.git_marks {
@@ -348,8 +438,49 @@ impl EditorView {
             }
         }
         self.state.clamp();
+        self.clear_hover(cx);
+        self.action_menu = None;
         self.after_move(cx);
         cx.emit(EditorEvent::Edited);
+        if self.breakpoints != breakpoints_before {
+            cx.emit(EditorEvent::BreakpointsChanged);
+        }
+    }
+
+    // ───────────── breakpoints ─────────────
+
+    /// Adds or removes the breakpoint on `line`.
+    pub fn toggle_breakpoint(&mut self, line: usize, cx: &mut Context<Self>) {
+        if line >= self.state.buffer.line_count() {
+            return;
+        }
+        match self.breakpoints.binary_search_by_key(&line, |b| b.line) {
+            Ok(i) => {
+                self.breakpoints.remove(i);
+            }
+            Err(i) => self.breakpoints.insert(i, Breakpoint { line, verified: true }),
+        }
+        cx.emit(EditorEvent::BreakpointsChanged);
+        cx.notify();
+    }
+
+    pub fn set_breakpoints(&mut self, mut breakpoints: Vec<Breakpoint>, cx: &mut Context<Self>) {
+        breakpoints.sort_by_key(|b| b.line);
+        breakpoints.dedup_by_key(|b| b.line);
+        if breakpoints != self.breakpoints {
+            self.breakpoints = breakpoints;
+            cx.notify();
+        }
+    }
+
+    pub fn set_exec_line(&mut self, exec_line: Option<(usize, bool)>, cx: &mut Context<Self>) {
+        if self.exec_line != exec_line {
+            self.exec_line = exec_line;
+            if let Some((line, _)) = exec_line {
+                self.reveal(Point::new(line, 0), true);
+            }
+            cx.notify();
+        }
     }
 
     fn after_move(&mut self, cx: &mut Context<Self>) {
@@ -362,6 +493,9 @@ impl EditorView {
             } else {
                 self.refilter_completion();
             }
+        }
+        if self.signature.is_some() {
+            self.request_signature_help(cx);
         }
         cx.emit(EditorEvent::CaretMoved);
         cx.notify();
@@ -524,7 +658,24 @@ impl EditorView {
         cx.notify();
     }
 
-    pub fn did_save(&self) {
+    /// Sets diagnostics from another source (build output). One-character ranges grow to the word there.
+    pub fn set_diagnostics(&mut self, mut diagnostics: Vec<Diagnostic>, cx: &mut Context<Self>) {
+        let lines = self.state.buffer.line_count();
+        for d in &mut diagnostics {
+            d.start.line = d.start.line.min(lines.saturating_sub(1));
+            d.start.col = d.start.col.min(self.state.buffer.line_len(d.start.line));
+            if d.end.line == d.start.line && d.end.col <= d.start.col + 1 {
+                let (_, word_end) = self.state.word_at(d.start);
+                d.end = if word_end.col > d.start.col { word_end } else { Point::new(d.start.line, d.start.col + 1) };
+            }
+        }
+        diagnostics.sort_by_key(|d| d.start);
+        self.diagnostics = diagnostics;
+        cx.emit(EditorEvent::DiagnosticsChanged);
+        cx.notify();
+    }
+
+        pub fn did_save(&self) {
         if let (Some(lsp), Some(path)) = (&self.lsp, &self.path) {
             lsp.did_save(path, Some(&self.state.buffer.text()));
         }
@@ -550,22 +701,299 @@ impl EditorView {
         .detach();
     }
 
-    fn request_hover(&mut self, p: Point, cx: &mut Context<Self>) {
-        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else { return };
-        if self.hover.as_ref().is_some_and(|(hp, _)| *hp == p) {
+    /// Find All References for the symbol at the caret; the result goes to the workbench's References panel.
+    pub fn find_references(&mut self, cx: &mut Context<Self>) {
+        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else {
+            cx.emit(EditorEvent::Log("Find All References needs the C# language server (open a .cs file in a project).".into()));
+            return;
+        };
+        let caret = self.state.caret();
+        let (start, end) = self.state.word_at(caret);
+        let symbol = self.state.buffer.slice(start, end);
+        let rx = lsp.references(&path, self.lsp_position(caret));
+        cx.spawn(async move |this, cx| {
+            let result = rx.recv_async().await;
+            let _ = this.update(cx, |_, cx| match result {
+                Ok(Ok(locations)) => cx.emit(EditorEvent::Locations { title: format!("references to '{symbol}'"), locations }),
+                Ok(Err(e)) => cx.emit(EditorEvent::Log(format!("Find All References failed: {e:#}"))),
+                Err(_) => {}
+            });
+        })
+        .detach();
+    }
+
+    /// Go to Implementation (`implementation: true`) or Go to Type Definition: jumps to a single result,
+    /// lists several in the References panel.
+    pub fn go_to_related(&mut self, implementation: bool, cx: &mut Context<Self>) {
+        let what = if implementation { "implementations" } else { "type definition" };
+        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else {
+            cx.emit(EditorEvent::Log(format!("Finding {what} needs the C# language server (open a .cs file in a project).")));
+            return;
+        };
+        let caret = self.state.caret();
+        let (start, end) = self.state.word_at(caret);
+        let symbol = self.state.buffer.slice(start, end);
+        let position = self.lsp_position(caret);
+        let rx = if implementation { lsp.implementation(&path, position) } else { lsp.type_definition(&path, position) };
+        cx.spawn(async move |this, cx| {
+            let result = rx.recv_async().await;
+            let _ = this.update(cx, |_, cx| match result {
+                Ok(Ok(locations)) if locations.is_empty() => {
+                    cx.emit(EditorEvent::Log(format!("No {what} found for '{symbol}' (types from the .NET libraries have no source here).")))
+                }
+                Ok(Ok(mut locations)) if locations.len() == 1 => {
+                    let loc = locations.remove(0);
+                    cx.emit(EditorEvent::Navigate(loc.path, Point::new(loc.range.start.line as usize, loc.range.start.character as usize)));
+                }
+                Ok(Ok(locations)) => cx.emit(EditorEvent::Locations { title: format!("{what} of '{symbol}'"), locations }),
+                Ok(Err(e)) => cx.emit(EditorEvent::Log(format!("Finding {what} failed: {e:#}"))),
+                Err(_) => {}
+            });
+        })
+        .detach();
+    }
+
+    /// The file's symbols (outline) from the language server, or `None` without one.
+    pub fn document_symbols(&self) -> Option<flume::Receiver<anyhow::Result<Vec<bf_lsp::Symbol>>>> {
+        let (Some(lsp), Some(path)) = (&self.lsp, &self.path) else { return None };
+        Some(lsp.document_symbols(path))
+    }
+
+    /// F2: asks the workbench for the new name of the identifier at the caret.
+    pub fn request_rename(&mut self, cx: &mut Context<Self>) {
+        if self.lsp.is_none() || self.read_only {
+            cx.emit(EditorEvent::Log("Rename Symbol needs the C# language server (open a .cs file in a project).".into()));
             return;
         }
-        let pos = self.lsp_position(p);
-        self.hover_task = Some(cx.spawn(async move |this, cx| {
-            cx.background_executor().timer(Duration::from_millis(500)).await;
-            let rx = lsp.hover(&path, pos);
-            if let Ok(Ok(Some(text))) = rx.recv_async().await {
-                let _ = this.update(cx, |view, cx| {
-                    view.hover = Some((p, text.chars().take(1200).collect()));
-                    cx.notify();
-                });
-            }
+        let caret = self.state.caret();
+        let (start, end) = self.state.word_at(caret);
+        let symbol = self.state.buffer.slice(start, end);
+        if !symbol.chars().any(|c| c.is_alphanumeric() || c == '_') {
+            cx.emit(EditorEvent::Log("Put the caret on a name to rename it.".into()));
+            return;
+        }
+        cx.emit(EditorEvent::RenameRequested { symbol, at: start });
+    }
+
+    /// Asks the server to rename the symbol at `at` to `new_name`; the edits go to the workbench.
+    pub fn rename_symbol(&mut self, at: Point, new_name: String, cx: &mut Context<Self>) {
+        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else { return };
+        let rx = lsp.rename(&path, self.lsp_position(at), &new_name);
+        cx.spawn(async move |this, cx| {
+            let result = rx.recv_async().await;
+            let _ = this.update(cx, |_, cx| match result {
+                Ok(Ok(edit)) if edit.is_empty() => cx.emit(EditorEvent::Log(format!("Nothing to rename to '{new_name}' here."))),
+                Ok(Ok(edit)) => cx.emit(EditorEvent::ApplyWorkspaceEdit(Box::new(edit))),
+                Ok(Err(e)) => cx.emit(EditorEvent::Log(format!("Rename failed: {e:#}"))),
+                Err(_) => {}
+            });
+        })
+        .detach();
+    }
+
+    /// Asks for parameter hints at the caret; closes them when the caret left the call.
+    fn request_signature_help(&mut self, cx: &mut Context<Self>) {
+        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else { return };
+        let rx = lsp.signature_help(&path, self.lsp_position(self.state.caret()));
+        self.signature_task = Some(cx.spawn(async move |this, cx| {
+            let Ok(result) = rx.recv_async().await else { return };
+            let _ = this.update(cx, |view, cx| {
+                match result {
+                    Ok(Some(help)) => {
+                        // Keep the overload the user picked while the list stays the same.
+                        let selected = match &view.signature {
+                            Some(old) if old.help.signatures.len() == help.signatures.len() => old.selected,
+                            _ => help.active_signature,
+                        };
+                        view.signature = Some(SignatureState { help, selected });
+                    }
+                    _ => view.signature = None,
+                }
+                cx.notify();
+            });
         }));
+    }
+
+    fn cycle_signature(&mut self, delta: isize, cx: &mut Context<Self>) {
+        if let Some(s) = &mut self.signature {
+            let n = s.help.signatures.len() as isize;
+            s.selected = ((s.selected as isize + delta).rem_euclid(n)) as usize;
+            cx.notify();
+        }
+    }
+
+    /// The word under `p` (at least one character), which a hover popup belongs to.
+    fn hover_range(&self, p: Point) -> (Point, Point) {
+        let (start, end) = self.state.word_at(p);
+        if start.line == end.line && start.col < end.col && start.col <= p.col && p.col < end.col {
+            (start, end)
+        } else {
+            (p, Point::new(p.line, p.col + 1))
+        }
+    }
+
+    fn diagnostics_in(&self, range: (Point, Point)) -> impl Iterator<Item = &Diagnostic> {
+        self.diagnostics.iter().filter(move |d| d.start < range.1 && (d.end > range.0 || (d.start == d.end && d.start.line == range.0.line)))
+    }
+
+    /// Shows a hover for the word under `p` after a short delay; moving off the word hides it.
+    fn request_hover(&mut self, p: Point, cx: &mut Context<Self>) {
+        let inside = |r: (Point, Point)| p >= r.0 && p < r.1;
+        if self.hover.as_ref().is_some_and(|h| inside(h.range)) || self.hover_pending.is_some_and(inside) {
+            return;
+        }
+        self.clear_hover(cx);
+        let range = self.hover_range(p);
+        let server = match (&self.lsp, &self.path) {
+            (Some(lsp), Some(path)) => Some((lsp.clone(), path.clone(), self.lsp_position(p))),
+            _ if self.diagnostics_in(range).next().is_some() => None,
+            _ => return,
+        };
+        self.hover_pending = Some(range);
+        self.hover_task = Some(cx.spawn(async move |this, cx| {
+            // Ask only once the pointer rests on the word (dropping the task cancels this).
+            cx.background_executor().timer(Duration::from_millis(400)).await;
+            let text = match server {
+                Some((lsp, path, position)) => lsp.hover(&path, position).recv_async().await.ok().and_then(Result::ok).flatten().unwrap_or_default(),
+                None => String::new(),
+            };
+            let _ = this.update(cx, |view, cx| {
+                if view.hover_pending != Some(range) {
+                    return;
+                }
+                view.hover_pending = None;
+                if !text.trim().is_empty() || view.diagnostics_in(range).next().is_some() {
+                    view.hover = Some(Hover { range, text });
+                    cx.notify();
+                }
+            });
+        }));
+    }
+
+    // ───────────── code actions ─────────────
+
+    /// Ctrl+.: asks the language server for fixes and refactorings at the caret. On a line with a problem,
+    /// the problem's range is used, so the cursor only has to be on that line.
+    fn request_code_actions(&mut self, cx: &mut Context<Self>) {
+        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else { return };
+        let caret = self.state.caret();
+        let (mut start, mut end) = if self.state.has_selection() { self.state.selection() } else { (caret, caret) };
+        let on_caret: Vec<&Diagnostic> = self.diagnostics.iter().filter(|d| d.start <= end && d.end >= start).collect();
+        let context: Vec<&Diagnostic> = if on_caret.is_empty() && !self.state.has_selection() {
+            self.diagnostics.iter().filter(|d| d.start.line <= caret.line && d.end.line >= caret.line).collect()
+        } else {
+            on_caret
+        };
+        if !self.state.has_selection()
+            && let Some(first) = context.first()
+        {
+            (start, end) = (first.start, first.end);
+        }
+        let range = bf_lsp::Range { start: self.lsp_position(start), end: self.lsp_position(end) };
+        let diagnostics: Vec<bf_lsp::Diagnostic> = context
+            .iter()
+            .map(|d| bf_lsp::Diagnostic {
+                range: bf_lsp::Range { start: self.lsp_position(d.start), end: self.lsp_position(d.end) },
+                severity: d.severity,
+                message: d.message.clone(),
+                code: d.code.clone(),
+            })
+            .collect();
+        self.completion = None;
+        self.clear_hover(cx);
+        self.action_menu = Some(ActionMenu { at: start, items: None, selected: 0 });
+        let rx = lsp.code_actions(&path, range, &diagnostics);
+        self.action_task = Some(cx.spawn(async move |this, cx| {
+            let result = rx.recv_async().await;
+            let _ = this.update(cx, |view, cx| {
+                let Some(menu) = view.action_menu.as_mut() else { return };
+                let mut items = match result {
+                    Ok(Ok(items)) => items,
+                    _ => Vec::new(),
+                };
+                // Preferred fixes first, then other fixes, then refactorings and source actions.
+                items.sort_by_key(|a| (!a.preferred, !a.is_quick_fix(), a.disabled.is_some()));
+                menu.items = Some(items);
+                cx.notify();
+            });
+        }));
+        cx.notify();
+    }
+
+    fn action_menu_nav(&mut self, delta: isize, cx: &mut Context<Self>) -> bool {
+        let Some(menu) = &mut self.action_menu else { return false };
+        let n = menu.items.as_ref().map_or(0, Vec::len) as isize;
+        if n > 0 {
+            menu.selected = (menu.selected as isize + delta).clamp(0, n - 1) as usize;
+        }
+        cx.notify();
+        true
+    }
+
+    fn commit_action(&mut self, ix: Option<usize>, cx: &mut Context<Self>) -> bool {
+        let Some(menu) = self.action_menu.take() else { return false };
+        self.action_task = None;
+        let ix = ix.unwrap_or(menu.selected);
+        if let Some(action) = menu.items.and_then(|items| items.into_iter().nth(ix)).filter(|a| a.disabled.is_none()) {
+            cx.emit(EditorEvent::ApplyCodeAction(Box::new(action)));
+        }
+        cx.notify();
+        true
+    }
+
+    /// Replaces the text with `new` (a formatter's output) as one undo step, changing only the part that
+    /// differs so the caret, scroll position and breakpoints stay where they were.
+    pub fn replace_text_minimal(&mut self, new: &str, cx: &mut Context<Self>) {
+        let new: Vec<char> = new.replace("\r\n", "\n").chars().collect();
+        let old: Vec<char> = self.state.buffer.text().chars().collect();
+        let prefix = old.iter().zip(&new).take_while(|(a, b)| a == b).count();
+        let suffix = old[prefix..].iter().rev().zip(new[prefix..].iter().rev()).take_while(|(a, b)| a == b).count();
+        if prefix == old.len() && prefix == new.len() {
+            return;
+        }
+        let start = self.state.buffer.char_to_point(prefix);
+        let end = self.state.buffer.char_to_point(old.len() - suffix);
+        let inserted: String = new[prefix..new.len() - suffix].iter().collect();
+        let caret = self.state.caret();
+        self.state.buffer.undo_stack().begin_group();
+        self.state.buffer.replace(start, end, &inserted);
+        self.state.buffer.undo_stack().end_group();
+        self.state.set_caret(self.state.buffer.clamp(caret), false);
+        self.after_edit(cx);
+    }
+
+    /// Applies language-server text edits (UTF-16 ranges) as one undo step.
+    pub fn apply_text_edits(&mut self, edits: &[bf_lsp::TextEdit], cx: &mut Context<Self>) {
+        if edits.is_empty() {
+            return;
+        }
+        let b = &self.state.buffer;
+        let mut edits: Vec<(Point, Point, &str)> = edits
+            .iter()
+            .map(|e| {
+                let start = b.utf16_to_point(e.range.start.line as usize, e.range.start.character as usize);
+                let end = b.utf16_to_point(e.range.end.line as usize, e.range.end.character as usize);
+                (start, end, e.new_text.as_str())
+            })
+            .collect();
+        // Back to front, so earlier positions stay valid.
+        edits.sort_by_key(|e| std::cmp::Reverse(e.0));
+        self.state.buffer.undo_stack().begin_group();
+        for (start, end, text) in edits {
+            self.state.buffer.replace(start, end, &text.replace("\r\n", "\n"));
+        }
+        self.state.buffer.undo_stack().end_group();
+        self.after_edit(cx);
+        cx.notify();
+    }
+
+    fn clear_hover(&mut self, cx: &mut Context<Self>) {
+        self.hover_pending = None;
+        self.hover_task = None;
+        self.hover_bounds.set(None);
+        if self.hover.take().is_some() {
+            cx.notify();
+        }
     }
 
     // ───────────── completion ─────────────
@@ -845,6 +1273,25 @@ impl EditorView {
 
     // ───────────── hit testing ─────────────
 
+    /// The file references in `line` (cached by its text).
+    pub(crate) fn links_in(&mut self, line: usize) -> Arc<Vec<bf_core::links::FileLink>> {
+        let text = self.state.buffer.line(line).into_owned();
+        if let Some(links) = self.link_cache.get(&text) {
+            return links.clone();
+        }
+        if self.link_cache.len() > 4000 {
+            self.link_cache.clear();
+        }
+        let links = Arc::new(bf_core::links::find_links(&text, self.link_root.as_deref()));
+        self.link_cache.insert(text, links.clone());
+        links
+    }
+
+    fn link_at(&mut self, p: Point) -> Option<bf_core::links::FileLink> {
+        let col = p.col;
+        self.links_in(p.line).iter().find(|l| l.start <= col && col < l.end).cloned()
+    }
+
     fn point_at(&self, x: f32, y: f32) -> Point {
         let l = &self.layout;
         let lh = l.line_height.max(1.0);
@@ -869,16 +1316,32 @@ impl EditorView {
     fn on_mouse_down(&mut self, e: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         window.focus(&self.focus);
         self.completion = None;
+        self.action_menu = None;
+        self.clear_hover(cx);
         let (x, y) = (f32::from(e.position.x), f32::from(e.position.y));
         if let Some(vertical) = self.scrollbar_zone(x, y) {
             self.drag = if vertical { DragMode::VScroll(y) } else { DragMode::HScroll(x) };
             return;
         }
         let p = self.point_at(x, y);
+        if self.detect_links
+            && (self.read_only || e.modifiers.control)
+            && e.click_count == 1
+            && x >= self.layout.text_left
+            && let Some(link) = self.link_at(p)
+        {
+            let at = Point::new(link.line.saturating_sub(1) as usize, link.column.saturating_sub(1) as usize);
+            cx.emit(EditorEvent::Navigate(link.path.clone(), at));
+            return;
+        }
         if e.modifiers.control && !e.modifiers.shift {
             self.state.set_caret(p, false);
             self.after_move(cx);
             self.go_to_definition_at(p, cx);
+            return;
+        }
+        if self.glyph_margin && x < self.layout.left + self.layout.glyph && y < self.layout.top + self.layout.height {
+            self.toggle_breakpoint(p.line, cx);
             return;
         }
         if x < self.layout.left + self.layout.gutter || e.click_count >= 3 {
@@ -905,14 +1368,21 @@ impl EditorView {
         let (x, y) = (f32::from(e.position.x), f32::from(e.position.y));
         match self.drag {
             DragMode::None => {
+                if self.hover.is_some() && self.hover_bounds.get().is_some_and(|b| b.contains(&e.position)) {
+                    return; // reading the popup
+                }
                 // Hover: diagnostics immediately, language-server hover after a delay.
                 let inside = x > self.layout.text_left && y > self.layout.top && y < self.layout.top + self.layout.height;
                 if inside && e.pressed_button.is_none() {
                     let p = self.point_at(x, y);
-                    self.request_hover(p, cx);
-                } else if self.hover.is_some() {
-                    self.hover = None;
-                    cx.notify();
+                    // Past the end of a line there's nothing to hover.
+                    if p.col < self.state.buffer.line_len(p.line) {
+                        self.request_hover(p, cx);
+                    } else {
+                        self.clear_hover(cx);
+                    }
+                } else {
+                    self.clear_hover(cx);
                 }
                 return;
             }
@@ -1020,12 +1490,12 @@ impl EditorView {
             .on_action(cx.listener(|v, _: &SelectWordLeft, _, cx| v.mv(cx, |s| s.move_left(true, true))))
             .on_action(cx.listener(|v, _: &SelectWordRight, _, cx| v.mv(cx, |s| s.move_right(true, true))))
             .on_action(cx.listener(|v, _: &MoveUp, _, cx| {
-                if !v.completion_nav(-1, cx) {
+                if !v.action_menu_nav(-1, cx) && !v.completion_nav(-1, cx) {
                     v.mv(cx, |s| s.move_vertical(-1, false))
                 }
             }))
             .on_action(cx.listener(|v, _: &MoveDown, _, cx| {
-                if !v.completion_nav(1, cx) {
+                if !v.action_menu_nav(1, cx) && !v.completion_nav(1, cx) {
                     v.mv(cx, |s| s.move_vertical(1, false))
                 }
             }))
@@ -1078,12 +1548,12 @@ impl EditorView {
             .on_action(cx.listener(|v, _: &Delete, _, cx| v.edit(cx, |s| s.delete_forward(false))))
             .on_action(cx.listener(|v, _: &DeleteWordRight, _, cx| v.edit(cx, |s| s.delete_forward(true))))
             .on_action(cx.listener(|v, _: &Newline, _, cx| {
-                if !v.commit_completion(cx) {
+                if !v.commit_action(None, cx) && !v.commit_completion(cx) {
                     v.edit(cx, |s| s.newline())
                 }
             }))
             .on_action(cx.listener(|v, _: &Tab, _, cx| {
-                if !v.commit_completion(cx) {
+                if !v.commit_action(None, cx) && !v.commit_completion(cx) {
                     v.edit(cx, |s| s.tab())
                 }
             }))
@@ -1119,8 +1589,23 @@ impl EditorView {
                 let caret = v.state.caret();
                 v.go_to_definition_at(caret, cx);
             }))
+            .on_action(cx.listener(|v, _: &QuickFix, _, cx| v.request_code_actions(cx)))
+            .on_action(cx.listener(|v, _: &FindReferences, _, cx| v.find_references(cx)))
+            .on_action(cx.listener(|v, _: &GoToImplementation, _, cx| v.go_to_related(true, cx)))
+            .on_action(cx.listener(|v, _: &GoToTypeDefinition, _, cx| v.go_to_related(false, cx)))
+            .on_action(cx.listener(|v, _: &RenameSymbol, _, cx| v.request_rename(cx)))
+            .on_action(cx.listener(|v, _: &ShowSignatureHelp, _, cx| v.request_signature_help(cx)))
+            .on_action(cx.listener(|v, _: &ToggleBreakpoint, _, cx| {
+                if v.glyph_margin {
+                    let line = v.state.caret().line;
+                    v.toggle_breakpoint(line, cx);
+                } else {
+                    cx.propagate();
+                }
+            }))
             .on_action(cx.listener(|v, _: &Cancel, w, cx| {
-                if v.completion.take().is_some() || v.hover.take().is_some() {
+                if v.action_menu.take().is_some() || v.completion.take().is_some() || v.hover.take().is_some() || v.signature.take().is_some() {
+                    v.hover_pending = None;
                     cx.notify();
                 } else if v.find.is_some() {
                     v.close_find(w, cx);
@@ -1145,6 +1630,9 @@ impl EditorView {
         self.state.type_text(&text);
         self.after_edit(cx);
         self.maybe_trigger_completion(&text, cx);
+        if self.signature.is_none() && text.ends_with(['(', ',', '<']) {
+            self.request_signature_help(cx);
+        }
     }
 
     /// Appends text without undo (used by the Output panel).
@@ -1264,6 +1752,25 @@ fn shift_spans(spans: &mut Spans, c: &Change) {
     spans.covered = spans.covered.start..shift(spans.covered.end);
 }
 
+/// Moves breakpoints with their lines: lines below the change shift, a line pushed down by text
+/// inserted at its start moves with it, and breakpoints on deleted lines collapse onto the change.
+fn shift_breakpoints(breakpoints: &mut Vec<Breakpoint>, c: &Change) {
+    if breakpoints.is_empty() {
+        return;
+    }
+    let delta = c.new_end.line as isize - c.old_end.line as isize;
+    for b in breakpoints.iter_mut() {
+        let pushed_down = b.line == c.start.line && c.start.col == 0 && c.removed.is_empty() && c.inserted.contains('\n');
+        if b.line > c.old_end.line || pushed_down {
+            b.line = (b.line as isize + delta).max(0) as usize;
+        } else if b.line > c.start.line {
+            b.line = c.start.line;
+        }
+    }
+    breakpoints.sort_by_key(|b| b.line);
+    breakpoints.dedup_by_key(|b| b.line);
+}
+
 fn shift_diagnostics(diags: &mut [Diagnostic], c: &Change) {
     let line_delta = c.new_end.line as isize - c.old_end.line as isize;
     let shift = |p: Point| -> Point {
@@ -1295,6 +1802,11 @@ impl Render for EditorView {
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
+            .on_hover(cx.listener(|view, hovered: &bool, _, cx| {
+                if !hovered {
+                    view.clear_hover(cx);
+                }
+            }))
             .on_scroll_wheel(cx.listener(Self::on_scroll));
         let root = self.register_actions(root, cx).child(EditorElement::new(cx.entity()));
 
@@ -1306,6 +1818,12 @@ impl Render for EditorView {
             root = root.child(popup);
         }
         if let Some(popup) = self.render_hover(cx) {
+            root = root.child(popup);
+        }
+        if let Some(popup) = self.render_signature(cx) {
+            root = root.child(popup);
+        }
+        if let Some(popup) = self.render_action_menu(cx) {
             root = root.child(popup);
         }
         root
@@ -1454,29 +1972,213 @@ impl EditorView {
         )
     }
 
-    fn render_hover(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
+    fn render_action_menu(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
+        let menu = self.action_menu.as_ref()?;
         let t = Theme::global(cx);
-        let (p, lsp_text) = self.hover.clone()?;
-        let diag: Vec<String> = self
-            .diagnostics
-            .iter()
-            .filter(|d| p >= d.start && (p <= d.end || (d.start == d.end && p.line == d.start.line)))
-            .map(|d| match &d.code {
-                Some(code) => format!("{} ({code})", d.message),
-                None => d.message.clone(),
-            })
-            .collect();
-        let text = diag.into_iter().chain(std::iter::once(lsp_text).filter(|s| !s.trim().is_empty())).collect::<Vec<_>>().join("\n\n");
-        if text.is_empty() {
-            return None;
-        }
-        let (x, y) = self.caret_screen_pos(p);
+        let (x, y) = self.caret_screen_pos(menu.at);
+        let lh = self.layout.line_height;
+        let row_h = t.n("list.itemHeight", 22.0).max(lh * 0.9);
+        let muted = t.c("foreground.muted");
+        let rows: Vec<gpui::AnyElement> = match &menu.items {
+            None => vec![div().px_2().h(px(row_h)).flex().items_center().text_color(muted).child("Looking for fixes…").into_any_element()],
+            Some(items) if items.is_empty() => vec![div().px_2().h(px(row_h)).flex().items_center().text_color(muted).child("No fixes or refactorings available here").into_any_element()],
+            Some(items) => items
+                .iter()
+                .enumerate()
+                .map(|(i, action)| {
+                    let (glyph, color) = if action.is_quick_fix() {
+                        ("build", t.c_or("editorLightBulb.foreground", 0xffcc00ff))
+                    } else {
+                        ("puzzle", t.c_or("editorLightBulbAutoFix.foreground", 0x75beffff))
+                    };
+                    let group = match action.kind.as_deref() {
+                        Some(k) if k.starts_with("refactor") => "Refactor",
+                        Some(k) if k.starts_with("source") => "Source",
+                        _ if action.is_quick_fix() => "Fix",
+                        _ => "Refactor",
+                    };
+                    let selected = i == menu.selected;
+                    let disabled = action.disabled.is_some();
+                    div()
+                        .id(gpui::SharedString::from(format!("action-{i}")))
+                        .h(px(row_h))
+                        .px_2()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .rounded(t.radius("list.radius", 0.0))
+                        .cursor_pointer()
+                        .when(selected, |d| d.bg(t.bg("list.activeSelectionBackground")).text_color(t.c("list.activeSelectionForeground")))
+                        .when(!selected, |d| d.hover(|s| s.bg(t.c("list.hoverBackground"))))
+                        .when(disabled, |d| d.text_color(muted))
+                        .child(icon(glyph, px(14.), color))
+                        .child(div().flex_1().overflow_hidden().whitespace_nowrap().child(action.title.clone()))
+                        .when(action.preferred, |d| d.child(div().text_size(px(11.)).text_color(muted).child("preferred")))
+                        .child(div().text_size(px(11.)).text_color(muted).child(group))
+                        .when_some(action.disabled.clone(), |d, reason| d.tooltip(crate::workbench::tooltip(reason)))
+                        .on_mouse_down(MouseButton::Left, cx.listener(move |v, _, _, cx| {
+                            cx.stop_propagation();
+                            v.commit_action(Some(i), cx);
+                        }))
+                        .into_any_element()
+                })
+                .collect(),
+        };
         Some(
             div()
+                .id("action-menu")
                 .absolute()
                 .left(px(x.max(4.0)))
-                .top(px((y - 8.0).max(0.0)))
-                .max_w(px(560.))
+                .top(px(y + lh))
+                .min_w(px(280.))
+                .max_w(px(640.))
+                .max_h(px(320.))
+                .overflow_y_scroll()
+                .bg(t.bg("editorWidget.background"))
+                .border_color(t.c("editorWidget.border"))
+                .border_1()
+                .rounded(t.radius("widget.radius", 6.0))
+                .shadow(t.shadow("widget.shadow"))
+                .p(px(2.))
+                .text_size(t.m("ui.size", 13.0))
+                .font_family(t.ui_font.clone())
+                .text_color(t.c("editor.foreground"))
+                .children(rows),
+        )
+    }
+
+    /// Parameter hints above the caret line: the signature with the current parameter in bold and
+    /// underlined, its overload number (click the arrows to switch) and documentation.
+    fn render_signature(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
+        let state = self.signature.as_ref()?;
+        // The completion list sits below the line; hints go above it, unless there's no room.
+        let t = Theme::global(cx);
+        let signature = state.help.signatures.get(state.selected)?;
+        let (x, y) = self.caret_screen_pos(self.state.caret());
+        let lh = self.layout.line_height;
+        let above = y > 70.0;
+        let fg = t.c("editorHoverWidget.foreground");
+        let highlight = t.c_or("editorHoverWidget.highlightForeground", 0x4fc1ffff);
+        let mut label = div().flex().flex_wrap().font_family(t.editor_font.clone());
+        let active = signature.active_parameter.and_then(|i| signature.parameters.get(i)).cloned();
+        match active {
+            Some(range) => {
+                label = label
+                    .child(signature.label[..range.start].to_owned())
+                    .child(div().text_color(highlight).font_weight(gpui::FontWeight::BOLD).underline().child(signature.label[range.clone()].to_owned()))
+                    .child(signature.label[range.end..].to_owned());
+            }
+            None => label = label.child(signature.label.clone()),
+        }
+        let count = state.help.signatures.len();
+        let arrow = |id: &'static str, name: &'static str, delta: isize| {
+            div()
+                .id(id)
+                .rounded(px(3.))
+                .cursor_pointer()
+                .hover(|s| s.bg(t.c("toolbar.hoverBackground")))
+                .child(icon(name, px(14.), fg))
+                .on_mouse_down(MouseButton::Left, cx.listener(move |v, _, _, cx| {
+                    cx.stop_propagation();
+                    v.cycle_signature(delta, cx);
+                }))
+        };
+        let header = div()
+            .flex()
+            .items_start()
+            .gap_2()
+            .when(count > 1, |d| {
+                d.child(
+                    div()
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .text_size(px(11.))
+                        .text_color(t.c("foreground.muted"))
+                        .child(arrow("sig-prev", "chevronUp", -1))
+                        .child(format!("{}/{count}", state.selected + 1))
+                        .child(arrow("sig-next", "chevronDown", 1)),
+                )
+            })
+            .child(div().flex_1().child(label));
+        let doc = signature.documentation.as_deref().map(|d| d.split("\n\n").next().unwrap_or(d).trim().to_owned()).filter(|d| !d.is_empty());
+        Some(
+            div()
+                .id("signature-help")
+                .absolute()
+                .left(px(x.max(4.0)))
+                .map(|d| if above { d.bottom(px(self.layout.height - y + 2.0)) } else { d.top(px(y + lh + 2.0)) })
+                .max_w(px(640.))
+                .bg(t.bg("editorHoverWidget.background"))
+                .text_color(fg)
+                .border_color(t.c("editorHoverWidget.border"))
+                .border_1()
+                .rounded(t.radius("widget.radius", 6.0))
+                .shadow(t.shadow("widget.shadow"))
+                .px_2()
+                .py_1()
+                .text_size(t.m("ui.size", 13.0))
+                .font_family(t.ui_font.clone())
+                .cursor(gpui::CursorStyle::Arrow)
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .flex()
+                .flex_col()
+                .gap_1()
+                .child(header)
+                .when_some(doc, |d, doc| d.child(div().text_size(px(12.)).text_color(t.c("foreground.muted")).child(crate::markdown::render(&doc, cx)))),
+        )
+    }
+
+    fn render_hover(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
+        let t = Theme::global(cx);
+        let hover = self.hover.as_ref()?;
+        let problems: Vec<(&'static str, &'static str, String)> = self
+            .diagnostics_in(hover.range)
+            .map(|d| {
+                let (name, key) = match d.severity {
+                    Severity::Error => ("error", "editorError.foreground"),
+                    Severity::Warning => ("warning", "editorWarning.foreground"),
+                    _ => ("info", "editorInfo.foreground"),
+                };
+                let text = match &d.code {
+                    Some(code) => format!("{} ({code})", d.message),
+                    None => d.message.clone(),
+                };
+                (name, key, text)
+            })
+            .collect();
+        let has_text = !hover.text.trim().is_empty();
+        if problems.is_empty() && !has_text {
+            return None;
+        }
+        let (x, y) = self.caret_screen_pos(hover.range.0);
+        let lh = self.layout.line_height;
+        // Below the line in the upper half of the editor, above it in the lower half, never covering it.
+        let below = y + lh / 2.0 < self.layout.height / 2.0;
+        let max_h = if below { self.layout.height - y - lh - 8.0 } else { y - 8.0 }.clamp(80.0, 360.0);
+        let mut body = div().flex().flex_col().gap(px(6.));
+        let has_problems = !problems.is_empty();
+        for (name, key, text) in problems {
+            body = body.child(div().flex().gap_2().child(icon(name, px(14.), t.c(key)).mt(px(2.))).child(div().flex_1().child(text)));
+        }
+        if has_problems && self.lsp.is_some() {
+            body = body.child(div().text_size(px(11.)).text_color(t.c("foreground.muted")).child("Ctrl+. for quick fixes"));
+        }
+        if has_text {
+            if self.diagnostics_in(hover.range).next().is_some() {
+                body = body.child(div().h(px(1.)).w_full().bg(t.c("editorHoverWidget.border")));
+            }
+            body = body.child(crate::markdown::render(&hover.text, cx));
+        }
+        Some(
+            div()
+                .id("hover-popup")
+                .absolute()
+                .left(px(x.max(4.0)))
+                .map(|d| if below { d.top(px(y + lh + 2.0)) } else { d.bottom(px(self.layout.height - y + 2.0)) })
+                .max_w(px(600.))
+                .max_h(px(max_h))
+                .overflow_y_scroll()
                 .bg(t.bg("editorHoverWidget.background"))
                 .text_color(t.c("editorHoverWidget.foreground"))
                 .border_color(t.c("editorHoverWidget.border"))
@@ -1486,7 +2188,15 @@ impl EditorView {
                 .p_2()
                 .text_size(t.m("ui.size", 13.0))
                 .font_family(t.ui_font.clone())
-                .child(text),
+                .cursor(gpui::CursorStyle::Arrow)
+                // Reading the popup: keep the editor from scrolling or selecting underneath.
+                .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .child({
+                    let store = self.hover_bounds.clone();
+                    gpui::canvas(move |bounds, _, _| store.set(Some(bounds)), |_, _, _, _| {}).absolute().inset_0()
+                })
+                .child(body),
         )
     }
 }

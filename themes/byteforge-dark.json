@@ -67,6 +67,13 @@
     "list.hoverBackground": "#2a2d2e",
     "list.activeSelectionBackground": "#04395e",
     "list.activeSelectionForeground": "#ffffff",
+    "list.activeFileBackground": "#04395e",
+    "list.activeFileForeground": "#ffffff",
+    "list.activeFileIndicator": "#0078d4",
+    // Terminal (default: panel background and editor foreground; ANSI colors as in VS Code).
+    // "terminal.background": "#181818", "terminal.foreground": "#cccccc", "terminal.ansiRed": "#cd3131", …
+    "terminalCursor.foreground": "#aeafad",
+    "terminal.selectionBackground": "#264f78",
 
     // ── file icons ──
     "icon.folder": "#dcb67a",
@@ -76,6 +83,7 @@
     "icon.json": "#cbcb41",
     "icon.markup": "#e37933",
     "icon.markdown": "#519aba",
+    "icon.docker": "#2496ed",
 
     // ── tabs & breadcrumbs ──
     "editorGroupHeader.background": "#181818",
@@ -159,6 +167,7 @@
 
     // ── status bar ──
     "statusBar.background": "#181818",
+    "statusBar.debuggingBackground": "#cc6633",
     "statusBar.foreground": "#cccccc",
     "statusBar.border": "#2b2b2b",
     "statusBarItem.hoverBackground": "#ffffff1f",
@@ -230,7 +239,14 @@
     "regex - anchor": "#dcdcaa",
     "regex - quantifier": "#d7ba7d",
     "json - property name": "#9cdcfe",
-    "json - string": "#ce9178"
+    "json - string": "#ce9178",
+    "html element name": "#569cd6",
+    "html attribute name": "#9cdcfe",
+    "html attribute value": "#ce9178",
+    "html tag delimiter": "#808080",
+    "razor transition": "#c586c0",
+    "razor directive": "#c586c0",
+    "xml - msbuild reference": "#dcdcaa"
   },
 
   "fonts": {
@@ -439,9 +455,9 @@
     // The side bar, top to bottom: header, content, activityBar (a horizontal activity bar).
     // "sideBar.order": ["header", "content"],
     // "sideBar.visible": true,            // initial visibility
-    // "sideBar.defaultView": "explorer",  // explorer | search | scm | modules
+    // "sideBar.defaultView": "explorer",  // explorer | search | scm | debug | docker | modules
     // "panel.visible": false,
-    // "panel.tabs": ["problems", "output"],
+    // "panel.tabs": ["problems", "output", "debugConsole"],
 
     // Title bar zones. Parts: logo, menu, title, commandCenter, branch, layoutControls (= toggleSideBar,
     // togglePanel, themePicker), windowControls, spacer, commands. The center zone stays centered.
@@ -450,8 +466,8 @@
     // "titleBar.right": ["layoutControls", "windowControls"],
     // "menuBar.menus": ["File", "Edit", "View", "Go", "Git", "Run", "Preferences", "Help"],
 
-    // Activity bar items: explorer, search, scm, modules, settings, spacer, commands.
-    // "activityBar.items": ["explorer", "search", "scm", "modules", "spacer", "settings"],
+    // Activity bar items: explorer, search, scm, debug, docker, modules, settings, spacer, commands.
+    // "activityBar.items": ["explorer", "search", "scm", "debug", "docker", "modules", "spacer", "settings"],
 
     // Status bar zones. Parts: branch, sync, problems (errors + warnings), errors, warnings, run, modules
     // (module items, placed by their alignment), position, indent, encoding, eol, language, lsp, spacer, commands.

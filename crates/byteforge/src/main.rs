@@ -4,12 +4,15 @@
 
 mod actions;
 mod assets;
+mod docker;
 mod editor;
 mod explorer;
 mod layout;
+mod markdown;
 mod palette;
 mod scm;
 mod search;
+mod terminal;
 mod text_input;
 mod theme;
 mod workbench;

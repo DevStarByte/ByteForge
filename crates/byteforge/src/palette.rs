@@ -18,6 +18,12 @@ pub enum Mode {
     GoToLine,
     Prompt,
     Branches,
+    /// A plain list to pick from (processes to attach to, shells, …).
+    Pick,
+    /// Symbols of the current file ("@").
+    Symbols,
+    /// Symbols across the workspace, asked from the language server as you type ("#").
+    WorkspaceSymbols,
 }
 
 pub enum PaletteAction {
@@ -27,6 +33,8 @@ pub enum PaletteAction {
     GoToLine(usize),
     Prompt(String),
     Branch(bf_core::git::Branch),
+    /// Open a file at a position.
+    GoTo(PathBuf, bf_text::Point),
 }
 
 impl Clone for PaletteAction {
@@ -38,6 +46,7 @@ impl Clone for PaletteAction {
             Self::GoToLine(l) => Self::GoToLine(*l),
             Self::Prompt(s) => Self::Prompt(s.clone()),
             Self::Branch(b) => Self::Branch(b.clone()),
+            Self::GoTo(p, at) => Self::GoTo(p.clone(), *at),
         }
     }
 }
@@ -63,8 +72,10 @@ pub enum PaletteEvent {
     Preview(PaletteAction),
     /// Dismissed without accepting (theme previews should be reverted).
     Dismissed,
-    /// The text changed to a different mode prefix (">" or ":"); the owner refills items.
+    /// The text changed to a different mode prefix (">", ":", "@" or "#"); the owner refills items.
     SwitchMode(Mode),
+    /// The query changed in a mode whose items come from a server (workspace symbols).
+    Query(String),
 }
 
 pub struct Palette {
@@ -129,6 +140,8 @@ impl Palette {
         match self.mode {
             Mode::Commands => text.trim_start_matches('>').trim().to_owned(),
             Mode::GoToLine => text.trim_start_matches(':').trim().to_owned(),
+            Mode::Symbols => text.trim_start_matches('@').trim().to_owned(),
+            Mode::WorkspaceSymbols => text.trim_start_matches('#').trim().to_owned(),
             _ => text.trim().to_owned(),
         }
     }
@@ -138,11 +151,15 @@ impl Palette {
         let wanted = match self.mode {
             Mode::Files if text.starts_with('>') => Some(Mode::Commands),
             Mode::Files if text.starts_with(':') => Some(Mode::GoToLine),
-            Mode::Commands | Mode::GoToLine if text.is_empty() => Some(Mode::Files),
+            Mode::Files if text.starts_with('@') => Some(Mode::Symbols),
+            Mode::Files if text.starts_with('#') => Some(Mode::WorkspaceSymbols),
+            Mode::Commands | Mode::GoToLine | Mode::Symbols | Mode::WorkspaceSymbols if text.is_empty() => Some(Mode::Files),
             _ => None,
         };
         if let Some(mode) = wanted {
             cx.emit(PaletteEvent::SwitchMode(mode));
+        } else if self.mode == Mode::WorkspaceSymbols {
+            cx.emit(PaletteEvent::Query(self.query(cx)));
         }
         self.filter(cx);
     }

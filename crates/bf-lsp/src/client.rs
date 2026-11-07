@@ -18,7 +18,7 @@ use crate::convert::{self, ProgressTracker};
 use crate::framing::{FrameReader, encode};
 use crate::uri::path_to_uri;
 use crate::{
-    CompletionItem, Location, LspEvent, Position, SemanticToken, ServerConfig, TextChange,
+    CodeAction, CompletionItem, Diagnostic, Location, LspEvent, Position, Range, SemanticToken, ServerConfig, TextChange,
 };
 
 /// JSON-RPC `MethodNotFound`.
@@ -248,6 +248,47 @@ impl LspClient {
         )
     }
 
+    /// `textDocument/implementation` at `position`: implementations of an interface or abstract member,
+    /// overrides of a virtual one.
+    pub fn implementation(&self, path: &Path, position: Position) -> flume::Receiver<Result<Vec<Location>>> {
+        self.typed_request("textDocument/implementation", position_params(path, position), |v, _| Ok(convert::parse_locations(&v)))
+    }
+
+    /// `textDocument/typeDefinition` at `position`: the declaration of the type of the symbol there.
+    pub fn type_definition(&self, path: &Path, position: Position) -> flume::Receiver<Result<Vec<Location>>> {
+        self.typed_request("textDocument/typeDefinition", position_params(path, position), |v, _| Ok(convert::parse_locations(&v)))
+    }
+
+    /// `textDocument/documentSymbol`: the file's outline, flattened in document order.
+    pub fn document_symbols(&self, path: &Path) -> flume::Receiver<Result<Vec<crate::Symbol>>> {
+        let file = path.to_path_buf();
+        self.typed_request("textDocument/documentSymbol", json!({ "textDocument": { "uri": path_to_uri(path) } }), move |v, _| Ok(convert::parse_document_symbols(&v, &file)))
+    }
+
+    /// `workspace/symbol`: types and members across the solution whose name matches `query`.
+    pub fn workspace_symbols(&self, query: &str) -> flume::Receiver<Result<Vec<crate::Symbol>>> {
+        self.typed_request("workspace/symbol", json!({ "query": query }), |v, _| Ok(convert::parse_workspace_symbols(&v)))
+    }
+
+    /// `textDocument/references` at `position`, including the declaration.
+    pub fn references(&self, path: &Path, position: Position) -> flume::Receiver<Result<Vec<Location>>> {
+        let mut params = position_params(path, position);
+        params["context"] = json!({ "includeDeclaration": true });
+        self.typed_request("textDocument/references", params, |v, _| Ok(convert::parse_locations(&v)))
+    }
+
+    /// `textDocument/rename`: the edits that rename the symbol at `position` to `new_name` everywhere.
+    pub fn rename(&self, path: &Path, position: Position, new_name: &str) -> flume::Receiver<Result<crate::WorkspaceEdit>> {
+        let mut params = position_params(path, position);
+        params["newName"] = json!(new_name);
+        self.typed_request("textDocument/rename", params, |v, _| Ok(convert::parse_workspace_edit(&v)))
+    }
+
+    /// `textDocument/signatureHelp` at `position` (`None` outside a call).
+    pub fn signature_help(&self, path: &Path, position: Position) -> flume::Receiver<Result<Option<crate::SignatureHelp>>> {
+        self.typed_request("textDocument/signatureHelp", position_params(path, position), |v, _| Ok(convert::parse_signature_help(&v)))
+    }
+
     /// `textDocument/hover`, flattened to markdown/plain text.
     pub fn hover(
         &self,
@@ -259,6 +300,43 @@ impl LspClient {
             position_params(path, position),
             |v, _| Ok(convert::flatten_hover(&v)),
         )
+    }
+
+    /// `textDocument/codeAction` for `range`, with the diagnostics there as context. Quick fixes and
+    /// refactorings; some come without an edit and need [`LspClient::resolve_code_action`].
+    pub fn code_actions(&self, path: &Path, range: Range, diagnostics: &[Diagnostic]) -> flume::Receiver<Result<Vec<CodeAction>>> {
+        let params = json!({
+            "textDocument": { "uri": path_to_uri(path) },
+            "range": convert::range_json(range),
+            "context": { "diagnostics": diagnostics.iter().map(convert::diagnostic_json).collect::<Vec<_>>(), "triggerKind": 1 },
+        });
+        self.typed_request("textDocument/codeAction", params, |v, _| {
+            Ok(v.as_array().map(|a| a.iter().filter_map(convert::parse_code_action).collect()).unwrap_or_default())
+        })
+    }
+
+    /// `textDocument/formatting`: edits that format the whole document.
+    pub fn formatting(&self, path: &Path, tab_size: u32, insert_spaces: bool) -> flume::Receiver<Result<Vec<crate::TextEdit>>> {
+        let params = json!({
+            "textDocument": { "uri": path_to_uri(path) },
+            "options": { "tabSize": tab_size, "insertSpaces": insert_spaces, "trimTrailingWhitespace": true, "insertFinalNewline": true },
+        });
+        self.typed_request("textDocument/formatting", params, |v, _| Ok(convert::parse_text_edits(&v)))
+    }
+
+    /// `codeAction/resolve`: fills in the edit of a lazily computed action.
+    pub fn resolve_code_action(&self, action: &CodeAction) -> flume::Receiver<Result<CodeAction>> {
+        let fallback = action.clone();
+        self.typed_request("codeAction/resolve", action.raw.clone(), move |v, _| Ok(convert::parse_code_action(&v).unwrap_or(fallback)))
+    }
+
+    /// `workspace/executeCommand` with a `{ command, arguments }` object from a code action.
+    pub fn execute_command(&self, command: &Value) -> flume::Receiver<Result<Value>> {
+        let mut params = json!({ "command": command.get("command").cloned().unwrap_or(Value::Null) });
+        if let Some(arguments) = command.get("arguments").filter(|a| !a.is_null()) {
+            params["arguments"] = arguments.clone();
+        }
+        self.typed_request("workspace/executeCommand", params, |v, _| Ok(v))
     }
 
     /// `textDocument/semanticTokens/full`; `Ok(empty)` if the server does not support it.
@@ -595,7 +673,11 @@ impl Shared {
                 }
                 Value::Null
             }
-            "workspace/applyEdit" => json!({ "applied": false }),
+            "workspace/applyEdit" => {
+                let edit = convert::parse_workspace_edit(params.get("edit").unwrap_or(&Value::Null));
+                self.emit(LspEvent::ApplyEdit(edit));
+                json!({ "applied": true })
+            }
             "window/showDocument" => json!({ "success": false }),
             "workspace/diagnostic/refresh" => {
                 self.schedule_pull_all();
@@ -855,8 +937,11 @@ fn initialize_params(config: &ServerConfig, workspace_folder: &Value) -> Value {
             },
             "workspace": {
                 "workspaceFolders": true,
+                "symbol": { "dynamicRegistration": false },
                 "configuration": true,
-                "applyEdit": false,
+                "applyEdit": true,
+                "workspaceEdit": { "documentChanges": true, "resourceOperations": ["create"] },
+                "executeCommand": { "dynamicRegistration": false },
                 "diagnostics": { "refreshSupport": true },
                 "didChangeConfiguration": { "dynamicRegistration": false }
             },
@@ -875,6 +960,31 @@ fn initialize_params(config: &ServerConfig, workspace_folder: &Value) -> Value {
                 "hover": { "dynamicRegistration": false, "contentFormat": ["markdown", "plaintext"] },
                 "diagnostic": { "dynamicRegistration": false, "relatedDocumentSupport": false },
                 "definition": { "dynamicRegistration": false, "linkSupport": false },
+                "references": { "dynamicRegistration": false },
+                "implementation": { "dynamicRegistration": false, "linkSupport": false },
+                "typeDefinition": { "dynamicRegistration": false, "linkSupport": false },
+                "documentSymbol": { "dynamicRegistration": false, "hierarchicalDocumentSymbolSupport": true },
+                "rename": { "dynamicRegistration": false, "prepareSupport": false },
+                "signatureHelp": {
+                    "dynamicRegistration": false,
+                    "contextSupport": false,
+                    "signatureInformation": {
+                        "documentationFormat": ["markdown", "plaintext"],
+                        "parameterInformation": { "labelOffsetSupport": true },
+                        "activeParameterSupport": true
+                    }
+                },
+                "formatting": { "dynamicRegistration": false },
+                "codeAction": {
+                    "dynamicRegistration": false,
+                    "codeActionLiteralSupport": {
+                        "codeActionKind": { "valueSet": ["", "quickfix", "refactor", "refactor.extract", "refactor.inline", "refactor.rewrite", "source", "source.organizeImports"] }
+                    },
+                    "isPreferredSupport": true,
+                    "disabledSupport": true,
+                    "dataSupport": true,
+                    "resolveSupport": { "properties": ["edit"] }
+                },
                 "semanticTokens": {
                     "dynamicRegistration": false,
                     "requests": { "full": true, "range": false },

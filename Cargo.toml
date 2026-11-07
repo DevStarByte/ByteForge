@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/bf-core", "crates/bf-text", "crates/bf-syntax", "crates/bf-lsp", "crates/byteforge"]
+members = ["crates/bf-core", "crates/bf-text", "crates/bf-syntax", "crates/bf-lsp", "crates/bf-dap", "crates/byteforge"]
 
 [workspace.package]
 version = "0.1.0"
@@ -23,6 +23,7 @@ bf-core = { path = "crates/bf-core" }
 bf-text = { path = "crates/bf-text" }
 bf-syntax = { path = "crates/bf-syntax" }
 bf-lsp = { path = "crates/bf-lsp" }
+bf-dap = { path = "crates/bf-dap" }
 
 [profile.release]
 opt-level = 3

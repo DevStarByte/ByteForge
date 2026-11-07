@@ -1,10 +1,15 @@
 //! The workbench: window layout, tabs, panels, title bar, menus, status bar and all workbench commands.
 
-use std::collections::HashMap;
+mod debug;
+mod docker;
+mod references;
+mod symbols;
+
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 use bf_core::dotnet::{DotnetProcess, RunEvent, find_target};
-use bf_core::plugins::{PluginHandle, PluginMessage, discover};
+use bf_core::plugins::{ModuleManifest, PluginHandle, PluginMessage, discover};
 use bf_core::settings::State;
 use bf_core::{AppPaths, Settings, ThemeService, Workspace, log_line};
 use bf_lsp::{LspClient, LspEvent, ServerConfig};
@@ -18,7 +23,10 @@ use serde_json::json;
 
 use crate::actions::*;
 use crate::assets::{self, icon};
+use crate::docker::DockerView;
 use crate::editor::{EditorEvent, EditorView};
+use crate::terminal::{TerminalEvent, TerminalView};
+use crate::text_input::{InputEvent, TextInput};
 use crate::explorer::{Explorer, ExplorerEvent};
 use crate::palette::{Mode, Palette, PaletteAction, PaletteEvent, PaletteItem};
 use crate::scm::{ScmEvent, ScmView};
@@ -44,6 +52,8 @@ enum SideView {
     Explorer,
     Search,
     SourceControl,
+    Debug,
+    Docker,
     Modules,
 }
 
@@ -51,6 +61,9 @@ enum SideView {
 enum PanelView {
     Problems,
     Output,
+    DebugConsole,
+    Terminal,
+    References,
 }
 
 #[derive(Clone, Copy)]
@@ -76,9 +89,31 @@ enum PromptKind {
     Rename(PathBuf),
     CustomizeTheme,
     CreateBranch,
+    RenameSymbol { editor: gpui::WeakEntity<EditorView>, at: Point, old: String },
+}
+
+/// Runs when a dotnet process started by `start_dotnet` exits (argument: whether it succeeded).
+type DotnetDone = Box<dyn FnOnce(&mut Workbench, bool, &mut Window, &mut Context<Workbench>)>;
+
+/// A formatter contributed by a module.
+struct Formatter {
+    module: String,
+    id: String,
+    name: String,
+    extensions: Vec<String>,
+}
+
+/// A format request waiting for its module's answer.
+struct PendingFormat {
+    editor: gpui::WeakEntity<EditorView>,
+    /// The buffer version the text was sent at; a result for an older text is dropped.
+    version: u64,
+    save_after: bool,
+    name: String,
 }
 
 struct StatusEntry {
+    module: String,
     id: String,
     text: String,
     tooltip: Option<String>,
@@ -88,11 +123,15 @@ struct StatusEntry {
 
 const MENUS: &[(&str, &[&str])] = &[
     ("File", &["file.newFile", "file.openFile", "file.openFolder", "-", "file.save", "file.saveAs", "file.saveAll", "-", "file.close", "file.closeAll", "-", "app.exit"]),
-    ("Edit", &["edit.undo", "edit.redo", "-", "edit.find", "edit.replace", "-", "edit.toggleComment", "edit.duplicateLines", "edit.triggerSuggest", "-", "edit.toggleLineEnding"]),
-    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.modules", "view.problems", "view.output", "-", "view.toggleSideBar", "view.togglePanel"]),
-    ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "-", "view.nextEditor", "view.previousEditor"]),
+    ("Edit", &["edit.undo", "edit.redo", "-", "edit.find", "edit.replace", "-", "edit.toggleComment", "edit.duplicateLines", "edit.triggerSuggest", "edit.signatureHelp", "-", "edit.rename", "-", "edit.toggleLineEnding"]),
+    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.docker", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.toggleSideBar", "view.togglePanel"]),
+    ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.init"]),
-    ("Run", &["dotnet.build", "dotnet.run", "dotnet.test", "dotnet.clean", "dotnet.restore", "-", "dotnet.stop", "-", "csharp.reload"]),
+    ("Run", &[
+        "debug.start", "dotnet.run", "debug.restart", "dotnet.stop", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
+        "debug.toggleBreakpoint", "debug.removeAllBreakpoints", "debug.attach", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
+        "docker.build", "docker.composeUp", "docker.composeDown", "docker.addDockerSupport", "docker.addCompose", "-", "csharp.reload",
+    ]),
     ("Preferences", &["settings.open", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
     ("Help", &["view.modules", "app.about"]),
 ];
@@ -109,15 +148,20 @@ pub struct Workbench {
     explorer: Entity<Explorer>,
     search: Entity<SearchView>,
     scm: Entity<ScmView>,
+    docker: Entity<DockerView>,
     git_head: Option<Option<String>>,
     output: Entity<EditorView>,
     palette: Option<(Entity<Palette>, Subscription)>,
     palette_restore_theme: Option<String>,
+    /// Loads symbols for the palette ("@" and "#"); replaced by each new query.
+    symbol_task: Option<Task<()>>,
     prompt: Option<PromptKind>,
     side: SideView,
     side_visible: bool,
     side_width: f32,
     panel: PanelView,
+    /// The last Find All References result (the References panel).
+    references: Option<references::References>,
     panel_visible: bool,
     panel_height: f32,
     panel_width: f32,
@@ -128,7 +172,23 @@ pub struct Workbench {
     lsp_task: Option<Task<()>>,
     dotnet: Option<DotnetProcess>,
     dotnet_task: Option<Task<()>>,
+    /// Compiler errors and warnings from the last build (Razor files only get diagnostics this way).
+    build_problems: Vec<(PathBuf, crate::editor::Diagnostic)>,
+    debug: Option<debug::DebugSession>,
+    debug_generation: u64,
+    /// Breakpoints of all files (open or not), sorted by line.
+    breakpoints: BTreeMap<PathBuf, Vec<crate::editor::Breakpoint>>,
+    debug_console: Entity<EditorView>,
+    debug_input: Entity<TextInput>,
+    terminals: Vec<(Entity<TerminalView>, Subscription)>,
+    active_terminal: usize,
     plugins: Vec<PluginHandle>,
+    /// Every module found, running or removed (for the Modules view).
+    modules: Vec<ModuleManifest>,
+    plugin_tx: Option<flume::Sender<PluginMessage>>,
+    formatters: Vec<Formatter>,
+    format_requests: HashMap<u64, PendingFormat>,
+    next_format_request: u64,
     plugin_commands: HashMap<String, String>,
     plugin_status: Vec<StatusEntry>,
     output_tx: flume::Sender<String>,
@@ -198,13 +258,24 @@ impl Workbench {
         let explorer = cx.new(|cx| Explorer::new(workspace.clone(), cx));
         let search = cx.new(|cx| SearchView::new(workspace.clone(), window, cx));
         let scm = cx.new(|cx| ScmView::new(workspace.clone(), window, cx));
+        let docker = cx.new(|cx| DockerView::new(workspace.clone(), cx));
         let output = cx.new(|cx| {
             let mut e = EditorView::new("", None, cx);
             e.read_only = true;
             e.show_line_numbers = false;
             e.show_indent_guides = false;
+            e.detect_links = true;
             e
         });
+        let debug_console = cx.new(|cx| {
+            let mut e = EditorView::new("", None, cx);
+            e.read_only = true;
+            e.show_line_numbers = false;
+            e.show_indent_guides = false;
+            e.detect_links = true;
+            e
+        });
+        let debug_input = cx.new(|cx| TextInput::new("Evaluate an expression while paused (Enter)", cx));
         let (output_tx, output_rx) = flume::unbounded::<String>();
         let state = State::load(paths.state_file());
         let theme_version = Theme::global(cx).version;
@@ -215,6 +286,19 @@ impl Workbench {
                 SearchEvent::Open(path, point) => wb.open_file(path.clone(), Some(*point), window, cx),
             }),
             cx.subscribe_in(&scm, window, Self::on_scm_event),
+            cx.subscribe_in(&docker, window, Self::on_docker_event),
+            // File references in program output open on click.
+            cx.subscribe_in(&output, window, Self::on_output_event),
+            cx.subscribe_in(&debug_console, window, Self::on_output_event),
+            cx.subscribe_in(&debug_input, window, |wb, input, event, _, cx| {
+                if let InputEvent::Confirmed = event {
+                    let expression = input.read(cx).text().trim().to_owned();
+                    if !expression.is_empty() {
+                        input.update(cx, |i, cx| i.set_text("", cx));
+                        wb.debug_evaluate(expression, cx);
+                    }
+                }
+            }),
         ];
         subs.push(cx.observe_window_bounds(window, |_, _, cx| cx.notify()));
 
@@ -242,6 +326,7 @@ impl Workbench {
                         AppEvent::SettingsChanged => wb.apply_settings(window, cx),
                         AppEvent::FilesChanged => {
                             wb.explorer.update(cx, |e, cx| e.refresh(cx));
+                            wb.docker.update(cx, |d, cx| d.files_changed(cx));
                         }
                     })
                     .is_ok();
@@ -263,15 +348,18 @@ impl Workbench {
             explorer,
             search,
             scm,
+            docker,
             git_head: None,
             output,
             palette: None,
             palette_restore_theme: None,
+            symbol_task: None,
             prompt: None,
             side: SideView::Explorer,
             side_visible: true,
             side_width: 0.0,
             panel: PanelView::Problems,
+            references: None,
             panel_visible: false,
             panel_height: 0.0,
             panel_width: 0.0,
@@ -282,7 +370,20 @@ impl Workbench {
             lsp_task: None,
             dotnet: None,
             dotnet_task: None,
+            build_problems: Vec::new(),
+            debug: None,
+            debug_generation: 0,
+            breakpoints: BTreeMap::new(),
+            debug_console,
+            debug_input,
+            terminals: Vec::new(),
+            active_terminal: 0,
             plugins: Vec::new(),
+            modules: Vec::new(),
+            plugin_tx: None,
+            formatters: Vec::new(),
+            format_requests: HashMap::new(),
+            next_format_request: 1,
             plugin_commands: HashMap::new(),
             plugin_status: Vec::new(),
             output_tx,
@@ -303,6 +404,8 @@ impl Workbench {
             wb.panel_visible = lay.panel_visible;
             wb.side = side_view_named(&lay.side_default).unwrap_or(SideView::Explorer);
         }
+        let auto_reveal = wb.settings.get("explorer.autoReveal", true);
+        wb.explorer.update(cx, |e, _| e.auto_reveal = auto_reveal);
         wb.apply_window_effects(window, cx);
         wb.start_plugins(event_tx, cx);
 
@@ -378,6 +481,8 @@ impl Workbench {
             self.apply_theme(&theme, window, cx);
         }
         self.workspace.set_excludes(self.settings.get("files.exclude", Vec::<String>::new()));
+        let auto_reveal = self.settings.get("explorer.autoReveal", true);
+        self.explorer.update(cx, |e, _| e.auto_reveal = auto_reveal);
         let overrides: HashMap<String, String> = self.settings.get("keybindings", HashMap::new());
         let mut bindings = Vec::new();
         let commands = cx.global::<Commands>();
@@ -424,8 +529,17 @@ impl Workbench {
         self.state.set("lastFolder", Some(&path.to_string_lossy()));
         self.explorer.update(cx, |e, cx| e.refresh(cx));
         self.scm.update(cx, |s, cx| s.open_folder(cx));
+        self.docker.update(cx, |d, cx| d.refresh(cx));
         self.git_head = None;
         self.side = side_view_named(&Theme::global(cx).layout.side_default).unwrap_or(SideView::Explorer);
+        self.build_problems.clear();
+        for view in [&self.output, &self.debug_console] {
+            view.update(cx, |e, _| {
+                e.link_root = Some(path.clone());
+                e.link_cache.clear();
+            });
+        }
+        self.load_breakpoints(cx);
         self.start_lsp(cx);
         for p in &self.plugins {
             p.event("folderOpened", Some(&path));
@@ -483,9 +597,9 @@ impl Workbench {
                     e.attach_lsp(lsp.clone(), cx);
                 }
             });
+            self.prepare_debuggable_editor(&editor, &path, cx);
             let title = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
             self.add_tab(editor.clone(), Some(path.clone()), title, bom, window, cx);
-            self.explorer.update(cx, |e, cx| e.reveal(&path, cx));
             self.load_git_base(editor, path.clone(), cx);
         }
         if let (Some(at), Some(editor)) = (at, self.active_editor()) {
@@ -493,15 +607,33 @@ impl Workbench {
         }
     }
 
-    fn add_tab(&mut self, editor: Entity<EditorView>, path: Option<PathBuf>, title: String, bom: bool, window: &mut Window, cx: &mut Context<Self>) {
-        let sub = cx.subscribe_in(&editor, window, |wb, editor, event, window, cx| match event {
-            EditorEvent::Navigate(path, point) => {
-                let (path, point) = (path.clone(), *point);
-                let _ = editor;
-                wb.open_file(path, Some(point), window, cx);
+    fn on_output_event(&mut self, _: &Entity<EditorView>, event: &EditorEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if let EditorEvent::Navigate(path, at) = event {
+            self.open_file(path.clone(), Some(*at), window, cx);
+        }
+    }
+
+    fn on_editor_event(&mut self, editor: &Entity<EditorView>, event: &EditorEvent, window: &mut Window, cx: &mut Context<Self>) {
+        match event {
+            EditorEvent::Navigate(path, point) => self.open_file(path.clone(), Some(*point), window, cx),
+            EditorEvent::BreakpointsChanged => self.on_editor_breakpoints_changed(editor, cx),
+            EditorEvent::ApplyCodeAction(action) => self.apply_code_action((**action).clone(), window, cx),
+            EditorEvent::Locations { title, locations } => self.show_references(title.clone(), locations, cx),
+            EditorEvent::RenameRequested { symbol, at } => {
+                let kind = PromptKind::RenameSymbol { editor: editor.downgrade(), at: *at, old: symbol.clone() };
+                self.open_prompt(kind, symbol, window, cx);
+            }
+            EditorEvent::ApplyWorkspaceEdit(edit) => self.apply_rename(edit, window, cx),
+            EditorEvent::Log(text) => {
+                self.log(text);
+                self.show_panel(PanelView::Output, cx);
             }
             _ => cx.notify(),
-        });
+        }
+    }
+
+    fn add_tab(&mut self, editor: Entity<EditorView>, path: Option<PathBuf>, title: String, bom: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let sub = cx.subscribe_in(&editor, window, Self::on_editor_event);
         self.tabs.push(Tab { editor, path, title, bom, _subs: vec![sub] });
         let ix = self.tabs.len() - 1;
         self.activate(ix, window, cx);
@@ -512,6 +644,8 @@ impl Workbench {
             self.active = Some(ix);
             let editor = self.tabs[ix].editor.clone();
             editor.update(cx, |e, _| e.focus(window));
+            let path = self.tabs[ix].path.clone();
+            self.explorer.update(cx, |e, cx| e.set_active(path.as_deref(), cx));
             cx.notify();
         }
     }
@@ -586,10 +720,8 @@ impl Workbench {
                                 e.attach_lsp(lsp.clone(), cx);
                             }
                         });
-                        let sub = cx.subscribe_in(&editor, window, |wb, _, event, window, cx| match event {
-                            EditorEvent::Navigate(path, point) => wb.open_file(path.clone(), Some(*point), window, cx),
-                            _ => cx.notify(),
-                        });
+                        wb.prepare_debuggable_editor(&editor, &path, cx);
+                        let sub = cx.subscribe_in(&editor, window, Self::on_editor_event);
                         let tab = &mut wb.tabs[ix];
                         tab.editor = editor;
                         tab._subs = vec![sub];
@@ -645,6 +777,7 @@ impl Workbench {
             self.activate(i, window, cx);
         } else {
             window.focus(&self.focus);
+            self.explorer.update(cx, |e, cx| e.set_active(None, cx));
         }
         cx.notify();
     }
@@ -688,6 +821,14 @@ impl Workbench {
         if let Some(d) = &self.dotnet {
             d.kill();
         }
+        if let Some(session) = self.debug.take()
+            && let Some(client) = session.client.clone()
+        {
+            // End a launched program properly (an attached one is detached), then stop the adapter.
+            let _ = client.disconnect(!session.attached).recv_timeout(std::time::Duration::from_millis(1500));
+            client.kill();
+        }
+        self.terminals.clear();
         for p in &self.plugins {
             p.stop();
         }
@@ -745,6 +886,7 @@ impl Workbench {
                                             wb.log(format!("[csharp-ls] {text}"));
                                         }
                                     }
+                                    LspEvent::ApplyEdit(edit) => wb.apply_workspace_edit(&edit, None, cx),
                                     LspEvent::Exited(reason) => {
                                         wb.lsp_status = "C#: stopped".into();
                                         wb.log(format!("C# language server exited: {reason}"));
@@ -767,6 +909,99 @@ impl Workbench {
         cx.notify();
     }
 
+    // ───────────── code actions ─────────────
+
+    /// Applies a quick fix or refactoring: resolves its edit if the server computes it lazily, applies the
+    /// edit, then runs its command.
+    fn apply_code_action(&mut self, action: bf_lsp::CodeAction, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(lsp) = self.lsp.clone() else { return };
+        // Lazily computed actions carry `data` instead of an edit.
+        let resolve = action.edit.is_none() && (action.needs_resolve() || action.raw.get("data").is_some_and(|d| !d.is_null()));
+        if !resolve {
+            self.finish_code_action(action, window, cx);
+            return;
+        }
+        let rx = lsp.resolve_code_action(&action);
+        cx.spawn_in(window, async move |this, cx| {
+            let result = rx.recv_async().await;
+            let _ = this.update_in(cx, |wb, window, cx| match result {
+                Ok(Ok(resolved)) => wb.finish_code_action(resolved, window, cx),
+                Ok(Err(e)) => wb.log(format!("Could not apply \"{}\": {e:#}", action.title)),
+                Err(_) => {}
+            });
+        })
+        .detach();
+    }
+
+    fn finish_code_action(&mut self, action: bf_lsp::CodeAction, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(edit) = &action.edit {
+            self.apply_workspace_edit(edit, Some(window), cx);
+        }
+        if let (Some(command), Some(lsp)) = (&action.command, &self.lsp) {
+            let _ = lsp.execute_command(command);
+        }
+        if action.edit.is_none() && action.command.is_none() {
+            self.log(format!("\"{}\" made no changes.", action.title));
+        }
+    }
+
+    /// Applies a language-server edit: open files change in their editor (one undo step each). With a
+    /// window, other files are opened first so the change can be reviewed and saved; without one they are
+    /// changed on disk.
+    fn apply_workspace_edit(&mut self, edit: &bf_lsp::WorkspaceEdit, mut window: Option<&mut Window>, cx: &mut Context<Self>) {
+        for path in &edit.creates {
+            if !path.exists() {
+                if let Some(dir) = path.parent() {
+                    let _ = std::fs::create_dir_all(dir);
+                }
+                if let Err(e) = std::fs::write(path, "") {
+                    self.log(format!("Could not create {}: {e}", path.display()));
+                }
+            }
+        }
+        let active = self.active;
+        for (path, edits) in &edit.changes {
+            let path = normalize_path(path);
+            let find = |wb: &Self| wb.tabs.iter().find(|t| t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))).map(|t| t.editor.clone());
+            let mut editor = find(self);
+            if editor.is_none()
+                && let Some(window) = window.as_deref_mut()
+            {
+                self.open_file(path.clone(), None, window, cx);
+                editor = find(self);
+            }
+            match editor {
+                Some(editor) => editor.update(cx, |e, cx| e.apply_text_edits(edits, cx)),
+                None => {
+                    let result = std::fs::read_to_string(&path).and_then(|text| {
+                        let mut buffer = bf_text::Buffer::new(&text);
+                        let mut points: Vec<_> = edits
+                            .iter()
+                            .map(|e| {
+                                let start = buffer.utf16_to_point(e.range.start.line as usize, e.range.start.character as usize);
+                                let end = buffer.utf16_to_point(e.range.end.line as usize, e.range.end.character as usize);
+                                (start, end, e.new_text.replace("\r\n", "\n"))
+                            })
+                            .collect();
+                        points.sort_by_key(|p| std::cmp::Reverse(p.0));
+                        for (start, end, text) in points {
+                            buffer.replace(start, end, &text);
+                        }
+                        std::fs::write(&path, buffer.text_for_save())
+                    });
+                    if let Err(e) = result {
+                        self.log(format!("Could not change {}: {e}", path.display()));
+                    }
+                }
+            }
+        }
+        // Opening files to edit them shouldn't move you away from where you were.
+        if let (Some(ix), Some(window)) = (active, window) {
+            self.activate(ix, window, cx);
+        }
+        cx.notify();
+    }
+
     // ───────────── dotnet ─────────────
 
     fn run_dotnet(&mut self, verb: &str, window: &mut Window, cx: &mut Context<Self>) {
@@ -775,9 +1010,7 @@ impl Workbench {
             self.show_panel(PanelView::Output, cx);
             return;
         };
-        if self.dotnet.as_ref().is_some_and(DotnetProcess::is_running) {
-            self.log("A dotnet process is already running. Stop it first (Shift+F5).");
-            self.show_panel(PanelView::Output, cx);
+        if self.dotnet_busy(cx) {
             return;
         }
         let runnable = verb == "run";
@@ -794,23 +1027,52 @@ impl Workbench {
         } else {
             args.push(target.to_string_lossy().into_owned());
         }
-        self.log(format!("> dotnet {}", args.join(" ")));
         self.show_panel(PanelView::Output, cx);
+        self.start_dotnet(root, args, None, window, cx);
+    }
+
+    /// Logs and returns true when a dotnet process (or a debug session) is already running.
+    fn dotnet_busy(&mut self, cx: &mut Context<Self>) -> bool {
+        let busy = self.dotnet.as_ref().is_some_and(DotnetProcess::is_running) || self.debug.is_some();
+        if busy {
+            self.log("A dotnet process or debug session is already running. Stop it first (Shift+F5).");
+            self.show_panel(PanelView::Output, cx);
+        }
+        busy
+    }
+
+    /// Runs `dotnet <args>` in `root` with output streamed to the Output panel. Compiler errors and
+    /// warnings go to Problems. `then` runs when the process exits, with whether it succeeded.
+    fn start_dotnet(&mut self, root: PathBuf, args: Vec<String>, then: Option<DotnetDone>, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let verb = args.first().cloned().unwrap_or_default();
+        let compiles = matches!(verb.as_str(), "build" | "run" | "test");
+        if compiles {
+            self.build_problems.clear();
+        }
+        self.log(format!("> dotnet {}", args.join(" ")));
         match DotnetProcess::start(&root, args) {
             Ok((process, rx)) => {
                 self.dotnet = Some(process);
                 let tx = self.output_tx.clone();
-                let verb = verb.to_owned();
-                self.dotnet_task = Some(cx.spawn(async move |this, cx| {
+                self.dotnet_task = Some(cx.spawn_in(window, async move |this, cx| {
                     while let Ok(event) = rx.recv_async().await {
                         match event {
                             RunEvent::Line(line) => {
+                                if compiles && let Some(d) = bf_core::debug::parse_build_line(&line, &root) {
+                                    let _ = this.update(cx, |wb, _| wb.add_build_problem(d));
+                                }
                                 let _ = tx.send(line);
                             }
                             RunEvent::Exited { code, seconds } => {
                                 let _ = tx.send(log_line(format!("dotnet {verb} exited with code {} after {seconds:.1}s", code.map_or("?".into(), |c| c.to_string()))));
-                                let _ = this.update(cx, |wb, cx| {
+                                let _ = this.update_in(cx, |wb, window, cx| {
                                     wb.dotnet = None;
+                                    if compiles {
+                                        wb.apply_build_diagnostics(cx);
+                                    }
+                                    if let Some(then) = then {
+                                        then(wb, code == Some(0), window, cx);
+                                    }
                                     cx.notify();
                                 });
                                 break;
@@ -818,31 +1080,220 @@ impl Workbench {
                         }
                     }
                 }));
+                cx.notify();
+                true
             }
-            Err(e) => self.log(format!("Could not start dotnet (is the .NET SDK installed?): {e}")),
+            Err(e) => {
+                self.log(format!("Could not start dotnet (is the .NET SDK installed?): {e}"));
+                cx.notify();
+                false
+            }
+        }
+    }
+
+    fn add_build_problem(&mut self, d: bf_core::debug::BuildDiagnostic) {
+        let line = d.line.saturating_sub(1) as usize;
+        let col = d.column.saturating_sub(1) as usize;
+        let diagnostic = crate::editor::Diagnostic {
+            start: Point::new(line, col),
+            end: Point::new(line, col + 1),
+            severity: match d.severity {
+                bf_core::debug::BuildSeverity::Error => bf_lsp::Severity::Error,
+                bf_core::debug::BuildSeverity::Warning => bf_lsp::Severity::Warning,
+            },
+            message: d.message,
+            code: d.code,
+        };
+        let path = normalize_path(&d.path);
+        // MSBuild repeats every diagnostic in its summary.
+        let duplicate = self.build_problems.iter().any(|(p, x)| {
+            *p == path && x.start == diagnostic.start && x.message == diagnostic.message && x.code == diagnostic.code
+        });
+        if !duplicate {
+            self.build_problems.push((path, diagnostic));
+        }
+    }
+
+    /// Whether build diagnostics stand in for a language server in this editor (Razor files, or C#
+    /// without csharp-ls).
+    fn uses_build_diagnostics(&self, editor: &EditorView) -> bool {
+        editor.language != Some(bf_syntax::Language::CSharp) || self.lsp.is_none()
+    }
+
+    /// Shows the last build's diagnostics in open editors that have no language server.
+    fn apply_build_diagnostics(&self, cx: &mut Context<Self>) {
+        for tab in &self.tabs {
+            let Some(path) = &tab.path else { continue };
+            if !self.uses_build_diagnostics(tab.editor.read(cx)) {
+                continue;
+            }
+            let diagnostics: Vec<_> = self.build_problems.iter().filter(|(p, _)| p == path).map(|(_, d)| d.clone()).collect();
+            tab.editor.update(cx, |e, cx| e.set_diagnostics(diagnostics, cx));
+        }
+    }
+
+    // ───────────── terminal ─────────────
+
+    /// Starts a shell in the opened folder ("terminal.shell" and "terminal.args" in settings, else $SHELL).
+    fn new_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let shell = crate::terminal::default_shell(self.settings.get_string("terminal.shell"));
+        let args: Vec<String> = self.settings.get("terminal.args", Vec::new());
+        let cwd = self.workspace.root().or_else(|| std::env::var_os("HOME").map(PathBuf::from));
+        let spawned = match crate::terminal::spawn(shell, args, cwd) {
+            Ok(spawned) => spawned,
+            Err(e) => {
+                self.log(format!("Could not start the terminal: {e:#}"));
+                self.show_panel(PanelView::Output, cx);
+                return;
+            }
+        };
+        let terminal = cx.new(|cx| TerminalView::new(spawned, cx));
+        let sub = cx.subscribe_in(&terminal, window, |wb, terminal, event, window, cx| match event {
+            TerminalEvent::Exited => {
+                // Like VS Code: a terminal whose shell exits goes away.
+                if let Some(ix) = wb.terminals.iter().position(|(t, _)| t == terminal) {
+                    wb.remove_terminal(ix, window, cx);
+                }
+            }
+            TerminalEvent::TitleChanged => cx.notify(),
+            TerminalEvent::OpenFile(path, line, column) => {
+                let at = Point::new(line.saturating_sub(1) as usize, column.saturating_sub(1) as usize);
+                wb.open_file(path.clone(), Some(at), window, cx);
+            }
+        });
+        self.terminals.push((terminal, sub));
+        self.active_terminal = self.terminals.len() - 1;
+        self.show_terminal(window, cx);
+    }
+
+    /// Shows the terminal panel (starting a terminal if none is open) and focuses it.
+    fn show_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.terminals.is_empty() {
+            self.new_terminal(window, cx);
+            return;
+        }
+        self.show_panel(PanelView::Terminal, cx);
+        if let Some((terminal, _)) = self.terminals.get(self.active_terminal) {
+            terminal.read(cx).focus(window);
+        }
+    }
+
+    /// Ctrl+`: shows and focuses the terminal, or hides the panel when the terminal is focused.
+    fn toggle_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let focused = self.terminals.get(self.active_terminal).is_some_and(|(t, _)| t.focus_handle(cx).contains_focused(window, cx));
+        if self.panel_visible && self.panel == PanelView::Terminal && focused {
+            self.panel_visible = false;
+            match self.active_editor() {
+                Some(editor) => editor.update(cx, |e, _| e.focus(window)),
+                None => window.focus(&self.focus),
+            }
+            cx.notify();
+        } else {
+            self.show_terminal(window, cx);
+        }
+    }
+
+    /// Lists the installed shells; the pick is saved as "terminal.shell".
+    fn open_shell_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let current = self.settings.get_string("terminal.shell");
+        let login = std::env::var("SHELL").unwrap_or_default();
+        let mut default = PaletteItem::new("Login shell", PaletteAction::Command(Box::new(SetDefaultShell { shell: String::new() })));
+        default.detail = Some(if login.is_empty() { "the system default".into() } else { login.clone() });
+        default.hint = current.is_none().then(|| "current".into());
+        let mut items = vec![default];
+        for shell in crate::terminal::installed_shells() {
+            let name = Path::new(&shell).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| shell.clone());
+            let mut item = PaletteItem::new(name, PaletteAction::Command(Box::new(SetDefaultShell { shell: shell.clone() })));
+            item.detail = Some(shell.clone());
+            item.hint = (current.as_deref() == Some(shell.as_str())).then(|| "current".into());
+            item.search = Some(shell);
+            items.push(item);
+        }
+        self.menu_open = None;
+        let palette = cx.new(|cx| Palette::new(Mode::Pick, items, "Select the default shell for new terminals", "", window, cx));
+        let sub = cx.subscribe_in(&palette, window, Self::on_palette_event);
+        palette.update(cx, |p, cx| p.focus_input(window, cx));
+        self.palette = Some((palette, sub));
+        cx.notify();
+    }
+
+    fn kill_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.terminals.is_empty() {
+            self.remove_terminal(self.active_terminal, window, cx);
+        }
+    }
+
+    fn remove_terminal(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if ix >= self.terminals.len() {
+            return;
+        }
+        drop(self.terminals.remove(ix));
+        self.active_terminal = self.active_terminal.min(self.terminals.len().saturating_sub(1));
+        if self.terminals.is_empty() && self.panel == PanelView::Terminal {
+            self.panel_visible = false;
+            match self.active_editor() {
+                Some(editor) => editor.update(cx, |e, _| e.focus(window)),
+                None => window.focus(&self.focus),
+            }
+        } else if self.panel == PanelView::Terminal
+            && let Some((terminal, _)) = self.terminals.get(self.active_terminal)
+        {
+            terminal.read(cx).focus(window);
         }
         cx.notify();
+    }
+
+    /// The terminal switcher in the panel header: one chip per terminal, then new and kill buttons.
+    fn render_terminal_tabs(&self, cx: &mut Context<Self>) -> Vec<gpui::AnyElement> {
+        let t = Theme::global(cx);
+        let hover = t.c("toolbar.hoverBackground");
+        let icon_size = t.m("panel.iconSize", 14.0);
+        let button = |id: &'static str, name: &'static str, tip: &'static str| {
+            div().id(id).p_1().rounded(px(4.)).cursor_pointer().hover(move |s| s.bg(hover)).tooltip(tooltip(tip)).child(icon(name, icon_size, t.c("icon.foreground")))
+        };
+        let mut out: Vec<gpui::AnyElement> = Vec::new();
+        if self.terminals.len() > 1 {
+            for (i, (terminal, _)) in self.terminals.iter().enumerate() {
+                let active = i == self.active_terminal;
+                out.push(
+                    div()
+                        .id(SharedString::from(format!("term-{i}")))
+                        .mx_1()
+                        .px_2()
+                        .py(px(2.))
+                        .rounded(px(4.))
+                        .cursor_pointer()
+                        .text_size(px(11.))
+                        .when(active, |d| d.bg(t.c("list.activeSelectionBackground")).text_color(t.c("list.activeSelectionForeground")))
+                        .when(!active, |d| d.text_color(t.c("panelTitle.inactiveForeground")).hover(move |s| s.bg(hover)))
+                        .child(format!("{}: {}", i + 1, short(terminal.read(cx).display_title(), 24)))
+                        .on_click(cx.listener(move |wb, _, w, cx| {
+                            wb.active_terminal = i;
+                            wb.show_terminal(w, cx);
+                        }))
+                        .into_any_element(),
+                );
+            }
+        }
+        out.push(button("term-new", "add", "New Terminal (Ctrl+Shift+`)").on_click(cx.listener(|wb, _, w, cx| wb.new_terminal(w, cx))).into_any_element());
+        out.push(button("term-shell", "terminal", "Select Default Shell…").on_click(cx.listener(|wb, _, w, cx| wb.open_shell_picker(w, cx))).into_any_element());
+        out.push(button("term-kill", "trash", "Kill Terminal").on_click(cx.listener(|wb, _, w, cx| wb.kill_terminal(w, cx))).into_any_element());
+        out
     }
 
     // ───────────── modules ─────────────
 
     fn start_plugins(&mut self, _event_tx: flume::Sender<AppEvent>, cx: &mut Context<Self>) {
         let disabled: Vec<String> = self.settings.get("modules.disabled", Vec::new());
-        let manifests = discover(&[self.paths.builtin_modules(), self.paths.user_modules()]);
+        self.modules = discover(&self.paths.builtin_modules(), &self.paths.user_modules());
         let (tx, rx) = flume::unbounded::<PluginMessage>();
-        for manifest in manifests {
+        self.plugin_tx = Some(tx);
+        for manifest in self.modules.clone() {
             if disabled.contains(&manifest.id) {
-                self.log(format!("Module {} ({}) is disabled.", manifest.name, manifest.id));
+                self.log(format!("Module {} ({}) is removed or disabled.", manifest.name, manifest.id));
                 continue;
             }
-            match PluginHandle::start(manifest.clone(), tx.clone()) {
-                Ok(handle) => {
-                    handle.activate(self.workspace.root().as_deref());
-                    self.log(format!("Module '{}' started", manifest.name));
-                    self.plugins.push(handle);
-                }
-                Err(e) => self.log(format!("Module '{}' failed to start: {e}", manifest.name)),
-            }
+            self.start_module(manifest);
         }
         self._tasks.push(cx.spawn(async move |this, cx| {
             while let Ok(message) = rx.recv_async().await {
@@ -851,6 +1302,234 @@ impl Workbench {
                 }
             }
         }));
+    }
+
+    fn start_module(&mut self, manifest: ModuleManifest) {
+        let Some(tx) = self.plugin_tx.clone() else { return };
+        match PluginHandle::start(manifest.clone(), tx) {
+            Ok(handle) => {
+                handle.activate(self.workspace.root().as_deref());
+                self.log(format!("Module '{}' started", manifest.name));
+                self.plugins.push(handle);
+            }
+            Err(e) => self.log(format!("Module '{}' failed to start: {e}", manifest.name)),
+        }
+    }
+
+    /// Stops a module and drops everything it contributed (formatters, commands, status items).
+    fn stop_module(&mut self, id: &str, cx: &mut Context<Self>) {
+        if let Some(i) = self.plugins.iter().position(|p| p.manifest.id == id) {
+            self.plugins.remove(i).stop();
+        }
+        self.formatters.retain(|f| f.module != id);
+        self.plugin_status.retain(|s| s.module != id);
+        let commands: Vec<String> = self.plugin_commands.iter().filter(|(_, m)| *m == id).map(|(c, _)| c.clone()).collect();
+        for command in &commands {
+            self.plugin_commands.remove(command);
+        }
+        cx.global_mut::<Commands>().list.retain(|c| !commands.contains(&c.id));
+        cx.notify();
+    }
+
+    /// Removes a module: a built-in one is disabled (and can be restored), a user module is deleted.
+    fn remove_module(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(manifest) = self.modules.iter().find(|m| m.id == id).cloned() else { return };
+        if manifest.builtin {
+            self.stop_module(&id, cx);
+            let mut disabled: Vec<String> = self.settings.get("modules.disabled", Vec::new());
+            if !disabled.contains(&id) {
+                disabled.push(id);
+                self.settings.set("modules.disabled", json!(disabled));
+            }
+            self.log(format!("Removed the built-in module '{}'. Restore it in the Modules view.", manifest.name));
+            return;
+        }
+        let rx = window.prompt(PromptLevel::Warning, &format!("Uninstall the module '{}'?", manifest.name), Some(&format!("This deletes {}.", manifest.dir.display())), &["Uninstall", "Cancel"], cx);
+        cx.spawn_in(window, async move |this, cx| {
+            if let Ok(0) = rx.await {
+                let _ = this.update(cx, |wb, cx| {
+                    wb.stop_module(&manifest.id, cx);
+                    match std::fs::remove_dir_all(&manifest.dir) {
+                        Ok(()) => {
+                            wb.modules.retain(|m| m.id != manifest.id);
+                            wb.log(format!("Uninstalled the module '{}'.", manifest.name));
+                        }
+                        Err(e) => wb.log(format!("Could not delete {}: {e}", manifest.dir.display())),
+                    }
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
+    }
+
+    fn restore_module(&mut self, id: String, cx: &mut Context<Self>) {
+        let mut disabled: Vec<String> = self.settings.get("modules.disabled", Vec::new());
+        disabled.retain(|d| *d != id);
+        self.settings.set("modules.disabled", json!(disabled));
+        if let Some(manifest) = self.modules.iter().find(|m| m.id == id).cloned()
+            && !self.plugins.iter().any(|p| p.manifest.id == id)
+        {
+            self.start_module(manifest);
+        }
+        cx.notify();
+    }
+
+    // ───────────── formatting ─────────────
+
+    /// The formatter for a file: "editor.defaultFormatter" if it handles the file, else the first module
+    /// formatter that does, else the C# language server. Returns (id, name).
+    fn formatter_for(&self, editor: &EditorView) -> Option<(String, String)> {
+        let ext = editor.path.as_deref().and_then(|p| p.extension()).map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+        let handles = |f: &&Formatter| f.extensions.contains(&ext);
+        let lsp = (editor.language == Some(bf_syntax::Language::CSharp) && self.lsp.is_some()).then(|| ("csharp-ls".to_owned(), "csharp-ls".to_owned()));
+        let preferred = self.settings.get_string("editor.defaultFormatter");
+        if let Some(preferred) = preferred.as_deref() {
+            if preferred == "csharp-ls" && lsp.is_some() {
+                return lsp;
+            }
+            if let Some(f) = self.formatters.iter().filter(handles).find(|f| f.id == preferred) {
+                return Some((f.id.clone(), f.name.clone()));
+            }
+        }
+        self.formatters.iter().find(handles).map(|f| (f.id.clone(), f.name.clone())).or(lsp)
+    }
+
+    /// Formats a tab with its formatter; `save_after` saves it once formatted (format on save). Returns
+    /// false when no formatter handles the file.
+    fn format_tab(&mut self, ix: usize, formatter: Option<String>, save_after: bool, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Some(tab) = self.tabs.get(ix) else { return false };
+        let editor = tab.editor.clone();
+        let (id, name) = match formatter {
+            Some(id) => {
+                let name = self.formatters.iter().find(|f| f.id == id).map_or_else(|| id.clone(), |f| f.name.clone());
+                (id, name)
+            }
+            None => match self.formatter_for(editor.read(cx)) {
+                Some(found) => found,
+                None => return false,
+            },
+        };
+        let (path, text, version, tab_size, spaces) = {
+            let e = editor.read(cx);
+            (e.path.clone(), e.state.buffer.text(), e.state.buffer.version(), e.state.tab_size, e.state.insert_spaces)
+        };
+        let Some(path) = path else { return false };
+        if id == "csharp-ls" {
+            let Some(lsp) = self.lsp.clone() else { return false };
+            let rx = lsp.formatting(&path, tab_size as u32, spaces);
+            let weak = editor.downgrade();
+            cx.spawn_in(window, async move |this, cx| {
+                let result = rx.recv_async().await;
+                let _ = this.update_in(cx, |wb, window, cx| {
+                    match result {
+                        Ok(Ok(edits)) => {
+                            if let Some(editor) = weak.upgrade().filter(|e| e.read(cx).state.buffer.version() == version) {
+                                editor.update(cx, |e, cx| e.apply_text_edits(&edits, cx));
+                            }
+                        }
+                        Ok(Err(e)) => wb.log(format!("csharp-ls could not format {}: {e:#}", path.display())),
+                        Err(_) => {}
+                    }
+                    if save_after {
+                        wb.save_editor(&weak, window, cx);
+                    }
+                });
+            })
+            .detach();
+            return true;
+        }
+        let Some(formatter) = self.formatters.iter().find(|f| f.id == id) else { return false };
+        let Some(plugin) = self.plugins.iter().find(|p| p.manifest.id == formatter.module) else { return false };
+        let request = self.next_format_request;
+        self.next_format_request += 1;
+        plugin.format(request, &path, &text);
+        self.format_requests.insert(request, PendingFormat { editor: editor.downgrade(), version, save_after, name });
+        // A module that never answers mustn't keep a save from happening.
+        cx.spawn_in(window, async move |this, cx| {
+            cx.background_executor().timer(std::time::Duration::from_secs(15)).await;
+            let _ = this.update_in(cx, |wb, window, cx| {
+                if let Some(pending) = wb.format_requests.remove(&request) {
+                    wb.log(format!("{} did not answer in time; the file was not formatted.", pending.name));
+                    if pending.save_after {
+                        wb.save_editor(&pending.editor, window, cx);
+                    }
+                }
+            });
+        })
+        .detach();
+        true
+    }
+
+    fn on_format_result(&mut self, request: u64, result: Result<String, String>, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(pending) = self.format_requests.remove(&request) else { return };
+        if let Some(editor) = pending.editor.upgrade() {
+            match result {
+                Ok(text) if editor.read(cx).state.buffer.version() == pending.version => editor.update(cx, |e, cx| e.replace_text_minimal(&text, cx)),
+                Ok(_) => self.log(format!("The file changed while {} was formatting it; run Format Document again.", pending.name)),
+                Err(error) => {
+                    self.log(format!("{}: {error}", pending.name));
+                    if !pending.save_after {
+                        self.show_panel(PanelView::Output, cx);
+                    }
+                }
+            }
+        }
+        if pending.save_after {
+            self.save_editor(&pending.editor, window, cx);
+        }
+    }
+
+    /// Saves the tab showing `editor`, if it's still open.
+    fn save_editor(&mut self, editor: &gpui::WeakEntity<EditorView>, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(ix) = self.tabs.iter().position(|t| t.editor.downgrade() == *editor) {
+            self.save_tab(ix, window, cx);
+        }
+    }
+
+    /// Ctrl+S: formats first when "editor.formatOnSave" is on and a formatter handles the file.
+    fn save_formatted(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let on: bool = self.settings.get("editor.formatOnSave", false);
+        let has_path = self.tabs.get(ix).is_some_and(|t| t.path.is_some());
+        if !(on && has_path && self.format_tab(ix, None, true, window, cx)) {
+            self.save_tab(ix, window, cx);
+        }
+    }
+
+    fn open_formatter_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(editor) = self.active_editor() else { return };
+        let (ext, csharp) = {
+            let e = editor.read(cx);
+            (e.path.as_deref().and_then(|p| p.extension()).map(|x| x.to_string_lossy().to_ascii_lowercase()).unwrap_or_default(), e.language == Some(bf_syntax::Language::CSharp))
+        };
+        let current = self.formatter_for(editor.read(cx)).map(|(id, _)| id);
+        let mut items: Vec<PaletteItem> = self
+            .formatters
+            .iter()
+            .filter(|f| f.extensions.contains(&ext))
+            .map(|f| {
+                let mut item = PaletteItem::new(f.name.clone(), PaletteAction::Command(Box::new(UseFormatter { id: f.id.clone() })));
+                item.detail = Some(format!("module {}", f.module));
+                item.hint = (current.as_deref() == Some(f.id.as_str())).then(|| "default".into());
+                item
+            })
+            .collect();
+        if csharp && self.lsp.is_some() {
+            let mut item = PaletteItem::new("csharp-ls (Roslyn formatter)", PaletteAction::Command(Box::new(UseFormatter { id: "csharp-ls".into() })));
+            item.hint = (current.as_deref() == Some("csharp-ls")).then(|| "default".into());
+            items.push(item);
+        }
+        if items.is_empty() {
+            self.log(format!("No formatter handles .{ext} files."));
+            self.show_panel(PanelView::Output, cx);
+            return;
+        }
+        self.menu_open = None;
+        let palette = cx.new(|cx| Palette::new(Mode::Pick, items, "Select the formatter (it becomes the default)", "", window, cx));
+        let sub = cx.subscribe_in(&palette, window, Self::on_palette_event);
+        palette.update(cx, |p, cx| p.focus_input(window, cx));
+        self.palette = Some((palette, sub));
+        cx.notify();
     }
 
     fn on_plugin_message(&mut self, message: PluginMessage, cx: &mut Context<Self>) {
@@ -866,7 +1545,7 @@ impl Workbench {
                 cx.global_mut::<Commands>().list.push(CommandInfo { id: id.clone(), title, category, action: Box::new(action) });
                 self.plugin_commands.insert(id, module);
             }
-            PluginMessage::Status { id, text, tooltip, command, right, .. } => {
+            PluginMessage::Status { module, id, text, tooltip, command, right } => {
                 match self.plugin_status.iter_mut().find(|s| s.id == id) {
                     Some(s) => {
                         s.text = text;
@@ -874,7 +1553,7 @@ impl Workbench {
                         s.command = command;
                         s.right = right;
                     }
-                    None => self.plugin_status.push(StatusEntry { id, text, tooltip, command, right }),
+                    None => self.plugin_status.push(StatusEntry { module, id, text, tooltip, command, right }),
                 }
             }
             PluginMessage::Log { module, text } => self.log(format!("[{module}] {text}")),
@@ -892,7 +1571,20 @@ impl Workbench {
                 "search" => self.show_side(SideView::Search, cx),
                 other => self.show_side(side_view_named(other).unwrap_or(SideView::Modules), cx),
             },
-            PluginMessage::Exited { module, reason } => self.log(format!("Module {module} stopped: {reason}")),
+            PluginMessage::RegisterFormatter { module, id, name, extensions } => {
+                self.formatters.retain(|f| f.id != id);
+                self.formatters.push(Formatter { module, id, name, extensions });
+            }
+            PluginMessage::FormatResult { request, result, .. } => {
+                if let Some(window) = cx.active_window() {
+                    let entity = cx.entity();
+                    let _ = window.update(cx, |_, window, cx| entity.update(cx, |wb, cx| wb.on_format_result(request, result, window, cx)));
+                }
+            }
+            PluginMessage::Exited { module, reason } => {
+                self.formatters.retain(|f| f.module != module);
+                self.log(format!("Module {module} stopped: {reason}"));
+            }
         }
         cx.notify();
     }
@@ -946,6 +1638,7 @@ impl Workbench {
         let sub = cx.subscribe_in(&palette, window, Self::on_palette_event);
         palette.update(cx, |p, cx| p.focus_input(window, cx));
         self.palette = Some((palette, sub));
+        self.load_palette_symbols(mode, String::new(), cx);
         cx.notify();
     }
 
@@ -1001,7 +1694,9 @@ impl Workbench {
                 (items, "Select a color theme (↑↓ to preview)", "")
             }
             Mode::GoToLine => (Vec::new(), "Type a line number", ":"),
-            Mode::Prompt | Mode::Branches => (Vec::new(), "Name", ""),
+            Mode::Symbols => (Vec::new(), "Go to a symbol in this file", "@"),
+            Mode::WorkspaceSymbols => (Vec::new(), "Type the name of a type or member", "#"),
+            Mode::Prompt | Mode::Branches | Mode::Pick => (Vec::new(), "Name", ""),
         }
     }
 
@@ -1012,6 +1707,7 @@ impl Workbench {
             PromptKind::Rename(_) => "New name",
             PromptKind::CustomizeTheme => "Name for your theme (inherits everything from the current theme)",
             PromptKind::CreateBranch => "New branch name (created from the current HEAD and checked out)",
+            PromptKind::RenameSymbol { .. } => "New name (Enter to rename everywhere, Escape to cancel)",
         };
         self.prompt = Some(kind);
         let palette = cx.new(|cx| Palette::new(Mode::Prompt, Vec::new(), placeholder, initial, window, cx));
@@ -1037,7 +1733,9 @@ impl Workbench {
             PaletteEvent::SwitchMode(mode) => {
                 let (items, _, _) = self.palette_items(*mode, window, cx);
                 palette.update(cx, |p, cx| p.set_items(*mode, items, cx));
+                self.load_palette_symbols(*mode, String::new(), cx);
             }
+            PaletteEvent::Query(query) => self.load_palette_symbols(Mode::WorkspaceSymbols, query.clone(), cx),
             PaletteEvent::Preview(PaletteAction::Theme(name)) => {
                 let name = name.clone();
                 self.apply_theme(&name, window, cx);
@@ -1067,6 +1765,7 @@ impl Workbench {
                         }
                     }
                     PaletteAction::Branch(branch) => self.scm.update(cx, |s, cx| s.checkout(branch, cx)),
+                    PaletteAction::GoTo(path, at) => self.open_file(path, Some(at), window, cx),
                     PaletteAction::Prompt(text) => {
                         if let Some(kind) = prompt {
                             self.complete_prompt(kind, text, window, cx);
@@ -1109,6 +1808,13 @@ impl Workbench {
                         }
                     }
                     self.explorer.update(cx, |e, cx| e.refresh(cx));
+                }
+                PromptKind::RenameSymbol { editor, at, old } => {
+                    if text != old
+                        && let Some(editor) = editor.upgrade()
+                    {
+                        editor.update(cx, |e, cx| e.rename_symbol(at, text.clone(), cx));
+                    }
                 }
                 PromptKind::CreateBranch => {
                     let name = text.replace(' ', "-");
@@ -1365,6 +2071,16 @@ impl Workbench {
                 }
             }
         }
+        // Build diagnostics of files that aren't open (open ones show them as editor diagnostics). C# files
+        // are left to the language server when it runs.
+        let lsp = self.lsp.is_some();
+        for (path, d) in &self.build_problems {
+            let open = self.tabs.iter().any(|t| t.path.as_ref() == Some(path));
+            let csharp = path.extension().is_some_and(|e| e == "cs");
+            if !open && !(lsp && csharp) {
+                out.push((path.clone(), d.clone()));
+            }
+        }
         out.sort_by_key(|(p, d)| (severity_rank(d.severity), p.clone(), d.start));
         out
     }
@@ -1396,6 +2112,8 @@ impl Render for Workbench {
             None => "ByteForge".into(),
         };
         window.set_window_title(&title);
+        let docker_visible = self.side_visible && self.side == SideView::Docker;
+        self.docker.update(cx, |d, cx| d.set_visible(docker_visible, cx));
 
         // Every region is placed by the theme layout (see layout.rs).
         let lay = &t.layout;
@@ -1461,7 +2179,23 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &OpenFolder, w, cx| wb.pick_folder(w, cx)))
             .on_action(cx.listener(|wb, _: &Save, w, cx| {
                 if let Some(i) = wb.active {
-                    wb.save_tab(i, w, cx)
+                    wb.save_formatted(i, w, cx)
+                }
+            }))
+            .on_action(cx.listener(|wb, _: &FormatDocument, w, cx| {
+                if let Some(i) = wb.active
+                    && !wb.format_tab(i, None, false, w, cx)
+                {
+                    let name = wb.tabs[i].title.clone();
+                    wb.log(format!("No formatter handles {name}. CSharpier formats C# and MSBuild/XML files; csharp-ls formats C#."));
+                    wb.show_panel(PanelView::Output, cx);
+                }
+            }))
+            .on_action(cx.listener(|wb, _: &FormatDocumentWith, w, cx| wb.open_formatter_picker(w, cx)))
+            .on_action(cx.listener(|wb, action: &UseFormatter, w, cx| {
+                wb.settings.set("editor.defaultFormatter", json!(action.id));
+                if let Some(i) = wb.active {
+                    wb.format_tab(i, Some(action.id.clone()), false, w, cx);
                 }
             }))
             .on_action(cx.listener(|wb, _: &SaveAs, w, cx| {
@@ -1488,6 +2222,8 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &CommandPalette, w, cx| wb.open_palette(Mode::Commands, w, cx)))
             .on_action(cx.listener(|wb, _: &QuickOpen, w, cx| wb.open_palette(Mode::Files, w, cx)))
             .on_action(cx.listener(|wb, _: &GoToLine, w, cx| wb.open_palette(Mode::GoToLine, w, cx)))
+            .on_action(cx.listener(|wb, _: &GoToSymbolInEditor, w, cx| wb.open_palette(Mode::Symbols, w, cx)))
+            .on_action(cx.listener(|wb, _: &GoToSymbolInWorkspace, w, cx| wb.open_palette(Mode::WorkspaceSymbols, w, cx)))
             .on_action(cx.listener(|wb, _: &SelectTheme, w, cx| wb.open_palette(Mode::Themes, w, cx)))
             .on_action(cx.listener(|wb, _: &ToggleSideBar, _, cx| {
                 wb.side_visible = !wb.side_visible;
@@ -1558,11 +2294,57 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &Clean, w, cx| wb.run_dotnet("clean", w, cx)))
             .on_action(cx.listener(|wb, _: &Restore, w, cx| wb.run_dotnet("restore", w, cx)))
             .on_action(cx.listener(|wb, _: &Stop, _, cx| {
-                if let Some(d) = &wb.dotnet {
+                if wb.debug.is_some() {
+                    wb.debug_stop(cx);
+                } else if let Some(d) = &wb.dotnet {
                     d.kill();
                     wb.log("Process stopped.");
                 }
                 cx.notify();
+            }))
+            .on_action(cx.listener(|wb, _: &StartDebugging, w, cx| wb.debug_start(w, cx)))
+            .on_action(cx.listener(|wb, _: &RestartDebugging, w, cx| wb.debug_restart(w, cx)))
+            .on_action(cx.listener(|wb, _: &Pause, _, cx| wb.debug_pause(cx)))
+            .on_action(cx.listener(|wb, _: &StepOver, _, cx| wb.debug_step(debug::Step::Over, cx)))
+            .on_action(cx.listener(|wb, _: &StepInto, _, cx| wb.debug_step(debug::Step::Into, cx)))
+            .on_action(cx.listener(|wb, _: &StepOut, _, cx| wb.debug_step(debug::Step::Out, cx)))
+            .on_action(cx.listener(|wb, _: &ToggleBreakpoint, _, cx| {
+                if let Some(editor) = wb.active_editor() {
+                    editor.update(cx, |e, cx| {
+                        if e.glyph_margin {
+                            let line = e.state.caret().line;
+                            e.toggle_breakpoint(line, cx);
+                        }
+                    });
+                }
+            }))
+            .on_action(cx.listener(|wb, _: &RemoveAllBreakpoints, _, cx| wb.remove_all_breakpoints(cx)))
+            .on_action(cx.listener(|wb, _: &AttachToProcess, w, cx| wb.open_attach_picker(w, cx)))
+            .on_action(cx.listener(|wb, action: &AttachToPid, w, cx| wb.debug_attach(action.pid, w, cx)))
+            .on_action(cx.listener(|wb, _: &ShowDebug, w, cx| wb.toggle_side(SideView::Debug, w, cx)))
+            .on_action(cx.listener(|wb, _: &ShowDocker, w, cx| wb.toggle_side(SideView::Docker, w, cx)))
+            .on_action(cx.listener(|wb, _: &DockerRefresh, _, cx| wb.docker.update(cx, |d, cx| d.refresh(cx))))
+            .on_action(cx.listener(|wb, _: &DockerPrune, w, cx| wb.docker.update(cx, |d, cx| d.prune(w, cx))))
+            .on_action(cx.listener(|wb, _: &DockerBuild, w, cx| wb.docker_pick_file(false, None, w, cx)))
+            .on_action(cx.listener(|wb, _: &DockerComposeUp, w, cx| wb.docker_pick_file(true, Some(true), w, cx)))
+            .on_action(cx.listener(|wb, _: &DockerComposeDown, w, cx| wb.docker_pick_file(true, Some(false), w, cx)))
+            .on_action(cx.listener(|wb, a: &DockerBuildFile, w, cx| wb.docker_build(a.path.clone(), w, cx)))
+            .on_action(cx.listener(|wb, a: &DockerComposeFile, w, cx| wb.docker_compose(a.path.clone(), a.up, w, cx)))
+            .on_action(cx.listener(|wb, _: &DockerAddSupport, w, cx| wb.docker_add_support(w, cx)))
+            .on_action(cx.listener(|wb, a: &DockerAddSupportTo, w, cx| wb.docker_add_support_to(a.path.clone(), w, cx)))
+            .on_action(cx.listener(|wb, _: &DockerAddCompose, w, cx| wb.docker_add_compose(w, cx)))
+            .on_action(cx.listener(|wb, _: &ToggleTerminal, w, cx| wb.toggle_terminal(w, cx)))
+            .on_action(cx.listener(|wb, _: &NewTerminal, w, cx| wb.new_terminal(w, cx)))
+            .on_action(cx.listener(|wb, _: &KillTerminal, w, cx| wb.kill_terminal(w, cx)))
+            .on_action(cx.listener(|wb, _: &SelectDefaultShell, w, cx| wb.open_shell_picker(w, cx)))
+            .on_action(cx.listener(|wb, action: &SetDefaultShell, w, cx| {
+                wb.settings.set("terminal.shell", json!(action.shell));
+                wb.new_terminal(w, cx);
+            }))
+            .on_action(cx.listener(|wb, _: &ShowDebugConsole, w, cx| {
+                wb.show_panel(PanelView::DebugConsole, cx);
+                let focus = wb.debug_input.focus_handle(cx);
+                w.focus(&focus);
             }))
             .on_action(cx.listener(|wb, _: &ToggleLineEnding, _, cx| {
                 if let Some(editor) = wb.active_editor() {
@@ -2010,6 +2792,7 @@ impl Workbench {
         let side_visible = self.side_visible;
         let side = self.side;
         let scm_count = self.scm.read(cx).status().count();
+        let running_containers = self.docker.read(cx).running_count();
         let mut bar = div()
             .flex_none()
             .flex()
@@ -2029,6 +2812,8 @@ impl Workbench {
                 "explorer" => Some((SideView::Explorer, "files", "Explorer (Ctrl+Shift+E)")),
                 "search" => Some((SideView::Search, "search", "Search (Ctrl+Shift+F)")),
                 "scm" => Some((SideView::SourceControl, "sourceControl", "Source Control (Ctrl+Shift+G)")),
+                "debug" => Some((SideView::Debug, "debug", "Run and Debug (Ctrl+Shift+D)")),
+                "docker" => Some((SideView::Docker, "docker", "Docker")),
                 "modules" => Some((SideView::Modules, "puzzle", "Modules")),
                 _ => None,
             };
@@ -2036,6 +2821,9 @@ impl Workbench {
                 let mut el = item(id, icon_name, tip.into(), side_visible && side == view);
                 if view == SideView::SourceControl {
                     el = el.children(badge(scm_count));
+                }
+                if view == SideView::Docker {
+                    el = el.children(badge(running_containers));
                 }
                 bar = bar.child(el.on_click(cx.listener(move |wb, _, w, cx| wb.toggle_side(view, w, cx))));
                 continue;
@@ -2062,12 +2850,16 @@ impl Workbench {
             SideView::Explorer => "EXPLORER",
             SideView::Search => "SEARCH",
             SideView::SourceControl => "SOURCE CONTROL",
+            SideView::Debug => "RUN AND DEBUG",
+            SideView::Docker => "DOCKER",
             SideView::Modules => "MODULES",
         };
         let mut content: Option<gpui::AnyElement> = Some(match self.side {
             SideView::Explorer => self.explorer.clone().into_any_element(),
             SideView::Search => self.search.clone().into_any_element(),
             SideView::SourceControl => self.scm.clone().into_any_element(),
+            SideView::Debug => self.render_debug_view(cx),
+            SideView::Docker => self.docker.clone().into_any_element(),
             SideView::Modules => self.render_modules(cx).into_any_element(),
         });
         let sash_hover = t.c("sash.hoverBorder");
@@ -2133,23 +2925,69 @@ impl Workbench {
     fn render_modules(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let t = Theme::global(cx);
         let dir = self.paths.user_modules();
+        let muted = t.c("foreground.muted");
+        let small_button = |id: SharedString, label: &'static str| {
+            div()
+                .id(id)
+                .px_2()
+                .py(px(2.))
+                .rounded(t.radius("button.radius", 4.0))
+                .text_size(px(11.))
+                .cursor_pointer()
+                .border_1()
+                .border_color(t.c("button.border"))
+                .hover(|s| s.bg(t.c("list.hoverBackground")))
+                .child(label)
+        };
+        let cards: Vec<gpui::AnyElement> = self
+            .modules
+            .iter()
+            .map(|m| {
+                let running = self.plugins.iter().any(|p| p.manifest.id == m.id);
+                let formats: Vec<String> = self.formatters.iter().filter(|f| f.module == m.id).map(|f| format!("formats .{}", f.extensions.join(", ."))).collect();
+                let id = m.id.clone();
+                let action = if running {
+                    small_button(SharedString::from(format!("mod-remove-{}", m.id)), if m.builtin { "Remove" } else { "Uninstall" })
+                        .tooltip(tooltip(if m.builtin { "Turn this built-in module off (Restore brings it back)" } else { "Delete this module" }))
+                        .on_click(cx.listener(move |wb, _, w, cx| wb.remove_module(id.clone(), w, cx)))
+                } else {
+                    small_button(SharedString::from(format!("mod-restore-{}", m.id)), "Restore").on_click(cx.listener(move |wb, _, _, cx| wb.restore_module(id.clone(), cx)))
+                };
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .p_2()
+                    .rounded(px(6.))
+                    .bg(t.c("list.hoverBackground"))
+                    .when(!running, |d| d.opacity(0.6))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .child(div().flex_1().font_weight(gpui::FontWeight::SEMIBOLD).child(m.name.clone()))
+                            .child(div().text_size(px(11.)).text_color(muted).child(match (m.builtin, running) {
+                                (_, false) => "removed",
+                                (true, true) => "built-in",
+                                (false, true) => "installed",
+                            }))
+                            .child(action),
+                    )
+                    .children(m.description.clone().map(|d| div().text_size(px(12.)).child(d)))
+                    .children(formats.into_iter().map(|f| div().text_size(px(11.)).text_color(muted).child(f)))
+                    .child(div().text_size(px(11.)).text_color(muted).child(m.id.clone()))
+                    .into_any_element()
+            })
+            .collect();
         div()
             .p_3()
             .flex()
             .flex_col()
             .gap_2()
-            .children(self.plugins.iter().map(|p| {
-                div()
-                    .flex()
-                    .flex_col()
-                    .p_2()
-                    .rounded(px(6.))
-                    .bg(t.c("list.hoverBackground"))
-                    .child(div().font_weight(gpui::FontWeight::SEMIBOLD).child(p.manifest.name.clone()))
-                    .child(div().text_size(px(11.)).text_color(t.c("foreground.muted")).child(p.manifest.id.clone()))
-            }))
-            .when(self.plugins.is_empty(), |d| d.child(div().text_color(t.c("foreground.muted")).child("No modules installed.")))
-            .child(div().mt_2().text_size(px(12.)).text_color(t.c("foreground.muted")).child(format!(
+            .children(cards)
+            .when(self.modules.is_empty(), |d| d.child(div().text_color(muted).child("No modules installed.")))
+            .child(div().mt_2().text_size(px(12.)).text_color(muted).child(format!(
                 "Modules are folders with a module.json in {}. They run as separate processes and talk JSON over stdio (see README).",
                 dir.display()
             )))
@@ -2395,6 +3233,12 @@ impl Workbench {
         let sash_hover = t.c("sash.hoverBorder");
         let content: gpui::AnyElement = match self.panel {
             PanelView::Output => self.output.clone().into_any_element(),
+            PanelView::DebugConsole => self.render_debug_console(cx),
+            PanelView::References => self.render_references(cx),
+            PanelView::Terminal => match self.terminals.get(self.active_terminal) {
+                Some((terminal, _)) => terminal.clone().into_any_element(),
+                None => div().p_3().text_color(t.c("foreground.muted")).child("No terminal is open. Press Ctrl+Shift+` to start one.").into_any_element(),
+            },
             PanelView::Problems => {
                 let root = self.workspace.root();
                 let icon_size = t.m("panel.iconSize", 14.0);
@@ -2461,8 +3305,27 @@ impl Workbench {
                 cx.stop_propagation();
             }));
         let mut header = div().flex_none().h(t.m("panelHeader.height", 35.0)).px(t.edges("panelHeader.padding", 8.0).left).flex().items_center();
-        for name in &t.layout.panel_tabs {
+        // The Debug Console is always available, even when a theme lists the tabs without it.
+        // The Debug Console and the terminal are always available, even when a theme lists the tabs without them.
+        let mut panel_tabs = t.layout.panel_tabs.clone();
+        for required in ["debugConsole", "terminal"] {
+            if !panel_tabs.iter().any(|n| n == required) {
+                panel_tabs.push(required.into());
+            }
+        }
+        // References shows up once there's a result.
+        if self.references.is_some() && !panel_tabs.iter().any(|n| n == "references") {
+            panel_tabs.push("references".into());
+        }
+        for name in &panel_tabs {
             match name.as_str() {
+                "references" => {
+                    let count = self.references.as_ref().map_or(0, |r| r.items.len());
+                    header = header.child(
+                        tab("ptab-references".into(), format!("REFERENCES ({count})"), self.panel == PanelView::References)
+                            .on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::References, cx))),
+                    );
+                }
                 "problems" => {
                     let label = format!("PROBLEMS{}", if errors > 0 { format!(" ({errors})") } else { String::new() });
                     header = header.child(tab("ptab-problems".into(), label, self.panel == PanelView::Problems).on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::Problems, cx))));
@@ -2470,10 +3333,26 @@ impl Workbench {
                 "output" => {
                     header = header.child(tab("ptab-output".into(), "OUTPUT".into(), self.panel == PanelView::Output).on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::Output, cx))));
                 }
+                "debugConsole" => {
+                    header = header.child(
+                        tab("ptab-debug".into(), "DEBUG CONSOLE".into(), self.panel == PanelView::DebugConsole)
+                            .on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::DebugConsole, cx))),
+                    );
+                }
+                "terminal" => {
+                    header = header.child(
+                        tab("ptab-terminal".into(), "TERMINAL".into(), self.panel == PanelView::Terminal)
+                            .on_click(cx.listener(|wb, _, w, cx| wb.show_terminal(w, cx))),
+                    );
+                }
                 _ => {}
             }
         }
-        header = header.child(div().flex_1()).child(
+        header = header.child(div().flex_1());
+        if self.panel == PanelView::Terminal {
+            header = header.children(self.render_terminal_tabs(cx));
+        }
+        header = header.child(
             div()
                 .id("panel-close")
                 .p_1()
@@ -2539,7 +3418,8 @@ impl Workbench {
         let problems = self.problems(cx);
         let errors = problems.iter().filter(|(_, d)| d.severity == bf_lsp::Severity::Error).count();
         let warnings = problems.iter().filter(|(_, d)| d.severity == bf_lsp::Severity::Warning).count();
-        let running = self.dotnet.as_ref().is_some_and(DotnetProcess::is_running);
+        let running = self.dotnet.as_ref().is_some_and(DotnetProcess::is_running) || self.debug.is_some();
+        let debugging = self.debug.as_ref().map(|d| d.status_text());
         let git = self.scm.read(cx).git().is_some().then(|| self.scm.read(cx).status().clone());
         let bom = self.active.and_then(|i| self.tabs.get(i)).is_some_and(|t| t.bom);
         // (position, indent, encoding, eol, language) of the active editor.
@@ -2589,8 +3469,8 @@ impl Workbench {
                     "errors" => vec![item(name, id("e"), Some("error"), errors.to_string()).on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::Problems, cx))).into_any_element()],
                     "warnings" => vec![item(name, id("w"), Some("warning"), warnings.to_string()).on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::Problems, cx))).into_any_element()],
                     "run" => vec![
-                        item(name, id("r"), Some(if running { "stop" } else { "play" }), if running { "Stop".into() } else { "Run".into() })
-                            .tooltip(tooltip(if running { "Stop (Shift+F5)" } else { "Build and run (F5)" }))
+                        item(name, id("r"), Some(if running { "stop" } else { "play" }), debugging.clone().unwrap_or_else(|| if running { "Stop".into() } else { "Run".into() }))
+                            .tooltip(tooltip(if running { "Stop (Shift+F5)" } else { "Build and run without debugging (Ctrl+F5)" }))
                             .on_click(cx.listener(move |_, _, w, cx| {
                                 if running {
                                     w.dispatch_action(Box::new(Stop), cx)
@@ -2604,7 +3484,7 @@ impl Workbench {
                         .plugin_status
                         .iter()
                         .enumerate()
-                        .filter(|(_, e)| module_zone(e.right) == Some(z))
+                        .filter(|(_, e)| module_zone(e.right) == Some(z) && !e.text.is_empty())
                         .map(|(i, entry)| {
                             let command = entry.command.clone();
                             let mut el = item(name, id(&format!("m{i}")), None, entry.text.clone()).on_click(cx.listener(move |_, _, w, cx| {
@@ -2668,7 +3548,7 @@ impl Workbench {
             .h(t.m("statusBar.height", 24.0))
             .w_full()
             .flex()
-            .bg(t.bg("statusBar.background"))
+            .bg(if self.debug.is_some() && t.has("statusBar.debuggingBackground") { t.bg("statusBar.debuggingBackground") } else { t.bg("statusBar.background") })
             .text_color(fg)
             .text_size(t.m("statusBar.fontSize", 12.0))
             .map(|d| {
@@ -2694,7 +3574,17 @@ fn command_button(item: &str, cx: &App) -> Option<(Box<dyn gpui::Action>, String
 fn default_command_icon(id: &str) -> &'static str {
     match id {
         "dotnet.build" => "build",
-        "dotnet.run" => "play",
+        "dotnet.run" | "debug.start" => "play",
+        "debug.restart" => "refresh",
+        "debug.pause" => "pause",
+        "debug.stepOver" => "stepOver",
+        "debug.stepInto" => "stepInto",
+        "debug.stepOut" => "stepOut",
+        "debug.toggleBreakpoint" | "debug.removeAllBreakpoints" | "debug.attach" | "view.debug" => "debug",
+        "view.debugConsole" => "layoutPanel",
+        "terminal.toggle" | "terminal.new" => "terminal",
+        "terminal.kill" => "trash",
+        "terminal.selectDefaultShell" => "terminal",
         "dotnet.stop" => "stop",
         "theme.select" | "theme.customize" | "theme.edit" => "palette",
         "view.commandPalette" | "view.quickOpen" | "view.search" => "search",
@@ -2712,6 +3602,11 @@ fn default_command_icon(id: &str) -> &'static str {
         "view.toggleSideBar" => "layoutSideBar",
         "view.togglePanel" | "view.problems" | "view.output" => "layoutPanel",
         "view.modules" => "puzzle",
+        "view.docker" | "docker.build" | "docker.addDockerSupport" | "docker.prune" => "docker",
+        "docker.composeUp" => "play",
+        "docker.composeDown" => "stop",
+        "docker.addCompose" => "layers",
+        "docker.refresh" => "refresh",
         "file.newFile" | "file.openFile" | "file.save" | "file.saveAs" | "file.saveAll" => "file",
         "file.openFolder" => "folderOpen",
         "file.close" | "file.closeAll" | "app.exit" => "close",
@@ -2759,6 +3654,8 @@ fn side_view_named(name: &str) -> Option<SideView> {
         "explorer" => Some(SideView::Explorer),
         "search" => Some(SideView::Search),
         "scm" | "sourcecontrol" | "git" => Some(SideView::SourceControl),
+        "debug" | "run" => Some(SideView::Debug),
+        "docker" | "containers" => Some(SideView::Docker),
         "modules" => Some(SideView::Modules),
         _ => None,
     }
@@ -2786,6 +3683,11 @@ fn default_key(id: &str) -> &'static str {
         "view.quickOpen" => "Ctrl+P",
         "edit.goToLine" => "Ctrl+G",
         "edit.goToDefinition" => "F12",
+        "edit.findReferences" => "Shift+F12",
+        "edit.goToImplementation" => "Ctrl+F12",
+        "view.goToWorkspaceSymbol" => "Ctrl+T",
+        "edit.rename" => "F2",
+        "edit.signatureHelp" => "Ctrl+Shift+Space",
         "view.explorer" => "Ctrl+Shift+E",
         "view.scm" => "Ctrl+Shift+G",
         "view.search" => "Ctrl+Shift+F",
@@ -2796,7 +3698,18 @@ fn default_key(id: &str) -> &'static str {
         "view.nextEditor" => "Ctrl+Tab",
         "view.previousEditor" => "Ctrl+Shift+Tab",
         "dotnet.build" => "Ctrl+Shift+B",
-        "dotnet.run" => "F5",
+        "dotnet.run" => "Ctrl+F5",
+        "debug.start" => "F5",
+        "debug.restart" => "Ctrl+Shift+F5",
+        "debug.pause" => "F6",
+        "debug.stepOver" => "F10",
+        "debug.stepInto" => "F11",
+        "debug.stepOut" => "Shift+F11",
+        "debug.toggleBreakpoint" => "F9",
+        "view.debug" => "Ctrl+Shift+D",
+        "view.debugConsole" => "Ctrl+Shift+Y",
+        "terminal.toggle" => "Ctrl+`",
+        "terminal.new" => "Ctrl+Shift+`",
         "dotnet.stop" => "Shift+F5",
         "settings.open" => "Ctrl+,",
         "theme.select" => "Ctrl+K",

@@ -54,8 +54,14 @@ impl AppPaths {
         if dev.is_dir() { dev } else { beside }
     }
 
+    /// Built-in modules: next to the executable, or the source tree when running via `cargo run`.
     pub fn builtin_modules(&self) -> PathBuf {
-        self.install_dir.join("modules")
+        let beside = self.install_dir.join("modules");
+        if beside.is_dir() {
+            return beside;
+        }
+        let dev = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
+        if dev.is_dir() { dev } else { beside }
     }
 }
 

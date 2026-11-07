@@ -71,7 +71,7 @@ fn assert_well_formed(spans: &[Span], range: Range<usize>) {
 
 #[test]
 fn queries_compile() {
-    for language in [Language::CSharp, Language::Json] {
+    for language in [Language::CSharp, Language::Json, Language::Razor, Language::Xml, Language::Dockerfile, Language::Yaml] {
         let h = Highlighter::new(language);
         assert_eq!(h.language(), language);
         // Every capture that is not a predicate helper must map to a kind.
@@ -108,10 +108,15 @@ fn language_from_path() {
         Language::from_path(Path::new("tsconfig.jsonc")),
         Some(Language::Json)
     );
-    assert_eq!(Language::from_path(Path::new("App.csproj")), None);
     assert_eq!(Language::from_path(Path::new("Makefile")), None);
     assert_eq!(Language::CSharp.name(), "C#");
     assert_eq!(Language::Json.name(), "JSON");
+    assert_eq!(Language::from_path(Path::new("Pages/Index.cshtml")), Some(Language::Razor));
+    assert_eq!(Language::from_path(Path::new("Counter.razor")), Some(Language::Razor));
+    assert_eq!(Language::Razor.name(), "Razor");
+    for name in ["App.csproj", "Directory.Build.props", "Sdk.targets", "App.slnx", "web.config", "Strings.resx", "MainWindow.axaml"] {
+        assert_eq!(Language::from_path(Path::new(name)), Some(Language::Xml), "{name}");
+    }
 }
 
 #[test]
@@ -376,4 +381,147 @@ class C<T> where T : class
     assert_eq!(k("start", 0), Some("label name"));
     assert_eq!(k("goto", 0), Some("keyword - control"));
     assert_eq!(k("start", 1), Some("label name"));
+}
+
+const RAZOR_SAMPLE: &str = r#"@page "/counter"
+@inject ILogger<Counter> Log
+<h1 class="title">Counter @count</h1>
+<button @onclick="Increment" disabled>Click</button>
+@if (count > 3) { <p>Big @(count * 2)</p> }
+@* razor comment *@
+<!-- html comment -->
+<script>var o = { a: 1 };</script>
+@code {
+    private int count = 0;
+    private void Increment() { count++; }
+}
+"#;
+
+#[test]
+fn razor_kinds() {
+    let text = RAZOR_SAMPLE;
+    let spans = highlight_all(Language::Razor, text);
+    assert_well_formed(&spans, 0..text.len());
+    let k = |needle, nth| kind_of(&spans, text, needle, nth);
+    // Transitions, directives and control flow.
+    assert_eq!(k("@", 0), Some("razor transition"));
+    assert_eq!(k("page", 0), Some("razor directive"));
+    assert_eq!(k("inject", 0), Some("razor directive"));
+    assert_eq!(k("if", 0), Some("keyword - control"));
+    assert_eq!(k("code", 0), Some("razor directive"));
+    assert_eq!(k("\"/counter\"", 0), Some("string"));
+    // Markup.
+    assert_eq!(k("h1", 0), Some("html element name"));
+    assert_eq!(k("h1", 1), Some("html element name"));
+    assert_eq!(k("class", 0), Some("html attribute name"));
+    assert_eq!(k("\"title\"", 0), Some("html attribute value"));
+    assert_eq!(k("disabled", 0), Some("html attribute name"));
+    assert_eq!(k("</", 0), Some("html tag delimiter"));
+    assert_eq!(k("onclick", 0), Some("razor directive"));
+    assert_eq!(k("<!-- html comment -->", 0), Some("comment"));
+    assert_eq!(k("@* razor comment *@", 0), Some("comment"));
+    // Script bodies are not markup.
+    let a = text.find("a: 1").unwrap();
+    assert!(!spans.iter().any(|s| s.start <= a && a < s.end && s.kind.starts_with("html")));
+    // Embedded C#.
+    assert_eq!(k("int", 0), Some("keyword"));
+    assert_eq!(k("Increment", 1), Some("method name"));
+    assert_eq!(k("ILogger", 0), Some("interface name"));
+}
+
+#[test]
+fn razor_window_matches_full_highlight() {
+    let text = RAZOR_SAMPLE;
+    let mut h = Highlighter::new(Language::Razor);
+    h.parse(text);
+    let full = h.highlight(text, 0..text.len());
+    let (a, b) = (text.find("<button").unwrap() + 3, text.find("@code").unwrap());
+    let window = h.highlight(text, a..b);
+    let clipped: Vec<Span> = full
+        .iter()
+        .filter(|s| s.end > a && s.start < b)
+        .map(|s| Span { start: s.start.max(a), end: s.end.min(b), kind: s.kind })
+        .collect();
+    assert_eq!(window, clipped);
+}
+
+const CSPROJ_SAMPLE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Build settings -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputPath>$(BaseDir)bin/</OutputPath>
+    <NoWarn>$(NoWarn);CS1591 &amp; more</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Serilog" Version="4.0.0" />
+  </ItemGroup>
+</Project>
+"#;
+
+#[test]
+fn xml_kinds() {
+    let text = CSPROJ_SAMPLE;
+    let spans = highlight_all(Language::Xml, text);
+    assert_well_formed(&spans, 0..text.len());
+    let k = |needle, nth| kind_of(&spans, text, needle, nth);
+    assert_eq!(k("xml", 0), Some("keyword"));
+    assert_eq!(k("Project", 0), Some("html element name"));
+    assert_eq!(k("Project", 1), Some("html element name"));
+    assert_eq!(k("Sdk", 0), Some("html attribute name"));
+    assert_eq!(k("\"Microsoft.NET.Sdk.Web\"", 0), Some("html attribute value"));
+    assert_eq!(k("<!-- Build settings -->", 0), Some("comment"));
+    assert_eq!(k("PackageReference", 0), Some("html element name"));
+    assert_eq!(k("/>", 0), Some("html tag delimiter"));
+    assert_eq!(k("&amp;", 0), Some("string - escape character"));
+    // MSBuild references in attribute values and in text.
+    assert_eq!(k("$(Configuration)", 0), Some("xml - msbuild reference"));
+    assert_eq!(k("$(BaseDir)", 0), Some("xml - msbuild reference"));
+    assert_eq!(k("$(NoWarn)", 0), Some("xml - msbuild reference"));
+}
+
+#[test]
+fn dockerfile_detection() {
+    for name in ["Dockerfile", "dockerfile", "src/Api/Dockerfile", "Dockerfile.dev", "api.dockerfile", "Containerfile", "x.Containerfile"] {
+        assert_eq!(Language::from_path(Path::new(name)), Some(Language::Dockerfile), "{name}");
+    }
+    for name in ["Dockerfiles", "my-dockerfile", ".dockerignore", "Dockerfile."] {
+        assert_ne!(Language::from_path(Path::new(name)), Some(Language::Dockerfile), "{name}");
+    }
+    assert_eq!(Language::from_path(Path::new("compose.yaml")), Some(Language::Yaml));
+    assert_eq!(Language::from_path(Path::new("docker-compose.override.yml")), Some(Language::Yaml));
+}
+
+#[test]
+fn dockerfile_kinds() {
+    let text = "# syntax=docker/dockerfile:1\nFROM mcr.microsoft.com/dotnet/sdk:9.0 AS build\nARG BUILD_CONFIGURATION=Release\nENV ASPNETCORE_HTTP_PORTS=8080\nWORKDIR /src\nCOPY [\"Api/Api.csproj\", \"Api/\"]\nRUN dotnet restore \"Api/Api.csproj\"\nCOPY --from=build /app/publish .\nEXPOSE 8080\nENTRYPOINT [\"dotnet\", \"Api.dll\"]\n";
+    let spans = highlight_all(Language::Dockerfile, text);
+    assert_well_formed(&spans, 0..text.len());
+    let k = |needle: &str| kind_of(&spans, text, needle, 0);
+    assert_eq!(k("# syntax=docker/dockerfile:1\n"), Some("comment"));
+    assert_eq!(k(":9.0"), Some("number"));
+    assert_eq!(k("FROM"), Some("keyword"));
+    assert_eq!(k("AS"), Some("keyword"));
+    assert_eq!(k("mcr.microsoft.com/dotnet/sdk"), Some("class name"));
+    assert_eq!(k("build"), Some("label name"));
+    assert_eq!(k("BUILD_CONFIGURATION"), Some("property name"));
+    assert_eq!(k("ASPNETCORE_HTTP_PORTS"), Some("property name"));
+    assert_eq!(k("\"Api/Api.csproj\""), Some("string"));
+    assert_eq!(k("--from=build"), Some("parameter name"));
+    assert_eq!(kind_of(&spans, text, "8080", 1), Some("number"));
+    assert_eq!(k("ENTRYPOINT"), Some("keyword"));
+}
+
+#[test]
+fn yaml_kinds() {
+    let text = "# compose\nservices:\n  api:\n    image: \"api:dev\"\n    ports:\n      - 8080:8080\n    restart: true\n    replicas: 2\n";
+    let spans = highlight_all(Language::Yaml, text);
+    assert_well_formed(&spans, 0..text.len());
+    let k = |needle: &str| kind_of(&spans, text, needle, 0);
+    assert_eq!(k("# compose"), Some("comment"));
+    assert_eq!(k("services"), Some("json - property name"));
+    assert_eq!(k("api"), Some("json - property name"));
+    assert_eq!(k("\"api:dev\""), Some("string"));
+    assert_eq!(k("true"), Some("keyword"));
+    assert_eq!(k("2"), Some("number"));
 }

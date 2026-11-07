@@ -1,0 +1,17 @@
+[package]
+name = "bf-dap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Minimal thread-based Debug Adapter Protocol client for ByteForge (netcoredbg)."
+
+[dependencies]
+anyhow = { workspace = true }
+flume = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+log = { workspace = true }
+bf-lsp = { workspace = true }
+
+[dev-dependencies]
+bf-core = { workspace = true }

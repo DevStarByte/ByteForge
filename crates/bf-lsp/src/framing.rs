@@ -1,8 +1,8 @@
-//! `Content-Length` framing of JSON-RPC messages.
+//! `Content-Length` framing of JSON-RPC messages (also used by the Debug Adapter Protocol client in `bf-dap`).
 
 /// Accumulates raw bytes from the server and yields complete message bodies.
 #[derive(Default)]
-pub(crate) struct FrameReader {
+pub struct FrameReader {
     buf: Vec<u8>,
 }
 
@@ -44,7 +44,7 @@ impl FrameReader {
 }
 
 /// Wraps a JSON body in a `Content-Length` header.
-pub(crate) fn encode(body: &[u8]) -> Vec<u8> {
+pub fn encode(body: &[u8]) -> Vec<u8> {
     let mut out = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
     out.extend_from_slice(body);
     out

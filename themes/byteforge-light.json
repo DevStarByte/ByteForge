@@ -52,6 +52,9 @@
     "list.hoverBackground": "#f2f2f2",
     "list.activeSelectionBackground": "#e8e8e8",
     "list.activeSelectionForeground": "#000000",
+    "list.activeFileBackground": "#dbe8f7",
+    "list.activeFileForeground": "#000000",
+    "list.activeFileIndicator": "#005fb8",
 
     "icon.folder": "#c09553",
     "icon.file": "#6f6f6f",
@@ -60,6 +63,7 @@
     "icon.json": "#a8a800",
     "icon.markup": "#c25f12",
     "icon.markdown": "#3c7d99",
+    "icon.docker": "#1d63ed",
 
     "editorGroupHeader.background": "#f8f8f8",
     "editorGroupHeader.border": "#e5e5e5",
@@ -121,6 +125,8 @@
     "errorForeground": "#e51400",
 
     "statusBar.background": "#f8f8f8",
+
+    "statusBar.debuggingBackground": "#cc6633",
     "statusBar.foreground": "#3b3b3b",
     "statusBar.border": "#e5e5e5",
     "statusBarItem.hoverBackground": "#1f1f1f11",
@@ -209,6 +215,13 @@
     "regex - anchor": "#ee0000",
     "regex - quantifier": "#000000",
     "json - property name": "#0451a5",
-    "json - string": "#a31515"
+    "json - string": "#a31515",
+    "html element name": "#800000",
+    "html attribute name": "#e50000",
+    "html attribute value": "#0000ff",
+    "html tag delimiter": "#800000",
+    "razor transition": "#af00db",
+    "razor directive": "#af00db",
+    "xml - msbuild reference": "#795e26"
   }
 }

@@ -6,7 +6,7 @@
 
 mod client;
 mod convert;
-mod framing;
+pub mod framing;
 mod snippet;
 mod uri;
 
@@ -107,11 +107,46 @@ pub enum CompletionKind {
     Text,
 }
 
-/// A location in a file (result of go-to-definition).
+/// A location in a file (result of go-to-definition, references, …).
 #[derive(Clone, Debug)]
 pub struct Location {
     pub path: PathBuf,
     pub range: Range,
+}
+
+/// A named code element (`textDocument/documentSymbol`, `workspace/symbol`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Symbol {
+    pub name: String,
+    /// LSP `SymbolKind` as a word: "class", "method", "property", …
+    pub kind: &'static str,
+    /// Extra text from the server (a signature or type), if any.
+    pub detail: Option<String>,
+    /// The containing type or namespace.
+    pub container: Option<String>,
+    pub path: PathBuf,
+    /// Where the name is (the selection range for document symbols).
+    pub range: Range,
+    /// Nesting level in the document outline (0 = top level).
+    pub depth: usize,
+}
+
+/// The signatures that fit the call around the caret (`textDocument/signatureHelp`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SignatureHelp {
+    pub signatures: Vec<Signature>,
+    pub active_signature: usize,
+}
+
+/// One overload, e.g. `void Console.WriteLine(string format, object? arg0)`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Signature {
+    pub label: String,
+    pub documentation: Option<String>,
+    /// Byte ranges of the parameters inside `label`.
+    pub parameters: Vec<std::ops::Range<usize>>,
+    /// The parameter being typed (index into `parameters`), if known.
+    pub active_parameter: Option<usize>,
 }
 
 /// A semantic token converted to an absolute position. `kind` uses the IDE's theme
@@ -131,6 +166,64 @@ pub struct TextChange {
     pub text: String,
 }
 
+/// A text replacement in UTF-16 positions.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextEdit {
+    pub range: Range,
+    pub new_text: String,
+}
+
+/// Changes to apply across files (`WorkspaceEdit`), in order.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct WorkspaceEdit {
+    /// Files to create (empty) before the edits apply.
+    pub creates: Vec<PathBuf>,
+    pub changes: Vec<(PathBuf, Vec<TextEdit>)>,
+}
+
+impl WorkspaceEdit {
+    pub fn is_empty(&self) -> bool {
+        self.creates.is_empty() && self.changes.iter().all(|(_, edits)| edits.is_empty())
+    }
+}
+
+/// A quick fix or refactoring offered by `textDocument/codeAction`.
+#[derive(Clone, Debug)]
+pub struct CodeAction {
+    pub title: String,
+    /// `quickfix`, `refactor.extract`, `source.organizeImports`, …
+    pub kind: Option<String>,
+    pub preferred: bool,
+    /// Why the action can't be applied right now.
+    pub disabled: Option<String>,
+    pub edit: Option<WorkspaceEdit>,
+    /// A command to run after the edit (`{ command, arguments }`).
+    pub command: Option<serde_json::Value>,
+    /// The action as the server sent it, for `codeAction/resolve`.
+    pub raw: serde_json::Value,
+}
+
+impl CodeAction {
+    /// The server computes the edit lazily; call [`LspClient::resolve_code_action`] first.
+    pub fn needs_resolve(&self) -> bool {
+        self.edit.is_none() && self.command.is_none()
+    }
+
+    pub fn is_quick_fix(&self) -> bool {
+        match self.kind.as_deref() {
+            Some(kind) => kind.starts_with("quickfix"),
+            // Roslyn (csharp-ls) often leaves the kind out; refactorings are recognizable by their verb.
+            None => !REFACTORING_VERBS.iter().any(|verb| self.title.starts_with(verb)),
+        }
+    }
+}
+
+/// Title prefixes of Roslyn refactorings that come without a code action kind.
+const REFACTORING_VERBS: &[&str] = &[
+    "Extract", "Inline", "Introduce", "Convert", "Invert", "Wrap", "Unwrap", "Encapsulate", "Pull", "Move", "Sort", "Split",
+    "Merge", "Reverse", "Make ", "Use ", "Add parameter", "Change signature", "Rename",
+];
+
 /// Asynchronous events emitted by the client.
 #[derive(Clone, Debug)]
 pub enum LspEvent {
@@ -148,6 +241,8 @@ pub enum LspEvent {
     Log(String),
     /// The server process ended or failed to start (with reason).
     Exited(String),
+    /// `workspace/applyEdit`: the server asks the editor to change files (e.g. while running a command).
+    ApplyEdit(WorkspaceEdit),
 }
 
 /// Locates `csharp-ls`: first on `PATH`, then in `~/.dotnet/tools`.

@@ -128,6 +128,8 @@ impl EditorView {
 pub struct Prepaint {
     lines: Vec<(usize, f32, ShapedLine)>,
     numbers: Vec<(f32, ShapedLine, f32)>,
+    /// Char ranges of file references per visible line.
+    links: Vec<(usize, Vec<(usize, usize)>)>,
 }
 
 impl Element for EditorElement {
@@ -172,11 +174,13 @@ impl Element for EditorElement {
         self.view.update(cx, |view, cx| {
             let theme = Theme::global(cx);
             let digits = (view.state.buffer.line_count().max(1) as f32).log10().floor() as usize + 1;
-            let gutter = if view.show_line_numbers {
-                (digits.max(3) as f32 * char_width * number_size / style.font_size).ceil() + style.gutter_left + style.gutter_right
-            } else {
-                style.gutter_left.max(4.0)
-            };
+            let glyph = if view.glyph_margin { theme.n("editorGutter.glyphMarginWidth", line_height).round() } else { 0.0 };
+            let gutter = glyph
+                + if view.show_line_numbers {
+                    (digits.max(3) as f32 * char_width * number_size / style.font_size).ceil() + style.gutter_left + style.gutter_right
+                } else {
+                    style.gutter_left.max(4.0)
+                };
             view.layout = Layout {
                 left: f32::from(bounds.left()),
                 top: f32::from(bounds.top()),
@@ -186,6 +190,7 @@ impl Element for EditorElement {
                 text_left: f32::from(bounds.left()) + gutter + style.text_padding,
                 char_width,
                 line_height,
+                glyph,
             };
             view.take_pending_reveal();
             view.scroll = view.clamp_scroll(view.scroll);
@@ -365,6 +370,19 @@ impl Element for EditorElement {
             self.view.update(cx, |view, _| view.line_cache.clear());
         }
 
+        // File references to underline.
+        let links: Vec<(usize, Vec<(usize, usize)>)> = self.view.update(cx, |view, _| {
+            if !view.detect_links {
+                return Vec::new();
+            }
+            (first..=last.min(view.state.buffer.line_count().saturating_sub(1)))
+                .filter_map(|line| {
+                    let spans: Vec<_> = view.links_in(line).iter().map(|l| (l.start, l.end)).collect();
+                    (!spans.is_empty()).then_some((line, spans))
+                })
+                .collect()
+        });
+
         // Line numbers.
         let (show_numbers, caret_line) = {
             let v = self.view.read(cx);
@@ -389,7 +407,7 @@ impl Element for EditorElement {
             }
         }
 
-        Prepaint { lines, numbers }
+        Prepaint { lines, numbers, links }
     }
 
     fn paint(
@@ -437,6 +455,18 @@ impl Element for EditorElement {
                 if matches!(highlight, LineHighlight::Border | LineHighlight::All) && theme.has("editor.lineHighlightBorder") {
                     window.paint_quad(outline(row, theme.c("editor.lineHighlightBorder"), gpui::BorderStyle::Solid));
                 }
+            }
+
+            // The line the debugger is paused on.
+            if let Some((line, top)) = view.exec_line
+                && (first..=last).contains(&line)
+            {
+                let color = if top {
+                    theme.c_or("editor.stackFrameHighlightBackground", 0xffff0033)
+                } else {
+                    theme.c_or("editor.focusedStackFrameHighlightBackground", 0x7abd7a4d)
+                };
+                window.paint_quad(fill(Bounds::new(point(px(gutter_right), line_top(line)), size(width - px(l.gutter), px(lh))), color));
             }
 
             // Whole-line backgrounds (diff view).
@@ -535,6 +565,16 @@ impl Element for EditorElement {
                 let _ = shaped.paint(point(px(origin_x), y), px(lh), window, cx);
             }
 
+            // File references.
+            let link_color = theme.c_or("textLink.foreground", 0x3794ffff);
+            for (line, spans) in &prepaint.links {
+                for &(start, end) in spans {
+                    let (x0, x1) = (x_at(*line, start), x_at(*line, end));
+                    let y = line_top(*line) + px(lh - 2.0);
+                    window.paint_underline(point(px(x0), y), px(x1 - x0), &UnderlineStyle { color: Some(link_color), thickness: px(1.), wavy: false });
+                }
+            }
+
             // Diagnostics.
             for d in &view.diagnostics {
                 if d.end.line < first || d.start.line > last {
@@ -624,6 +664,46 @@ impl Element for EditorElement {
                 let y = line_top(*line as usize);
                 let _ = shaped.paint(point(px(x), y), px(lh), window, cx);
             }
+
+            // Breakpoints and the execution arrow in the glyph margin.
+            if l.glyph > 0.0 {
+                let d = (l.glyph.min(lh) * 0.62).round();
+                let cx_ = l.left + l.glyph / 2.0;
+                for b in &view.breakpoints {
+                    let rect = Bounds::new(point(px(cx_ - d / 2.0), line_top(b.line) + px((lh - d) / 2.0)), size(px(d), px(d)));
+                    if b.verified {
+                        window.paint_quad(quad(rect, Corners::all(px(d / 2.0)), theme.c_or("debugIcon.breakpointForeground", 0xe51400ff), 0.0, Hsla::default(), gpui::BorderStyle::Solid));
+                    } else {
+                        let color = theme.c_or("debugIcon.breakpointUnverifiedForeground", 0x848484ff);
+                        window.paint_quad(quad(rect, Corners::all(px(d / 2.0)), Hsla::default(), 1.5, color, gpui::BorderStyle::Solid));
+                    }
+                }
+                if let Some((line, top)) = view.exec_line
+                    && (first..=last).contains(&line)
+                {
+                    let color = if top {
+                        theme.c_or("debugIcon.breakpointCurrentStackframeForeground", 0xffcc00ff)
+                    } else {
+                        theme.c_or("debugIcon.breakpointStackframeForeground", 0x89d185ff)
+                    };
+                    let (w, h) = (l.glyph * 0.62, (lh * 0.55).min(l.glyph * 0.62));
+                    let x0 = l.left + (l.glyph - w) / 2.0;
+                    let y0 = f32::from(line_top(line)) + (lh - h) / 2.0;
+                    let notch = w * 0.45;
+                    let mut path = gpui::PathBuilder::fill();
+                    path.move_to(point(px(x0), px(y0 + h * 0.25)));
+                    path.line_to(point(px(x0 + notch), px(y0 + h * 0.25)));
+                    path.line_to(point(px(x0 + notch), px(y0)));
+                    path.line_to(point(px(x0 + w), px(y0 + h / 2.0)));
+                    path.line_to(point(px(x0 + notch), px(y0 + h)));
+                    path.line_to(point(px(x0 + notch), px(y0 + h * 0.75)));
+                    path.line_to(point(px(x0), px(y0 + h * 0.75)));
+                    path.close();
+                    if let Ok(path) = path.build() {
+                        window.paint_path(path, color);
+                    }
+                }
+            }
         });
 
         // Scrollbars.
@@ -684,6 +764,8 @@ struct Snap {
     focus: gpui::FocusHandle,
     git_marks: Vec<(usize, bf_core::git::LineChangeKind)>,
     line_backgrounds: Vec<(usize, &'static str)>,
+    breakpoints: Vec<super::Breakpoint>,
+    exec_line: Option<(usize, bool)>,
 }
 
 impl Snap {
@@ -711,6 +793,8 @@ impl Snap {
             focus: v.focus.clone(),
             git_marks: v.git_marks.iter().filter(|(l, _)| *l + 1 >= first && *l <= last + 1).copied().collect(),
             line_backgrounds: v.line_backgrounds.iter().filter(|(l, _)| *l >= first && *l <= last).copied().collect(),
+            breakpoints: v.breakpoints.iter().filter(|b| b.line >= first && b.line <= last).copied().collect(),
+            exec_line: v.exec_line,
         }
     }
 

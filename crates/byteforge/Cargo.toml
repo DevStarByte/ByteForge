@@ -19,3 +19,5 @@ bf-core.workspace = true
 bf-text.workspace = true
 bf-syntax.workspace = true
 bf-lsp.workspace = true
+bf-dap.workspace = true
+alacritty_terminal = "0.26"

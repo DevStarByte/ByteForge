@@ -461,12 +461,113 @@ fn join(title: &str, message: Option<&str>, percentage: Option<u64>) -> String {
     out
 }
 
+
+#[cfg(test)]
+mod code_action_tests {
+    use super::*;
+
+    #[test]
+    fn parses_code_actions_and_workspace_edits() {
+        let uri = if cfg!(windows) { "file:///C:/src/A.cs" } else { "file:///src/A.cs" };
+        let action = parse_code_action(&json!({
+            "title": "using System.Collections.Generic;",
+            "kind": "quickfix",
+            "isPreferred": true,
+            "edit": { "documentChanges": [
+                { "textDocument": { "uri": uri, "version": 3 }, "edits": [
+                    { "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 0, "character": 0 } }, "newText": "using System.Collections.Generic;\n" }
+                ] },
+                { "kind": "create", "uri": uri }
+            ] }
+        }))
+        .unwrap();
+        assert!(action.preferred && action.is_quick_fix() && !action.needs_resolve());
+        let edit = action.edit.unwrap();
+        assert_eq!(edit.creates.len(), 1);
+        assert_eq!(edit.changes[0].1[0].new_text, "using System.Collections.Generic;\n");
+
+        let lazy = parse_code_action(&json!({ "title": "Extract method", "kind": "refactor.extract", "data": { "id": 7 } })).unwrap();
+        assert!(lazy.needs_resolve() && !lazy.is_quick_fix());
+        // csharp-ls sends many actions without a kind.
+        assert!(!parse_code_action(&json!({ "title": "Extract local function" })).unwrap().is_quick_fix());
+        assert!(parse_code_action(&json!({ "title": "System.Collections.Generic.List" })).unwrap().is_quick_fix());
+
+        let command = parse_code_action(&json!({ "title": "Run", "command": "dotnet.run", "arguments": [1] })).unwrap();
+        assert_eq!(command.command.unwrap()["command"], "dotnet.run");
+
+        let changes = parse_workspace_edit(&json!({ "changes": { uri: [ { "range": { "start": { "line": 1, "character": 2 }, "end": { "line": 1, "character": 5 } }, "newText": "x" } ] } }));
+        assert_eq!(changes.changes[0].1[0].range.start.character, 2);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn pos(line: u32, character: u32) -> Position {
         Position { line, character }
+    }
+
+    #[test]
+    fn symbol_parsing() {
+        let path = std::path::Path::new("/w/A.cs");
+        let v = json!([{
+            "name": "Demo", "kind": 3, "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 9, "character": 1 } },
+            "selectionRange": { "start": { "line": 0, "character": 10 }, "end": { "line": 0, "character": 14 } },
+            "children": [{
+                "name": "Widget", "kind": 5, "detail": "class Widget",
+                "range": { "start": { "line": 2, "character": 0 }, "end": { "line": 8, "character": 1 } },
+                "selectionRange": { "start": { "line": 2, "character": 13 }, "end": { "line": 2, "character": 19 } },
+                "children": [{ "name": "Count", "kind": 6, "range": { "start": { "line": 4, "character": 4 }, "end": { "line": 4, "character": 30 } },
+                    "selectionRange": { "start": { "line": 4, "character": 15 }, "end": { "line": 4, "character": 20 } } }]
+            }]
+        }]);
+        let symbols = parse_document_symbols(&v, path);
+        let names: Vec<_> = symbols.iter().map(|s| (s.name.as_str(), s.kind, s.depth, s.container.as_deref())).collect();
+        assert_eq!(names, [("Demo", "namespace", 0, None), ("Widget", "class", 1, Some("Demo")), ("Count", "method", 2, Some("Widget"))]);
+        assert_eq!(symbols[2].range.start, pos(4, 15));
+        assert_eq!(symbols[1].detail.as_deref(), Some("class Widget"));
+
+        let v = json!([{ "name": "Widget", "kind": 5, "containerName": "Demo",
+            "location": { "uri": "file:///w/A.cs", "range": { "start": { "line": 2, "character": 13 }, "end": { "line": 2, "character": 19 } } } }]);
+        let symbols = parse_workspace_symbols(&v);
+        assert_eq!(symbols.len(), 1);
+        assert_eq!((symbols[0].kind, symbols[0].container.as_deref()), ("class", Some("Demo")));
+        assert!(symbols[0].path.ends_with("A.cs"));
+        assert_eq!(symbol_kind(0), "symbol");
+        assert_eq!(symbol_kind(26), "type parameter");
+    }
+
+    #[test]
+    fn signature_help_parsing() {
+        let v = json!({
+            "activeSignature": 1,
+            "activeParameter": 0,
+            "signatures": [
+                { "label": "void WriteLine()", "parameters": [] },
+                {
+                    "label": "void WriteLine(string format, object? arg0)",
+                    "documentation": { "kind": "markdown", "value": "Writes text." },
+                    "parameters": [{ "label": [15, 28] }, { "label": "object? arg0" }],
+                    "activeParameter": 1
+                }
+            ]
+        });
+        let help = parse_signature_help(&v).unwrap();
+        assert_eq!(help.active_signature, 1);
+        let s = &help.signatures[1];
+        assert_eq!(&s.label[s.parameters[0].clone()], "string format");
+        assert_eq!(&s.label[s.parameters[1].clone()], "object? arg0");
+        assert_eq!(s.active_parameter, Some(1));
+        assert_eq!(s.documentation.as_deref(), Some("Writes text."));
+        assert_eq!(help.signatures[0].active_parameter, Some(0));
+        assert!(parse_signature_help(&Value::Null).is_none());
+        assert!(parse_signature_help(&json!({ "signatures": [] })).is_none());
+        // UTF-16 offsets past non-ASCII text.
+        let v = json!({ "signatures": [{ "label": "f(ä a, b)", "parameters": [{ "label": [2, 5] }, { "label": [7, 8] }] }] });
+        let s = &parse_signature_help(&v).unwrap().signatures[0];
+        assert_eq!(&s.label[s.parameters[0].clone()], "ä a");
+        assert_eq!(&s.label[s.parameters[1].clone()], "b");
     }
 
     #[test]
@@ -603,4 +704,204 @@ mod tests {
         let end = json!({ "token": "t", "value": { "kind": "end" } });
         assert_eq!(p.handle(&end).unwrap(), "Loading solution: done");
     }
+}
+
+pub(crate) fn parse_text_edits(v: &Value) -> Vec<crate::TextEdit> {
+    v.as_array()
+        .map(|edits| {
+            edits
+                .iter()
+                .filter_map(|e| Some(crate::TextEdit { range: parse_range(e.get("range")?)?, new_text: str_field(e, "newText").unwrap_or_default() }))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// LSP `SymbolKind` (1-based) as a lowercase word.
+pub(crate) fn symbol_kind(kind: u64) -> &'static str {
+    const KINDS: [&str; 26] = [
+        "file", "module", "namespace", "package", "class", "method", "property", "field", "constructor", "enum", "interface", "function", "variable",
+        "constant", "string", "number", "boolean", "array", "object", "key", "null", "enum member", "struct", "event", "operator", "type parameter",
+    ];
+    KINDS.get((kind as usize).wrapping_sub(1)).copied().unwrap_or("symbol")
+}
+
+/// Parses a `textDocument/documentSymbol` result: hierarchical `DocumentSymbol[]` (flattened depth-first,
+/// with the parent as container) or flat `SymbolInformation[]`.
+pub(crate) fn parse_document_symbols(v: &Value, path: &std::path::Path) -> Vec<crate::Symbol> {
+    fn walk(items: &[Value], path: &std::path::Path, container: Option<&str>, depth: usize, out: &mut Vec<crate::Symbol>) {
+        for item in items {
+            let Some(name) = str_field(item, "name") else { continue };
+            let range = item.get("selectionRange").or_else(|| item.get("range")).or_else(|| item.pointer("/location/range")).and_then(parse_range);
+            let Some(range) = range else { continue };
+            let item_path = item.pointer("/location/uri").and_then(Value::as_str).and_then(uri_to_path).unwrap_or_else(|| path.to_path_buf());
+            out.push(crate::Symbol {
+                name: name.clone(),
+                kind: symbol_kind(item.get("kind").and_then(Value::as_u64).unwrap_or(0)),
+                detail: str_field(item, "detail").filter(|d| !d.is_empty()),
+                container: container.map(str::to_owned).or_else(|| str_field(item, "containerName").filter(|c| !c.is_empty())),
+                path: item_path,
+                range,
+                depth,
+            });
+            if let Some(children) = item.get("children").and_then(Value::as_array) {
+                walk(children, path, Some(&name), depth + 1, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    if let Some(items) = v.as_array() {
+        walk(items, path, None, 0, &mut out);
+    }
+    // Flat SymbolInformation lists aren't guaranteed to be in document order.
+    out.sort_by_key(|s| (s.range.start.line, s.range.start.character));
+    out
+}
+
+/// Parses a `workspace/symbol` result (`SymbolInformation[]` or `WorkspaceSymbol[]`).
+pub(crate) fn parse_workspace_symbols(v: &Value) -> Vec<crate::Symbol> {
+    v.as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    let path = item.pointer("/location/uri").and_then(Value::as_str).and_then(uri_to_path)?;
+                    let range = item.pointer("/location/range").and_then(parse_range).unwrap_or(Range { start: Position { line: 0, character: 0 }, end: Position { line: 0, character: 0 } });
+                    Some(crate::Symbol {
+                        name: str_field(item, "name")?,
+                        kind: symbol_kind(item.get("kind").and_then(Value::as_u64).unwrap_or(0)),
+                        detail: None,
+                        container: str_field(item, "containerName").filter(|c| !c.is_empty()),
+                        path,
+                        range,
+                        depth: 0,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Parses a `SignatureHelp` (`null` or no signatures: `None`). Parameter labels are strings or UTF-16
+/// offsets into the signature label; both become byte ranges.
+pub(crate) fn parse_signature_help(v: &Value) -> Option<crate::SignatureHelp> {
+    let signatures: Vec<crate::Signature> = v
+        .get("signatures")?
+        .as_array()?
+        .iter()
+        .filter_map(|s| {
+            let label = str_field(s, "label")?;
+            let mut search_from = 0;
+            let parameters = s
+                .get("parameters")
+                .and_then(Value::as_array)
+                .map(|params| {
+                    params
+                        .iter()
+                        .filter_map(|p| match p.get("label")? {
+                            Value::String(name) => {
+                                let at = search_from + label[search_from..].find(name.as_str())?;
+                                search_from = at + name.len();
+                                Some(at..at + name.len())
+                            }
+                            Value::Array(offsets) => {
+                                let start = utf16_to_byte(&label, offsets.first()?.as_u64()? as usize);
+                                let end = utf16_to_byte(&label, offsets.get(1)?.as_u64()? as usize);
+                                (start <= end).then_some(start..end)
+                            }
+                            _ => None,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let documentation = match s.get("documentation") {
+                Some(Value::String(text)) => Some(text.clone()),
+                Some(d) => str_field(d, "value"),
+                None => None,
+            }
+            .filter(|d| !d.trim().is_empty());
+            let active_parameter = s.get("activeParameter").or_else(|| v.get("activeParameter")).and_then(Value::as_u64).map(|i| i as usize);
+            Some(crate::Signature { label, documentation, parameters, active_parameter })
+        })
+        .collect();
+    if signatures.is_empty() {
+        return None;
+    }
+    let active_signature = v.get("activeSignature").and_then(Value::as_u64).map_or(0, |i| i as usize).min(signatures.len() - 1);
+    Some(crate::SignatureHelp { signatures, active_signature })
+}
+
+/// Byte offset of UTF-16 offset `units` in `text` (clamped to the end).
+fn utf16_to_byte(text: &str, units: usize) -> usize {
+    let mut count = 0;
+    for (byte, c) in text.char_indices() {
+        if count >= units {
+            return byte;
+        }
+        count += c.len_utf16();
+    }
+    text.len()
+}
+
+/// Parses a `WorkspaceEdit` (`changes` or `documentChanges` with text edits and file creation).
+pub(crate) fn parse_workspace_edit(v: &Value) -> crate::WorkspaceEdit {
+    let mut edit = crate::WorkspaceEdit::default();
+    if let Some(changes) = v.get("documentChanges").and_then(Value::as_array) {
+        for change in changes {
+            match change.get("kind").and_then(Value::as_str) {
+                Some("create") => {
+                    if let Some(path) = change.get("uri").and_then(Value::as_str).and_then(uri_to_path) {
+                        edit.creates.push(path);
+                    }
+                }
+                Some(other) => log::warn!("bf-lsp: workspace edit operation '{other}' is not supported"),
+                None => {
+                    if let Some(path) = change.pointer("/textDocument/uri").and_then(Value::as_str).and_then(uri_to_path) {
+                        edit.changes.push((path, parse_text_edits(change.get("edits").unwrap_or(&Value::Null))));
+                    }
+                }
+            }
+        }
+    } else if let Some(changes) = v.get("changes").and_then(Value::as_object) {
+        for (uri, edits) in changes {
+            if let Some(path) = uri_to_path(uri) {
+                edit.changes.push((path, parse_text_edits(edits)));
+            }
+        }
+    }
+    edit
+}
+
+/// Parses one entry of a `textDocument/codeAction` result (a `CodeAction` or a bare `Command`).
+pub(crate) fn parse_code_action(v: &Value) -> Option<crate::CodeAction> {
+    let title = str_field(v, "title")?;
+    // A bare Command has a string `command`; a CodeAction's `command` is an object.
+    let command = match v.get("command") {
+        Some(Value::String(_)) => Some(json!({ "command": v["command"], "arguments": v.get("arguments").cloned().unwrap_or(Value::Null) })),
+        Some(c @ Value::Object(_)) => Some(c.clone()),
+        _ => None,
+    };
+    Some(crate::CodeAction {
+        title,
+        kind: str_field(v, "kind"),
+        preferred: v.get("isPreferred").and_then(Value::as_bool).unwrap_or(false),
+        disabled: v.pointer("/disabled/reason").and_then(Value::as_str).map(str::to_owned),
+        edit: v.get("edit").map(parse_workspace_edit),
+        command,
+        raw: v.clone(),
+    })
+}
+
+pub(crate) fn diagnostic_json(d: &crate::Diagnostic) -> Value {
+    let severity = match d.severity {
+        crate::Severity::Error => 1,
+        crate::Severity::Warning => 2,
+        crate::Severity::Info => 3,
+        crate::Severity::Hint => 4,
+    };
+    let mut v = json!({ "range": range_json(d.range), "severity": severity, "message": d.message });
+    if let Some(code) = &d.code {
+        v["code"] = json!(code);
+    }
+    v
 }

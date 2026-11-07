@@ -1,0 +1,10 @@
+{
+  // Built-in module: CSharpier as the default formatter for C# and MSBuild/XML files.
+  // Remove it in the Modules view (it can be restored there), or override it with a copy in
+  // ~/.config/byteforge/modules/csharpier/.
+  "id": "byteforge.csharpier",
+  "name": "CSharpier",
+  "description": "Opinionated C# and XML formatter (https://csharpier.com). Format Document: Shift+Alt+F.",
+  "command": "python3",
+  "args": ["csharpier.py"]
+}

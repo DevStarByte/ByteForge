@@ -20,14 +20,14 @@
     "sideBar.order": ["activityBar", "content"],
     "editor.order": ["breadcrumbs", "content", "tabs"],
     "panel.visible": true,
-    "panel.tabs": ["output", "problems"],
+    "panel.tabs": ["output", "problems", "debugConsole"],
     "tab.indicatorPosition": "bottom",
 
     "titleBar.left": ["logo", "title"],
     "titleBar.center": ["menu"],
     "titleBar.right": ["branch", "command:dotnet.build:build", "command:dotnet.run:play", "themePicker", "togglePanel", "windowControls"],
 
-    "activityBar.items": ["explorer", "search", "scm", "modules", "spacer", "command:view.commandPalette:search", "settings"],
+    "activityBar.items": ["explorer", "search", "scm", "debug", "docker", "modules", "spacer", "command:view.commandPalette:search", "settings"],
 
     "statusBar.left": ["position", "language", "eol"],
     "statusBar.center": ["branch", "sync"],
