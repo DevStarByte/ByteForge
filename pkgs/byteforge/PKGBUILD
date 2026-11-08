@@ -5,7 +5,7 @@
 #   2. set pkgver=0.2.0 (pkgrel=1) here, commit and push to `packages`
 # For a packaging-only change, bump pkgrel instead. The Build packages workflow does the rest.
 pkgname=byteforge
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="A modular, themeable IDE for C# built with Rust and GPUI"
 arch=('x86_64')
