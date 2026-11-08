@@ -1,0 +1,52 @@
+# Maintainer: DevStarByte <devstarbyte@protonmail.com>
+#
+# The package the [byteforge] repo ships. It builds the tag v$pkgver from master, so to release:
+#   1. tag master:  git tag v0.2.0 && git push origin v0.2.0
+#   2. set pkgver=0.2.0 (pkgrel=1) here, commit and push to `packages`
+# For a packaging-only change, bump pkgrel instead. The Build packages workflow does the rest.
+pkgname=byteforge
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="A modular, themeable IDE for C# built with Rust and GPUI"
+arch=('x86_64')
+url="https://github.com/DevStarByte/ByteForge"
+license=('MIT')
+depends=('vulkan-icd-loader' 'libxkbcommon' 'libxkbcommon-x11' 'wayland' 'libx11' 'libxcb'
+         'fontconfig' 'freetype2' 'alsa-lib' 'dotnet-sdk')
+makedepends=('git' 'rust' 'cmake' 'clang' 'pkgconf')
+optdepends=('ttf-jetbrains-mono: default editor font'
+            'netcoredbg: debugger (AUR)'
+            'aspnet-runtime: run ASP.NET Core, Razor and Blazor projects'
+            'aspnet-targeting-pack: build ASP.NET Core, Razor and Blazor projects'
+            'docker: Docker view'
+            'docker-compose: Compose up/down'
+            'python: CSharpier formatter module'
+            'vulkan-radeon: AMD Vulkan driver'
+            'vulkan-intel: Intel Vulkan driver'
+            'nvidia-utils: NVIDIA Vulkan driver')
+# makepkg's LTO flags turn the C parts (tree-sitter grammars) into GCC LTO objects rust-lld can't link.
+options=('!lto' '!debug')
+source=("$pkgname::git+$url.git#tag=v$pkgver")
+sha256sums=('SKIP')
+
+prepare() {
+  cd "$pkgname"
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$pkgname"
+  cargo build --release --frozen -p byteforge
+}
+
+package() {
+  cd "$pkgname"
+  install -Dm755 target/release/byteforge "$pkgdir/usr/lib/byteforge/byteforge"
+  install -dm755 "$pkgdir/usr/lib/byteforge/themes"
+  install -m644 themes/*.json "$pkgdir/usr/lib/byteforge/themes/"
+  cp -r --no-preserve=ownership modules "$pkgdir/usr/lib/byteforge/modules"
+  install -dm755 "$pkgdir/usr/bin"
+  ln -s /usr/lib/byteforge/byteforge "$pkgdir/usr/bin/byteforge"
+  install -Dm644 packaging/linux/byteforge.desktop "$pkgdir/usr/share/applications/byteforge.desktop"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/byteforge/README.md"
+}
