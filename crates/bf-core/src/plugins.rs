@@ -6,7 +6,7 @@
 //!
 //! The host starts the command in the module folder and talks newline-delimited JSON over stdio.
 //! Module → host: `registerCommand {id,title,category?,keybinding?}`, `status {id,text,tooltip?,command?,alignment?}`,
-//! `log {text}`, `openFile {path,line?,column?}`, `showView {id}`, `insertText {text}` (at the caret(s) of the active editor),
+//! `log {text}`, `openFile {path,line?,column?}`, `showView {id}`, `insertText {text}` (at the caret(s) of the active editor), `setTheme {name}`,
 //! `registerFormatter {id,name,extensions}`, `formatResult {requestId,text?|error?}`.
 //! Host → module: `activate {workspace}`, `executeCommand {id}`, `event {name, path?}` (folderOpened, fileSaved, themeChanged),
 //! `format {requestId,path,text}`.
@@ -47,6 +47,8 @@ pub enum PluginMessage {
     ShowView { id: String },
     /// Insert text at the caret(s) of the active editor.
     InsertText { text: String },
+    /// Switch to the color theme with this name (e.g. one the module wrote to the user themes folder).
+    SetTheme { name: String },
     /// The module formats files with these extensions (without the dot).
     RegisterFormatter { module: String, id: String, name: String, extensions: Vec<String> },
     /// The answer to a `format` request: the formatted text, or why it couldn't be formatted.
@@ -178,6 +180,7 @@ fn parse(module: &str, line: &str) -> Option<PluginMessage> {
         },
         "showView" => PluginMessage::ShowView { id: s("id")? },
         "insertText" => PluginMessage::InsertText { text: s("text")? },
+        "setTheme" => PluginMessage::SetTheme { name: s("name")? },
         "registerFormatter" => PluginMessage::RegisterFormatter {
             id: s("id")?,
             name: s("name").unwrap_or_else(|| module.clone()),

@@ -337,6 +337,7 @@ ByteForge starts the command in that folder and exchanges one JSON object per li
   - `{"type":"openFile","path","line","column"}`
   - `{"type":"showView","id"}`
   - `{"type":"insertText","text"}`: insert at the caret(s) of the active editor
+  - `{"type":"setTheme","name"}`: switch to a color theme (for example one the module wrote to `~/.config/byteforge/themes/`)
 - **IDE → module:**
   - `{"type":"activate","workspace"}`
   - `{"type":"executeCommand","id"}`

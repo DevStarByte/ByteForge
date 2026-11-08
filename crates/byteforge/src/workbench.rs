@@ -1633,6 +1633,13 @@ impl Workbench {
                     editor.update(cx, |e, cx| e.insert_text(&text, cx));
                 }
             }
+            PluginMessage::SetTheme { name } => {
+                if let Some(window) = cx.active_window() {
+                    let entity = cx.entity();
+                    let _ = window.update(cx, |_, window, cx| entity.update(cx, |wb, cx| wb.apply_theme(&name, window, cx)));
+                }
+                self.settings.set("workbench.theme", json!(name));
+            }
             PluginMessage::ShowView { id } => match id.as_str() {
                 "output" => self.show_panel(PanelView::Output, cx),
                 "problems" => self.show_panel(PanelView::Problems, cx),
