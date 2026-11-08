@@ -2037,6 +2037,7 @@ impl Workbench {
         match event {
             ScmEvent::OpenFile(path) => self.open_file(path.clone(), None, window, cx),
             ScmEvent::OpenDiff(change, staged) => self.open_diff(change.clone(), *staged, window, cx),
+            ScmEvent::OpenCommitDiff(commit, file) => self.open_commit_diff(commit.clone(), file.clone(), window, cx),
             ScmEvent::Log(text) => self.log(text),
             ScmEvent::StatusChanged => {
                 let s = scm.read(cx);
@@ -2113,6 +2114,30 @@ impl Workbench {
             let (a, b) = if staged { (format!("HEAD:{rel}"), format!("index:{rel}")) } else { (format!("index:{rel}"), rel.clone()) };
             bf_core::git::unified_diff(&old, &new, &a, &b)
         });
+        self.show_diff_tab(title, task, window, cx);
+    }
+
+    /// Opens what a commit changed in a file (first parent ↔ commit) as a read-only diff tab.
+    fn open_commit_diff(&mut self, commit: bf_core::git::Commit, file: bf_core::git::CommitFile, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(git) = self.scm.read(cx).git().cloned() else { return };
+        let name = file.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let title = format!("{name} ({})", commit.short());
+        let task = cx.background_spawn(async move {
+            let (old, new) = git.commit_diff_texts(&commit, &file);
+            let rel = git.relative(&file.path);
+            let orig = file.orig.as_deref().map_or_else(|| rel.clone(), |o| git.relative(o));
+            let a = match commit.parents.first() {
+                Some(p) if file.status != 'A' => format!("{}:{orig}", &p[..p.len().min(7)]),
+                _ => "/dev/null".to_owned(),
+            };
+            let b = if file.status == 'D' { "/dev/null".to_owned() } else { format!("{}:{rel}", commit.short()) };
+            bf_core::git::unified_diff(&old, &new, &a, &b)
+        });
+        self.show_diff_tab(title, task, window, cx);
+    }
+
+    /// Shows a unified diff in a read-only tab titled `title`, reusing an open tab of the same title.
+    fn show_diff_tab(&mut self, title: String, task: Task<String>, window: &mut Window, cx: &mut Context<Self>) {
         cx.spawn_in(window, async move |this, cx| {
             let diff = task.await;
             let _ = this.update_in(cx, |wb, window, cx| {

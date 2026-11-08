@@ -77,6 +77,39 @@ pub struct Branch {
     pub remote: bool,
 }
 
+/// One commit of the history list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Commit {
+    pub id: String,
+    pub parents: Vec<String>,
+    pub author: String,
+    pub email: String,
+    /// Author date, relative ("3 days ago").
+    pub when: String,
+    /// Author date, absolute ("2026-11-08 14:02").
+    pub date: String,
+    /// Branch and tag names pointing at this commit ("HEAD -> master, origin/master, tag: v0.3.1").
+    pub refs: String,
+    pub subject: String,
+}
+
+impl Commit {
+    pub fn short(&self) -> &str {
+        &self.id[..self.id.len().min(7)]
+    }
+}
+
+/// A file changed by a commit (compared with its first parent).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CommitFile {
+    /// Absolute path.
+    pub path: PathBuf,
+    /// Original path for renames/copies.
+    pub orig: Option<PathBuf>,
+    /// 'A', 'M', 'D', 'R', 'C', 'T'.
+    pub status: char,
+}
+
 #[derive(Clone, Debug)]
 pub struct Git {
     root: PathBuf,
@@ -274,6 +307,50 @@ impl Git {
         }
     }
 
+    /// Commits reachable from HEAD, newest first (`skip` pages through older ones).
+    pub fn log(&self, limit: usize, skip: usize) -> anyhow::Result<Vec<Commit>> {
+        if !self.has_commits() {
+            return Ok(Vec::new());
+        }
+        let (limit, skip) = (format!("-n{limit}"), format!("--skip={skip}"));
+        let text = run(
+            &self.root,
+            &["log", "-z", &limit, &skip, "--date=format:%Y-%m-%d %H:%M", "--format=%H%x1f%P%x1f%an%x1f%ae%x1f%ar%x1f%ad%x1f%D%x1f%s", "HEAD"],
+        )?;
+        Ok(parse_log(&text))
+    }
+
+    /// Files a commit changed, compared with its first parent (or everything, for a root commit).
+    pub fn commit_files(&self, commit: &Commit) -> anyhow::Result<Vec<CommitFile>> {
+        let mut args = vec!["diff-tree", "-r", "-z", "-M", "--name-status", "--no-commit-id"];
+        match commit.parents.first() {
+            Some(parent) => args.extend([parent.as_str(), commit.id.as_str()]),
+            None => args.extend(["--root", commit.id.as_str()]),
+        }
+        let text = run(&self.root, &args)?;
+        Ok(parse_name_status(&text, &self.root))
+    }
+
+    /// Content of a file at a revision (None if it does not exist there).
+    pub fn content_at(&self, rev: &str, path: &Path) -> Option<String> {
+        let spec = format!("{rev}:{}", self.rel(path));
+        let output = git(&self.root).args(["show", &spec]).output().ok()?;
+        output.status.success().then(|| String::from_utf8_lossy(&output.stdout).replace("\r\n", "\n"))
+    }
+
+    /// (old, new) texts of a file changed by a commit: first parent ↔ commit.
+    pub fn commit_diff_texts(&self, commit: &Commit, file: &CommitFile) -> (String, String) {
+        let orig = file.orig.as_deref().unwrap_or(&file.path);
+        let old = commit.parents.first().and_then(|p| self.content_at(p, orig)).unwrap_or_default();
+        let new = if file.status == 'D' { String::new() } else { self.content_at(&commit.id, &file.path).unwrap_or_default() };
+        (old, new)
+    }
+
+    /// Relative path inside the repository, with forward slashes.
+    pub fn relative(&self, path: &Path) -> String {
+        self.rel(path)
+    }
+
     /// Staged (index) content of a file.
     pub fn index_content(&self, path: &Path) -> Option<String> {
         let spec = format!(":{}", self.rel(path));
@@ -359,6 +436,48 @@ fn parse_status(text: &str, root: &Path) -> GitStatus {
     status
 }
 
+fn parse_log(text: &str) -> Vec<Commit> {
+    text.split('\0')
+        .filter_map(|record| {
+            let record = record.trim_start_matches('\n');
+            let mut f = record.split('\x1f');
+            let id = f.next()?.to_owned();
+            if id.is_empty() {
+                return None;
+            }
+            Some(Commit {
+                id,
+                parents: f.next()?.split_whitespace().map(str::to_owned).collect(),
+                author: f.next()?.to_owned(),
+                email: f.next()?.to_owned(),
+                when: f.next()?.to_owned(),
+                date: f.next()?.to_owned(),
+                refs: f.next()?.to_owned(),
+                subject: f.next().unwrap_or_default().to_owned(),
+            })
+        })
+        .collect()
+}
+
+/// Parses `git diff-tree --name-status -z` output ("M\0path\0", "R100\0old\0new\0").
+fn parse_name_status(text: &str, root: &Path) -> Vec<CommitFile> {
+    let abs = |rel: &str| root.join(rel.replace('/', std::path::MAIN_SEPARATOR_STR));
+    let mut out = Vec::new();
+    let mut fields = text.split('\0').filter(|f| !f.is_empty());
+    while let Some(code) = fields.next() {
+        let status = code.chars().next().unwrap_or('M');
+        let Some(first) = fields.next() else { break };
+        if matches!(status, 'R' | 'C') {
+            let Some(second) = fields.next() else { break };
+            out.push(CommitFile { path: abs(second), orig: Some(abs(first)), status });
+        } else {
+            out.push(CommitFile { path: abs(first), orig: None, status });
+        }
+    }
+    out.sort_by(|a, b| a.path.cmp(&b.path));
+    out
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineChangeKind {
     Added,
@@ -418,6 +537,22 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
     }
 
     #[test]
+    fn parses_log_and_name_status() {
+        let text = "a1\x1fp1 p2\x1fAnn\x1fann@x.org\x1f2 days ago\x1f2026-11-06 10:00\x1fHEAD -> main\x1fMerge it\0\
+\nb2\x1f\x1fBob\x1fbob@x.org\x1f3 weeks ago\x1f2026-10-01 09:00\x1f\x1fInitial";
+        let log = parse_log(text);
+        assert_eq!(log.len(), 2);
+        assert_eq!(log[0].parents, ["p1", "p2"]);
+        assert_eq!(log[0].refs, "HEAD -> main");
+        assert!(log[1].parents.is_empty() && log[1].id == "b2");
+
+        let files = parse_name_status("M\0src/a.cs\0R087\0old.cs\0new.cs\0D\0gone.cs\0", Path::new("/repo"));
+        assert_eq!(files.len(), 3);
+        let renamed = files.iter().find(|f| f.status == 'R').unwrap();
+        assert!(renamed.path.ends_with("new.cs") && renamed.orig.as_ref().unwrap().ends_with("old.cs"));
+    }
+
+    #[test]
     fn gutter_line_changes() {
         let base = "a\nb\nc\nd\n";
         let current = "a\nB\nc\nnew\nd\n";
@@ -463,6 +598,17 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         assert_eq!(repo.head_content(&file).as_deref(), Some("class A {}\n"));
         repo.discard(&[change]).unwrap();
         assert!(repo.status().unwrap().changes.is_empty());
+
+        std::fs::write(&file, "class A { int y; }\n").unwrap();
+        repo.stage_all().unwrap();
+        repo.commit("second", false).unwrap();
+        let log = repo.log(50, 0).unwrap();
+        assert_eq!(log.iter().map(|c| c.subject.as_str()).collect::<Vec<_>>(), ["second", "initial"]);
+        assert_eq!(repo.log(50, 1).unwrap().len(), 1);
+        let files = repo.commit_files(&log[0]).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(repo.commit_diff_texts(&log[0], &files[0]), ("class A {}\n".to_owned(), "class A { int y; }\n".to_owned()));
+        assert_eq!(repo.commit_files(&log[1]).unwrap()[0].status, 'A');
 
         repo.create_branch("feature/x").unwrap();
         let branches = repo.branches().unwrap();

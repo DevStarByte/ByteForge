@@ -1,12 +1,14 @@
 //! Source Control view: commit box, staged and unstaged changes, and the git operations behind them.
 //! Every git command runs on a background thread; the status is polled so external changes show up.
+//! Below the changes, the History section lists the commits of the current branch; a commit expands to
+//! the files it changed, and a file opens the commit's diff.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use bf_core::Workspace;
-use bf_core::git::{FileChange, Git, GitStatus};
+use bf_core::git::{Commit, CommitFile, FileChange, Git, GitStatus};
 use gpui::{App, Context, Entity, EventEmitter, FocusHandle, Focusable, PromptLevel, Subscription, Task, Window, div, prelude::*, px, uniform_list};
 
 use crate::assets::icon;
@@ -17,6 +19,8 @@ use crate::workbench::tooltip;
 pub enum ScmEvent {
     OpenFile(PathBuf),
     OpenDiff(FileChange, bool),
+    /// A file of a commit in the History section: show what the commit changed in it.
+    OpenCommitDiff(Commit, CommitFile),
     /// The repository status changed (files, branch or HEAD).
     StatusChanged,
     Log(String),
@@ -26,6 +30,29 @@ pub enum ScmEvent {
 enum Entry {
     Header { staged: bool, count: usize },
     File { change: FileChange, staged: bool },
+    HistoryHeader,
+    Commit { commit: Commit, expanded: bool },
+    CommitFile { commit: Commit, file: CommitFile },
+    /// Placeholder under an expanded commit while its files load.
+    CommitLoading,
+    LoadMore,
+}
+
+/// Commits loaded per page of the History section.
+const HISTORY_PAGE: usize = 100;
+
+#[derive(Default)]
+struct History {
+    open: bool,
+    commits: Vec<Commit>,
+    /// HEAD the list was loaded for (reloaded when HEAD moves).
+    head: Option<String>,
+    more: bool,
+    loading: bool,
+    expanded: HashSet<String>,
+    files: HashMap<String, Vec<CommitFile>>,
+    task: Option<Task<()>>,
+    files_tasks: HashMap<String, Task<()>>,
 }
 
 pub struct ScmView {
@@ -37,6 +64,7 @@ pub struct ScmView {
     busy: Option<String>,
     error: Option<String>,
     loaded: bool,
+    history: History,
     refresh_task: Option<Task<()>>,
     op_task: Option<Task<()>>,
     _poll: Task<()>,
@@ -66,6 +94,34 @@ pub fn deco_key(change: &FileChange, staged: bool) -> &'static str {
         _ if staged => "gitDecoration.stageModifiedResourceForeground",
         _ => "gitDecoration.modifiedResourceForeground",
     }
+}
+
+/// Theme color key for a file changed by a commit.
+fn commit_file_key(status: char) -> &'static str {
+    match status {
+        'A' => "gitDecoration.addedResourceForeground",
+        'D' => "gitDecoration.deletedResourceForeground",
+        'R' | 'C' => "gitDecoration.renamedResourceForeground",
+        _ => "gitDecoration.modifiedResourceForeground",
+    }
+}
+
+/// Compact age for the history list: "14 minutes ago" → "14m", "3 weeks ago" → "3w".
+fn short_age(when: &str) -> String {
+    let mut words = when.split_whitespace();
+    let (Some(n), Some(unit)) = (words.next(), words.next()) else { return when.to_owned() };
+    let unit = unit.trim_end_matches(',');
+    let suffix = match unit.trim_end_matches('s') {
+        "second" => "s",
+        "minute" => "m",
+        "hour" => "h",
+        "day" => "d",
+        "week" => "w",
+        "month" => "mo",
+        "year" => "y",
+        _ => return when.to_owned(),
+    };
+    format!("{n}{suffix}")
 }
 
 /// Explorer decorations: files get their letter and color, folders the color of a changed descendant.
@@ -115,6 +171,7 @@ impl ScmView {
             busy: None,
             error: None,
             loaded: false,
+            history: History { open: true, ..Default::default() },
             refresh_task: None,
             op_task: None,
             _poll: poll,
@@ -134,6 +191,7 @@ impl ScmView {
     pub fn open_folder(&mut self, cx: &mut Context<Self>) {
         self.git = None;
         self.loaded = false;
+        self.history = History { open: self.history.open, ..Default::default() };
         self.set_status(GitStatus::default(), cx);
         let Some(root) = self.workspace.root() else { return };
         self.refresh_task = Some(cx.spawn(async move |this, cx| {
@@ -169,21 +227,123 @@ impl ScmView {
         if status == self.status && !self.entries.is_empty() {
             return;
         }
+        let changed = status != self.status;
+        self.status = status;
+        if self.git.is_some() && self.history.head != self.status.head {
+            self.load_history(false, cx);
+        }
+        self.rebuild_entries();
+        if changed {
+            cx.emit(ScmEvent::StatusChanged);
+        }
+        cx.notify();
+    }
+
+    fn rebuild_entries(&mut self) {
+        let status = &self.status;
         let staged: Vec<&FileChange> = status.changes.iter().filter(|c| c.is_staged()).collect();
         let unstaged: Vec<&FileChange> = status.changes.iter().filter(|c| c.is_unstaged()).collect();
-        let mut entries = Vec::with_capacity(status.changes.len() + 2);
+        let mut entries = Vec::with_capacity(status.changes.len() + 3 + self.history.commits.len());
         if !staged.is_empty() {
             entries.push(Entry::Header { staged: true, count: staged.len() });
             entries.extend(staged.into_iter().map(|c| Entry::File { change: c.clone(), staged: true }));
         }
         entries.push(Entry::Header { staged: false, count: unstaged.len() });
         entries.extend(unstaged.into_iter().map(|c| Entry::File { change: c.clone(), staged: false }));
-        let changed = status != self.status;
-        self.entries = entries;
-        self.status = status;
-        if changed {
-            cx.emit(ScmEvent::StatusChanged);
+        if status.has_commits {
+            let h = &self.history;
+            entries.push(Entry::HistoryHeader);
+            if h.open {
+                for commit in &h.commits {
+                    let expanded = h.expanded.contains(&commit.id);
+                    entries.push(Entry::Commit { commit: commit.clone(), expanded });
+                    if expanded {
+                        match h.files.get(&commit.id) {
+                            Some(files) => entries.extend(files.iter().map(|f| Entry::CommitFile { commit: commit.clone(), file: f.clone() })),
+                            None => entries.push(Entry::CommitLoading),
+                        }
+                    }
+                }
+                if h.more {
+                    entries.push(Entry::LoadMore);
+                }
+            }
         }
+        self.entries = entries;
+    }
+
+    /// Loads the first page of the history (or, with `more`, the next page).
+    fn load_history(&mut self, more: bool, cx: &mut Context<Self>) {
+        let Some(git) = self.git.clone() else { return };
+        let head = self.status.head.clone();
+        let skip = if more { self.history.commits.len() } else { 0 };
+        if !more {
+            self.history.head = head.clone();
+        }
+        self.history.loading = true;
+        self.history.task = Some(cx.spawn(async move |this, cx| {
+            let result = cx.background_executor().spawn(async move { git.log(HISTORY_PAGE, skip) }).await;
+            let _ = this.update(cx, |v, cx| {
+                v.history.loading = false;
+                if v.history.head != head {
+                    return; // HEAD moved meanwhile; a newer load is on its way.
+                }
+                match result {
+                    Ok(commits) => {
+                        v.history.more = commits.len() == HISTORY_PAGE;
+                        if more {
+                            v.history.commits.extend(commits);
+                        } else {
+                            let ids: HashSet<&str> = commits.iter().map(|c| c.id.as_str()).collect();
+                            v.history.expanded.retain(|id| ids.contains(id.as_str()));
+                            v.history.files.retain(|id, _| ids.contains(id.as_str()));
+                            v.history.commits = commits;
+                        }
+                    }
+                    Err(e) => cx.emit(ScmEvent::Log(format!("git log failed: {e}"))),
+                }
+                v.rebuild_entries();
+                cx.notify();
+            });
+        }));
+    }
+
+    fn toggle_history(&mut self, cx: &mut Context<Self>) {
+        self.history.open = !self.history.open;
+        self.rebuild_entries();
+        cx.notify();
+    }
+
+    /// Expands or collapses a commit; its changed files load on first expansion.
+    fn toggle_commit(&mut self, commit: Commit, cx: &mut Context<Self>) {
+        if !self.history.expanded.remove(&commit.id) {
+            self.history.expanded.insert(commit.id.clone());
+            if !self.history.files.contains_key(&commit.id)
+                && let Some(git) = self.git.clone()
+            {
+                let id = commit.id.clone();
+                let task = cx.spawn(async move |this, cx| {
+                    let id = commit.id.clone();
+                    let result = cx.background_executor().spawn(async move { git.commit_files(&commit) }).await;
+                    let _ = this.update(cx, |v, cx| {
+                        v.history.files_tasks.remove(&id);
+                        match result {
+                            Ok(files) => {
+                                v.history.files.insert(id, files);
+                            }
+                            Err(e) => {
+                                v.history.files.insert(id, Vec::new());
+                                cx.emit(ScmEvent::Log(format!("git diff-tree failed: {e}")));
+                            }
+                        }
+                        v.rebuild_entries();
+                        cx.notify();
+                    });
+                });
+                self.history.files_tasks.insert(id, task);
+            }
+        }
+        self.rebuild_entries();
         cx.notify();
     }
 
@@ -532,6 +692,148 @@ impl Render for ScmView {
                                 .on_click(move |_, _, cx| e3.update(cx, |_, cx| cx.emit(ScmEvent::OpenDiff(c3.clone(), staged))))
                                 .into_any_element()
                         }
+                        Entry::HistoryHeader => {
+                            let (e1, e2) = (entity.clone(), entity.clone());
+                            div()
+                                .id(ix)
+                                .group("scm-row")
+                                .w_full()
+                                .h(px(row_h))
+                                .mt_2()
+                                .px_3()
+                                .flex()
+                                .items_center()
+                                .gap_1()
+                                .cursor_pointer()
+                                .text_size(t.m("sideBarSectionHeader.fontSize", 11.0))
+                                .font_weight(t.weight("sideBarSectionHeader.weight", gpui::FontWeight::BOLD))
+                                .text_color(t.c("sideBarSectionHeader.foreground"))
+                                .child(icon(if view.history.open { "chevronDown" } else { "chevronRight" }, px(14.), t.c("icon.foreground")))
+                                .child(div().flex_1().child("HISTORY"))
+                                .when(view.history.loading, |d| d.child(div().text_size(px(11.)).text_color(t.c("foreground.muted")).font_weight(gpui::FontWeight::NORMAL).child("loading…")))
+                                .child(
+                                    div().invisible().group_hover("scm-row", |s| s.visible()).child(small("history-refresh", "refresh", "Reload History").on_click(move |_, _, cx| {
+                                        cx.stop_propagation();
+                                        e1.update(cx, |v, cx| v.load_history(false, cx))
+                                    })),
+                                )
+                                .on_click(move |_, _, cx| e2.update(cx, |v, cx| v.toggle_history(cx)))
+                                .into_any_element()
+                        }
+                        Entry::Commit { commit, expanded } => {
+                            let muted = t.c("foreground.muted");
+                            let refs = commit.refs.replace("HEAD -> ", "");
+                            let merge = commit.parents.len() > 1;
+                            let mut tip = format!("{}\n\n{} <{}>\n{} ({})\n{}", commit.subject, commit.author, commit.email, commit.date, commit.when, commit.id);
+                            if !commit.refs.is_empty() {
+                                tip.push_str(&format!("\n{}", commit.refs));
+                            }
+                            let e = entity.clone();
+                            let c = commit.clone();
+                            div()
+                                .id(ix)
+                                .w_full()
+                                .h(px(row_h))
+                                .px_3()
+                                .flex()
+                                .items_center()
+                                .gap_1()
+                                .cursor_pointer()
+                                .text_size(t.m("list.fontSize", 13.0))
+                                .hover(|s| s.bg(t.c("list.hoverBackground")))
+                                .overflow_hidden()
+                                .tooltip(tooltip(tip))
+                                .child(icon(if expanded { "chevronDown" } else { "chevronRight" }, px(14.), t.c("icon.foreground")))
+                                .child(icon("gitCommit", px(14.), if merge { muted } else { t.c("icon.foreground") }))
+                                .child(div().flex_1().min_w(px(60.)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(commit.subject.clone()))
+                                .when(!refs.is_empty(), |d| {
+                                    d.child(
+                                        div()
+                                            .flex_shrink()
+                                            .min_w(px(24.))
+                                            .max_w(px(110.))
+                                            .overflow_hidden()
+                                            .whitespace_nowrap()
+                                            .text_ellipsis()
+                                            .px(px(5.))
+                                            .rounded(px(9.))
+                                            .text_size(px(10.))
+                                            .bg(t.bg("badge.background"))
+                                            .text_color(t.c("badge.foreground"))
+                                            .child(refs),
+                                    )
+                                })
+                                .child(div().flex_none().whitespace_nowrap().text_size(px(11.)).text_color(muted).child(short_age(&commit.when)))
+                                .on_click(move |_, _, cx| e.update(cx, |v, cx| v.toggle_commit(c.clone(), cx)))
+                                .into_any_element()
+                        }
+                        Entry::CommitFile { commit, file } => {
+                            let name = file.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                            let dir = file.path.parent().and_then(|p| p.strip_prefix(&root).ok()).map(|p| p.display().to_string()).unwrap_or_default();
+                            let color = t.c(commit_file_key(file.status));
+                            let deleted = file.status == 'D';
+                            let (e1, e2) = (entity.clone(), entity.clone());
+                            let path = file.path.clone();
+                            div()
+                                .id(ix)
+                                .group("scm-row")
+                                .w_full()
+                                .h(px(row_h))
+                                .pl(px(40.))
+                                .pr_3()
+                                .flex()
+                                .items_center()
+                                .gap(t.m("explorer.itemSpacing", 6.0))
+                                .cursor_pointer()
+                                .text_size(t.m("list.fontSize", 13.0))
+                                .hover(|s| s.bg(t.c("list.hoverBackground")))
+                                .when_some(file.orig.as_ref(), |d, orig| d.tooltip(tooltip(format!("Renamed from {}", orig.strip_prefix(&root).unwrap_or(orig).display()))))
+                                .child(icon("file", t.m("explorer.iconSize", 15.0), t.c(crate::explorer::icon_color_key(&name, false))))
+                                .child(div().whitespace_nowrap().text_color(color).when(deleted, |d| d.line_through()).child(name))
+                                .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_size(px(11.)).text_color(t.c("foreground.muted")).child(dir))
+                                .when(!deleted, |d| {
+                                    d.child(div().invisible().group_hover("scm-row", |s| s.visible()).child(small("open", "file", "Open File").on_click(move |_, _, cx| {
+                                        cx.stop_propagation();
+                                        e1.update(cx, |_, cx| cx.emit(ScmEvent::OpenFile(path.clone())))
+                                    })))
+                                })
+                                .child(div().w(px(12.)).flex().justify_center().text_color(color).text_size(px(12.)).child(file.status.to_string()))
+                                .on_click(move |_, _, cx| e2.update(cx, |_, cx| cx.emit(ScmEvent::OpenCommitDiff(commit.clone(), file.clone()))))
+                                .into_any_element()
+                        }
+                        Entry::CommitLoading => div()
+                            .id(ix)
+                            .h(px(row_h))
+                            .pl(px(40.))
+                            .flex()
+                            .items_center()
+                            .text_size(px(12.))
+                            .text_color(t.c("foreground.muted"))
+                            .child("Loading…")
+                            .into_any_element(),
+                        Entry::LoadMore => {
+                            let e = entity.clone();
+                            div()
+                                .id(ix)
+                                .h(px(row_h))
+                                .px_3()
+                                .pl(px(40.))
+                                .flex()
+                                .items_center()
+                                .cursor_pointer()
+                                .text_size(px(12.))
+                                .text_color(t.c_or("textLink.foreground", 0x3794ffff))
+                                .hover(|s| s.underline())
+                                .child(if view.history.loading { "Loading…" } else { "Load More Commits" })
+                                .on_click(move |_, _, cx| {
+                                    e.update(cx, |v, cx| {
+                                        if !v.history.loading {
+                                            v.load_history(true, cx)
+                                        }
+                                    })
+                                })
+                                .into_any_element()
+                        }
                     }
                 })
                 .collect()
@@ -570,5 +872,16 @@ impl Render for ScmView {
             .when_some(self.error.clone(), |d, e| d.child(div().px_3().text_size(px(12.)).text_color(t.c("errorForeground")).child(e)))
             .child(list)
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn short_ages() {
+        assert_eq!(super::short_age("14 minutes ago"), "14m");
+        assert_eq!(super::short_age("1 hour ago"), "1h");
+        assert_eq!(super::short_age("2 years, 3 months ago"), "2y");
+        assert_eq!(super::short_age("yesterday"), "yesterday");
     }
 }
