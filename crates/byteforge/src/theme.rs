@@ -131,9 +131,19 @@ impl Theme {
             } else {
                 wanted.split(',').map(str::trim).chain(defaults.iter().copied()).collect()
             };
-            candidates
+            // GPUI's font list also names its fallback fonts (Segoe UI, Helvetica, …) whether or not they're
+            // installed, and a missing family falls back with bold and italic dropped. So prefer a family
+            // that really has a bold face: asking for its bold weight gives a different font than regular.
+            let text = cx.text_system();
+            let has_bold = |name: &str| {
+                let regular = gpui::font(name.to_string());
+                text.resolve_font(&gpui::Font { weight: gpui::FontWeight::BOLD, ..regular.clone() }) != text.resolve_font(&regular)
+            };
+            let listed: Vec<&&str> = candidates.iter().filter(|c| fonts.contains(&c.to_lowercase())).collect();
+            listed
                 .iter()
-                .find(|c| fonts.contains(&c.to_lowercase()))
+                .find(|c| has_bold(c))
+                .or(listed.first())
                 .map(|c| SharedString::from(c.to_string()))
                 .unwrap_or_else(|| SharedString::from(defaults[0].to_string()))
         };
