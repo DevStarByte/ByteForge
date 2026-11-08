@@ -205,6 +205,9 @@ pub struct Workbench {
     registry: modules::RegistryState,
     /// The module being installed, updated or uninstalled.
     module_busy: Option<String>,
+    module_filter: Entity<TextInput>,
+    /// The module whose details are open in the Modules view.
+    module_expanded: Option<String>,
     registry_task: Option<Task<()>>,
     plugin_tx: Option<flume::Sender<PluginMessage>>,
     formatters: Vec<Formatter>,
@@ -298,6 +301,7 @@ impl Workbench {
             e
         });
         let debug_input = cx.new(|cx| TextInput::new("Evaluate an expression while paused (Enter)", cx));
+        let module_filter = cx.new(|cx| TextInput::new("Search modules", cx));
         let (output_tx, output_rx) = flume::unbounded::<String>();
         let state = State::load(paths.state_file());
         let theme_version = Theme::global(cx).version;
@@ -313,6 +317,11 @@ impl Workbench {
             // File references in program output open on click.
             cx.subscribe_in(&output, window, Self::on_output_event),
             cx.subscribe_in(&debug_console, window, Self::on_output_event),
+            cx.subscribe_in(&module_filter, window, |_, _, event, _, cx| {
+                if let InputEvent::Changed = event {
+                    cx.notify();
+                }
+            }),
             cx.subscribe_in(&debug_input, window, |wb, input, event, _, cx| {
                 if let InputEvent::Confirmed = event {
                     let expression = input.read(cx).text().trim().to_owned();
@@ -412,6 +421,8 @@ impl Workbench {
             modules: Vec::new(),
             registry: modules::RegistryState::Idle,
             module_busy: None,
+            module_filter,
+            module_expanded: None,
             registry_task: None,
             plugin_tx: None,
             formatters: Vec::new(),

@@ -298,8 +298,10 @@ comma-separated strings:
 ## Modules
 
 Modules add commands, formatters and status bar items. They're packages: the **Modules** view (puzzle icon) lists
-what's **installed** (update, disable, uninstall) and what's **available** from the ByteForge module registry
-(install with one click):
+what's **installed** and what's **available** from the ByteForge module registry. Search filters both lists; each
+module has a tile in one of the current theme's syntax colors. The switch turns an installed module on or off,
+**Install** and **Update** do what they say, and clicking a module opens its details (full description, version,
+requirements, the file types it formats, Show files and Uninstall):
 
 | Module | What it does |
 |---|---|
