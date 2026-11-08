@@ -1,6 +1,22 @@
 {
   "modules": [
     {
+      "id": "byteforge.caelestia-theme",
+      "name": "Caelestia Theme",
+      "version": "1.0.0",
+      "description": "A color theme that follows your Caelestia dots (caelestia-shell). It reads the current scheme from ~/.local/state/caelestia/scheme.json and restyles ByteForge live whenever you change wallpaper or scheme. \"Caelestia: Use Caelestia Theme\" in the command palette switches to it.",
+      "author": "ByteForge",
+      "category": "Themes",
+      "dir": "caelestia-theme",
+      "files": [
+        "caelestia_theme.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
       "id": "byteforge.csharpier",
       "name": "CSharpier",
       "version": "1.0.0",
