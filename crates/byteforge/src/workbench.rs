@@ -49,6 +49,9 @@ struct Tab {
     path: Option<PathBuf>,
     title: String,
     bom: bool,
+    /// A page instead of a document: the details of the module with this id. The tab keeps an empty,
+    /// read-only editor so editor-wide code keeps working; the editor area draws the page instead.
+    page: Option<String>,
     _subs: Vec<Subscription>,
 }
 
@@ -207,7 +210,6 @@ pub struct Workbench {
     module_busy: Option<String>,
     module_filter: Entity<TextInput>,
     /// The module whose details are open in the Modules view.
-    module_expanded: Option<String>,
     registry_task: Option<Task<()>>,
     plugin_tx: Option<flume::Sender<PluginMessage>>,
     formatters: Vec<Formatter>,
@@ -422,7 +424,6 @@ impl Workbench {
             registry: modules::RegistryState::Idle,
             module_busy: None,
             module_filter,
-            module_expanded: None,
             registry_task: None,
             plugin_tx: None,
             formatters: Vec::new(),
@@ -706,7 +707,7 @@ impl Workbench {
 
     fn add_tab(&mut self, editor: Entity<EditorView>, path: Option<PathBuf>, title: String, bom: bool, window: &mut Window, cx: &mut Context<Self>) {
         let sub = cx.subscribe_in(&editor, window, Self::on_editor_event);
-        self.tabs.push(Tab { editor, group: self.focus_group, path, title, bom, _subs: vec![sub] });
+        self.tabs.push(Tab { editor, group: self.focus_group, path, title, bom, page: None, _subs: vec![sub] });
         let ix = self.tabs.len() - 1;
         self.activate(ix, window, cx);
     }
@@ -3111,7 +3112,11 @@ impl Workbench {
             let border = t.c_or("editorGroup.border", 0x80808040);
             let groups: Vec<_> = (0..2)
                 .map(|g| {
-                    let editor = self.visible[g].and_then(|i| self.tabs.get(i)).map(|t| t.editor.clone());
+                    let shown = self.visible[g].and_then(|i| self.tabs.get(i)).map(|t| (t.editor.clone(), t.page.clone()));
+                    let editor: Option<gpui::AnyElement> = shown.map(|(editor, page)| match page {
+                        Some(page) => self.render_module_page(&page, cx).into_any_element(),
+                        None => editor.into_any_element(),
+                    });
                     let tabs = show_tabs.then(|| self.render_tabs(tabs_at_bottom, g, cx));
                     let body = div().flex_1().min_h_0().children(editor);
                     div()
@@ -3136,8 +3141,9 @@ impl Workbench {
                 .collect();
             div().size_full().flex().children(groups).into_any_element()
         } else {
-            match self.active_editor() {
-                Some(editor) => editor.into_any_element(),
+            match self.active.and_then(|i| self.tabs.get(i)).map(|t| (t.editor.clone(), t.page.clone())) {
+                Some((_, Some(page))) => self.render_module_page(&page, cx).into_any_element(),
+                Some((editor, None)) => editor.into_any_element(),
                 None => self.render_welcome(window, cx).into_any_element(),
             }
         });
@@ -3550,7 +3556,8 @@ impl Workbench {
         let git = self.scm.read(cx).git().is_some().then(|| self.scm.read(cx).status().clone());
         let bom = self.active.and_then(|i| self.tabs.get(i)).is_some_and(|t| t.bom);
         // (position, indent, encoding, eol, language) of the active editor.
-        let editor_info = self.active_editor().map(|editor| {
+        let on_page = self.active.and_then(|i| self.tabs.get(i)).is_some_and(|t| t.page.is_some());
+        let editor_info = self.active_editor().filter(|_| !on_page).map(|editor| {
             let e = editor.read(cx);
             let caret = e.state.caret();
             let selection = if e.state.has_selection() { format!(" ({} selected)", e.state.selected_text().chars().count()) } else { String::new() };

@@ -139,22 +139,14 @@ impl Workbench {
         cx.notify();
     }
 
-    pub(super) fn render_modules(&mut self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        if matches!(self.registry, RegistryState::Idle) {
-            self.refresh_registry(cx);
-        }
-        let t = Theme::global(cx);
-        let dir = self.paths.user_modules();
-        let muted = t.c("foreground.muted");
-        let query = self.module_filter.read(cx).text().trim().to_lowercase();
+    /// The installed modules and the registry's other packages, as the Modules view and pages show them.
+    fn module_items(&self) -> (Vec<Item>, Vec<Item>) {
         let disabled: Vec<String> = self.settings.get("modules.disabled", Vec::new());
         let available: Vec<PackageInfo> = match &self.registry {
             RegistryState::Loaded(p) => p.clone(),
             _ => Vec::new(),
         };
-
-        // One model for both lists.
-        let mut installed: Vec<Item> = self
+        let installed: Vec<Item> = self
             .modules
             .iter()
             .map(|m| {
@@ -166,16 +158,16 @@ impl Workbench {
                     version: m.version.clone(),
                     author: m.author.clone(),
                     requires: package.map(|p| p.requires.clone()).unwrap_or_default(),
-                    formats: self.formatters.iter().filter(|f| f.module == m.id).flat_map(|f| f.extensions.iter().map(|e| format!(".{e}"))).collect(),
                     dir: Some(m.dir.clone()),
                     enabled: !disabled.contains(&m.id),
                     running: self.plugins.iter().any(|p| p.manifest.id == m.id),
                     update: package.filter(|p| registry::is_newer(&p.version, m.version.as_deref().unwrap_or("0"))).cloned(),
                     package: None,
+                    category: package.and_then(|p| p.category.clone()),
                 }
             })
             .collect();
-        let mut browse: Vec<Item> = available
+        let browse: Vec<Item> = available
             .iter()
             .filter(|p| !self.modules.iter().any(|m| m.id == p.id))
             .map(|p| Item {
@@ -185,14 +177,26 @@ impl Workbench {
                 version: Some(p.version.clone()),
                 author: p.author.clone(),
                 requires: p.requires.clone(),
-                formats: Vec::new(),
                 dir: None,
                 enabled: false,
                 running: false,
                 update: None,
                 package: Some(p.clone()),
+                category: p.category.clone(),
             })
             .collect();
+        (installed, browse)
+    }
+
+    pub(super) fn render_modules(&mut self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        if matches!(self.registry, RegistryState::Idle) {
+            self.refresh_registry(cx);
+        }
+        let t = Theme::global(cx);
+        let dir = self.paths.user_modules();
+        let muted = t.c("foreground.muted");
+        let query = self.module_filter.read(cx).text().trim().to_lowercase();
+        let (mut installed, mut browse) = self.module_items();
         let total = (installed.len(), browse.len());
         if !query.is_empty() {
             let keep = |i: &Item| [&i.name, &i.description, &i.id].iter().any(|s| s.to_lowercase().contains(&query));
@@ -272,12 +276,12 @@ impl Workbench {
             )
     }
 
-    /// One module: identity tile, name, one-line description and its control; click for the details.
+    /// One module: identity tile, name, one-line description and its control; click to open its page.
     fn module_row(&self, item: &Item, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let t = Theme::global(cx);
         let muted = t.c("foreground.muted");
         let fg = t.c("sideBar.foreground");
-        let expanded = self.module_expanded.as_deref() == Some(item.id.as_str());
+        let selected = self.active.and_then(|i| self.tabs.get(i)).and_then(|t| t.page.as_deref()) == Some(item.id.as_str());
         let busy = self.module_busy.as_deref() == Some(item.id.as_str());
         let installed = item.dir.is_some();
         let dimmed = installed && !item.enabled;
@@ -364,65 +368,6 @@ impl Workbench {
             }))
         });
 
-        let details = expanded.then(|| {
-            let fact = |label: &'static str, value: String, color: Hsla| {
-                div().flex().gap_1().text_size(px(11.)).child(div().text_color(muted).child(label)).child(div().text_color(color).child(value))
-            };
-            let mut facts = div().flex().flex_wrap().gap_x_3().gap_y_1();
-            if let Some(v) = &item.version {
-                facts = facts.child(fact("Version", v.clone(), fg));
-            }
-            if let Some(a) = &item.author {
-                facts = facts.child(fact("By", a.clone(), fg));
-            }
-            if !item.requires.is_empty() {
-                let color = if missing.is_empty() { fg } else { t.c("errorForeground") };
-                facts = facts.child(fact("Needs", item.requires.join(", "), color));
-            }
-            if !item.formats.is_empty() {
-                facts = facts.child(fact("Formats", item.formats.join(" "), fg));
-            }
-            let mut actions = div().flex().gap_3().mt_1();
-            if let Some(dir) = item.dir.clone() {
-                let id = item.id.clone();
-                actions = actions
-                    .child(
-                        div()
-                            .id(SharedString::from(format!("mod-reveal-{}", item.id)))
-                            .text_size(px(11.))
-                            .text_color(link_color(&t))
-                            .cursor_pointer()
-                            .hover(|s| s.underline())
-                            .child("Show files")
-                            .on_click(move |_, _, cx| {
-                                cx.stop_propagation();
-                                cx.reveal_path(&dir)
-                            }),
-                    )
-                    .child(
-                        div()
-                            .id(SharedString::from(format!("mod-uninstall-{}", item.id)))
-                            .text_size(px(11.))
-                            .text_color(t.c("errorForeground"))
-                            .cursor_pointer()
-                            .hover(|s| s.underline())
-                            .child("Uninstall")
-                            .on_click(cx.listener(move |wb, _, w, cx| {
-                                cx.stop_propagation();
-                                wb.uninstall_module(id.clone(), w, cx)
-                            })),
-                    );
-            }
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(6.))
-                .pt_1()
-                .when(!item.description.is_empty(), |d| d.child(div().text_size(px(12.)).text_color(fg).line_height(px(17.)).child(item.description.clone())))
-                .child(facts)
-                .child(actions)
-        });
-
         let id = item.id.clone();
         div()
             .id(SharedString::from(format!("mod-row-{}", item.id)))
@@ -432,8 +377,8 @@ impl Workbench {
             .py(px(6.))
             .rounded(px(5.))
             .cursor_pointer()
-            .when(expanded, |d| d.bg(t.c("list.hoverBackground")))
-            .when(!expanded, |d| d.hover(|s| s.bg(t.c("list.hoverBackground"))))
+            .when(selected, |d| d.bg(t.c("list.activeSelectionBackground")))
+            .when(!selected, |d| d.hover(|s| s.bg(t.c("list.hoverBackground"))))
             .child(div().when(dimmed, |d| d.opacity(0.45)).child(tile))
             .child(
                 div()
@@ -462,18 +407,316 @@ impl Workbench {
                             .children(update)
                             .child(control),
                     )
-                    .when(!expanded, |d| {
+                    .child({
                         // GPUI only ellipsizes text whose width is known up front; the side bar's is, so cut here.
                         let chars = ((self.side_width - 70.0) / 6.4).max(8.0) as usize;
-                        d.child(div().overflow_hidden().whitespace_nowrap().text_size(px(12.)).text_color(summary.1).child(fit(&summary.0, chars)))
-                    })
-                    .when(expanded && summary.1 != muted, |d| d.child(div().text_size(px(12.)).text_color(summary.1).child(summary.0.clone())))
-                    .children(details),
+                        div().overflow_hidden().whitespace_nowrap().text_size(px(12.)).text_color(summary.1).child(fit(&summary.0, chars))
+                    }),
             )
-            .on_click(cx.listener(move |wb, _, _, cx| {
-                wb.module_expanded = if wb.module_expanded.as_deref() == Some(id.as_str()) { None } else { Some(id.clone()) };
-                cx.notify();
-            }))
+            .on_click(cx.listener(move |wb, _, w, cx| wb.open_module_page(id.clone(), w, cx)))
+    }
+
+    /// Opens the details page of a module in an editor tab (or switches to it when it's open).
+    pub(super) fn open_module_page(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(ix) = self.tabs.iter().position(|t| t.page.as_deref() == Some(id.as_str())) {
+            self.activate(ix, window, cx);
+            return;
+        }
+        let (installed, browse) = self.module_items();
+        let name = installed.iter().chain(&browse).find(|i| i.id == id).map_or_else(|| id.clone(), |i| i.name.clone());
+        let editor = cx.new(|cx| {
+            let mut e = EditorView::new("", None, cx);
+            e.read_only = true;
+            e
+        });
+        self.add_tab(editor, None, format!("Module: {name}"), false, window, cx);
+        if let Some(tab) = self.tabs.last_mut() {
+            tab.page = Some(id);
+        }
+        cx.notify();
+    }
+
+    /// The details page of a module: what it is, its state and controls, and what it adds to the IDE.
+    pub(super) fn render_module_page(&mut self, id: &str, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        if matches!(self.registry, RegistryState::Idle) {
+            self.refresh_registry(cx);
+        }
+        let t = Theme::global(cx);
+        let bg = t.c("editor.background");
+        let fg = t.c("editor.foreground");
+        let muted = t.c("foreground.muted");
+        let rule = t.c("editorWidget.border");
+        let error = t.c("errorForeground");
+        let link = link_color(&t);
+        let page = div().id("module-page").size_full().overflow_y_scroll().bg(bg).text_color(fg);
+
+        let (installed, browse) = self.module_items();
+        let Some(item) = installed.into_iter().chain(browse).find(|i| i.id == id) else {
+            let text = match self.registry {
+                RegistryState::Loading | RegistryState::Idle => "Loading the module list…",
+                _ => "This module isn't installed and isn't in the module list anymore.",
+            };
+            return page.child(div().p_8().text_size(px(13.)).text_color(muted).child(text));
+        };
+
+        // The tab may have opened before the module list loaded; name it properly now.
+        let title = format!("Module: {}", item.name);
+        for tab in self.tabs.iter_mut().filter(|t| t.page.as_deref() == Some(id)) {
+            if tab.title != title {
+                tab.title = title.clone();
+            }
+        }
+
+        let accent = identity_color(&item.id, &t);
+        let on_accent = if accent.l > 0.55 { gpui::hsla(0., 0., 0.1, 1.) } else { gpui::hsla(0., 0., 0.98, 1.) };
+        let busy = self.module_busy.as_deref() == Some(item.id.as_str());
+        let installed = item.dir.is_some();
+        let missing: Vec<String> = item.requires.iter().filter(|r| which(r).is_none()).cloned().collect();
+
+        // State, in the same words the side bar uses.
+        let ok = t.c("gitDecoration.addedResourceForeground");
+        let (state, state_color) = if busy {
+            (if installed { "Updating…".to_owned() } else { "Installing…".to_owned() }, muted)
+        } else if !installed {
+            ("Not installed".to_owned(), muted)
+        } else if !item.enabled {
+            ("Turned off".to_owned(), muted)
+        } else if !item.running {
+            ("Stopped. Details are in Output.".to_owned(), error)
+        } else if !missing.is_empty() {
+            (format!("Running, but needs {}, which isn't installed", missing.join(" and ")), error)
+        } else {
+            ("Running".to_owned(), ok)
+        };
+
+        // Buttons: one filled in the module's color for the main action, quiet outlines for the rest.
+        let filled = |id: String, label: String| {
+            div()
+                .id(SharedString::from(id))
+                .px(px(14.))
+                .py(px(5.))
+                .rounded(px(5.))
+                .text_size(px(13.))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .bg(accent)
+                .text_color(on_accent)
+                .cursor_pointer()
+                .hover(move |s| s.bg(Hsla { a: 0.85, ..accent }))
+                .child(label)
+        };
+        let outline = |id: String, label: &'static str, color: Hsla| {
+            div()
+                .id(SharedString::from(id))
+                .px(px(14.))
+                .py(px(5.))
+                .rounded(px(5.))
+                .border_1()
+                .border_color(rule)
+                .text_size(px(13.))
+                .text_color(color)
+                .cursor_pointer()
+                .hover(move |s| s.bg(Hsla { a: 0.08, ..color }))
+                .child(label)
+        };
+        let mut actions = div().flex().flex_wrap().items_center().gap_2();
+        if busy {
+            // No buttons while an install or update runs; the state line says what's happening.
+        } else if let Some(package) = item.package.clone() {
+            actions = actions.child(filled(format!("page-install-{}", item.id), "Install".into()).on_click(cx.listener(move |wb, _, _, cx| wb.install_package(package.clone(), cx))));
+        } else {
+            if let Some(package) = item.update.clone() {
+                let label = format!("Update to {}", package.version);
+                actions = actions.child(filled(format!("page-update-{}", item.id), label).on_click(cx.listener(move |wb, _, _, cx| wb.install_package(package.clone(), cx))));
+            }
+            let (id, on) = (item.id.clone(), item.enabled);
+            actions = actions.child(
+                outline(format!("page-toggle-{}", item.id), if on { "Turn off" } else { "Turn on" }, fg)
+                    .on_click(cx.listener(move |wb, _, _, cx| wb.set_module_enabled(id.clone(), !on, cx))),
+            );
+            let id = item.id.clone();
+            actions = actions.child(outline(format!("page-uninstall-{}", item.id), "Uninstall", error).on_click(cx.listener(move |wb, _, w, cx| wb.uninstall_module(id.clone(), w, cx))));
+        }
+
+        let tile = div()
+            .flex_none()
+            .size(px(72.))
+            .rounded(px(16.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(Hsla { a: 0.18, ..accent })
+            .border_1()
+            .border_color(Hsla { a: 0.35, ..accent })
+            .text_color(accent)
+            .text_size(px(28.))
+            .font_weight(gpui::FontWeight::BOLD)
+            .child(monogram(&item.name));
+        let byline = match (&item.author, &item.version) {
+            (Some(a), Some(v)) => format!("{a}, version {v}"),
+            (Some(a), None) => a.clone(),
+            (None, Some(v)) => format!("Version {v}"),
+            (None, None) => String::new(),
+        };
+        let header = div()
+            .w_full()
+            .px_8()
+            .pt_8()
+            .pb_6()
+            .bg(Hsla { a: 0.07, ..accent })
+            .border_b_1()
+            .border_color(rule)
+            .child(
+                div()
+                    .max_w(px(960.))
+                    .flex()
+                    .gap_5()
+                    .child(tile)
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .flex_col()
+                            .gap(px(4.))
+                            .child(div().text_size(px(26.)).line_height(px(32.)).font_weight(gpui::FontWeight::SEMIBOLD).child(item.name.clone()))
+                            .when(!byline.is_empty(), |d| d.child(div().text_size(px(13.)).text_color(muted).child(byline)))
+                            .child(
+                                div()
+                                    .mt_1()
+                                    .flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .text_size(px(13.))
+                                    .text_color(state_color)
+                                    .child(div().size(px(7.)).rounded_full().bg(state_color))
+                                    .child(state),
+                            )
+                            .child(actions.mt_3()),
+                    ),
+            );
+
+        // What the running module contributes, from what it registered with the IDE.
+        let heading = |text: &'static str| div().text_size(px(13.)).font_weight(gpui::FontWeight::SEMIBOLD).child(text);
+        let commands: Vec<(String, String)> = {
+            let list = &cx.global::<Commands>().list;
+            let mut c: Vec<(String, String)> = self
+                .plugin_commands
+                .iter()
+                .filter(|(_, m)| **m == item.id)
+                .filter_map(|(cid, _)| list.iter().find(|ci| &ci.id == cid).map(|ci| (cid.clone(), format!("{}: {}", ci.category, ci.title))))
+                .collect();
+            c.sort_by(|a, b| a.1.cmp(&b.1));
+            c
+        };
+        let formatters: Vec<String> = self
+            .formatters
+            .iter()
+            .filter(|f| f.module == item.id)
+            .map(|f| format!("Formats {} files with {}", f.extensions.iter().map(|e| format!(".{e}")).collect::<Vec<_>>().join(" "), f.name))
+            .collect();
+        let status: Vec<String> = self.plugin_status.iter().filter(|s| s.module == item.id).map(|s| s.text.clone()).collect();
+        let row = |text: String| div().py(px(5.)).border_b_1().border_color(Hsla { a: 0.5, ..rule }).text_size(px(13.)).child(text);
+        let mut adds = div().flex().flex_col();
+        if !installed {
+            adds = adds.child(div().text_size(px(13.)).text_color(muted).child("Install it to see the commands and features it adds."));
+        } else if !item.running {
+            adds = adds.child(div().text_size(px(13.)).text_color(muted).child(if item.enabled { "It isn't running, so it adds nothing right now." } else { "Turn it on to see what it adds." }));
+        } else if commands.is_empty() && formatters.is_empty() && status.is_empty() {
+            adds = adds.child(div().text_size(px(13.)).text_color(muted).child("It runs in the background and hasn't added any commands, formatters or status bar items."));
+        } else {
+            for f in formatters {
+                adds = adds.child(row(f));
+            }
+            for s in status {
+                adds = adds.child(row(format!("Status bar: {s}")));
+            }
+            for (cid, title) in commands {
+                let module = item.id.clone();
+                adds = adds.child(
+                    div()
+                        .id(SharedString::from(format!("page-cmd-{cid}")))
+                        .group("page-cmd")
+                        .py(px(5.))
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .border_b_1()
+                        .border_color(Hsla { a: 0.5, ..rule })
+                        .text_size(px(13.))
+                        .cursor_pointer()
+                        .child(div().flex_1().child(title))
+                        .child(div().text_size(px(12.)).text_color(link).invisible().group_hover("page-cmd", |s| s.visible()).child("Run"))
+                        .tooltip(tooltip("Run this command"))
+                        .on_click(cx.listener(move |wb, _, _, cx| {
+                            if let Some(p) = wb.plugins.iter().find(|p| p.manifest.id == module) {
+                                p.execute(&cid);
+                            }
+                            cx.notify();
+                        })),
+                );
+            }
+        }
+
+        // Facts, as a two-column list.
+        let fact = |label: &'static str, value: gpui::AnyElement| {
+            div().flex().gap_3().py(px(5.)).text_size(px(13.)).child(div().w(px(84.)).flex_none().text_color(muted).child(label)).child(div().flex_1().min_w_0().child(value))
+        };
+        let text = |s: String| div().child(s).into_any_element();
+        let mut facts = div().flex().flex_col().child(fact("Identifier", text(item.id.clone())));
+        if let Some(v) = &item.version {
+            facts = facts.child(fact("Version", text(v.clone())));
+        }
+        if let Some(a) = &item.author {
+            facts = facts.child(fact("Author", text(a.clone())));
+        }
+        if let Some(c) = &item.category {
+            facts = facts.child(fact("Category", text(c.clone())));
+        }
+        if !item.requires.is_empty() {
+            let needs = div()
+                .flex()
+                .flex_col()
+                .children(item.requires.iter().map(|r| {
+                    let found = which(r).is_some();
+                    div().text_color(if found { fg } else { error }).child(if found { format!("{r}, found") } else { format!("{r}, not found on PATH") })
+                }))
+                .into_any_element();
+            facts = facts.child(fact("Needs", needs));
+        }
+        if let Some(dir) = item.dir.clone() {
+            let open = div()
+                .id("page-show-files")
+                .text_color(link)
+                .cursor_pointer()
+                .hover(|s| s.underline())
+                .child("Show files")
+                .on_click(move |_, _, cx| cx.reveal_path(&dir))
+                .into_any_element();
+            facts = facts.child(fact("Folder", open));
+        }
+
+        let body = div()
+            .px_8()
+            .py_6()
+            .max_w(px(1024.))
+            .flex()
+            .flex_wrap()
+            .gap_x_12()
+            .gap_y_8()
+            .child(
+                div()
+                    .flex_1()
+                    .min_w(px(320.))
+                    .max_w(px(620.))
+                    .flex()
+                    .flex_col()
+                    .gap_6()
+                    .when(!item.description.is_empty(), |d| d.child(div().text_size(px(14.)).line_height(px(22.)).child(item.description.clone())))
+                    .child(div().flex().flex_col().gap_2().child(heading("What it adds")).child(adds)),
+            )
+            .child(div().w(px(280.)).flex_none().flex().flex_col().gap_2().child(heading("Details")).child(facts));
+
+        page.child(header).child(body)
     }
 }
 
@@ -485,7 +728,6 @@ struct Item {
     version: Option<String>,
     author: Option<String>,
     requires: Vec<String>,
-    formats: Vec<String>,
     /// Installed: its folder.
     dir: Option<PathBuf>,
     enabled: bool,
@@ -494,6 +736,7 @@ struct Item {
     update: Option<PackageInfo>,
     /// Available (not installed).
     package: Option<PackageInfo>,
+    category: Option<String>,
 }
 
 /// Links follow the theme: its link color, else its focus color.
