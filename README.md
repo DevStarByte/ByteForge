@@ -102,8 +102,12 @@ and `aspnet-targeting-pack`).
 sudo pacman -S rust dotnet-sdk vulkan-icd-loader libxkbcommon libxkbcommon-x11 wayland fontconfig cmake clang
 dotnet tool install -g csharp-ls
 ./packaging/linux/install.sh          # installs to ~/.local, adds `byteforge` and a desktop entry
-# or build a package:  cd packaging/arch && makepkg -si
+# or build and install a pacman package (removable with `sudo pacman -R byteforge`):
+cd packaging/arch && makepkg -si
 ```
+
+After pulling changes, `makepkg -sfi` in `packaging/arch` rebuilds and reinstalls (incrementally; `makepkg -C`
+starts from scratch). The package puts ByteForge in `/usr/lib/byteforge`, `byteforge` on PATH and a desktop entry.
 
 GPUI renders through Vulkan on Linux, so you also need the Vulkan driver for your GPU (`vulkan-radeon`,
 `vulkan-intel` or `nvidia-utils`). If you use a tiling window manager, set `"titleBar.style": "native"` in
