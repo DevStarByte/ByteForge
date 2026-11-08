@@ -1,8 +1,9 @@
 {
   "id": "byteforge.guid",
   "name": "GUID Generator",
-  "version": "1.0.0",
-  "author": "ByteForge",
+  "version": "1.0.1",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
   "category": "Snippets",
   "description": "Inserts a new GUID at the cursor: \"GUID: Insert New GUID\" (Ctrl+Alt+G), plus uppercase, braced ({…}) and C# (new Guid(\"…\")) variants.",
   "command": "python3",

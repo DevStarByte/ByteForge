@@ -1,8 +1,9 @@
 {
   "id": "byteforge.focus",
   "name": "Focus Timer",
-  "version": "1.0.0",
-  "author": "ByteForge",
+  "version": "1.0.1",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
   "category": "Productivity",
   "description": "A Pomodoro timer in the status bar: 25 minutes of focus, 5 minutes of break (every 4th: 15). Click it to start, pause or resume; a desktop notification (notify-send) says when time's up.",
   "command": "python3",

@@ -3,9 +3,10 @@
     {
       "id": "byteforge.caelestia-theme",
       "name": "Caelestia Theme",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "A color theme that follows your Caelestia dots (caelestia-shell). It reads the current scheme from ~/.local/state/caelestia/scheme.json and restyles ByteForge live whenever you change wallpaper or scheme. \"Caelestia: Use Caelestia Theme\" in the command palette switches to it.",
-      "author": "ByteForge",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
       "category": "Themes",
       "dir": "caelestia-theme",
       "files": [
@@ -19,9 +20,10 @@
     {
       "id": "byteforge.csharpier",
       "name": "CSharpier",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Opinionated C# and XML formatter (https://csharpier.com). Format Document: Shift+Alt+F.",
-      "author": "ByteForge",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
       "category": null,
       "dir": "csharpier",
       "files": [
@@ -35,9 +37,10 @@
     {
       "id": "byteforge.discord",
       "name": "Discord Rich Presence",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Shows what you're working on in your Discord status: the file you're editing, its language, the project and how long you've been at it. Needs the Discord desktop app and your own Discord application ID; \"Discord: Set Up Rich Presence\" explains it. File and project names can be hidden in the settings.",
-      "author": "ByteForge",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
       "category": "Social",
       "dir": "discord",
       "files": [
@@ -52,9 +55,10 @@
     {
       "id": "byteforge.dotnet-files",
       "name": ".NET Project Files",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Adds the files every .NET repo wants: .gitignore, .editorconfig (C# style and naming rules), Directory.Build.props, global.json (pinned to your SDK) and a .gitattributes. \"Files: Add …\" in the command palette; existing files are never overwritten.",
-      "author": "ByteForge",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
       "category": ".NET",
       "dir": "dotnet-files",
       "files": [
@@ -68,9 +72,10 @@
     {
       "id": "byteforge.focus",
       "name": "Focus Timer",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "A Pomodoro timer in the status bar: 25 minutes of focus, 5 minutes of break (every 4th: 15). Click it to start, pause or resume; a desktop notification (notify-send) says when time's up.",
-      "author": "ByteForge",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
       "category": "Productivity",
       "dir": "focus",
       "files": [
@@ -84,9 +89,10 @@
     {
       "id": "byteforge.guid",
       "name": "GUID Generator",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Inserts a new GUID at the cursor: \"GUID: Insert New GUID\" (Ctrl+Alt+G), plus uppercase, braced ({…}) and C# (new Guid(\"…\")) variants.",
-      "author": "ByteForge",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
       "category": "Snippets",
       "dir": "guid",
       "files": [
@@ -100,9 +106,10 @@
     {
       "id": "byteforge.json-format",
       "name": "JSON Formatter",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Formats .json files (appsettings.json, launchSettings.json, global.json, …) with Format Document. Keeps comments and trailing commas out of the way: files with comments are left as they are.",
-      "author": "ByteForge",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
       "category": "Formatter",
       "dir": "json-format",
       "files": [
@@ -116,9 +123,10 @@
     {
       "id": "byteforge.todos",
       "name": "TODO Finder",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Finds TODO, FIXME, HACK and BUG comments in the workspace. \"TODOs: List All\" prints them with clickable locations; the count stays in the status bar and updates when you save.",
-      "author": "ByteForge",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
       "category": "Productivity",
       "dir": "todos",
       "files": [

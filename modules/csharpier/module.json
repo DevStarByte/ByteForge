@@ -4,8 +4,9 @@
   // reinstall and update it in the Modules view).
   "id": "byteforge.csharpier",
   "name": "CSharpier",
-  "version": "1.0.0",
-  "author": "ByteForge",
+  "version": "1.0.1",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
   "description": "Opinionated C# and XML formatter (https://csharpier.com). Format Document: Shift+Alt+F.",
   "command": "python3",
   "args": ["csharpier.py"]

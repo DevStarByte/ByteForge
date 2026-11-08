@@ -1,8 +1,9 @@
 {
   "id": "byteforge.caelestia-theme",
   "name": "Caelestia Theme",
-  "version": "1.0.0",
-  "author": "ByteForge",
+  "version": "1.0.1",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
   "category": "Themes",
   "description": "A color theme that follows your Caelestia dots (caelestia-shell). It reads the current scheme from ~/.local/state/caelestia/scheme.json and restyles ByteForge live whenever you change wallpaper or scheme. \"Caelestia: Use Caelestia Theme\" in the command palette switches to it.",
   "command": "python3",

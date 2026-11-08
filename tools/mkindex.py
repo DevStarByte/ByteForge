@@ -48,6 +48,7 @@ for name in sorted(os.listdir(root)):
         "version": m["version"],
         "description": m.get("description"),
         "author": m.get("author"),
+        "authorUrl": m.get("authorUrl"),
         "category": m.get("category"),
         "dir": name,
         "files": sorted(files),
