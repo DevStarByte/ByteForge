@@ -98,6 +98,16 @@ and `aspnet-targeting-pack`).
 
 ### Arch Linux
 
+The easiest way is the ByteForge pacman repo (the `packages` branch). Add this to `/etc/pacman.conf`:
+
+```ini
+[byteforge]
+SigLevel = Optional TrustAll
+Server = https://raw.githubusercontent.com/DevStarByte/ByteForge/packages/$arch
+```
+
+then `sudo pacman -Sy byteforge` (updates come with `sudo pacman -Syu`). To build from source instead:
+
 ```sh
 sudo pacman -S rust dotnet-sdk vulkan-icd-loader libxkbcommon libxkbcommon-x11 wayland fontconfig cmake clang
 dotnet tool install -g csharp-ls
@@ -126,7 +136,8 @@ crates/
   byteforge   the GPUI app: workbench, editor element, palette, explorer, search, theme → GPUI mapping, icons
 themes/       built-in themes (byteforge-dark.json documents every key)
 samples/      hello-module (Python) — an example out-of-process module
-packaging/    Linux install script, desktop entry, Arch PKGBUILD
+packaging/    Linux install script, desktop entry, Arch PKGBUILD for local builds
+              (the repo's PKGBUILD and build workflow live on the `packages` branch)
 ```
 
 Performance notes:
