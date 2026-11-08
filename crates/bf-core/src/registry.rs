@@ -23,6 +23,8 @@ pub struct PackageInfo {
     pub description: Option<String>,
     #[serde(default)]
     pub author: Option<String>,
+    #[serde(default, rename = "authorUrl")]
+    pub author_url: Option<String>,
     /// Folder of the package in the registry, also its folder name when installed.
     pub dir: String,
     /// Files to download, relative to `dir` (`module.json` among them).
@@ -180,8 +182,33 @@ fn download(url: &str, dest: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Where a module's author name links to: its `authorUrl`, else the GitHub page of an author name that is
+/// a valid GitHub user name (letters, digits and single hyphens).
+pub fn author_link(author: Option<&str>, author_url: Option<&str>) -> Option<String> {
+    if let Some(url) = author_url.map(str::trim).filter(|u| u.starts_with("https://") || u.starts_with("http://")) {
+        return Some(url.to_owned());
+    }
+    let name = author?.trim();
+    let valid = !name.is_empty()
+        && name.len() <= 39
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && !name.starts_with('-')
+        && !name.ends_with('-')
+        && !name.contains("--");
+    valid.then(|| format!("https://github.com/{name}"))
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn author_links() {
+        assert_eq!(author_link(Some("DevStarByte"), None).as_deref(), Some("https://github.com/DevStarByte"));
+        assert_eq!(author_link(Some("Jane Doe"), None), None);
+        assert_eq!(author_link(Some("x"), Some("https://x.dev")).as_deref(), Some("https://x.dev"));
+        assert_eq!(author_link(Some("DevStarByte"), Some("javascript:alert(1)")).as_deref(), Some("https://github.com/DevStarByte"));
+        assert_eq!(author_link(None, None), None);
+    }
     use super::*;
 
     #[test]

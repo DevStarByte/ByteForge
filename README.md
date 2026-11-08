@@ -321,8 +321,10 @@ their files; a workflow regenerates it). `"modules.registry"` in settings points
 A module is a folder in `~/.config/byteforge/modules/` with a `module.json`:
 
 ```json
-{ "id": "me.hello", "name": "Hello", "version": "1.0.0", "description": "…", "command": "python3", "args": ["hello.py"] }
+{ "id": "me.hello", "name": "Hello", "version": "1.0.0", "author": "your-github-name", "description": "…", "command": "python3", "args": ["hello.py"] }
 ```
+
+On the module's page the author links to `https://github.com/<author>`; set `"authorUrl"` to link somewhere else.
 
 To publish it, add the folder to `modules/` on the `packages` branch.
 

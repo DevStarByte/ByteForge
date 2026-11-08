@@ -156,7 +156,12 @@ impl Workbench {
                     name: m.name.clone(),
                     description: m.description.clone().or_else(|| package.and_then(|p| p.description.clone())).unwrap_or_default(),
                     version: m.version.clone(),
-                    author: m.author.clone(),
+                    // The registry's details are newer than an installed copy's (which may predate a change).
+                    author: package.and_then(|p| p.author.clone()).or_else(|| m.author.clone()),
+                    author_link: match package.filter(|p| p.author.is_some()) {
+                        Some(p) => registry::author_link(p.author.as_deref(), p.author_url.as_deref()),
+                        None => registry::author_link(m.author.as_deref(), m.author_url.as_deref()),
+                    },
                     requires: package.map(|p| p.requires.clone()).unwrap_or_default(),
                     dir: Some(m.dir.clone()),
                     enabled: !disabled.contains(&m.id),
@@ -176,6 +181,7 @@ impl Workbench {
                 description: p.description.clone().unwrap_or_default(),
                 version: Some(p.version.clone()),
                 author: p.author.clone(),
+                author_link: registry::author_link(p.author.as_deref(), p.author_url.as_deref()),
                 requires: p.requires.clone(),
                 dir: None,
                 enabled: false,
@@ -551,11 +557,32 @@ impl Workbench {
             .text_size(px(28.))
             .font_weight(gpui::FontWeight::BOLD)
             .child(monogram(&item.name));
+        // The author's name links to their page.
+        let author_el = |id: &'static str, name: String| -> gpui::AnyElement {
+            match item.author_link.clone() {
+                Some(url) => div()
+                    .id(id)
+                    .text_color(link)
+                    .cursor_pointer()
+                    .hover(|s| s.underline())
+                    .tooltip(tooltip(url.clone()))
+                    .child(name)
+                    .on_click(move |_, _, cx| cx.open_url(&url))
+                    .into_any_element(),
+                None => div().child(name).into_any_element(),
+            }
+        };
         let byline = match (&item.author, &item.version) {
-            (Some(a), Some(v)) => format!("{a}, version {v}"),
-            (Some(a), None) => a.clone(),
-            (None, Some(v)) => format!("Version {v}"),
-            (None, None) => String::new(),
+            (None, None) => None,
+            (author, version) => Some(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .text_size(px(13.))
+                    .text_color(muted)
+                    .children(author.clone().map(|a| author_el("page-author-byline", a)))
+                    .children(version.as_ref().map(|v| div().child(if author.is_some() { format!(", version {v}") } else { format!("Version {v}") }))),
+            ),
         };
         let header = div()
             .w_full()
@@ -579,7 +606,7 @@ impl Workbench {
                             .flex_col()
                             .gap(px(4.))
                             .child(div().text_size(px(26.)).line_height(px(32.)).font_weight(gpui::FontWeight::SEMIBOLD).child(item.name.clone()))
-                            .when(!byline.is_empty(), |d| d.child(div().text_size(px(13.)).text_color(muted).child(byline)))
+                            .children(byline)
                             .child(
                                 div()
                                     .mt_1()
@@ -667,7 +694,7 @@ impl Workbench {
             facts = facts.child(fact("Version", text(v.clone())));
         }
         if let Some(a) = &item.author {
-            facts = facts.child(fact("Author", text(a.clone())));
+            facts = facts.child(fact("Author", author_el("page-author-fact", a.clone())));
         }
         if let Some(c) = &item.category {
             facts = facts.child(fact("Category", text(c.clone())));
@@ -727,6 +754,8 @@ struct Item {
     description: String,
     version: Option<String>,
     author: Option<String>,
+    /// The author's page (their GitHub profile unless the module names another).
+    author_link: Option<String>,
     requires: Vec<String>,
     /// Installed: its folder.
     dir: Option<PathBuf>,

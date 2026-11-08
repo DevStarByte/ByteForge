@@ -34,6 +34,9 @@ pub struct ModuleManifest {
     pub version: Option<String>,
     #[serde(default)]
     pub author: Option<String>,
+    /// The author's page; without it the author links to `https://github.com/<author>`.
+    #[serde(default, rename = "authorUrl")]
+    pub author_url: Option<String>,
     #[serde(skip)]
     pub dir: PathBuf,
 }
