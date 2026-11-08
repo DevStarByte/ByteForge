@@ -150,7 +150,6 @@ crates/
               debug helpers (launch profiles, target assembly, build diagnostics), module host
   byteforge   the GPUI app: workbench, editor element, palette, explorer, search, theme → GPUI mapping, icons
 themes/       built-in themes (byteforge-dark.json documents every key)
-samples/      hello-module (Python) — an example out-of-process module
 packaging/    Linux install script, desktop entry, Arch PKGBUILD for local builds
               (the repo's PKGBUILD and build workflow live on the `packages` branch)
 ```
@@ -376,7 +375,6 @@ ByteForge starts the command in that folder and exchanges one JSON object per li
   - `{"type":"event","name":"folderOpened|fileSaved|themeChanged|editorChanged","path"}` (`editorChanged`: the active tab changed; `path` is null for untitled documents and pages)
   - `{"type":"event","name":"viewShown|viewHidden","view"}`, `{"type":"event","name":"filesChanged"}`, `{"type":"event","name":"settingsChanged","settings"}`
 
-`samples/hello-module` is a complete Python example: a command with a key binding plus a status bar clock.
 `modules/csharpier` is the preinstalled formatter module: the modules in `<install dir>/modules/` are copied into the
 user's modules folder once (an uninstalled one isn't copied again).
 
