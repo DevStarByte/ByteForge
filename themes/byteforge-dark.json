@@ -1,5 +1,8 @@
 {
   // ByteForge Dark: the reference theme. EVERY key the workbench understands is listed here.
+  // Its fonts, metrics and layout make up the default "Klarheit" layout, which every theme inherits:
+  // labelled view bar, search centered in the title bar, flat tabs with an underline, rounded list rows,
+  // panel tabs as pills and the branch as a colored block in the status bar.
   // Other themes inherit from this one and only override what they change ("inherits").
   // Saved changes apply instantly.
   //
@@ -11,6 +14,7 @@
   //   keys ending in radius  →  "all" or "topLeft,topRight,bottomRight,bottomLeft"
   //   keys ending in shadow  →  "x y blur spread color" (comma separated for several), or "none"
   //   keys ending in weight  →  thin light normal medium semibold bold black, or 100..900
+  //   color references       →  "@accent" uses another color key, "@accent/12" the same at 12 % opacity
   "name": "ByteForge Dark",
   "type": "dark",
   "description": "Balanced default dark",
@@ -54,8 +58,9 @@
     "activityBar.foreground": "#d7d7d7",
     "activityBar.inactiveForeground": "#868686",
     "activityBar.activeBorder": "#0078d4",
-    "activityBar.activeBackground": "transparent",
-    "activityBar.hoverBackground": "transparent",
+    "activityBar.activeBackground": "@accent/12",
+    "activityBar.activeIconForeground": "@accent",   // icon color of the active item (default: activityBar.foreground)
+    "activityBar.hoverBackground": "@toolbar.hoverBackground",
     "activityBar.border": "#2b2b2b",
 
     // ── side bar & lists ──
@@ -69,7 +74,7 @@
     "list.activeSelectionForeground": "#ffffff",
     "list.activeFileBackground": "#04395e",
     "list.activeFileForeground": "#ffffff",
-    "list.activeFileIndicator": "#0078d4",
+    "list.activeFileIndicator": "transparent",
     // Terminal (default: panel background and editor foreground; ANSI colors as in VS Code).
     // "terminal.background": "#181818", "terminal.foreground": "#cccccc", "terminal.ansiRed": "#cd3131", …
     "terminalCursor.foreground": "#aeafad",
@@ -84,6 +89,17 @@
     "icon.markup": "#e37933",
     "icon.markdown": "#519aba",
     "icon.docker": "#2496ed",
+    "icon.solution": "#b48ef0",
+    "icon.razor": "#d46fc0",
+    "icon.yaml": "#e06c75",
+    "icon.config": "#8a96a3",
+    "icon.text": "#9d9d9d",
+    "icon.shell": "#89c66b",
+    "icon.script": "#e8c547",
+    "icon.style": "#5aa0e6",
+    "icon.image": "#4fb3a6",
+    "icon.archive": "#c99a5b",
+    "icon.binary": "#7f8c99",
 
     // ── tabs & breadcrumbs ──
     "editorGroupHeader.background": "#181818",
@@ -95,7 +111,7 @@
     "tab.inactiveForeground": "#9d9d9d",
     "tab.hoverBackground": "#1f1f1f",
     "tab.border": "#2b2b2b",
-    "tab.activeBorderTop": "#0078d4",
+    "tab.activeBorderTop": "@accent",
     "tab.modifiedIndicator": "#cccccc",
     "breadcrumb.background": "#1f1f1f",
     "breadcrumb.foreground": "#a9a9a9",
@@ -161,10 +177,10 @@
     // ── panel ──
     "panel.background": "#181818",
     "panel.border": "#2b2b2b",
-    "panelTitle.activeForeground": "#cccccc",
+    "panelTitle.activeForeground": "@accent",
     "panelTitle.inactiveForeground": "#9d9d9d",
-    "panelTitle.activeBorder": "#0078d4",
-    "panelTitle.activeBackground": "transparent",
+    "panelTitle.activeBorder": "transparent",
+    "panelTitle.activeBackground": "@accent/12",
     "problemsErrorIcon.foreground": "#f14c4c",
     "problemsWarningIcon.foreground": "#cca700",
     "problemsInfoIcon.foreground": "#3794ff",
@@ -175,6 +191,8 @@
     "statusBar.foreground": "#cccccc",
     "statusBar.border": "#2b2b2b",
     "statusBarItem.hoverBackground": "#ffffff1f",
+    "statusBarItem.branch.background": "@accent",
+    "statusBarItem.branch.foreground": "@button.foreground",
 
     // ── controls ──
     "input.background": "#313131",
@@ -255,7 +273,7 @@
 
   "fonts": {
     // "default" = bundled Inter. Any comma-separated list of installed fonts works.
-    "ui.family": "default",
+    "ui.family": "Figtree, default",
     "ui.size": 13,
     "ui.smallSize": 11,
     "ui.weight": "normal",
@@ -263,14 +281,15 @@
     "commandCenter.fontSize": 12,
     "tab.fontSize": 13,
     "tab.style": "normal",
-    "tab.activeWeight": "normal",
-    "sideBarTitle.fontSize": 11,
-    "sideBarTitle.weight": "normal",
+    "tab.activeWeight": "semibold",
+    "sideBarTitle.fontSize": 12,
+    "sideBarTitle.weight": "semibold",
     "sideBarSectionHeader.fontSize": 11,
-    "sideBarSectionHeader.weight": "bold",
+    "sideBarSectionHeader.weight": "semibold",
     "panelTab.fontSize": 11,
     "list.fontSize": 13,
     "statusBar.fontSize": 12,
+    "statusBarItem.branch.weight": "semibold",
     "breadcrumb.fontSize": 12,
     "welcome.titleSize": 44,
     "welcome.titleWeight": "light",
@@ -278,7 +297,7 @@
     "editor.family": "JetBrains Mono, Cascadia Code, Fira Code, Hack, DejaVu Sans Mono, Noto Sans Mono, Liberation Mono, Consolas, monospace",
     "editor.size": 14,
     "editor.weight": "normal",
-    "editor.lineHeight": 1.5,
+    "editor.lineHeight": 1.6,
     "editor.lineNumberSize": 13
   },
 
@@ -302,21 +321,21 @@
     "scm.iconSize": 14,
     "activityBarBadge.size": 16,
     // ── title bar ──
-    "titleBar.height": 36,
+    "titleBar.height": 42,
     "titleBar.borderThickness": "0,0,0,1",
     "titleBar.logoSize": 16,
     "titleBar.iconSize": 16,
     "titleBar.controlsMargin": "0,0,8,0",
     "titleBar.inactiveOpacity": 0.6,
     "titleIcon.padding": 5,
-    "titleIcon.radius": 4,
+    "titleIcon.radius": 6,
     "titleIcon.inactiveOpacity": 0.75,
     "menuBarItem.padding": "8,4",
-    "menuBarItem.radius": 4,
-    "commandCenter.width": 380,
-    "commandCenter.height": 24,
-    "commandCenter.padding": "8,0",
-    "commandCenter.radius": 6,
+    "menuBarItem.radius": 6,
+    "commandCenter.width": 420,
+    "commandCenter.height": 28,
+    "commandCenter.padding": "10,0",
+    "commandCenter.radius": 8,
     "commandCenter.borderThickness": 1,
     "commandCenter.iconSize": 13,
     "windowControl.width": 46,
@@ -324,42 +343,44 @@
     "windowControl.iconSize": 14,
 
     // ── activity bar & side bar ──
-    "activityBar.width": 48,
-    "activityBar.itemHeight": 48,
-    "activityBar.iconSize": 24,
-    "activityBar.spacing": 0,
-    "activityBar.itemRadius": 0,
-    "activityBar.indicatorLeft.border": "2,0,0,0",
-    "activityBar.indicatorRight.border": "0,0,2,0",
-    "sideBar.width": 280,
-    "sideBarHeader.height": 35,
-    "sideBarHeader.padding": "20,0",
-    "explorer.iconSize": 15,
+    "activityBar.width": 64,
+    "activityBar.itemHeight": 54,
+    "activityBar.iconSize": 20,
+    "activityBar.spacing": 2,
+    "activityBar.itemRadius": 8,
+    "activityBar.labelSize": 10.5,          // > 0 shows a label under each view icon (vertical bar only)
+    "activityBar.itemInset": 6,          // horizontal gap around each item, for rounded tiles
+    "activityBar.indicatorLeft.border": 0,
+    "activityBar.indicatorRight.border": 0,
+    "sideBar.width": 260,
+    "sideBarHeader.height": 38,
+    "sideBarHeader.padding": "14,0",
+    "explorer.iconSize": 16,
     "explorer.itemSpacing": 6,
-    "list.itemHeight": 22,
+    "list.itemHeight": 26,
     "list.itemPadding": "8,2",
-    "list.itemMargin": 0,
-    "list.radius": 0,
+    "list.itemMargin": "6,1",
+    "list.radius": 6,
 
     // ── tabs & breadcrumbs ──
-    "tab.height": 35,
+    "tab.height": 40,
     "tabStrip.padding": 0,
     "tab.spacing": 0,
-    "tab.padding": "12,0,6,0",
+    "tab.padding": "14,0,8,0",
     "tab.margin": 0,
     "tab.radius": 0,
-    "tab.borderThickness": "0,0,1,0",
+    "tab.borderThickness": 0,
     "tab.minWidth": 90,
-    "tab.indicatorSize": 1,
-    "tab.indicatorRadius": 0,
+    "tab.indicatorSize": 2,
+    "tab.indicatorRadius": "2,2,0,0",
     "tab.closeIconSize": 12,
     "tab.closePadding": 3,
     "tab.closeMargin": "6,0,0,0",
-    "tab.closeRadius": 4,
+    "tab.closeRadius": 5,
     "tab.modifiedDotSize": 8,
     "editorGroupHeader.borderThickness": "0,0,0,1",
-    "breadcrumb.height": 22,
-    "breadcrumb.padding": "14,0",
+    "breadcrumb.height": 26,
+    "breadcrumb.padding": "18,0",
     "breadcrumb.borderThickness": 0,
     "breadcrumb.iconSize": 12,
 
@@ -367,20 +388,20 @@
     "panel.height": 240,
     "panel.borderThickness": "0,1,0,0",
     "panel.iconSize": 14,
-    "panelHeader.height": 35,
+    "panelHeader.height": 36,
     "panelHeader.padding": "8,0",
-    "panelTab.padding": "4,6",
-    "panelTab.margin": "6,0",
-    "panelTab.radius": 0,
-    "panelTab.indicator.border": "0,0,0,1",
-    "statusBar.height": 24,
+    "panelTab.padding": "10,4",
+    "panelTab.margin": "2,0",
+    "panelTab.radius": 6,
+    "panelTab.indicator.border": 0,
+    "statusBar.height": 26,
     "statusBar.borderThickness": "0,1,0,0",
     "statusBar.iconSize": 13,
-    "statusBarItem.padding": "8,0",
+    "statusBarItem.padding": "10,0",
     "statusBarItem.radius": 0,
 
     // ── widgets & controls ──
-    "widget.radius": 6,
+    "widget.radius": 8,
     "editorWidget.borderThickness": 1,
     "completion.width": 440,
     "completion.maxHeight": 300,
@@ -394,12 +415,12 @@
     "palette.maxHeight": 440,
     "palette.margin": "0,48,0,0",
     "palette.padding": 6,
-    "palette.radius": 8,
+    "palette.radius": 10,
     "quickInput.borderThickness": 1,
-    "input.radius": 4,
+    "input.radius": 6,
     "input.padding": "6,4",
     "input.borderThickness": 1,
-    "button.radius": 4,
+    "button.radius": 6,
     "button.padding": "12,5",
     "button.borderThickness": 1,
     "iconButton.padding": 4,
@@ -479,7 +500,7 @@
     // "statusBar.center": [],
     // "statusBar.right": ["modules", "position", "indent", "encoding", "eol", "language", "lsp"],
 
-    // "tab.indicatorPosition": "top",     // top | bottom: edge of the active tab that gets the indicator
+    "tab.indicatorPosition": "bottom",  // top | bottom: edge of the active tab that gets the indicator
 
     // Welcome page: parts (logo, title, shortcuts), its title, and the commands listed as shortcuts.
     // "welcome.order": ["logo", "title", "shortcuts"],
@@ -495,6 +516,9 @@
   // close, error, warning, info, chevronUp, chevronDown, chevronRight, play, stop, build, logo, folder, folderOpen,
   // file, puzzle, windowMinimize, windowMaximize, windowRestore, windowClose, layoutSideBar, layoutSideBarRight,
   // layoutPanel, palette.
+  // File types (colored by the icon.* keys above): fileCsharp, fileProject, fileSolution, fileJson, fileMarkup,
+  // fileRazor, fileMarkdown, fileYaml, fileConfig, fileText, fileShell, fileScript, fileStyle, fileImage,
+  // fileArchive, fileBinary; other files use "file".
   "icons": {
   }
 

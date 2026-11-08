@@ -152,22 +152,59 @@ impl Explorer {
     }
 }
 
-pub(crate) fn icon_color_key(name: &str, is_dir: bool) -> &'static str {
+/// The icon and its color for a file or folder name: (icon name, theme color key).
+pub(crate) fn file_icon(name: &str, is_dir: bool, expanded: bool) -> (&'static str, &'static str) {
     if is_dir {
-        return "icon.folder";
+        return (if expanded { "folderOpen" } else { "folder" }, "icon.folder");
     }
     if bf_syntax::is_dockerfile_name(name) || bf_core::docker::is_compose_file_name(name) || name.eq_ignore_ascii_case(".dockerignore") {
-        return "icon.docker";
+        return ("docker", "icon.docker");
     }
-    match Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
-        "cs" | "csx" => "icon.csharp",
-        "csproj" | "sln" | "slnx" | "props" | "targets" | "toml" => "icon.project",
-        "json" => "icon.json",
-        "xml" | "axaml" | "xaml" | "config" | "resx" => "icon.markup",
-        "md" => "icon.markdown",
-        "yml" | "yaml" => "icon.markup",
-        _ => "icon.file",
+    let lower = name.to_ascii_lowercase();
+    match lower.as_str() {
+        ".gitignore" | ".gitattributes" | ".gitmodules" | ".editorconfig" | ".env" | "global.json" | "nuget.config" => {
+            return ("fileConfig", "icon.config");
+        }
+        "license" | "licence" | "copying" => return ("fileText", "icon.text"),
+        "makefile" | "justfile" => return ("fileShell", "icon.shell"),
+        _ => {}
     }
+    match Path::new(&lower).extension().and_then(|e| e.to_str()).unwrap_or("") {
+        "cs" | "csx" => ("fileCsharp", "icon.csharp"),
+        "csproj" | "fsproj" | "vbproj" | "props" | "targets" => ("fileProject", "icon.project"),
+        "sln" | "slnx" | "slnf" => ("fileSolution", "icon.solution"),
+        "json" | "jsonc" => ("fileJson", "icon.json"),
+        "razor" | "cshtml" => ("fileRazor", "icon.razor"),
+        "xml" | "axaml" | "xaml" | "resx" | "html" | "htm" | "config" | "manifest" | "nuspec" => ("fileMarkup", "icon.markup"),
+        "md" | "markdown" => ("fileMarkdown", "icon.markdown"),
+        "yml" | "yaml" => ("fileYaml", "icon.yaml"),
+        "toml" | "ini" | "env" | "editorconfig" | "conf" | "cfg" | "runsettings" | "ruleset" => ("fileConfig", "icon.config"),
+        "txt" | "log" | "csv" | "tsv" => ("fileText", "icon.text"),
+        "sh" | "bash" | "zsh" | "fish" | "ps1" | "psm1" | "psd1" | "bat" | "cmd" => ("fileShell", "icon.shell"),
+        "js" | "mjs" | "cjs" | "jsx" | "ts" | "mts" | "cts" | "tsx" => ("fileScript", "icon.script"),
+        "css" | "scss" | "sass" | "less" => ("fileStyle", "icon.style"),
+        "png" | "jpg" | "jpeg" | "gif" | "bmp" | "ico" | "webp" | "svg" | "avif" => ("fileImage", "icon.image"),
+        "zip" | "nupkg" | "snupkg" | "gz" | "tgz" | "tar" | "7z" | "rar" | "xz" => ("fileArchive", "icon.archive"),
+        "dll" | "exe" | "pdb" | "so" | "dylib" | "bin" | "wasm" => ("fileBinary", "icon.binary"),
+        _ => ("file", "icon.file"),
+    }
+}
+
+/// Theme color for a file icon key. Themes written before a key existed fall back to a related one.
+pub(crate) fn file_icon_color(t: &Theme, key: &str) -> gpui::Hsla {
+    let mut key = key;
+    while !t.has(key) {
+        key = match key {
+            "icon.solution" => "icon.project",
+            "icon.razor" | "icon.yaml" => "icon.markup",
+            "icon.script" | "icon.shell" => "icon.json",
+            "icon.style" | "icon.image" => "icon.markdown",
+            "icon.archive" => "icon.folder",
+            "icon.config" | "icon.text" | "icon.binary" => "icon.file",
+            _ => return t.c("icon.file"),
+        };
+    }
+    t.c(key)
 }
 
 impl Render for Explorer {
@@ -261,7 +298,10 @@ impl Render for Explorer {
                             .child(div().w(px(12.)).when(row.is_dir, |d| {
                                 d.child(icon(if expanded { "chevronDown" } else { "chevronRight" }, px(12.), t.c("icon.foreground")))
                             }))
-                            .child(icon(if row.is_dir { if expanded { "folderOpen" } else { "folder" } } else { "file" }, icon_size, t.c(icon_color_key(&row.name, row.is_dir))))
+                            .child({
+                                let (icon_name, color_key) = file_icon(&row.name, row.is_dir, expanded);
+                                icon(icon_name, icon_size, file_icon_color(&t, color_key))
+                            })
                             .child(
                                 div()
                                     .flex_1()
@@ -378,5 +418,24 @@ impl Render for Explorer {
             .child(list)
             .children(menu)
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::file_icon;
+
+    #[test]
+    fn picks_an_icon_per_file_type() {
+        assert_eq!(file_icon("Program.cs", false, false), ("fileCsharp", "icon.csharp"));
+        assert_eq!(file_icon("App.csproj", false, false), ("fileProject", "icon.project"));
+        assert_eq!(file_icon("App.sln", false, false), ("fileSolution", "icon.solution"));
+        assert_eq!(file_icon("Index.cshtml", false, false), ("fileRazor", "icon.razor"));
+        assert_eq!(file_icon("appsettings.Development.json", false, false), ("fileJson", "icon.json"));
+        assert_eq!(file_icon("logo.SVG", false, false), ("fileImage", "icon.image"));
+        assert_eq!(file_icon(".gitignore", false, false), ("fileConfig", "icon.config"));
+        assert_eq!(file_icon("Dockerfile", false, false), ("docker", "icon.docker"));
+        assert_eq!(file_icon("notes", false, false), ("file", "icon.file"));
+        assert_eq!(file_icon("src", true, true), ("folderOpen", "icon.folder"));
     }
 }

@@ -556,7 +556,7 @@ impl Workbench {
     }
 
     fn apply_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let theme: String = self.settings.get("workbench.theme", "ByteForge Dark".to_string());
+        let theme: String = self.settings.get("workbench.theme", "Klarheit".to_string());
         if !theme.eq_ignore_ascii_case(&Theme::global(cx).data.name) {
             self.apply_theme(&theme, window, cx);
         }
@@ -2983,18 +2983,28 @@ impl Workbench {
                     .child(if count > 999 { "999+".to_owned() } else { count.to_string() })
             })
         };
-        let item = |id: SharedString, name: &str, tip: String, active: bool| {
+        // Optional text under each icon (vertical bar only) and a horizontal inset that turns full-width items
+        // into rounded tiles.
+        let label_size = if horizontal { 0.0 } else { t.n("activityBar.labelSize", 0.0) };
+        let inset = if horizontal { px(0.) } else { t.m("activityBar.itemInset", 0.0) };
+        let active_icon = if t.has("activityBar.activeIconForeground") { t.c("activityBar.activeIconForeground") } else { t.c("activityBar.foreground") };
+        let item = |id: SharedString, name: &str, tip: String, label: &str, active: bool| {
             let color = if active { t.c("activityBar.foreground") } else { t.c("activityBar.inactiveForeground") };
+            let icon_color = if active { active_icon } else { color };
             let hover_fg = t.c("activityBar.foreground");
             div()
                 .id(id)
                 .flex_none()
-                .w(item_w)
+                .w(item_w - inset * 2.0)
                 .h(item_h)
+                .mx(inset)
                 .flex()
+                .flex_col()
                 .items_center()
                 .justify_center()
+                .gap(px(3.))
                 .relative()
+                .text_color(color)
                 .rounded(t.radius("activityBar.itemRadius", 0.0))
                 .cursor_pointer()
                 .hover(move |s| s.bg(hover_bg).text_color(hover_fg))
@@ -3007,7 +3017,10 @@ impl Workbench {
                         .border_b(indicator.bottom)
                 })
                 .tooltip(tooltip(tip))
-                .child(icon(name, icon_size, color))
+                .child(icon(name, icon_size, icon_color))
+                .when(label_size > 0.0 && !label.is_empty(), |d| {
+                    d.child(div().text_size(px(label_size)).line_height(px(label_size * 1.2)).font_weight(gpui::FontWeight::MEDIUM).child(label.to_owned()))
+                })
         };
         let side_visible = self.side_visible;
         let side = self.side;
@@ -3029,17 +3042,17 @@ impl Workbench {
         for (n, name) in t.layout.activity_items.iter().enumerate() {
             let id = SharedString::from(format!("act-{n}-{}", if horizontal { "h" } else { "v" }));
             let view = match name.as_str() {
-                "explorer" => Some((SideView::Explorer, "files", "Explorer (Ctrl+Shift+E)")),
-                "search" => Some((SideView::Search, "search", "Search (Ctrl+Shift+F)")),
-                "scm" => Some((SideView::SourceControl, "sourceControl", "Source Control (Ctrl+Shift+G)")),
-                "debug" => Some((SideView::Debug, "debug", "Run and Debug (Ctrl+Shift+D)")),
-                "testing" | "tests" => Some((SideView::Testing, "beaker", "Testing")),
-                "docker" => Some((SideView::Docker, "docker", "Docker")),
-                "modules" => Some((SideView::Modules, "puzzle", "Modules")),
+                "explorer" => Some((SideView::Explorer, "files", "Explorer (Ctrl+Shift+E)", "Files")),
+                "search" => Some((SideView::Search, "search", "Search (Ctrl+Shift+F)", "Search")),
+                "scm" => Some((SideView::SourceControl, "sourceControl", "Source Control (Ctrl+Shift+G)", "Git")),
+                "debug" => Some((SideView::Debug, "debug", "Run and Debug (Ctrl+Shift+D)", "Debug")),
+                "testing" | "tests" => Some((SideView::Testing, "beaker", "Testing", "Tests")),
+                "docker" => Some((SideView::Docker, "docker", "Docker", "Docker")),
+                "modules" => Some((SideView::Modules, "puzzle", "Modules", "Modules")),
                 _ => None,
             };
-            if let Some((view, icon_name, tip)) = view {
-                let mut el = item(id, icon_name, tip.into(), side_visible && side == view);
+            if let Some((view, icon_name, tip, label)) = view {
+                let mut el = item(id, icon_name, tip.into(), label, side_visible && side == view);
                 if view == SideView::SourceControl {
                     el = el.children(badge(scm_count));
                 }
@@ -3052,11 +3065,11 @@ impl Workbench {
             match name.as_str() {
                 "spacer" => bar = bar.child(div().flex_1()),
                 "settings" => {
-                    bar = bar.child(item(id, "settings", "Settings (Ctrl+,)".into(), false).on_click(cx.listener(|_, _, w, cx| w.dispatch_action(Box::new(OpenSettings), cx))));
+                    bar = bar.child(item(id, "settings", "Settings (Ctrl+,)".into(), "", false).on_click(cx.listener(|_, _, w, cx| w.dispatch_action(Box::new(OpenSettings), cx))));
                 }
                 other => {
                     if let Some((action, title, icon_name)) = command_button(other, cx) {
-                        bar = bar.child(item(id, &icon_name, title, false).on_click(move |_, w, cx| w.dispatch_action(action.boxed_clone(), cx)));
+                        bar = bar.child(item(id, &icon_name, title, "", false).on_click(move |_, w, cx| w.dispatch_action(action.boxed_clone(), cx)));
                     }
                 }
             }

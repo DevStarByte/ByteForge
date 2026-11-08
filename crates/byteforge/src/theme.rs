@@ -109,7 +109,7 @@ impl Theme {
         let mut backgrounds = HashMap::new();
         let mut colors = HashMap::new();
         for (key, value) in &data.colors {
-            if let Some((bg, color)) = parse_background(value) {
+            if let Some((bg, color)) = resolve_color_value(&data.colors, value, 0) {
                 backgrounds.insert(key.clone(), bg);
                 colors.insert(key.clone(), color);
             }
@@ -341,6 +341,29 @@ fn parse_weight(value: &str) -> Option<FontWeight> {
     })
 }
 
+/// A color value, which may also reference another color key: `@accent` uses the theme's accent, and
+/// `@accent/12` the same color at 12 % opacity. That lets a base theme style parts relative to whatever
+/// colors an inheriting theme picks.
+fn resolve_color_value<S: std::hash::BuildHasher>(colors: &HashMap<String, String, S>, value: &str, depth: u8) -> Option<(Background, Hsla)> {
+    let v = value.trim();
+    let Some(reference) = v.strip_prefix('@') else { return parse_background(v) };
+    if depth > 8 {
+        return None;
+    }
+    let (key, alpha) = match reference.split_once('/') {
+        Some((k, a)) => (k.trim(), Some(a.trim().trim_end_matches('%').parse::<f32>().ok()? / 100.0)),
+        None => (reference.trim(), None),
+    };
+    let (bg, color) = resolve_color_value(colors, colors.get(key)?, depth + 1)?;
+    match alpha {
+        None => Some((bg, color)),
+        Some(a) => {
+            let c = Hsla { a: color.a * a.clamp(0.0, 1.0), ..color };
+            Some((c.into(), c))
+        }
+    }
+}
+
 /// CSS-style colors: #RGB #RGBA #RRGGBB #RRGGBBAA, `transparent`, and a few names.
 pub fn parse_color(value: &str) -> Option<Hsla> {
     let v = value.trim();
@@ -413,5 +436,21 @@ mod tests {
         assert!(parse_color("#abc").is_some());
         assert!(parse_color("nope").is_none());
         assert!(parse_background("linear-gradient(90deg, #ff2a6d, #b967ff 55%, #05d9e8)").is_some());
+    }
+
+    #[test]
+    fn resolves_color_references() {
+        let colors: HashMap<String, String> =
+            [("accent", "#0c8a74"), ("tile", "@accent/50"), ("same", "@accent"), ("loop", "@loop"), ("missing", "@nope")]
+                .into_iter()
+                .map(|(k, v)| (k.to_owned(), v.to_owned()))
+                .collect();
+        let accent = parse_color("#0c8a74").unwrap();
+        assert_eq!(resolve_color_value(&colors, "@accent", 0).unwrap().1, accent);
+        assert_eq!(resolve_color_value(&colors, &colors["same"], 0).unwrap().1, accent);
+        let tile = resolve_color_value(&colors, &colors["tile"], 0).unwrap().1;
+        assert!((tile.a - 0.5).abs() < 0.01 && (tile.h - accent.h).abs() < 0.001);
+        assert!(resolve_color_value(&colors, "@loop", 0).is_none());
+        assert!(resolve_color_value(&colors, "@nope", 0).is_none());
     }
 }

@@ -652,7 +652,10 @@ impl Render for ScmView {
                                 .cursor_pointer()
                                 .text_size(t.m("list.fontSize", 13.0))
                                 .hover(|s| s.bg(t.c("list.hoverBackground")))
-                                .child(icon("file", t.m("explorer.iconSize", 15.0), t.c(crate::explorer::icon_color_key(&name, false))))
+                                .child({
+                                    let (icon_name, color_key) = crate::explorer::file_icon(&name, false, false);
+                                    icon(icon_name, t.m("explorer.iconSize", 15.0), crate::explorer::file_icon_color(&t, color_key))
+                                })
                                 .child(div().whitespace_nowrap().text_color(color).when(deleted, |d| d.line_through()).child(name))
                                 .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_size(px(11.)).text_color(t.c("foreground.muted")).child(dir))
                                 .child(
@@ -788,7 +791,10 @@ impl Render for ScmView {
                                 .text_size(t.m("list.fontSize", 13.0))
                                 .hover(|s| s.bg(t.c("list.hoverBackground")))
                                 .when_some(file.orig.as_ref(), |d, orig| d.tooltip(tooltip(format!("Renamed from {}", orig.strip_prefix(&root).unwrap_or(orig).display()))))
-                                .child(icon("file", t.m("explorer.iconSize", 15.0), t.c(crate::explorer::icon_color_key(&name, false))))
+                                .child({
+                                    let (icon_name, color_key) = crate::explorer::file_icon(&name, false, false);
+                                    icon(icon_name, t.m("explorer.iconSize", 15.0), crate::explorer::file_icon_color(&t, color_key))
+                                })
                                 .child(div().whitespace_nowrap().text_color(color).when(deleted, |d| d.line_through()).child(name))
                                 .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_size(px(11.)).text_color(t.c("foreground.muted")).child(dir))
                                 .when(!deleted, |d| {

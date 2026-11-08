@@ -210,7 +210,9 @@ The theme sections:
 - **effects**: window backdrop (`blur`, `transparent` or `none`) and shadows for the palette and other widgets.
 - **layout**: where every part of the window goes. Each container is an ordered list of parts: reorder
   parts to move them, leave them out to hide them (see the next section).
-- **icons**: replace any built-in icon (logo, files, search, window buttons, …) with SVG path data.
+- **icons**: replace any built-in icon (logo, files, search, window buttons, …) with SVG path data. Every file
+  type has its own icon (a page with the type's symbol: `#` for C#, `{ }` for JSON, `< >` for markup, …), colored
+  by `icon.csharp`, `icon.json`, `icon.razor`, `icon.yaml`, `icon.script` and the other `icon.*` keys.
 
 ## Layout: arrange every part of the window
 
