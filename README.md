@@ -10,9 +10,17 @@ UI is styled from theme files that reload live.
   shaped text per line.
   - **Editing:** undo/redo that groups typing, auto-indent, bracket/quote auto-close, comment toggling,
     move/duplicate/delete lines, find & replace, and word/line selection by double/triple click.
+  - **Folding:** chevrons in the gutter fold `{ }` blocks and `#region`s (indentation in XML and YAML);
+    Ctrl+Shift+[ / ] fold and unfold at the caret, plus Fold All / Unfold All. Arrow keys step over folds.
+  - **Snippets:** `prop`, `propfull`, `ctor`, `class`, `foreach`, `for`, `if`, `try`, `switch`, `svm`, `test` and more
+    in C# completion; Tab / Shift+Tab move between the fields, repeated fields follow. Add your own in
+    `~/.config/byteforge/snippets/<language>.json` (VS Code's format; a user snippet replaces a built-in one
+    with the same prefix).
   - **Look:** smooth scrolling, an animated gliding caret (line, block, outline or underline style; blink,
     smooth, phase or solid), rainbow brackets, matching-bracket highlight, indent guides, visible whitespace,
-    rulers and diagnostic squiggles.
+    rulers and diagnostic squiggles. The other uses of the symbol under the caret are highlighted (assignments
+    stronger), and **inlay hints** show parameter names and inferred types (`"editor.inlayHints": false` turns
+    them off).
 - **C# intelligence** via the **csharp-ls** language server (Roslyn-based, LSP): semantic highlighting,
   diagnostics, completion, Markdown hover, go-to-definition (F12 / Ctrl+Click), **Find All References** (Shift+F12, in
   a References panel grouped by file), **Go to Implementations** (Ctrl+F12) and **Type Definition**, **Go to Symbol**
@@ -79,6 +87,8 @@ You need Rust (stable, 1.85+), the .NET SDK, and the C# language server:
 ```sh
 dotnet tool install -g csharp-ls
 cargo run --release -p byteforge -- ~/code/my-project
+# a folder plus files to open in tabs
+cargo run --release -p byteforge -- ~/code/my-project ~/code/my-project/Program.cs
 ```
 
 For debugging you also need [netcoredbg](https://github.com/Samsung/netcoredbg): on Arch, use the AUR package

@@ -266,7 +266,8 @@ impl EditorState {
 
     // ───────────── editing ─────────────
 
-    fn indent_unit(&self) -> String {
+    /// One level of indentation: `tab_size` spaces or a tab.
+    pub fn indent_unit(&self) -> String {
         if self.insert_spaces { " ".repeat(self.tab_size) } else { "\t".into() }
     }
 

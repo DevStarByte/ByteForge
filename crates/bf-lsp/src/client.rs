@@ -248,6 +248,17 @@ impl LspClient {
         )
     }
 
+    /// `textDocument/documentHighlight`: the other uses of the symbol at `position` in this file.
+    pub fn document_highlight(&self, path: &Path, position: Position) -> flume::Receiver<Result<Vec<crate::DocumentHighlight>>> {
+        self.typed_request("textDocument/documentHighlight", position_params(path, position), |v, _| Ok(convert::parse_document_highlights(&v)))
+    }
+
+    /// `textDocument/inlayHint` for `range`: inferred types and parameter names.
+    pub fn inlay_hints(&self, path: &Path, range: Range) -> flume::Receiver<Result<Vec<crate::InlayHint>>> {
+        let params = json!({ "textDocument": { "uri": path_to_uri(path) }, "range": convert::range_json(range) });
+        self.typed_request("textDocument/inlayHint", params, |v, _| Ok(convert::parse_inlay_hints(&v)))
+    }
+
     /// `textDocument/implementation` at `position`: implementations of an interface or abstract member,
     /// overrides of a virtual one.
     pub fn implementation(&self, path: &Path, position: Position) -> flume::Receiver<Result<Vec<Location>>> {
@@ -961,6 +972,8 @@ fn initialize_params(config: &ServerConfig, workspace_folder: &Value) -> Value {
                 "diagnostic": { "dynamicRegistration": false, "relatedDocumentSupport": false },
                 "definition": { "dynamicRegistration": false, "linkSupport": false },
                 "references": { "dynamicRegistration": false },
+                "documentHighlight": { "dynamicRegistration": false },
+                "inlayHint": { "dynamicRegistration": false, "resolveSupport": { "properties": [] } },
                 "implementation": { "dynamicRegistration": false, "linkSupport": false },
                 "typeDefinition": { "dynamicRegistration": false, "linkSupport": false },
                 "documentSymbol": { "dynamicRegistration": false, "hierarchicalDocumentSymbolSupport": true },

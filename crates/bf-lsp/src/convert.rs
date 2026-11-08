@@ -189,6 +189,7 @@ fn parse_completion_item(
         text_edit_range,
         insert_text,
         label,
+        snippet: false,
     })
 }
 
@@ -509,6 +510,27 @@ mod tests {
     }
 
     #[test]
+    fn highlight_and_inlay_parsing() {
+        let v = json!([
+            { "range": { "start": { "line": 1, "character": 4 }, "end": { "line": 1, "character": 9 } }, "kind": 3 },
+            { "range": { "start": { "line": 2, "character": 0 }, "end": { "line": 2, "character": 5 } }, "kind": 2 },
+            { "range": { "start": { "line": 3, "character": 0 }, "end": { "line": 3, "character": 5 } } }
+        ]);
+        let highlights = parse_document_highlights(&v);
+        assert_eq!(highlights.iter().map(|h| h.write).collect::<Vec<_>>(), [true, false, false]);
+
+        let v = json!([
+            { "position": { "line": 4, "character": 20 }, "label": [{ "value": "format" }, { "value": ":" }], "kind": 2, "paddingRight": true },
+            { "position": { "line": 2, "character": 9 }, "label": ": int", "kind": 1 },
+            { "position": { "line": 2, "character": 1 }, "label": "  " }
+        ]);
+        let hints = parse_inlay_hints(&v);
+        assert_eq!(hints.len(), 2);
+        assert_eq!((hints[0].label.as_str(), hints[0].parameter), (": int", false));
+        assert_eq!((hints[1].label.as_str(), hints[1].parameter, hints[1].padding_right), ("format:", true, true));
+    }
+
+    #[test]
     fn symbol_parsing() {
         let path = std::path::Path::new("/w/A.cs");
         let v = json!([{
@@ -715,6 +737,51 @@ pub(crate) fn parse_text_edits(v: &Value) -> Vec<crate::TextEdit> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// Parses a `textDocument/documentHighlight` result (kind 3 = Write).
+pub(crate) fn parse_document_highlights(v: &Value) -> Vec<crate::DocumentHighlight> {
+    v.as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|h| Some(crate::DocumentHighlight { range: parse_range(h.get("range")?)?, write: h.get("kind").and_then(Value::as_u64) == Some(3) }))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Parses a `textDocument/inlayHint` result. Labels are a string or label parts (joined); kind 2 is a
+/// parameter name. Sorted by position.
+pub(crate) fn parse_inlay_hints(v: &Value) -> Vec<crate::InlayHint> {
+    let mut hints: Vec<crate::InlayHint> = v
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|h| {
+                    let label = match h.get("label")? {
+                        Value::String(s) => s.clone(),
+                        Value::Array(parts) => parts.iter().filter_map(|p| str_field(p, "value")).collect(),
+                        _ => return None,
+                    };
+                    let label = label.trim().to_owned();
+                    if label.is_empty() {
+                        return None;
+                    }
+                    Some(crate::InlayHint {
+                        position: parse_position(h.get("position")?)?,
+                        label,
+                        parameter: h.get("kind").and_then(Value::as_u64) == Some(2),
+                        padding_left: h.get("paddingLeft").and_then(Value::as_bool).unwrap_or(false),
+                        padding_right: h.get("paddingRight").and_then(Value::as_bool).unwrap_or(false),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    hints.sort_by_key(|h| (h.position.line, h.position.character));
+    hints
 }
 
 /// LSP `SymbolKind` (1-based) as a lowercase word.

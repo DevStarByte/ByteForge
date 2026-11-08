@@ -12,15 +12,15 @@ The language server already supports all of these; the client needs the requests
 - [x] **Go to Implementation** (Ctrl+F12) and **Go to Type Definition**: one result jumps, several go to the References panel.
 - [x] **Document Symbols**: Go to Symbol in Editor in the palette ("@"). Still open: a key (Ctrl+Shift+O opens a folder today) and symbol breadcrumbs.
 - [x] **Workspace Symbols** (Ctrl+T): find any type or member by name ("#").
-- [ ] **Document Highlight**: highlight the other uses of the symbol under the caret.
-- [ ] **Inlay Hints**: inferred `var` types and parameter names (setting `editor.inlayHints`).
+- [x] **Document Highlight**: highlight the other uses of the symbol under the caret.
+- [x] **Inlay Hints**: inferred `var` types and parameter names (setting `editor.inlayHints`).
 
 ## 2. Editor
 
-- [ ] Code folding (braces, `#region`, usings, comments), with gutter chevrons.
+- [x] Code folding (braces, `#region`; indentation for XML/YAML), with gutter chevrons. Still open: folding `using` blocks and comment blocks.
 - [ ] Multiple cursors: Alt+Click, Ctrl+Alt+Up/Down, Ctrl+D to add the next match.
 - [ ] Split editor (two editor groups side by side).
-- [ ] User snippets (`prop`, `ctor`, `foreach`, `try`, …) offered in completion.
+- [x] User snippets (`prop`, `ctor`, `foreach`, `try`, …) offered in completion, with Tab between fields.
 - [ ] Minimap.
 
 ## 3. .NET workflow

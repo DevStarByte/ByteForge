@@ -10,6 +10,7 @@ pub mod paths;
 pub mod plugins;
 pub mod search;
 pub mod settings;
+pub mod snippets;
 pub mod theme;
 pub mod watch;
 pub mod workspace;

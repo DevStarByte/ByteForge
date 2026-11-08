@@ -75,6 +75,8 @@ pub struct CompletionItem {
     pub detail: Option<String>,
     /// Range to replace with `insert_text`, if the server supplied a text edit.
     pub text_edit_range: Option<Range>,
+    /// `insert_text` is a snippet body with tab stops (`$1`, `${2:name}`), from the editor's snippets.
+    pub snippet: bool,
 }
 
 /// LSP `CompletionItemKind`.
@@ -112,6 +114,25 @@ pub enum CompletionKind {
 pub struct Location {
     pub path: PathBuf,
     pub range: Range,
+}
+
+/// A use of the symbol under the caret (`textDocument/documentHighlight`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DocumentHighlight {
+    pub range: Range,
+    /// The symbol is assigned here (LSP kind `Write`), not only read.
+    pub write: bool,
+}
+
+/// Extra text shown inside the code (`textDocument/inlayHint`): an inferred type or a parameter name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InlayHint {
+    pub position: Position,
+    pub label: String,
+    /// `true` for parameter names, `false` for types.
+    pub parameter: bool,
+    pub padding_left: bool,
+    pub padding_right: bool,
 }
 
 /// A named code element (`textDocument/documentSymbol`, `workspace/symbol`).

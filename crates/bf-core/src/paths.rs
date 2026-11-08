@@ -40,6 +40,11 @@ impl AppPaths {
         self.config_dir.join("themes")
     }
 
+    /// User snippets, one VS Code-format file per language (`csharp.json`, …).
+    pub fn user_snippets(&self) -> PathBuf {
+        self.config_dir.join("snippets")
+    }
+
     pub fn user_modules(&self) -> PathBuf {
         self.config_dir.join("modules")
     }

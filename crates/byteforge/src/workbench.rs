@@ -412,11 +412,19 @@ impl Workbench {
         let entity = cx.entity();
         window.on_window_should_close(cx, move |window, cx| entity.update(cx, |wb, cx| wb.should_close(window, cx)));
 
-        let target = args.iter().find(|a| !a.starts_with('-')).cloned().or_else(|| wb.state.get("lastFolder"));
-        if let Some(target) = target {
+        // `byteforge [folder] [file…]`: the first folder opens as the workspace, files open in tabs.
+        let mut targets: Vec<String> = args.iter().filter(|a| !a.starts_with('-')).cloned().collect();
+        if targets.is_empty()
+            && let Some(last) = wb.state.get("lastFolder")
+        {
+            targets.push(last);
+        }
+        let mut folder_opened = false;
+        for target in targets {
             let path = normalize_path(Path::new(&target));
-            if path.is_dir() {
+            if path.is_dir() && !folder_opened {
                 wb.open_folder(path, window, cx);
+                folder_opened = true;
             } else if path.is_file() {
                 wb.open_file(path, None, window, cx);
             }
@@ -495,9 +503,14 @@ impl Workbench {
             }
         }
         cx.bind_keys(bindings);
+        let inlay_hints = self.settings.get("editor.inlayHints", true);
         for tab in &self.tabs {
             tab.editor.update(cx, |e, cx| {
+                let was = e.inlay_hints_enabled;
                 self.configure_editor(e);
+                // Applied through the setter, so hints appear or go away right away.
+                e.inlay_hints_enabled = was;
+                e.set_inlay_hints(inlay_hints, cx);
                 cx.notify();
             });
         }
@@ -514,6 +527,12 @@ impl Workbench {
         e.show_indent_guides = s.get("editor.indentGuides", true);
         e.smooth_scrolling = s.get("editor.smoothScrolling", true);
         e.cursor_blinking = s.get("editor.cursorBlinking", true);
+        e.inlay_hints_enabled = s.get("editor.inlayHints", true);
+        e.folding_enabled = s.get("editor.folding", true);
+        e.snippets = match (e.language, e.read_only) {
+            (Some(language), false) => std::sync::Arc::new(bf_core::snippets::for_language(&self.paths.user_snippets(), language.id())),
+            _ => std::sync::Arc::new(Vec::new()),
+        };
     }
 
     // ───────────── folders & files ─────────────
@@ -3685,6 +3704,8 @@ fn default_key(id: &str) -> &'static str {
         "edit.goToDefinition" => "F12",
         "edit.findReferences" => "Shift+F12",
         "edit.goToImplementation" => "Ctrl+F12",
+        "edit.fold" => "Ctrl+Shift+[",
+        "edit.unfold" => "Ctrl+Shift+]",
         "view.goToWorkspaceSymbol" => "Ctrl+T",
         "edit.rename" => "F2",
         "edit.signatureHelp" => "Ctrl+Shift+Space",

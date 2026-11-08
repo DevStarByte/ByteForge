@@ -98,6 +98,18 @@ impl Language {
         }
     }
 
+    /// Language id as VS Code and LSP use it ("csharp", "json", …), e.g. for snippet file names.
+    pub fn id(self) -> &'static str {
+        match self {
+            Language::CSharp => "csharp",
+            Language::Json => "json",
+            Language::Razor => "razor",
+            Language::Xml => "xml",
+            Language::Dockerfile => "dockerfile",
+            Language::Yaml => "yaml",
+        }
+    }
+
     /// Human-readable language name.
     pub fn name(self) -> &'static str {
         match self {

@@ -58,7 +58,7 @@ actions!(
         SelectDocEnd, PageUp, PageDown, SelectPageUp, SelectPageDown, ScrollLineUp, ScrollLineDown, Backspace, DeleteWordLeft,
         Delete, DeleteWordRight, Newline, Tab, Outdent, SelectAll, Copy, Cut, Paste, Undo, Redo, DuplicateLines, DeleteLines,
         MoveLinesUp, MoveLinesDown, ToggleComment, Find, Replace, FindNext, FindPrevious, TriggerCompletion, GoToDefinition,
-        Cancel, ToggleBreakpoint, QuickFix, FindReferences, RenameSymbol, ShowSignatureHelp, GoToImplementation, GoToTypeDefinition
+        Cancel, ToggleBreakpoint, QuickFix, FindReferences, RenameSymbol, ShowSignatureHelp, GoToImplementation, GoToTypeDefinition, Fold, Unfold, FoldAll, UnfoldAll
     ]
 );
 
@@ -195,6 +195,10 @@ fn builtin() -> Vec<(&'static str, &'static str, &'static str, Box<dyn Action>, 
         ("view.goToSymbol", "Go to Symbol in Editor…", "Go", Box::new(GoToSymbolInEditor), None),
         ("view.goToWorkspaceSymbol", "Go to Symbol in Workspace…", "Go", Box::new(GoToSymbolInWorkspace), Some("ctrl-t")),
         ("edit.rename", "Rename Symbol", "Edit", Box::new(RenameSymbol), None),
+        ("edit.fold", "Fold", "View", Box::new(Fold), None),
+        ("edit.unfold", "Unfold", "View", Box::new(Unfold), None),
+        ("edit.foldAll", "Fold All", "View", Box::new(FoldAll), None),
+        ("edit.unfoldAll", "Unfold All", "View", Box::new(UnfoldAll), None),
         ("edit.signatureHelp", "Trigger Parameter Hints", "Edit", Box::new(ShowSignatureHelp), None),
         ("edit.formatDocument", "Format Document", "Edit", Box::new(FormatDocument), Some("shift-alt-f")),
         ("edit.formatDocumentWith", "Format Document With…", "Edit", Box::new(FormatDocumentWith), None),
@@ -306,6 +310,8 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         KeyBinding::new("ctrl-.", QuickFix, e),
         KeyBinding::new("shift-f12", FindReferences, e),
         KeyBinding::new("ctrl-f12", GoToImplementation, e),
+        KeyBinding::new("ctrl-shift-[", Fold, e),
+        KeyBinding::new("ctrl-shift-]", Unfold, e),
         KeyBinding::new("f2", RenameSymbol, e),
         KeyBinding::new("ctrl-shift-space", ShowSignatureHelp, e),
         KeyBinding::new("escape", Cancel, e),

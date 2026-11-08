@@ -20,7 +20,10 @@ public static class Program
         var list = new List<int>();
         Console.WriteLine(greeting);
         Console.Wri
+        var sum = Add(1, 2);
     }
+
+    static int Add(int left, int right) => left + right;
 }
 "#;
 
@@ -223,6 +226,17 @@ fn csharp_ls_end_to_end() {
     println!("[{:>6.1?}] signature help: {help:?} (took {:?})", t0.elapsed(), t.elapsed());
     let help = help.expect("no signature help inside Console.WriteLine(…)");
     assert!(help.signatures.iter().any(|s| s.label.contains("WriteLine")));
+
+    let t = Instant::now();
+    let highlights = recv(client.document_highlight(&program, find(PROGRAM, "(greeting)", 1)), "document highlight");
+    println!("[{:>6.1?}] document highlight: {highlights:?} (took {:?})", t0.elapsed(), t.elapsed());
+    assert_eq!(highlights.len(), 2, "declaration + use of greeting: {highlights:?}");
+
+    let t = Instant::now();
+    let whole = bf_lsp::Range { start: Position { line: 0, character: 0 }, end: Position { line: PROGRAM.lines().count() as u32, character: 0 } };
+    let hints = recv(client.inlay_hints(&program, whole), "inlay hints");
+    println!("[{:>6.1?}] inlay hints: {hints:?} (took {:?})", t0.elapsed(), t.elapsed());
+    assert!(hints.iter().any(|h| h.parameter && h.label.starts_with("left")), "no parameter-name hint for Add(1, 2): {hints:?}");
 
     let t = Instant::now();
     let symbols = recv(client.document_symbols(&program), "document symbols");

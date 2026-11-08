@@ -175,7 +175,9 @@ impl Element for EditorElement {
             let theme = Theme::global(cx);
             let digits = (view.state.buffer.line_count().max(1) as f32).log10().floor() as usize + 1;
             let glyph = if view.glyph_margin { theme.n("editorGutter.glyphMarginWidth", line_height).round() } else { 0.0 };
+            let fold_width = if view.folding_enabled && view.show_line_numbers { (char_width * 1.6).round().max(12.0) } else { 0.0 };
             let gutter = glyph
+                + fold_width
                 + if view.show_line_numbers {
                     (digits.max(3) as f32 * char_width * number_size / style.font_size).ceil() + style.gutter_left + style.gutter_right
                 } else {
@@ -191,7 +193,14 @@ impl Element for EditorElement {
                 char_width,
                 line_height,
                 glyph,
+                // The chevrons sit between the line numbers and the git change markers.
+                fold_left: f32::from(bounds.left()) + gutter - fold_width - style.gutter_right.min(6.0),
+                fold_width,
             };
+            if fold_width > 0.0 {
+                // Cached per buffer version.
+                view.fold_regions();
+            }
             view.take_pending_reveal();
             view.scroll = view.clamp_scroll(view.scroll);
             view.scroll_target = view.clamp_scroll(view.scroll_target);
@@ -212,7 +221,8 @@ impl Element for EditorElement {
             }
             let caret = view.state.caret();
             let caret_line = view.state.buffer.line(caret.line);
-            let target = (visual_col(&caret_line, caret.col, view.state.tab_size) as f32 * char_width, caret.line as f32 * line_height);
+            let caret_visual = visual_col(&caret_line, caret.col, view.state.tab_size) + view.inlay_shift(caret.line, caret.col, false);
+            let target = (caret_visual as f32 * char_width, view.folds.row_of(caret.line) as f32 * line_height);
             if style.smooth_caret {
                 let drawn = view.caret_drawn.unwrap_or(target);
                 let (cx_, cy_) = (target.0 - drawn.0, target.1 - drawn.1);
@@ -256,11 +266,18 @@ impl Element for EditorElement {
             }
         };
 
+        let inlay_color = theme.c_or("editorInlayHint.foreground", 0x969696ff);
+        let inlay_font = gpui::Font { style: FontStyle::Italic, ..editor_font.clone() };
+        let inlay_run = |len: usize| TextRun { len, font: inlay_font.clone(), color: inlay_color, background_color: None, underline: None, strikethrough: None };
+
         let mut shaped_inputs: Vec<(usize, String, Vec<TextRun>, u64)> = Vec::new();
         {
             let view = self.view.read(cx);
             let tab = view.state.tab_size;
             for line_ix in first..=last {
+                if view.folds.is_hidden(line_ix) {
+                    continue;
+                }
                 let text = view.state.buffer.line(line_ix);
                 if text.is_empty() {
                     continue;
@@ -273,9 +290,17 @@ impl Element for EditorElement {
                 let mut v = 0usize;
                 let mut depth = 0usize; // filled below for brackets
                 let _ = &mut depth;
+                let inlays = view.inlays_on(line_ix);
+                let mut next_inlay = 0;
                 for (col, (byte, ch)) in text.char_indices().enumerate() {
                     if col >= MAX_SHAPED_COLS {
                         break;
+                    }
+                    // Inlay hints go before the character they are attached to.
+                    while let Some(hint) = inlays.get(next_inlay).filter(|h| h.at.col <= col) {
+                        display.push_str(&hint.text);
+                        runs.push(inlay_run(hint.text.len()));
+                        next_inlay += 1;
                     }
                     let kind = kinds.get(byte).copied().flatten();
                     let (mut color, bold, italic, underline) = token_style(kind);
@@ -306,8 +331,14 @@ impl Element for EditorElement {
                         _ => runs.push(TextRun { len: piece_len, font, color, background_color: None, underline, strikethrough: None }),
                     }
                 }
+                // Hints at the end of the line (after the last character).
+                for hint in &inlays[next_inlay..] {
+                    display.push_str(&hint.text);
+                    runs.push(inlay_run(hint.text.len()));
+                }
                 text.hash(&mut hasher);
                 kinds.hash(&mut hasher);
+                inlays.hash(&mut hasher);
                 shaped_inputs.push((line_ix, display, runs, hasher.finish()));
             }
         }
@@ -384,13 +415,16 @@ impl Element for EditorElement {
         });
 
         // Line numbers.
-        let (show_numbers, caret_line) = {
+        let (show_numbers, caret_line, hidden) = {
             let v = self.view.read(cx);
-            (v.show_line_numbers, v.state.caret().line)
+            (v.show_line_numbers, v.state.caret().line, v.folds.hidden_ranges().to_vec())
         };
         if show_numbers {
             let number_font = editor_font.clone();
             for line_ix in first..=last {
+                if hidden.iter().any(|&(s, e)| s <= line_ix && line_ix <= e) {
+                    continue;
+                }
                 let active = line_ix == caret_line;
                 let label = (line_ix + 1).to_string();
                 let run = TextRun {
@@ -434,8 +468,11 @@ impl Element for EditorElement {
         let tab = view.tab;
         let origin_x = l.text_left - sx;
         let gutter_right = l.left + l.gutter;
-        let line_top = |line: usize| px(l.top + line as f32 * lh - sy);
-        let x_at = |line: usize, col: usize| -> f32 { origin_x + visual_col(view.line(line), col, tab) as f32 * cw };
+        let line_top = |line: usize| px(l.top + view.row_of(line) as f32 * lh - sy);
+        // Where the character at `col` is drawn (after any inlay hint attached there), and where a range ending
+        // at `col` ends (before such a hint).
+        let x_at = |line: usize, col: usize| -> f32 { origin_x + (visual_col(view.line(line), col, tab) + view.inlay_shift(line, col, true)) as f32 * cw };
+        let x_end = |line: usize, col: usize| -> f32 { origin_x + (visual_col(view.line(line), col, tab) + view.inlay_shift(line, col, false)) as f32 * cw };
         let (first, last) = (view.first, view.last);
         let width = bounds.size.width;
 
@@ -485,11 +522,14 @@ impl Element for EditorElement {
             // Ranges: find matches, selection, bracket match.
             let paint_range = |window: &mut Window, s: TPoint, e: TPoint, bg: gpui::Background, border: Option<Hsla>, extend: bool| {
                 for line in s.line.max(first)..=e.line.min(last) {
+                    if view.is_hidden(line) {
+                        continue;
+                    }
                     let len = view.line_len(line);
                     let c0 = if line == s.line { s.col } else { 0 };
                     let c1 = if line == e.line { e.col } else { len };
                     let x0 = x_at(line, c0);
-                    let x1 = x_at(line, c1) + if extend && line != e.line { cw * 0.6 } else { 0.0 };
+                    let x1 = x_end(line, c1) + if extend && line != e.line { cw * 0.6 } else { 0.0 };
                     if x1 <= x0 {
                         continue;
                     }
@@ -498,6 +538,23 @@ impl Element for EditorElement {
                     window.paint_quad(quad(b, Corners::all(r), bg, if border.is_some() { 1.0 } else { 0.0 }, border.unwrap_or_default(), gpui::BorderStyle::Solid));
                 }
             };
+            // Other uses of the symbol under the caret (assignments stronger).
+            for h in &view.word_highlights {
+                let key = if h.write { "editor.wordHighlightStrongBackground" } else { "editor.wordHighlightBackground" };
+                let fallback = if h.write { 0x004972b8 } else { 0x57575780 };
+                let border = theme.has("editor.wordHighlightBorder").then(|| theme.c("editor.wordHighlightBorder"));
+                let bg = if theme.has(key) { theme.bg(key) } else { theme.c_or(key, fallback).into() };
+                paint_range(window, h.start, h.end, bg, border, false);
+            }
+
+            // Inlay hint backgrounds (the text is part of the shaped line).
+            let inlay_bg = theme.c_or("editorInlayHint.background", 0x8080801f);
+            for hint in &view.inlays {
+                let x = x_end(hint.at.line, hint.at.col) + hint.pad_left as f32 * cw;
+                let rect = Bounds::new(point(px(x - 1.0), line_top(hint.at.line) + px(lh * 0.1)), size(px(hint.label_len as f32 * cw + 2.0), px(lh * 0.8)));
+                window.paint_quad(quad(rect, Corners::all(px(3.)), inlay_bg, 0.0, Hsla::default(), gpui::BorderStyle::Solid));
+            }
+
             let find_border = theme.has("editor.findMatchBorder").then(|| theme.c("editor.findMatchBorder"));
             for &(s, e) in &view.find[..] {
                 if e.line < first || s.line > last {
@@ -526,6 +583,9 @@ impl Element for EditorElement {
             let guide = theme.c("editorIndentGuide.background");
             let ws_color = theme.c("editorWhitespace.foreground");
             for line in first..=last {
+                if view.is_hidden(line) {
+                    continue;
+                }
                 let text = view.line(line);
                 let top = line_top(line);
                 if style.indent_guides && view.show_indent_guides {
@@ -542,14 +602,15 @@ impl Element for EditorElement {
                 }
                 if style.whitespace != Whitespace::None {
                     let mut v = 0;
-                    for ch in text.chars() {
+                    for (col, ch) in text.chars().enumerate() {
                         let next = if ch == '\t' { (v / tab + 1) * tab } else { v + 1 };
+                        let hints = view.inlay_shift(line, col, true) as f32 * cw;
                         if ch == ' ' {
-                            let x = origin_x + (v as f32 + 0.5) * cw - 1.0;
+                            let x = origin_x + hints + (v as f32 + 0.5) * cw - 1.0;
                             window.paint_quad(fill(Bounds::new(point(px(x), top + px(lh / 2.0 - 1.0)), size(px(2.), px(2.))), ws_color));
                         } else if ch == '\t' {
-                            let x0 = origin_x + (v as f32 + 0.2) * cw;
-                            let x1 = origin_x + (next as f32 - 0.2) * cw;
+                            let x0 = origin_x + hints + (v as f32 + 0.2) * cw;
+                            let x1 = origin_x + hints + (next as f32 - 0.2) * cw;
                             window.paint_quad(fill(Bounds::new(point(px(x0), top + px(lh / 2.0)), size(px(x1 - x0), px(1.))), ws_color));
                         } else if style.whitespace == Whitespace::Leading {
                             break;
@@ -565,11 +626,30 @@ impl Element for EditorElement {
                 let _ = shaped.paint(point(px(origin_x), y), px(lh), window, cx);
             }
 
+            // Folded regions: a "⋯" marker after their first line.
+            let fold_bg = theme.c_or("editor.foldBackground", 0x264f7840);
+            let fold_fg = theme.c_or("editorFoldPlaceholder.foreground", 0x9d9d9dff);
+            for &(start, _) in &view.folded {
+                if start < first || start > last || view.is_hidden(start) {
+                    continue;
+                }
+                let x = x_end(start, view.line_len(start)) + cw;
+                let top = line_top(start);
+                let rect = Bounds::new(point(px(x), top + px(lh * 0.15)), size(px(cw * 3.0), px(lh * 0.7)));
+                window.paint_quad(quad(rect, Corners::all(px(3.)), fold_bg, 0.0, Hsla::default(), gpui::BorderStyle::Solid));
+                let font = gpui::Font { weight: style.font_weight, ..gpui::font(theme.editor_font.clone()) };
+                let dots = "⋯";
+                let run = TextRun { len: dots.len(), font, color: fold_fg, background_color: None, underline: None, strikethrough: None };
+                let glyph = window.text_system().shape_line(SharedString::from(dots), px(style.font_size), &[run], None);
+                let gx = x + (cw * 3.0 - f32::from(glyph.width)) / 2.0;
+                let _ = glyph.paint(point(px(gx), top), px(lh), window, cx);
+            }
+
             // File references.
             let link_color = theme.c_or("textLink.foreground", 0x3794ffff);
             for (line, spans) in &prepaint.links {
                 for &(start, end) in spans {
-                    let (x0, x1) = (x_at(*line, start), x_at(*line, end));
+                    let (x0, x1) = (x_at(*line, start), x_end(*line, end));
                     let y = line_top(*line) + px(lh - 2.0);
                     window.paint_underline(point(px(x0), y), px(x1 - x0), &UnderlineStyle { color: Some(link_color), thickness: px(1.), wavy: false });
                 }
@@ -586,11 +666,14 @@ impl Element for EditorElement {
                     _ => theme.c("editorInfo.foreground"),
                 };
                 for line in d.start.line.max(first)..=d.end.line.min(last) {
+                    if view.is_hidden(line) {
+                        continue;
+                    }
                     let len = view.line_len(line);
                     let c0 = if line == d.start.line { d.start.col.min(len) } else { 0 };
                     let c1 = if line == d.end.line { d.end.col.min(len) } else { len };
                     let x0 = x_at(line, c0);
-                    let x1 = x_at(line, c1).max(x0 + cw);
+                    let x1 = x_end(line, c1).max(x0 + cw);
                     let y = line_top(line) + px(lh - 3.0);
                     window.paint_underline(point(px(x0), y), px(x1 - x0), &UnderlineStyle { color: Some(color), thickness: px(1.), wavy: style.squiggle_wavy });
                 }
@@ -648,6 +731,9 @@ impl Element for EditorElement {
             let mark_w = theme.n("editorGutter.changeWidth", 3.0);
             let mark_x = gutter_right - mark_w - theme.n("editorGutter.changeOffset", 2.0);
             for &(line, kind) in &view.git_marks {
+                if view.is_hidden(line) {
+                    continue;
+                }
                 let top = line_top(line);
                 let (key, rect) = match kind {
                     LineChangeKind::Added => ("editorGutter.addedBackground", Bounds::new(point(px(mark_x), top), size(px(mark_w), px(lh)))),
@@ -660,16 +746,44 @@ impl Element for EditorElement {
                 window.paint_quad(quad(rect, Corners::all(px(theme.n("editorGutter.changeRadius", 0.0))), theme.bg(key), 0.0, Hsla::default(), gpui::BorderStyle::Solid));
             }
             for (line, shaped, w) in &prepaint.numbers {
-                let x = gutter_right - style.gutter_right - w;
+                let x = gutter_right - style.gutter_right - l.fold_width - w;
                 let y = line_top(*line as usize);
                 let _ = shaped.paint(point(px(x), y), px(lh), window, cx);
+            }
+
+            // Folding chevrons: ▶ on folded regions, a fainter ▼ on foldable ones.
+            if l.fold_width > 0.0 {
+                let open = theme.c_or("editorGutter.foldingControlForeground", 0x8c8c8c99);
+                let closed = theme.c_or("editorGutter.foldingControlForeground", 0xc5c5c5ff);
+                for &(start, _) in &view.regions {
+                    if start < first || start > last || view.is_hidden(start) {
+                        continue;
+                    }
+                    let folded = view.folded.iter().any(|f| f.0 == start);
+                    let size_ = (l.fold_width.min(lh) * 0.42).round();
+                    let (x0, y0) = (l.fold_left + (l.fold_width - size_) / 2.0, f32::from(line_top(start)) + (lh - size_) / 2.0);
+                    let mut path = gpui::PathBuilder::fill();
+                    if folded {
+                        path.move_to(point(px(x0 + size_ * 0.2), px(y0)));
+                        path.line_to(point(px(x0 + size_ * 0.85), px(y0 + size_ / 2.0)));
+                        path.line_to(point(px(x0 + size_ * 0.2), px(y0 + size_)));
+                    } else {
+                        path.move_to(point(px(x0), px(y0 + size_ * 0.2)));
+                        path.line_to(point(px(x0 + size_), px(y0 + size_ * 0.2)));
+                        path.line_to(point(px(x0 + size_ / 2.0), px(y0 + size_ * 0.85)));
+                    }
+                    path.close();
+                    if let Ok(path) = path.build() {
+                        window.paint_path(path, if folded { closed } else { open });
+                    }
+                }
             }
 
             // Breakpoints and the execution arrow in the glyph margin.
             if l.glyph > 0.0 {
                 let d = (l.glyph.min(lh) * 0.62).round();
                 let cx_ = l.left + l.glyph / 2.0;
-                for b in &view.breakpoints {
+                for b in view.breakpoints.iter().filter(|b| !view.is_hidden(b.line)) {
                     let rect = Bounds::new(point(px(cx_ - d / 2.0), line_top(b.line) + px((lh - d) / 2.0)), size(px(d), px(d)));
                     if b.verified {
                         window.paint_quad(quad(rect, Corners::all(px(d / 2.0)), theme.c_or("debugIcon.breakpointForeground", 0xe51400ff), 0.0, Hsla::default(), gpui::BorderStyle::Solid));
@@ -708,7 +822,7 @@ impl Element for EditorElement {
 
         // Scrollbars.
         let bar = 10.0;
-        let content_h = view.line_count as f32 * lh + l.height - lh;
+        let content_h = view.row_count as f32 * lh + l.height - lh;
         if content_h > l.height + 1.0 {
             let track = l.height;
             let thumb = (track * track / content_h).max(24.0);
@@ -759,13 +873,20 @@ struct Snap {
     diagnostics: Vec<super::Diagnostic>,
     caret_drawn: Option<(f32, f32)>,
     opacity: f32,
-    line_count: usize,
     max_line_chars: usize,
     focus: gpui::FocusHandle,
     git_marks: Vec<(usize, bf_core::git::LineChangeKind)>,
     line_backgrounds: Vec<(usize, &'static str)>,
     breakpoints: Vec<super::Breakpoint>,
     exec_line: Option<(usize, bool)>,
+    word_highlights: Vec<super::inlays::WordHighlight>,
+    /// Inlay hints on the visible lines, sorted.
+    inlays: Vec<super::inlays::Inlay>,
+    /// Hidden line ranges (folds), folded regions and foldable regions starting on visible lines.
+    hidden: Vec<(usize, usize)>,
+    folded: Vec<(usize, usize)>,
+    regions: Vec<(usize, usize)>,
+    row_count: usize,
 }
 
 impl Snap {
@@ -778,7 +899,8 @@ impl Snap {
             tab: v.state.tab_size,
             first,
             last,
-            texts: (first..=last).map(|l| v.state.buffer.line(l).into_owned()).collect(),
+            // Folded lines aren't drawn: don't copy them.
+            texts: (first..=last).map(|l| if v.folds.is_hidden(l) { String::new() } else { v.state.buffer.line(l).into_owned() }).collect(),
             caret: v.state.caret(),
             has_selection: v.state.has_selection(),
             selection: v.state.selection(),
@@ -788,14 +910,48 @@ impl Snap {
             diagnostics: v.diagnostics.iter().filter(|d| d.end.line >= first && d.start.line <= last).cloned().collect(),
             caret_drawn: v.caret_drawn,
             opacity: v.caret_opacity(cx),
-            line_count: v.state.buffer.line_count(),
             max_line_chars: v.max_line_chars,
             focus: v.focus.clone(),
             git_marks: v.git_marks.iter().filter(|(l, _)| *l + 1 >= first && *l <= last + 1).copied().collect(),
             line_backgrounds: v.line_backgrounds.iter().filter(|(l, _)| *l >= first && *l <= last).copied().collect(),
             breakpoints: v.breakpoints.iter().filter(|b| b.line >= first && b.line <= last).copied().collect(),
             exec_line: v.exec_line,
+            word_highlights: v.word_highlights.iter().filter(|h| h.end.line >= first && h.start.line <= last).copied().collect(),
+            inlays: v.inlays.iter().filter(|h| h.at.line >= first && h.at.line <= last).cloned().collect(),
+            hidden: v.folds.hidden_ranges().to_vec(),
+            folded: v.folds.folded().to_vec(),
+            regions: if v.layout.fold_width > 0.0 { v.folds.cached_regions().iter().filter(|r| r.0 >= first && r.0 <= last).copied().collect() } else { Vec::new() },
+            row_count: v.folds.row_count(v.state.buffer.line_count()),
         }
+    }
+
+    fn is_hidden(&self, line: usize) -> bool {
+        let i = self.hidden.partition_point(|h| h.1 < line);
+        self.hidden.get(i).is_some_and(|h| h.0 <= line)
+    }
+
+    /// The screen row of `line` (see `Folds::row_of`).
+    fn row_of(&self, line: usize) -> usize {
+        let mut hidden_before = 0;
+        for &(s, e) in &self.hidden {
+            if s > line {
+                break;
+            }
+            if line <= e {
+                return s - 1 - hidden_before;
+            }
+            hidden_before += e + 1 - s;
+        }
+        line - hidden_before
+    }
+
+    /// Like [`super::EditorView::inlay_shift`], for the visible lines.
+    fn inlay_shift(&self, line: usize, col: usize, inclusive: bool) -> usize {
+        self.inlays
+            .iter()
+            .filter(|h| h.at.line == line && (h.at.col < col || (inclusive && h.at.col == col)))
+            .map(|h| h.text.chars().count())
+            .sum()
     }
 
     fn line(&self, line: usize) -> &str {

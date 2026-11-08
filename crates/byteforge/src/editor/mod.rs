@@ -2,6 +2,9 @@
 //! `element.rs`; this file owns state, input handling and background work.
 
 mod element;
+mod folding;
+mod inlays;
+mod snippet;
 
 use std::ops::Range;
 use std::path::PathBuf;
@@ -138,6 +141,9 @@ pub(crate) struct Layout {
     pub line_height: f32,
     /// Width of the breakpoint margin at the left of the gutter (0 when hidden).
     pub glyph: f32,
+    /// Left edge and width of the folding chevron column in the gutter (width 0 when off).
+    pub fold_left: f32,
+    pub fold_width: f32,
 }
 
 pub struct EditorView {
@@ -165,6 +171,23 @@ pub struct EditorView {
     hover: Option<Hover>,
     signature: Option<SignatureState>,
     signature_task: Option<Task<()>>,
+    /// Uses of the symbol under the caret.
+    pub(crate) word_highlights: Vec<inlays::WordHighlight>,
+    highlight_task: Option<Task<()>>,
+    /// Folded regions and the line ↔ screen row mapping.
+    pub(crate) folds: folding::Folds,
+    /// Shows folding chevrons in the gutter ("editor.folding").
+    pub folding_enabled: bool,
+    /// The caret's line before the last move (to step over folds with the arrow keys).
+    last_caret_line: usize,
+    /// Snippets offered in completion (built-in C# ones plus the user's).
+    pub snippets: Arc<Vec<bf_core::snippets::Snippet>>,
+    /// The snippet being filled in: Tab goes to its next field.
+    snippet_session: Option<snippet::Session>,
+    /// Inlay hints sorted by position ("editor.inlayHints").
+    pub(crate) inlays: Vec<inlays::Inlay>,
+    pub inlay_hints_enabled: bool,
+    inlay_task: Option<Task<()>>,
     action_menu: Option<ActionMenu>,
     action_task: Option<Task<()>>,
     /// The word a hover request is waiting for.
@@ -262,6 +285,16 @@ impl EditorView {
             completion: None,
             signature: None,
             signature_task: None,
+            word_highlights: Vec::new(),
+            highlight_task: None,
+            folds: folding::Folds::default(),
+            folding_enabled: true,
+            last_caret_line: 0,
+            snippets: Arc::new(Vec::new()),
+            snippet_session: None,
+            inlays: Vec::new(),
+            inlay_hints_enabled: true,
+            inlay_task: None,
             completion_task: None,
             hover: None,
             action_menu: None,
@@ -377,6 +410,11 @@ impl EditorView {
             shift_spans(&mut self.syntax_spans, c);
             shift_spans(&mut self.semantic_spans, c);
             shift_diagnostics(&mut self.diagnostics, c);
+            self.shift_decorations(c);
+            self.folds.shift(c);
+            if let Some(session) = &mut self.snippet_session {
+                session.shift(c);
+            }
             shift_breakpoints(&mut self.breakpoints, c);
             if let Some((line, _)) = &mut self.exec_line
                 && *line > c.old_end.line
@@ -430,6 +468,7 @@ impl EditorView {
         }
         self.schedule_highlight(cx);
         self.schedule_semantic(Duration::from_millis(350), cx);
+        self.schedule_inlay_hints(Duration::from_millis(600), cx);
         self.schedule_git_diff(Duration::from_millis(120), cx);
         if let Some(find) = &self.find {
             let (q, mc) = (find.query.read(cx).text().to_owned(), find.match_case);
@@ -484,6 +523,10 @@ impl EditorView {
     }
 
     fn after_move(&mut self, cx: &mut Context<Self>) {
+        if !self.folds.is_empty() {
+            self.caret_into_fold(self.last_caret_line);
+        }
+        self.last_caret_line = self.state.caret().line;
         self.blink_epoch = Instant::now();
         self.ensure_caret_visible();
         if let Some(completion) = &self.completion {
@@ -497,6 +540,7 @@ impl EditorView {
         if self.signature.is_some() {
             self.request_signature_help(cx);
         }
+        self.schedule_word_highlights(cx);
         cx.emit(EditorEvent::CaretMoved);
         cx.notify();
     }
@@ -516,7 +560,8 @@ impl EditorView {
         let first = (self.scroll.1 / lh).floor().max(0.0) as usize;
         let last = ((self.scroll.1 + height) / lh).ceil() as usize;
         let max = self.state.buffer.line_count() - 1;
-        (first.min(max), last.min(max))
+        // Rows to lines: folded lines between them aren't drawn.
+        (self.folds.line_of(first).min(max), self.folds.line_of(last).min(max))
     }
 
     fn schedule_highlight(&mut self, cx: &mut Context<Self>) {
@@ -632,6 +677,7 @@ impl EditorView {
             lsp.did_open(path, self.lsp_version, &self.state.buffer.text());
             self.lsp = Some(lsp);
             self.schedule_semantic(Duration::from_millis(100), cx);
+            self.schedule_inlay_hints(Duration::from_millis(300), cx);
         }
     }
 
@@ -999,7 +1045,7 @@ impl EditorView {
     // ───────────── completion ─────────────
 
     fn maybe_trigger_completion(&mut self, typed: &str, cx: &mut Context<Self>) {
-        if self.lsp.is_none() {
+        if self.lsp.is_none() && self.snippets.is_empty() {
             return;
         }
         let Some(c) = typed.chars().last() else { return };
@@ -1022,13 +1068,30 @@ impl EditorView {
     }
 
     fn request_completion(&mut self, cx: &mut Context<Self>) {
-        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else { return };
+        let snippets = self.snippet_items();
+        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else {
+            // No language server: snippets only, after a word start.
+            if !snippets.is_empty() {
+                let start = self.word_start();
+                if start != self.state.caret() {
+                    self.completion = Some(Completion { start, items: Arc::new(snippets), filtered: Vec::new(), selected: 0 });
+                    self.refilter_completion();
+                    cx.notify();
+                }
+            }
+            return;
+        };
         let caret = self.state.caret();
         let pos = self.lsp_position(caret);
         let version = self.state.buffer.version();
+        // After a `.` only members make sense.
+        let after_dot = caret.col > 0 && self.state.buffer.line(caret.line).chars().nth(caret.col - 1) == Some('.');
         self.completion_task = Some(cx.spawn(async move |this, cx| {
             let rx = lsp.completion(&path, pos);
-            let Ok(Ok(items)) = rx.recv_async().await else { return };
+            let Ok(Ok(mut items)) = rx.recv_async().await else { return };
+            if !after_dot {
+                items.extend(snippets);
+            }
             if items.is_empty() {
                 return;
             }
@@ -1040,14 +1103,7 @@ impl EditorView {
                     .find_map(|i| i.text_edit_range)
                     .map(|r| view.state.buffer.utf16_to_point(r.start.line as usize, r.start.character as usize))
                     .filter(|p| p.line == caret.line && p.col <= caret.col)
-                    .unwrap_or_else(|| {
-                        let line: Vec<char> = view.state.buffer.line(caret.line).chars().collect();
-                        let mut s = caret.col.min(line.len());
-                        while s > 0 && (line[s - 1].is_alphanumeric() || line[s - 1] == '_') {
-                            s -= 1;
-                        }
-                        Point::new(caret.line, s)
-                    });
+                    .unwrap_or_else(|| view.word_start());
                 let _ = version;
                 view.completion = Some(Completion { start, items: Arc::new(items), filtered: Vec::new(), selected: 0 });
                 view.refilter_completion();
@@ -1099,9 +1155,24 @@ impl EditorView {
         let Some(&index) = completion.filtered.get(completion.selected) else { return false };
         let item = &completion.items[index];
         let caret = self.state.caret();
+        if item.snippet {
+            self.insert_snippet(completion.start, caret, &item.insert_text, cx);
+            return true;
+        }
         self.state.replace_range(completion.start, caret, &item.insert_text);
         self.after_edit(cx);
         true
+    }
+
+    /// Where the identifier before the caret starts.
+    fn word_start(&self) -> Point {
+        let caret = self.state.caret();
+        let line: Vec<char> = self.state.buffer.line(caret.line).chars().collect();
+        let mut s = caret.col.min(line.len());
+        while s > 0 && (line[s - 1].is_alphanumeric() || line[s - 1] == '_') {
+            s -= 1;
+        }
+        Point::new(caret.line, s)
     }
 
     // ───────────── find ─────────────
@@ -1212,7 +1283,7 @@ impl EditorView {
             return;
         }
         let lh = self.layout.line_height;
-        let y = p.line as f32 * lh;
+        let y = self.folds.row_of(p.line) as f32 * lh;
         let mut target = self.scroll_target;
         if center {
             target.1 = y - (self.layout.height - lh) / 2.0;
@@ -1244,7 +1315,7 @@ impl EditorView {
         let caret = self.state.caret();
         self.reveal(caret, false);
         let line = self.state.buffer.line(caret.line);
-        let x = bf_text::visual_col(&line, caret.col, self.state.tab_size) as f32 * self.layout.char_width;
+        let x = (bf_text::visual_col(&line, caret.col, self.state.tab_size) + self.inlay_shift(caret.line, caret.col, false)) as f32 * self.layout.char_width;
         let width = self.layout.width - (self.layout.text_left - self.layout.left);
         let mut target = self.scroll_target;
         if x < target.0 {
@@ -1257,7 +1328,7 @@ impl EditorView {
 
     pub(crate) fn clamp_scroll(&self, v: (f32, f32)) -> (f32, f32) {
         let lh = self.layout.line_height.max(1.0);
-        let max_y = ((self.state.buffer.line_count() as f32 - 1.0) * lh).max(0.0);
+        let max_y = ((self.folds.row_count(self.state.buffer.line_count()) as f32 - 1.0) * lh).max(0.0);
         let content_w = self.max_line_chars as f32 * self.layout.char_width + self.layout.char_width * 8.0;
         let view_w = self.layout.width - (self.layout.text_left - self.layout.left);
         let max_x = (content_w - view_w).max(0.0);
@@ -1295,10 +1366,10 @@ impl EditorView {
     fn point_at(&self, x: f32, y: f32) -> Point {
         let l = &self.layout;
         let lh = l.line_height.max(1.0);
-        let line = (((y - l.top) + self.scroll.1) / lh).floor().max(0.0) as usize;
-        let line = line.min(self.state.buffer.line_count() - 1);
+        let row = (((y - l.top) + self.scroll.1) / lh).floor().max(0.0) as usize;
+        let line = self.folds.line_of(row).min(self.state.buffer.line_count() - 1);
         let visual = (x - l.text_left + self.scroll.0) / l.char_width.max(1.0);
-        Point::new(line, bf_text::logical_col(&self.state.buffer.line(line), visual, self.state.tab_size))
+        Point::new(line, self.col_at_visual(line, visual))
     }
 
     fn scrollbar_zone(&self, x: f32, y: f32) -> Option<bool> {
@@ -1338,6 +1409,10 @@ impl EditorView {
             self.state.set_caret(p, false);
             self.after_move(cx);
             self.go_to_definition_at(p, cx);
+            return;
+        }
+        if self.layout.fold_width > 0.0 && x >= self.layout.fold_left && x < self.layout.fold_left + self.layout.fold_width && y < self.layout.top + self.layout.height {
+            self.toggle_fold(p.line, cx);
             return;
         }
         if self.glyph_margin && x < self.layout.left + self.layout.glyph && y < self.layout.top + self.layout.height {
@@ -1387,7 +1462,7 @@ impl EditorView {
                 return;
             }
             DragMode::VScroll(last) => {
-                let ratio = (self.state.buffer.line_count() as f32 * self.layout.line_height) / self.layout.height.max(1.0);
+                let ratio = (self.folds.row_count(self.state.buffer.line_count()) as f32 * self.layout.line_height) / self.layout.height.max(1.0);
                 self.scroll_to((self.scroll.0, self.scroll.1 + (y - last) * ratio.max(1.0)), false);
                 self.drag = DragMode::VScroll(y);
                 cx.notify();
@@ -1553,11 +1628,15 @@ impl EditorView {
                 }
             }))
             .on_action(cx.listener(|v, _: &Tab, _, cx| {
-                if !v.commit_action(None, cx) && !v.commit_completion(cx) {
+                if !v.commit_action(None, cx) && !v.commit_completion(cx) && !v.next_snippet_field(1, cx) {
                     v.edit(cx, |s| s.tab())
                 }
             }))
-            .on_action(cx.listener(|v, _: &Outdent, _, cx| v.edit(cx, |s| s.indent_lines(false))))
+            .on_action(cx.listener(|v, _: &Outdent, _, cx| {
+                if !v.next_snippet_field(-1, cx) {
+                    v.edit(cx, |s| s.indent_lines(false))
+                }
+            }))
             .on_action(cx.listener(|v, _: &SelectAll, _, cx| v.mv(cx, |s| s.select_all())))
             .on_action(cx.listener(|v, _: &Copy, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(v.state.copy_text()))))
             .on_action(cx.listener(|v, _: &Cut, _, cx| {
@@ -1591,6 +1670,10 @@ impl EditorView {
             }))
             .on_action(cx.listener(|v, _: &QuickFix, _, cx| v.request_code_actions(cx)))
             .on_action(cx.listener(|v, _: &FindReferences, _, cx| v.find_references(cx)))
+            .on_action(cx.listener(|v, _: &Fold, _, cx| v.fold_at_caret(cx)))
+            .on_action(cx.listener(|v, _: &Unfold, _, cx| v.unfold_at_caret(cx)))
+            .on_action(cx.listener(|v, _: &FoldAll, _, cx| v.fold_all(cx)))
+            .on_action(cx.listener(|v, _: &UnfoldAll, _, cx| v.unfold_all(cx)))
             .on_action(cx.listener(|v, _: &GoToImplementation, _, cx| v.go_to_related(true, cx)))
             .on_action(cx.listener(|v, _: &GoToTypeDefinition, _, cx| v.go_to_related(false, cx)))
             .on_action(cx.listener(|v, _: &RenameSymbol, _, cx| v.request_rename(cx)))
@@ -1604,7 +1687,12 @@ impl EditorView {
                 }
             }))
             .on_action(cx.listener(|v, _: &Cancel, w, cx| {
-                if v.action_menu.take().is_some() || v.completion.take().is_some() || v.hover.take().is_some() || v.signature.take().is_some() {
+                if v.action_menu.take().is_some()
+                    || v.completion.take().is_some()
+                    || v.hover.take().is_some()
+                    || v.signature.take().is_some()
+                    || v.snippet_session.take().is_some()
+                {
                     v.hover_pending = None;
                     cx.notify();
                 } else if v.find.is_some() {
@@ -1772,19 +1860,9 @@ fn shift_breakpoints(breakpoints: &mut Vec<Breakpoint>, c: &Change) {
 }
 
 fn shift_diagnostics(diags: &mut [Diagnostic], c: &Change) {
-    let line_delta = c.new_end.line as isize - c.old_end.line as isize;
-    let shift = |p: Point| -> Point {
-        if p < c.old_end {
-            if p < c.start { p } else { c.start }
-        } else if p.line == c.old_end.line {
-            Point::new(c.new_end.line, c.new_end.col + (p.col - c.old_end.col))
-        } else {
-            Point::new((p.line as isize + line_delta).max(0) as usize, p.col)
-        }
-    };
     for d in diags {
-        d.start = shift(d.start);
-        d.end = shift(d.end);
+        d.start = inlays::shift_point(d.start, c);
+        d.end = inlays::shift_point(d.end, c);
     }
 }
 
@@ -1833,8 +1911,8 @@ impl Render for EditorView {
 impl EditorView {
     fn caret_screen_pos(&self, p: Point) -> (f32, f32) {
         let line = self.state.buffer.line(p.line);
-        let x = self.layout.text_left - self.scroll.0 + bf_text::visual_col(&line, p.col, self.state.tab_size) as f32 * self.layout.char_width;
-        let y = self.layout.top + p.line as f32 * self.layout.line_height - self.scroll.1;
+        let x = self.layout.text_left - self.scroll.0 + (bf_text::visual_col(&line, p.col, self.state.tab_size) + self.inlay_shift(p.line, p.col, false)) as f32 * self.layout.char_width;
+        let y = self.layout.top + self.folds.row_of(p.line) as f32 * self.layout.line_height - self.scroll.1;
         (x - self.layout.left, y - self.layout.top)
     }
 
