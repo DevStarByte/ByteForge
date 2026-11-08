@@ -6,5 +6,5 @@ mod editor;
 mod undo;
 
 pub use buffer::{Buffer, Change, LineEnding, Point};
-pub use editor::{CharClass, EditorState, char_class, logical_col, visual_col};
+pub use editor::{CharClass, Cursor, EditorState, char_class, logical_col, visual_col};
 pub use undo::UndoStack;

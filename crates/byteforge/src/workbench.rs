@@ -41,6 +41,8 @@ pub enum AppEvent {
 
 struct Tab {
     editor: Entity<EditorView>,
+    /// Editor group: 0 = left, 1 = right (split editor).
+    group: usize,
     path: Option<PathBuf>,
     title: String,
     bom: bool,
@@ -143,7 +145,11 @@ pub struct Workbench {
     themes: ThemeService,
     workspace: Workspace,
     tabs: Vec<Tab>,
+    /// The focused tab (the visible one of the focused group).
     active: Option<usize>,
+    /// The tab shown in each editor group, and which group has focus.
+    visible: [Option<usize>; 2],
+    focus_group: usize,
     untitled: usize,
     explorer: Entity<Explorer>,
     search: Entity<SearchView>,
@@ -344,6 +350,8 @@ impl Workbench {
             workspace,
             tabs: Vec::new(),
             active: None,
+            visible: [None, None],
+            focus_group: 0,
             untitled: 0,
             explorer,
             search,
@@ -529,6 +537,7 @@ impl Workbench {
         e.cursor_blinking = s.get("editor.cursorBlinking", true);
         e.inlay_hints_enabled = s.get("editor.inlayHints", true);
         e.folding_enabled = s.get("editor.folding", true);
+        e.minimap_enabled = s.get("editor.minimap", true) && !e.read_only;
         e.snippets = match (e.language, e.read_only) {
             (Some(language), false) => std::sync::Arc::new(bf_core::snippets::for_language(&self.paths.user_snippets(), language.id())),
             _ => std::sync::Arc::new(Vec::new()),
@@ -653,7 +662,7 @@ impl Workbench {
 
     fn add_tab(&mut self, editor: Entity<EditorView>, path: Option<PathBuf>, title: String, bom: bool, window: &mut Window, cx: &mut Context<Self>) {
         let sub = cx.subscribe_in(&editor, window, Self::on_editor_event);
-        self.tabs.push(Tab { editor, path, title, bom, _subs: vec![sub] });
+        self.tabs.push(Tab { editor, group: self.focus_group, path, title, bom, _subs: vec![sub] });
         let ix = self.tabs.len() - 1;
         self.activate(ix, window, cx);
     }
@@ -661,6 +670,9 @@ impl Workbench {
     fn activate(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
         if ix < self.tabs.len() {
             self.active = Some(ix);
+            let group = self.tabs[ix].group;
+            self.visible[group] = Some(ix);
+            self.focus_group = group;
             let editor = self.tabs[ix].editor.clone();
             editor.update(cx, |e, _| e.focus(window));
             let path = self.tabs[ix].path.clone();
@@ -791,7 +803,20 @@ impl Workbench {
         }
         let tab = self.tabs.remove(ix);
         tab.editor.update(cx, |e, _| e.detach_lsp());
-        self.active = if self.tabs.is_empty() { None } else { Some(ix.saturating_sub(1).min(self.tabs.len() - 1)) };
+        for slot in &mut self.visible {
+            *slot = match *slot {
+                Some(j) if j == ix => None,
+                Some(j) if j > ix => Some(j - 1),
+                other => other,
+            };
+        }
+        // The group the tab was in shows its neighbour (the tab before it, else the next one).
+        if self.visible[tab.group].is_none() {
+            let in_group: Vec<usize> = self.group_tabs(tab.group);
+            self.visible[tab.group] = in_group.iter().rev().find(|&&j| j < ix).or(in_group.first()).copied();
+        }
+        self.normalize_groups();
+        self.active = self.visible[self.focus_group];
         if let Some(i) = self.active {
             self.activate(i, window, cx);
         } else {
@@ -1636,12 +1661,74 @@ impl Workbench {
     }
 
     fn cycle_tab(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
-        if self.tabs.is_empty() {
+        let in_group = self.group_tabs(self.focus_group);
+        if in_group.is_empty() {
             return;
         }
-        let n = self.tabs.len() as isize;
-        let i = (self.active.unwrap_or(0) as isize + delta).rem_euclid(n) as usize;
+        let pos = self.active.and_then(|a| in_group.iter().position(|&j| j == a)).unwrap_or(0);
+        let i = in_group[(pos as isize + delta).rem_euclid(in_group.len() as isize) as usize];
         self.activate(i, window, cx);
+    }
+
+    // ───────────── editor groups (split editor) ─────────────
+
+    /// Indexes of the tabs in `group`, in tab order.
+    fn group_tabs(&self, group: usize) -> Vec<usize> {
+        self.tabs.iter().enumerate().filter(|(_, t)| t.group == group).map(|(i, _)| i).collect()
+    }
+
+    fn is_split(&self) -> bool {
+        self.tabs.iter().any(|t| t.group == 1)
+    }
+
+    /// Keeps the groups consistent: an empty left group takes over the right one, an empty focused
+    /// group hands focus to the other.
+    fn normalize_groups(&mut self) {
+        if self.group_tabs(0).is_empty() && self.is_split() {
+            for t in &mut self.tabs {
+                t.group = 0;
+            }
+            self.visible = [self.visible[1], None];
+            self.focus_group = 0;
+        }
+        if self.group_tabs(self.focus_group).is_empty() {
+            self.focus_group = 0;
+        }
+        for g in 0..2 {
+            if self.visible[g].is_none_or(|i| self.tabs.get(i).is_none_or(|t| t.group != g)) {
+                self.visible[g] = self.group_tabs(g).last().copied();
+            }
+        }
+    }
+
+    /// Ctrl+\\: moves the current editor into the other group (opening the right group when there is
+    /// none). The only tab of a group can't leave it unless the other group exists.
+    fn split_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(ix) = self.active else { return };
+        let from = self.tabs[ix].group;
+        if !self.is_split() && self.group_tabs(0).len() < 2 {
+            self.log("Split Editor: open a second file first; the current one moves into the right group.");
+            return;
+        }
+        let to = 1 - from;
+        self.tabs[ix].group = to;
+        if self.visible[from] == Some(ix) {
+            let left: Vec<usize> = self.group_tabs(from);
+            self.visible[from] = left.iter().rev().find(|&&j| j < ix).or(left.first()).copied();
+        }
+        self.visible[to] = Some(ix);
+        self.focus_group = to;
+        self.normalize_groups();
+        if let Some(i) = self.visible[self.focus_group] {
+            self.activate(i, window, cx);
+        }
+        cx.notify();
+    }
+
+    fn focus_group(&mut self, group: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(i) = self.visible[group].filter(|_| group == 0 || self.is_split()) {
+            self.activate(i, window, cx);
+        }
     }
 
     // ───────────── palette & prompts ─────────────
@@ -2287,6 +2374,9 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &ShowProblems, _, cx| wb.show_panel(PanelView::Problems, cx)))
             .on_action(cx.listener(|wb, _: &ShowOutput, _, cx| wb.show_panel(PanelView::Output, cx)))
             .on_action(cx.listener(|wb, _: &NextEditor, w, cx| wb.cycle_tab(1, w, cx)))
+            .on_action(cx.listener(|wb, _: &SplitEditor, w, cx| wb.split_editor(w, cx)))
+            .on_action(cx.listener(|wb, _: &FocusFirstGroup, w, cx| wb.focus_group(0, w, cx)))
+            .on_action(cx.listener(|wb, _: &FocusSecondGroup, w, cx| wb.focus_group(1, w, cx)))
             .on_action(cx.listener(|wb, _: &PreviousEditor, w, cx| wb.cycle_tab(-1, w, cx)))
             .on_action(cx.listener(|wb, _: &CustomizeTheme, w, cx| {
                 let name = format!("{} Custom", Theme::global(cx).data.name);
@@ -3030,14 +3120,48 @@ impl Workbench {
     fn render_main(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let t = Theme::global(cx);
         let lay = &t.layout;
-        let mut content: Option<gpui::AnyElement> = Some(match self.active_editor() {
-            Some(editor) => editor.into_any_element(),
-            None => self.render_welcome(window, cx).into_any_element(),
+        let split = self.is_split();
+        let tabs_at_bottom = lay.tabs_below_content();
+        let show_tabs = lay.editor.iter().any(|p| p == "tabs");
+        let mut content: Option<gpui::AnyElement> = Some(if split {
+            // Two groups side by side, each with its own tab strip.
+            let border = t.c_or("editorGroup.border", 0x80808040);
+            let groups: Vec<_> = (0..2)
+                .map(|g| {
+                    let editor = self.visible[g].and_then(|i| self.tabs.get(i)).map(|t| t.editor.clone());
+                    let tabs = show_tabs.then(|| self.render_tabs(tabs_at_bottom, g, cx));
+                    let body = div().flex_1().min_h_0().children(editor);
+                    div()
+                        .id(SharedString::from(format!("editor-group-{g}")))
+                        .flex_1()
+                        .min_w_0()
+                        .h_full()
+                        .flex()
+                        .flex_col()
+                        .when(g == 1, |d| d.border_l_1().border_color(border))
+                        .map(|d| {
+                            let tabs = tabs.map(|t| t.into_any_element());
+                            if tabs_at_bottom { d.child(body).children(tabs) } else { d.children(tabs).child(body) }
+                        })
+                        .on_mouse_down(MouseButton::Left, cx.listener(move |wb, _, w, cx| {
+                            if wb.focus_group != g {
+                                wb.focus_group(g, w, cx);
+                            }
+                        }))
+                        .into_any_element()
+                })
+                .collect();
+            div().size_full().flex().children(groups).into_any_element()
+        } else {
+            match self.active_editor() {
+                Some(editor) => editor.into_any_element(),
+                None => self.render_welcome(window, cx).into_any_element(),
+            }
         });
         let mut col = div().flex_1().min_w_0().h_full().flex().flex_col();
         for part in &lay.editor {
             match part.as_str() {
-                "tabs" if !self.tabs.is_empty() => col = col.child(self.render_tabs(lay.tabs_below_content(), cx)),
+                "tabs" if !self.tabs.is_empty() && !split => col = col.child(self.render_tabs(tabs_at_bottom, 0, cx)),
                 "breadcrumbs" => col = col.children(self.render_breadcrumbs(cx)),
                 "content" => {
                     if let Some(c) = content.take() {
@@ -3057,14 +3181,15 @@ impl Workbench {
         col
     }
 
-    fn render_tabs(&mut self, at_bottom: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+    fn render_tabs(&mut self, at_bottom: bool, group: usize, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let t = Theme::global(cx);
         let indicator_bottom = t.layout.tab_indicator_bottom;
-        let active = self.active;
+        let active = self.visible[group];
         let tab_els: Vec<_> = self
             .tabs
             .iter()
             .enumerate()
+            .filter(|(_, tab)| tab.group == group)
             .map(|(i, tab)| {
                 let is_active = active == Some(i);
                 let modified = tab.editor.read(cx).is_modified();
@@ -3140,7 +3265,7 @@ impl Workbench {
             })
             .collect();
         div()
-            .id("tab-strip")
+            .id(SharedString::from(format!("tab-strip-{group}")))
             .flex_none()
             .h(t.m("tab.height", 35.0))
             .w_full()
@@ -3696,7 +3821,11 @@ fn default_key(id: &str) -> &'static str {
         "edit.find" => "Ctrl+F",
         "edit.replace" => "Ctrl+H",
         "edit.toggleComment" => "Ctrl+/",
-        "edit.duplicateLines" => "Ctrl+D",
+        "edit.duplicateLines" => "Shift+Alt+Down",
+        "edit.addCursorAbove" => "Ctrl+Alt+Up",
+        "edit.addCursorBelow" => "Ctrl+Alt+Down",
+        "edit.addNextMatch" => "Ctrl+D",
+        "edit.selectAllMatches" => "Ctrl+Shift+L",
         "edit.triggerSuggest" => "Ctrl+Space",
         "view.commandPalette" => "Ctrl+Shift+P",
         "view.quickOpen" => "Ctrl+P",

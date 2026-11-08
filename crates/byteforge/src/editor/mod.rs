@@ -4,6 +4,7 @@
 mod element;
 mod folding;
 mod inlays;
+mod minimap;
 mod snippet;
 
 use std::ops::Range;
@@ -126,6 +127,7 @@ enum DragMode {
     Lines(usize),
     VScroll(f32),
     HScroll(f32),
+    Minimap,
 }
 
 /// Geometry from the last paint, used for hit testing (all values in window pixels, as f32).
@@ -144,6 +146,16 @@ pub(crate) struct Layout {
     /// Left edge and width of the folding chevron column in the gutter (width 0 when off).
     pub fold_left: f32,
     pub fold_width: f32,
+    /// Width of the minimap at the right edge (0 when hidden).
+    pub minimap: f32,
+}
+
+impl Layout {
+    /// Width of the text area: right of the gutter, left of the minimap.
+    pub fn text_width(&self) -> f32 {
+        let reserved = if self.minimap > 0.0 { self.minimap + minimap::SCROLLBAR_GAP } else { 0.0 };
+        self.width - (self.text_left - self.left) - reserved
+    }
 }
 
 pub struct EditorView {
@@ -187,6 +199,9 @@ pub struct EditorView {
     /// Inlay hints sorted by position ("editor.inlayHints").
     pub(crate) inlays: Vec<inlays::Inlay>,
     pub inlay_hints_enabled: bool,
+    pub minimap_enabled: bool,
+    minimap: Option<Arc<minimap::MiniMap>>,
+    minimap_hover: bool,
     inlay_task: Option<Task<()>>,
     action_menu: Option<ActionMenu>,
     action_task: Option<Task<()>>,
@@ -294,6 +309,9 @@ impl EditorView {
             snippet_session: None,
             inlays: Vec::new(),
             inlay_hints_enabled: true,
+            minimap_enabled: false,
+            minimap: None,
+            minimap_hover: false,
             inlay_task: None,
             completion_task: None,
             hover: None,
@@ -1045,7 +1063,8 @@ impl EditorView {
     // ───────────── completion ─────────────
 
     fn maybe_trigger_completion(&mut self, typed: &str, cx: &mut Context<Self>) {
-        if self.lsp.is_none() && self.snippets.is_empty() {
+        // Completions replace one range: not offered while editing with several cursors.
+        if (self.lsp.is_none() && self.snippets.is_empty()) || self.state.has_multiple_cursors() {
             return;
         }
         let Some(c) = typed.chars().last() else { return };
@@ -1316,7 +1335,7 @@ impl EditorView {
         self.reveal(caret, false);
         let line = self.state.buffer.line(caret.line);
         let x = (bf_text::visual_col(&line, caret.col, self.state.tab_size) + self.inlay_shift(caret.line, caret.col, false)) as f32 * self.layout.char_width;
-        let width = self.layout.width - (self.layout.text_left - self.layout.left);
+        let width = self.layout.text_width();
         let mut target = self.scroll_target;
         if x < target.0 {
             target.0 = (x - self.layout.char_width * 8.0).max(0.0);
@@ -1330,7 +1349,7 @@ impl EditorView {
         let lh = self.layout.line_height.max(1.0);
         let max_y = ((self.folds.row_count(self.state.buffer.line_count()) as f32 - 1.0) * lh).max(0.0);
         let content_w = self.max_line_chars as f32 * self.layout.char_width + self.layout.char_width * 8.0;
-        let view_w = self.layout.width - (self.layout.text_left - self.layout.left);
+        let view_w = self.layout.text_width();
         let max_x = (content_w - view_w).max(0.0);
         (v.0.clamp(0.0, max_x), v.1.clamp(0.0, max_y))
     }
@@ -1390,6 +1409,12 @@ impl EditorView {
         self.action_menu = None;
         self.clear_hover(cx);
         let (x, y) = (f32::from(e.position.x), f32::from(e.position.y));
+        if self.in_minimap(x, y) {
+            self.minimap_scroll_to(y);
+            self.drag = DragMode::Minimap;
+            cx.notify();
+            return;
+        }
         if let Some(vertical) = self.scrollbar_zone(x, y) {
             self.drag = if vertical { DragMode::VScroll(y) } else { DragMode::HScroll(x) };
             return;
@@ -1427,6 +1452,9 @@ impl EditorView {
             let (s, w) = self.state.word_at(p);
             self.state.select(s, w);
             self.drag = DragMode::Words(s, w);
+        } else if e.modifiers.alt && !e.modifiers.shift {
+            self.state.toggle_cursor(p);
+            self.drag = DragMode::None;
         } else {
             let origin = if e.modifiers.shift { self.state.anchor().unwrap_or(self.state.caret()) } else { p };
             if e.modifiers.shift {
@@ -1443,6 +1471,15 @@ impl EditorView {
         let (x, y) = (f32::from(e.position.x), f32::from(e.position.y));
         match self.drag {
             DragMode::None => {
+                let over_minimap = self.in_minimap(x, y);
+                if over_minimap != self.minimap_hover {
+                    self.minimap_hover = over_minimap;
+                    cx.notify();
+                }
+                if over_minimap {
+                    self.clear_hover(cx);
+                    return;
+                }
                 if self.hover.is_some() && self.hover_bounds.get().is_some_and(|b| b.contains(&e.position)) {
                     return; // reading the popup
                 }
@@ -1465,6 +1502,12 @@ impl EditorView {
                 let ratio = (self.folds.row_count(self.state.buffer.line_count()) as f32 * self.layout.line_height) / self.layout.height.max(1.0);
                 self.scroll_to((self.scroll.0, self.scroll.1 + (y - last) * ratio.max(1.0)), false);
                 self.drag = DragMode::VScroll(y);
+                cx.notify();
+                return;
+            }
+            DragMode::Minimap => {
+                self.minimap_scroll_to(y);
+                self.on_viewport_changed(cx);
                 cx.notify();
                 return;
             }
@@ -1576,10 +1619,14 @@ impl EditorView {
             }))
             .on_action(cx.listener(|v, _: &SelectUp, _, cx| v.mv(cx, |s| s.move_vertical(-1, true))))
             .on_action(cx.listener(|v, _: &SelectDown, _, cx| v.mv(cx, |s| s.move_vertical(1, true))))
-            .on_action(cx.listener(|v, _: &MoveHome, _, cx| v.mv(cx, |s| s.set_caret(s.smart_home(s.caret()), false))))
-            .on_action(cx.listener(|v, _: &MoveEnd, _, cx| v.mv(cx, |s| s.set_caret(s.line_end(s.caret()), false))))
-            .on_action(cx.listener(|v, _: &SelectHome, _, cx| v.mv(cx, |s| s.set_caret(s.smart_home(s.caret()), true))))
-            .on_action(cx.listener(|v, _: &SelectEnd, _, cx| v.mv(cx, |s| s.set_caret(s.line_end(s.caret()), true))))
+            .on_action(cx.listener(|v, _: &MoveHome, _, cx| v.mv(cx, |s| s.move_home(false))))
+            .on_action(cx.listener(|v, _: &MoveEnd, _, cx| v.mv(cx, |s| s.move_end(false))))
+            .on_action(cx.listener(|v, _: &SelectHome, _, cx| v.mv(cx, |s| s.move_home(true))))
+            .on_action(cx.listener(|v, _: &SelectEnd, _, cx| v.mv(cx, |s| s.move_end(true))))
+            .on_action(cx.listener(|v, _: &AddCursorAbove, _, cx| v.mv(cx, |s| { s.add_cursor_vertical(false); })))
+            .on_action(cx.listener(|v, _: &AddCursorBelow, _, cx| v.mv(cx, |s| { s.add_cursor_vertical(true); })))
+            .on_action(cx.listener(|v, _: &AddNextMatch, _, cx| v.mv(cx, |s| { s.add_next_match(); })))
+            .on_action(cx.listener(|v, _: &SelectAllMatches, _, cx| v.mv(cx, |s| { s.select_all_matches(); })))
             .on_action(cx.listener(|v, _: &MoveDocStart, _, cx| v.mv(cx, |s| s.set_caret(Point::default(), false))))
             .on_action(cx.listener(|v, _: &MoveDocEnd, _, cx| v.mv(cx, |s| s.set_caret(s.buffer.end(), false))))
             .on_action(cx.listener(|v, _: &SelectDocStart, _, cx| v.mv(cx, |s| s.set_caret(Point::default(), true))))
@@ -1649,7 +1696,7 @@ impl EditorView {
             }))
             .on_action(cx.listener(|v, _: &Paste, _, cx| {
                 if let Some(text) = cx.read_from_clipboard().and_then(|i| i.text()) {
-                    v.edit(cx, |s| s.insert(&text));
+                    v.edit(cx, |s| s.paste(&text));
                 }
             }))
             .on_action(cx.listener(|v, _: &Undo, _, cx| v.edit(cx, |s| s.undo())))
@@ -1697,6 +1744,9 @@ impl EditorView {
                     cx.notify();
                 } else if v.find.is_some() {
                     v.close_find(w, cx);
+                } else if v.state.has_multiple_cursors() {
+                    v.state.collapse_cursors();
+                    cx.notify();
                 } else if v.state.has_selection() {
                     v.state.clear_selection();
                     cx.notify();

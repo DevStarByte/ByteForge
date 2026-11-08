@@ -12,7 +12,7 @@ actions!(
         SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, About, Build, Run, Test, Clean, Restore, Stop,
         ToggleLineEnding, ReloadCSharp, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
         GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
-        FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace
+        FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup
     ]
 );
 
@@ -58,7 +58,8 @@ actions!(
         SelectDocEnd, PageUp, PageDown, SelectPageUp, SelectPageDown, ScrollLineUp, ScrollLineDown, Backspace, DeleteWordLeft,
         Delete, DeleteWordRight, Newline, Tab, Outdent, SelectAll, Copy, Cut, Paste, Undo, Redo, DuplicateLines, DeleteLines,
         MoveLinesUp, MoveLinesDown, ToggleComment, Find, Replace, FindNext, FindPrevious, TriggerCompletion, GoToDefinition,
-        Cancel, ToggleBreakpoint, QuickFix, FindReferences, RenameSymbol, ShowSignatureHelp, GoToImplementation, GoToTypeDefinition, Fold, Unfold, FoldAll, UnfoldAll
+        Cancel, ToggleBreakpoint, QuickFix, FindReferences, RenameSymbol, ShowSignatureHelp, GoToImplementation, GoToTypeDefinition, Fold, Unfold, FoldAll, UnfoldAll,
+        AddCursorAbove, AddCursorBelow, AddNextMatch, SelectAllMatches
     ]
 );
 
@@ -143,6 +144,9 @@ fn builtin() -> Vec<(&'static str, &'static str, &'static str, Box<dyn Action>, 
         ("git.openChanges", "Open Changes (Diff of Current File)", "Git", Box::new(GitOpenChanges), None),
         ("view.nextEditor", "Next Editor", "View", Box::new(NextEditor), Some("ctrl-tab")),
         ("view.previousEditor", "Previous Editor", "View", Box::new(PreviousEditor), Some("ctrl-shift-tab")),
+        ("view.splitEditor", "Split Editor (Move to Other Group)", "View", Box::new(SplitEditor), Some("ctrl-\\")),
+        ("view.focusFirstGroup", "Focus First Editor Group", "View", Box::new(FocusFirstGroup), Some("ctrl-1")),
+        ("view.focusSecondGroup", "Focus Second Editor Group", "View", Box::new(FocusSecondGroup), Some("ctrl-2")),
         ("theme.select", "Color Theme", "Preferences", Box::new(SelectTheme), Some("ctrl-k")),
         ("theme.customize", "Customize Current Theme", "Preferences", Box::new(CustomizeTheme), None),
         ("theme.edit", "Open Current Theme File", "Preferences", Box::new(EditTheme), None),
@@ -186,6 +190,10 @@ fn builtin() -> Vec<(&'static str, &'static str, &'static str, Box<dyn Action>, 
         ("edit.replace", "Replace", "Edit", Box::new(Replace), None),
         ("edit.toggleComment", "Toggle Line Comment", "Edit", Box::new(ToggleComment), None),
         ("edit.duplicateLines", "Duplicate Lines", "Edit", Box::new(DuplicateLines), None),
+        ("edit.addCursorAbove", "Add Cursor Above", "Selection", Box::new(AddCursorAbove), None),
+        ("edit.addCursorBelow", "Add Cursor Below", "Selection", Box::new(AddCursorBelow), None),
+        ("edit.addNextMatch", "Add Selection to Next Find Match", "Selection", Box::new(AddNextMatch), None),
+        ("edit.selectAllMatches", "Select All Occurrences", "Selection", Box::new(SelectAllMatches), None),
         ("edit.goToDefinition", "Go to Definition", "Go", Box::new(GoToDefinition), None),
         ("edit.triggerSuggest", "Trigger Suggest", "Edit", Box::new(TriggerCompletion), None),
         ("edit.quickFix", "Quick Fix…", "Edit", Box::new(QuickFix), None),
@@ -295,7 +303,11 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         KeyBinding::new("ctrl-z", Undo, e),
         KeyBinding::new("ctrl-y", Redo, e),
         KeyBinding::new("ctrl-shift-z", Redo, e),
-        KeyBinding::new("ctrl-d", DuplicateLines, e),
+        KeyBinding::new("shift-alt-down", DuplicateLines, e),
+        KeyBinding::new("ctrl-d", AddNextMatch, e),
+        KeyBinding::new("ctrl-shift-l", SelectAllMatches, e),
+        KeyBinding::new("ctrl-alt-up", AddCursorAbove, e),
+        KeyBinding::new("ctrl-alt-down", AddCursorBelow, e),
         KeyBinding::new("ctrl-shift-k", DeleteLines, e),
         KeyBinding::new("alt-up", MoveLinesUp, e),
         KeyBinding::new("alt-down", MoveLinesDown, e),

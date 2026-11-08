@@ -10,6 +10,12 @@ UI is styled from theme files that reload live.
   shaped text per line.
   - **Editing:** undo/redo that groups typing, auto-indent, bracket/quote auto-close, comment toggling,
     move/duplicate/delete lines, find & replace, and word/line selection by double/triple click.
+  - **Multiple cursors:** Alt+Click adds (or removes) a cursor, Ctrl+Alt+Up/Down adds one on the line above/below,
+    Ctrl+D selects the word and then adds the next occurrence, Ctrl+Shift+L selects all occurrences. Typing,
+    deleting, Enter, Tab, the arrow keys, Home/End and copy/paste work at every cursor (pasting one line per
+    cursor when the clipboard has as many lines); Escape goes back to one cursor.
+  - **Minimap** at the right edge: the file in miniature in its syntax colors, with the visible part marked.
+    Click or drag it to scroll. `"editor.minimap": false` hides it.
   - **Folding:** chevrons in the gutter fold `{ }` blocks and `#region`s (indentation in XML and YAML);
     Ctrl+Shift+[ / ] fold and unfold at the caret, plus Fold All / Unfold All. Arrow keys step over folds.
   - **Snippets:** `prop`, `propfull`, `ctor`, `class`, `foreach`, `for`, `if`, `try`, `switch`, `svm`, `test` and more
@@ -62,6 +68,8 @@ UI is styled from theme files that reload live.
     you're editing is highlighted with an accent bar, its folders are shown in bold, and the tree follows
     as you switch tabs.
   - tabs, breadcrumbs, and Problems and Output panels
+  - **split editor:** Ctrl+\\ moves the current tab into a second editor group beside the first (and back);
+    Ctrl+1 / Ctrl+2 focus the groups. Closing a group's last tab closes the group.
   - a status bar, a command palette (`Ctrl+Shift+P`), go to file (`Ctrl+P`) and go to line (`Ctrl+G`)
   - a theme picker with live preview and color swatches (`Ctrl+K`).
 - **Git** (through the `git` CLI, so your config, credentials and hooks apply):
@@ -186,6 +194,9 @@ The theme sections:
 - **editor**: caret style, blink mode and speed, smooth-caret animation and speed, line highlight mode,
   selection radius, whitespace rendering, squiggle style, rainbow brackets, bracket matching, indent guides,
   rulers and paddings.
+- **minimap and groups**: `minimap.background`, `minimap.selectionHighlight`, `minimap.caretLine`,
+  `minimapSlider.background` / `hoverBackground` and `editorGroup.border` (in `colors`), `minimap.width` (in
+  `metrics`).
 - **git colors** (in `colors`): `gitDecoration.*ResourceForeground`, `editorGutter.added/modified/deletedBackground`,
   `diffEditor.inserted/removedLineBackground`, `activityBarBadge.*`, `badge.*`; sizes in `metrics`:
   `editorGutter.changeWidth/changeOffset/changeRadius`, `scm.iconSize`, `activityBarBadge.size`.
@@ -239,7 +250,7 @@ comma-separated strings:
 ```jsonc
 {
   "workbench.theme": "ByteForge Dark",
-  "editor.tabSize": 4, "editor.insertSpaces": true, "editor.smoothScrolling": true,
+  "editor.tabSize": 4, "editor.insertSpaces": true, "editor.smoothScrolling": true, "editor.minimap": true,
   "files.exclude": ["bin", "obj", ".git", "node_modules", "target"],
   "csharp.languageServer": "",                         // custom path to csharp-ls (optional)
   "dotnet.project": "src/MyApp/MyApp.csproj",          // build/run/debug target (optional)
@@ -263,7 +274,9 @@ comma-separated strings:
 | Ctrl+S / Ctrl+Shift+S | Save / Save as | F12, Ctrl+Click | Go to definition |
 | Ctrl+F / Ctrl+H | Find / Replace | Ctrl+Space | Completion |
 | Ctrl+/ (Ctrl+# on DE) | Toggle comment | Alt+↑/↓ | Move lines |
-| Ctrl+D | Duplicate lines | Ctrl+Shift+K | Delete lines |
+| Ctrl+D | Add next occurrence (multi-cursor) | Ctrl+Shift+K | Delete lines |
+| Alt+Click, Ctrl+Alt+↑/↓ | Add cursor | Shift+Alt+↓ | Duplicate lines |
+| Ctrl+\\ | Split editor | Ctrl+1 / Ctrl+2 | Focus editor group |
 | Ctrl+B / Ctrl+J | Toggle side bar / panel | Ctrl+Shift+E / F | Explorer / Search |
 | Ctrl+Shift+B | Build | F5 | Start debugging / Continue |
 | Ctrl+F5 | Run without debugging | Shift+F5 | Stop |

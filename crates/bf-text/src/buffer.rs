@@ -117,6 +117,15 @@ impl Buffer {
         std::mem::take(&mut self.changes)
     }
 
+    pub(crate) fn changes_len(&self) -> usize {
+        self.changes.len()
+    }
+
+    /// Changes recorded since the list had `len` entries (without consuming them).
+    pub(crate) fn changes_since(&self, len: usize) -> &[Change] {
+        self.changes.get(len..).unwrap_or_default()
+    }
+
     pub fn text(&self) -> String {
         self.rope.to_string()
     }

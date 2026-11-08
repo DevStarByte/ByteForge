@@ -1,4 +1,4 @@
-use crate::buffer::{Buffer, Point, order};
+use crate::buffer::{Buffer, Change, Point, order};
 
 /// Character classes for word movement and double-click selection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +51,45 @@ fn closer_of(c: char) -> Option<char> {
     PAIRS.iter().find(|(o, _)| *o == c).map(|(_, c)| *c)
 }
 
+/// One caret with its optional selection anchor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Cursor {
+    pub caret: Point,
+    pub anchor: Option<Point>,
+    desired_visual_col: Option<usize>,
+}
+
+impl Cursor {
+    pub fn new(caret: Point, anchor: Option<Point>) -> Self {
+        Self { caret, anchor, desired_visual_col: None }
+    }
+
+    pub fn has_selection(&self) -> bool {
+        self.anchor.is_some_and(|a| a != self.caret)
+    }
+
+    /// Ordered (start, end); empty at the caret without a selection.
+    pub fn selection(&self) -> (Point, Point) {
+        match self.anchor {
+            Some(a) if a != self.caret => order(a, self.caret),
+            _ => (self.caret, self.caret),
+        }
+    }
+}
+
+/// Where `p` ends up after `change` (for positions at or after the change).
+fn shift_point(p: Point, c: &Change) -> Point {
+    if p < c.start {
+        p
+    } else if p < c.old_end {
+        c.new_end
+    } else if p.line == c.old_end.line {
+        Point::new(c.new_end.line, c.new_end.col + (p.col - c.old_end.col))
+    } else {
+        Point::new(p.line - c.old_end.line + c.new_end.line, p.col)
+    }
+}
+
 /// Caret, selection and every editing command of the editor. All mutations go through the
 /// [`Buffer`], which records undo and the change list consumed by highlighters and language servers.
 pub struct EditorState {
@@ -63,6 +102,8 @@ pub struct EditorState {
     pub auto_close: bool,
     pub read_only: bool,
     pub line_comment: Option<&'static str>,
+    /// Secondary cursors (multi-cursor editing); the primary one is `caret`/`anchor`.
+    extra: Vec<Cursor>,
     /// Used by [`EditorState::toggle_comment`] when there is no line comment (e.g. Razor's `@*` `*@`).
     pub block_comment: Option<(&'static str, &'static str)>,
 }
@@ -80,6 +121,7 @@ impl EditorState {
             read_only: false,
             line_comment: None,
             block_comment: None,
+            extra: Vec::new(),
         }
     }
 
@@ -110,7 +152,19 @@ impl EditorState {
         self.buffer.slice(s, e)
     }
 
+    /// Moves the caret (collapsing any extra cursors).
     pub fn set_caret(&mut self, p: Point, extend: bool) {
+        self.extra.clear();
+        self.place(p, extend);
+    }
+
+    /// Selects `anchor..caret` (collapsing any extra cursors).
+    pub fn select(&mut self, anchor: Point, caret: Point) {
+        self.extra.clear();
+        self.select_range(anchor, caret);
+    }
+
+    fn place(&mut self, p: Point, extend: bool) {
         let p = self.buffer.clamp(p);
         if extend {
             self.anchor.get_or_insert(self.caret);
@@ -121,25 +175,200 @@ impl EditorState {
         self.desired_visual_col = None;
     }
 
-    pub fn select(&mut self, anchor: Point, caret: Point) {
+    fn select_range(&mut self, anchor: Point, caret: Point) {
         self.anchor = Some(self.buffer.clamp(anchor));
         self.caret = self.buffer.clamp(caret);
         self.desired_visual_col = None;
     }
 
     pub fn select_all(&mut self) {
+        self.extra.clear();
         let end = self.buffer.end();
-        self.select(Point::default(), end);
+        self.select_range(Point::default(), end);
     }
 
     pub fn clear_selection(&mut self) {
         self.anchor = None;
+        for c in &mut self.extra {
+            c.anchor = None;
+        }
     }
 
     /// Re-clamps caret/anchor after external buffer changes.
     pub fn clamp(&mut self) {
         self.caret = self.buffer.clamp(self.caret);
         self.anchor = self.anchor.map(|a| self.buffer.clamp(a));
+        for c in &mut self.extra {
+            c.caret = self.buffer.clamp(c.caret);
+            c.anchor = c.anchor.map(|a| self.buffer.clamp(a));
+        }
+        if !self.extra.is_empty() {
+            self.merge_cursors();
+        }
+    }
+
+    // ───────────── multiple cursors ─────────────
+
+    pub fn has_multiple_cursors(&self) -> bool {
+        !self.extra.is_empty()
+    }
+
+    pub fn cursor_count(&self) -> usize {
+        self.extra.len() + 1
+    }
+
+    fn primary(&self) -> Cursor {
+        Cursor { caret: self.caret, anchor: self.anchor, desired_visual_col: self.desired_visual_col }
+    }
+
+    fn set_primary(&mut self, c: Cursor) {
+        self.caret = c.caret;
+        self.anchor = c.anchor;
+        self.desired_visual_col = c.desired_visual_col;
+    }
+
+    /// Every cursor (the primary one included) in document order, with whether it's the primary.
+    pub fn cursors(&self) -> Vec<(Cursor, bool)> {
+        let mut all: Vec<(Cursor, bool)> = self.extra.iter().map(|c| (*c, false)).collect();
+        all.push((self.primary(), true));
+        all.sort_by_key(|(c, _)| c.selection().0);
+        all
+    }
+
+    /// Drops the extra cursors, keeping the primary one.
+    pub fn collapse_cursors(&mut self) {
+        self.extra.clear();
+    }
+
+    /// Alt+Click: adds a cursor at `p`, or removes the one already there.
+    pub fn toggle_cursor(&mut self, p: Point) {
+        let p = self.buffer.clamp(p);
+        if let Some(i) = self.extra.iter().position(|c| c.caret == p) {
+            self.extra.remove(i);
+            return;
+        }
+        if self.caret == p {
+            if let Some(next) = self.extra.pop() {
+                self.set_primary(next);
+            }
+            return;
+        }
+        self.extra.push(self.primary());
+        self.set_primary(Cursor::new(p, None));
+        self.merge_cursors();
+    }
+
+    /// Ctrl+Alt+Up/Down: a new cursor on the line above the topmost (below the bottommost) cursor, in the
+    /// primary cursor's visual column. Returns the new caret.
+    pub fn add_cursor_vertical(&mut self, down: bool) -> Option<Point> {
+        let all = self.cursors();
+        let edge = if down { all.iter().map(|(c, _)| c.caret.line).max()? } else { all.iter().map(|(c, _)| c.caret.line).min()? };
+        let target = if down { edge + 1 } else { edge.checked_sub(1)? };
+        if target >= self.buffer.line_count() {
+            return None;
+        }
+        let desired = self.desired_visual_col.unwrap_or_else(|| visual_col(&self.buffer.line(self.caret.line), self.caret.col, self.tab_size));
+        let p = Point::new(target, logical_col(&self.buffer.line(target), desired as f32, self.tab_size));
+        self.extra.push(Cursor { anchor: None, ..self.primary() });
+        self.set_primary(Cursor { caret: p, anchor: None, desired_visual_col: Some(desired) });
+        self.merge_cursors();
+        Some(p)
+    }
+
+    /// Ctrl+D: selects the word at the caret, or adds a cursor selecting the next occurrence of the
+    /// primary selection (wrapping around). Returns the newly selected range.
+    pub fn add_next_match(&mut self) -> Option<(Point, Point)> {
+        if !self.has_selection() {
+            let (s, e) = self.word_at(self.caret);
+            if s == e || self.buffer.slice(s, e).trim().is_empty() {
+                return None;
+            }
+            self.select_range(s, e);
+            return Some((s, e));
+        }
+        let query = self.selected_text();
+        let taken: Vec<(Point, Point)> = self.cursors().iter().map(|(c, _)| c.selection()).collect();
+        let matches = self.find_all(&query, true, 100_000);
+        let after = self.selection().1;
+        let next = matches.iter().filter(|m| !taken.contains(m)).find(|m| m.0 >= after).or_else(|| matches.iter().find(|m| !taken.contains(m)))?;
+        let (s, e) = *next;
+        self.extra.push(self.primary());
+        self.set_primary(Cursor::new(e, Some(s)));
+        Some((s, e))
+    }
+
+    /// Ctrl+Shift+L: a cursor on every occurrence of the selection (or of the word at the caret).
+    pub fn select_all_matches(&mut self) -> usize {
+        if !self.has_selection() && self.add_next_match().is_none() {
+            return 0;
+        }
+        let query = self.selected_text();
+        let primary = self.selection();
+        let matches = self.find_all(&query, true, 100_000);
+        self.extra = matches.iter().filter(|m| **m != primary).map(|&(s, e)| Cursor::new(e, Some(s))).collect();
+        self.cursor_count()
+    }
+
+    /// Runs a single-cursor command once per cursor, from the bottom of the document up, so each
+    /// edit only shifts cursors already done (which are moved along). One undo step for all.
+    fn for_each_cursor(&mut self, mut f: impl FnMut(&mut Self)) {
+        if self.extra.is_empty() {
+            f(self);
+            return;
+        }
+        let mut todo: Vec<(Cursor, bool)> = self.extra.drain(..).map(|c| (c, false)).collect();
+        todo.push((self.primary(), true));
+        todo.sort_by_key(|(c, _)| std::cmp::Reverse(c.selection().0));
+        let mut done: Vec<(Cursor, bool)> = Vec::with_capacity(todo.len());
+        self.buffer.undo_stack().begin_group();
+        for (cursor, is_primary) in todo {
+            self.set_primary(cursor);
+            let before = self.buffer.changes_len();
+            f(self);
+            for change in self.buffer.changes_since(before) {
+                for (c, _) in &mut done {
+                    c.caret = shift_point(c.caret, change);
+                    c.anchor = c.anchor.map(|a| shift_point(a, change));
+                }
+            }
+            done.push((self.primary(), is_primary));
+        }
+        self.buffer.undo_stack().end_group();
+        for (c, is_primary) in done {
+            if is_primary {
+                self.set_primary(c);
+            } else {
+                self.extra.push(c);
+            }
+        }
+        self.merge_cursors();
+    }
+
+    /// Joins cursors that sit on the same spot or whose selections overlap.
+    fn merge_cursors(&mut self) {
+        let all = self.cursors();
+        let mut merged: Vec<(Cursor, bool)> = Vec::with_capacity(all.len());
+        for (c, is_primary) in all {
+            if let Some((last, last_primary)) = merged.last_mut() {
+                let (ls, le) = last.selection();
+                let (s, e) = c.selection();
+                if s == ls || s < le || (c.caret == last.caret) {
+                    let (start, end) = (ls.min(s), le.max(e));
+                    *last = if start == end { Cursor::new(end, None) } else { Cursor::new(end, Some(start)) };
+                    *last_primary |= is_primary;
+                    continue;
+                }
+            }
+            merged.push((c, is_primary));
+        }
+        self.extra.clear();
+        for (c, is_primary) in merged {
+            if is_primary {
+                self.set_primary(c);
+            } else {
+                self.extra.push(c);
+            }
+        }
     }
 
     pub fn word_at(&self, p: Point) -> (Point, Point) {
@@ -228,27 +457,48 @@ impl EditorState {
     }
 
     pub fn move_left(&mut self, word: bool, extend: bool) {
+        self.for_each_cursor(|s| s.move_left_one(word, extend));
+    }
+
+    fn move_left_one(&mut self, word: bool, extend: bool) {
         if !extend && !word && self.has_selection() {
             let (s, _) = self.selection();
-            self.set_caret(s, false);
+            self.place(s, false);
         } else {
             let p = if word { self.word_left(self.caret) } else { self.char_left(self.caret) };
-            self.set_caret(p, extend);
+            self.place(p, extend);
         }
     }
 
     pub fn move_right(&mut self, word: bool, extend: bool) {
+        self.for_each_cursor(|s| s.move_right_one(word, extend));
+    }
+
+    fn move_right_one(&mut self, word: bool, extend: bool) {
         if !extend && !word && self.has_selection() {
             let (_, e) = self.selection();
-            self.set_caret(e, false);
+            self.place(e, false);
         } else {
             let p = if word { self.word_right(self.caret) } else { self.char_right(self.caret) };
-            self.set_caret(p, extend);
+            self.place(p, extend);
         }
     }
 
     /// Vertical movement keeping the desired visual column (like every code editor).
     pub fn move_vertical(&mut self, delta: isize, extend: bool) {
+        self.for_each_cursor(|s| s.move_vertical_one(delta, extend));
+    }
+
+    /// Home (smart: first non-blank, then column 0) at every cursor.
+    pub fn move_home(&mut self, extend: bool) {
+        self.for_each_cursor(|s| s.place(s.smart_home(s.caret), extend));
+    }
+
+    pub fn move_end(&mut self, extend: bool) {
+        self.for_each_cursor(|s| s.place(s.line_end(s.caret), extend));
+    }
+
+    fn move_vertical_one(&mut self, delta: isize, extend: bool) {
         let line_text = self.buffer.line(self.caret.line);
         let desired = self.desired_visual_col.unwrap_or_else(|| visual_col(&line_text, self.caret.col, self.tab_size));
         let target = self.caret.line as isize + delta;
@@ -260,7 +510,7 @@ impl EditorState {
             let line = target as usize;
             Point::new(line, logical_col(&self.buffer.line(line), desired as f32, self.tab_size))
         };
-        self.set_caret(p, extend);
+        self.place(p, extend);
         self.desired_visual_col = Some(desired);
     }
 
@@ -271,26 +521,53 @@ impl EditorState {
         if self.insert_spaces { " ".repeat(self.tab_size) } else { "\t".into() }
     }
 
-    /// Replaces the selection (or inserts at the caret).
+    /// Replaces the selection (or inserts at the caret), at every cursor.
     pub fn insert(&mut self, text: &str) {
+        self.for_each_cursor(|s| s.insert_one(text));
+    }
+
+    /// Paste: with one line of clipboard text per cursor, each cursor gets its own line.
+    pub fn paste(&mut self, text: &str) {
+        let text = text.replace("\r\n", "\n");
+        let lines: Vec<&str> = text.strip_suffix('\n').unwrap_or(&text).split('\n').collect();
+        if self.has_multiple_cursors() && lines.len() == self.cursor_count() {
+            // Cursors run bottom-up: hand out the lines from the end.
+            let mut rest = lines.into_iter().rev();
+            self.for_each_cursor(|s| s.insert_one(rest.next().unwrap_or_default()));
+        } else {
+            self.insert(&text);
+        }
+    }
+
+    fn insert_one(&mut self, text: &str) {
         if self.read_only {
             return;
         }
         let (s, e) = self.selection();
         let end = self.buffer.replace(s, e, text);
-        self.set_caret(end, false);
+        self.place(end, false);
     }
 
+    /// Replaces `start..end` and puts the caret after it (collapsing any extra cursors).
     pub fn replace_range(&mut self, start: Point, end: Point, text: &str) {
+        self.extra.clear();
+        self.replace_one(start, end, text);
+    }
+
+    fn replace_one(&mut self, start: Point, end: Point, text: &str) {
         if self.read_only {
             return;
         }
         let end = self.buffer.replace(start, end, text);
-        self.set_caret(end, false);
+        self.place(end, false);
     }
 
     /// Typing with bracket/quote auto-closing, closer over-typing and `}` outdent.
     pub fn type_text(&mut self, text: &str) {
+        self.for_each_cursor(|s| s.type_text_one(text));
+    }
+
+    fn type_text_one(&mut self, text: &str) {
         if self.read_only || text.is_empty() {
             return;
         }
@@ -302,7 +579,7 @@ impl EditorState {
         if let (Some(c), None, true) = (chars.next(), chars.next(), self.auto_close) {
             let is_closer = matches!(c, ')' | ']' | '}' | '"' | '\'');
             if !self.has_selection() && is_closer && next == Some(c) {
-                self.set_caret(Point::new(self.caret.line, col + 1), false);
+                self.place(Point::new(self.caret.line, col + 1), false);
                 return;
             }
             if let Some(close) = closer_of(c) {
@@ -311,7 +588,7 @@ impl EditorState {
                     let inner = self.buffer.slice(s, e);
                     self.buffer.replace(s, e, &format!("{c}{inner}{close}"));
                     let inner_len = inner.chars().count();
-                    self.select(Point::new(s.line, s.col + 1), Point::new(s.line, s.col + 1 + inner_len));
+                    self.select_range(Point::new(s.line, s.col + 1), Point::new(s.line, s.col + 1 + inner_len));
                     return;
                 }
                 let quote = c == '"' || c == '\'';
@@ -319,7 +596,7 @@ impl EditorState {
                 let prev_ok = !quote || prev.is_none_or(|p| !(p.is_alphanumeric() || p == c));
                 if !self.has_selection() && next_ok && prev_ok {
                     self.buffer.replace(self.caret, self.caret, &format!("{c}{close}"));
-                    self.set_caret(Point::new(self.caret.line, col + 1), false);
+                    self.place(Point::new(self.caret.line, col + 1), false);
                     return;
                 }
             }
@@ -327,11 +604,11 @@ impl EditorState {
                 let indent: String = line[..col].iter().collect();
                 let reduced = self.remove_indent_unit(&indent);
                 let caret = self.caret;
-                self.replace_range(Point::new(caret.line, 0), caret, &format!("{reduced}}}"));
+                self.replace_one(Point::new(caret.line, 0), caret, &format!("{reduced}}}"));
                 return;
             }
         }
-        self.insert(text);
+        self.insert_one(text);
     }
 
     fn remove_indent_unit(&self, indent: &str) -> String {
@@ -343,6 +620,10 @@ impl EditorState {
     }
 
     pub fn newline(&mut self) {
+        self.for_each_cursor(Self::newline_one);
+    }
+
+    fn newline_one(&mut self) {
         if self.read_only {
             return;
         }
@@ -359,16 +640,20 @@ impl EditorState {
             let inner = format!("{indent}{}", self.indent_unit());
             if after.starts_with(closer_of(open).unwrap_or(' ')) {
                 self.buffer.replace(s, e, &format!("\n{inner}\n{indent}"));
-                self.set_caret(Point::new(s.line + 1, inner.chars().count()), false);
+                self.place(Point::new(s.line + 1, inner.chars().count()), false);
             } else {
-                self.insert(&format!("\n{inner}"));
+                self.insert_one(&format!("\n{inner}"));
             }
             return;
         }
-        self.insert(&format!("\n{indent}"));
+        self.insert_one(&format!("\n{indent}"));
     }
 
     pub fn tab(&mut self) {
+        self.for_each_cursor(Self::tab_one);
+    }
+
+    fn tab_one(&mut self) {
         if self.read_only {
             return;
         }
@@ -378,11 +663,11 @@ impl EditorState {
             return;
         }
         if !self.insert_spaces {
-            self.insert("\t");
+            self.insert_one("\t");
             return;
         }
         let v = visual_col(&self.buffer.line(s.line), s.col, self.tab_size);
-        self.insert(&" ".repeat(self.tab_size - v % self.tab_size));
+        self.insert_one(&" ".repeat(self.tab_size - v % self.tab_size));
     }
 
     fn selected_lines(&self) -> (usize, usize) {
@@ -392,6 +677,7 @@ impl EditorState {
     }
 
     pub fn indent_lines(&mut self, indent: bool) {
+        self.extra.clear();
         if self.read_only {
             return;
         }
@@ -415,13 +701,14 @@ impl EditorState {
         self.buffer.undo_stack().end_group();
         if had_selection {
             let end = self.buffer.line_len(last);
-            self.select(Point::new(first, 0), Point::new(last, end));
+            self.select_range(Point::new(first, 0), Point::new(last, end));
         } else {
             self.clamp();
         }
     }
 
     pub fn toggle_comment(&mut self) {
+        self.extra.clear();
         let (prefix, suffix) = match (self.line_comment, self.block_comment) {
             (Some(prefix), _) => (prefix, ""),
             (None, Some((open, close))) => (open, close),
@@ -475,13 +762,14 @@ impl EditorState {
         self.buffer.undo_stack().end_group();
         if had_selection {
             let end = self.buffer.line_len(last);
-            self.select(Point::new(first, 0), Point::new(last, end));
+            self.select_range(Point::new(first, 0), Point::new(last, end));
         } else {
             self.clamp();
         }
     }
 
     pub fn move_lines(&mut self, down: bool) {
+        self.extra.clear();
         if self.read_only {
             return;
         }
@@ -509,6 +797,7 @@ impl EditorState {
     }
 
     pub fn duplicate_lines(&mut self) {
+        self.extra.clear();
         if self.read_only {
             return;
         }
@@ -522,6 +811,7 @@ impl EditorState {
     }
 
     pub fn delete_lines(&mut self) {
+        self.extra.clear();
         if self.read_only {
             return;
         }
@@ -535,15 +825,19 @@ impl EditorState {
             let end = self.buffer.end();
             self.buffer.replace(Point::default(), end, "");
         }
-        self.set_caret(Point::new(first, col), false);
+        self.place(Point::new(first, col), false);
     }
 
     pub fn backspace(&mut self, word: bool) {
+        self.for_each_cursor(|s| s.backspace_one(word));
+    }
+
+    fn backspace_one(&mut self, word: bool) {
         if self.read_only {
             return;
         }
         if self.has_selection() {
-            self.insert("");
+            self.insert_one("");
             return;
         }
         let caret = self.caret;
@@ -555,33 +849,46 @@ impl EditorState {
         let from = if word {
             self.word_left(caret)
         } else if self.auto_close && col > 0 && col < line.len() && closer_of(line[col - 1]) == Some(line[col]) {
-            self.replace_range(Point::new(caret.line, col - 1), Point::new(caret.line, col + 1), "");
+            self.replace_one(Point::new(caret.line, col - 1), Point::new(caret.line, col + 1), "");
             return;
         } else if self.insert_spaces && col > 0 && line[..col].iter().all(|c| *c == ' ') {
             Point::new(caret.line, col - ((col - 1) % self.tab_size + 1))
         } else {
             self.char_left(caret)
         };
-        self.replace_range(from, caret, "");
+        self.replace_one(from, caret, "");
     }
 
     pub fn delete_forward(&mut self, word: bool) {
+        self.for_each_cursor(|s| s.delete_forward_one(word));
+    }
+
+    fn delete_forward_one(&mut self, word: bool) {
         if self.read_only {
             return;
         }
         if self.has_selection() {
-            self.insert("");
+            self.insert_one("");
             return;
         }
         let caret = self.caret;
         let to = if word { self.word_right(caret) } else { self.char_right(caret) };
         if to != caret {
-            self.replace_range(caret, to, "");
+            self.replace_one(caret, to, "");
         }
     }
 
     /// Text for copy: the selection, or the whole current line (with newline) when nothing is selected.
     pub fn copy_text(&self) -> String {
+        if self.has_multiple_cursors() {
+            let all = self.cursors();
+            let any_selection = all.iter().any(|(c, _)| c.has_selection());
+            let parts: Vec<String> = all
+                .iter()
+                .map(|(c, _)| if any_selection { let (s, e) = c.selection(); self.buffer.slice(s, e) } else { self.buffer.line(c.caret.line).into_owned() })
+                .collect();
+            return if any_selection { parts.join("\n") } else { format!("{}\n", parts.join("\n")) };
+        }
         if self.has_selection() {
             self.selected_text()
         } else {
@@ -591,8 +898,10 @@ impl EditorState {
 
     pub fn cut(&mut self) -> String {
         let text = self.copy_text();
-        if self.has_selection() {
+        if self.has_multiple_cursors() && self.cursors().iter().any(|(c, _)| c.has_selection()) {
             self.insert("");
+        } else if self.has_selection() {
+            self.insert_one("");
         } else {
             self.delete_lines();
         }
@@ -600,14 +909,16 @@ impl EditorState {
     }
 
     pub fn undo(&mut self) {
+        self.extra.clear();
         if let Some(p) = self.buffer.undo() {
-            self.set_caret(p, false);
+            self.place(p, false);
         }
     }
 
     pub fn redo(&mut self) {
+        self.extra.clear();
         if let Some(p) = self.buffer.redo() {
-            self.set_caret(p, false);
+            self.place(p, false);
         }
     }
 
@@ -753,5 +1064,77 @@ mod tests {
         let e = editor("Foo foo\nFOO");
         assert_eq!(e.find_all("foo", false, 100).len(), 3);
         assert_eq!(e.find_all("foo", true, 100).len(), 1);
+    }
+
+    #[test]
+    fn multi_cursor_typing_and_backspace() {
+        let mut e = editor("ab\ncd\nef");
+        e.set_caret(Point::new(0, 1), false);
+        e.toggle_cursor(Point::new(1, 1));
+        e.toggle_cursor(Point::new(2, 1));
+        assert_eq!(e.cursor_count(), 3);
+        e.type_text("X");
+        assert_eq!(e.buffer.text(), "aXb\ncXd\neXf");
+        e.backspace(false);
+        assert_eq!(e.buffer.text(), "ab\ncd\nef");
+        // one undo step for the whole multi-cursor edit
+        e.type_text("Y");
+        e.undo();
+        assert_eq!(e.buffer.text(), "ab\ncd\nef");
+    }
+
+    #[test]
+    fn multi_cursor_on_one_line_shifts_later_cursors() {
+        let mut e = editor("a a a");
+        e.set_caret(Point::new(0, 0), false);
+        e.toggle_cursor(Point::new(0, 2));
+        e.toggle_cursor(Point::new(0, 4));
+        e.type_text("(");
+        assert_eq!(e.buffer.text(), "(a (a (a");
+        e.newline();
+        assert_eq!(e.buffer.line_count(), 4);
+        let carets: Vec<Point> = e.cursors().iter().map(|(c, _)| c.caret).collect();
+        assert_eq!(carets, vec![Point::new(1, 4), Point::new(2, 4), Point::new(3, 4)]);
+    }
+
+    #[test]
+    fn add_next_match_and_select_all_matches() {
+        let mut e = editor("foo bar foo\nfoo");
+        e.set_caret(Point::new(0, 1), false);
+        assert_eq!(e.add_next_match(), Some((Point::new(0, 0), Point::new(0, 3))));
+        assert_eq!(e.add_next_match(), Some((Point::new(0, 8), Point::new(0, 11))));
+        assert_eq!(e.add_next_match(), Some((Point::new(1, 0), Point::new(1, 3))));
+        assert_eq!(e.add_next_match(), None);
+        e.type_text("x");
+        assert_eq!(e.buffer.text(), "x bar x\nx");
+        let mut e = editor("a.b a.b");
+        e.select(Point::new(0, 0), Point::new(0, 3));
+        assert_eq!(e.select_all_matches(), 2);
+    }
+
+    #[test]
+    fn vertical_cursors_copy_and_paste_per_line() {
+        let mut e = editor("one\ntwo\nthree");
+        e.set_caret(Point::new(0, 0), false);
+        e.add_cursor_vertical(true);
+        e.add_cursor_vertical(true);
+        assert_eq!(e.add_cursor_vertical(true), None);
+        e.move_end(true);
+        assert_eq!(e.copy_text(), "one\ntwo\nthree");
+        e.move_home(false);
+        e.paste("1\n2\n3");
+        assert_eq!(e.buffer.text(), "1one\n2two\n3three");
+        e.set_caret(Point::new(0, 0), false);
+        assert!(!e.has_multiple_cursors());
+    }
+
+    #[test]
+    fn overlapping_cursors_merge() {
+        let mut e = editor("abc");
+        e.set_caret(Point::new(0, 1), false);
+        e.toggle_cursor(Point::new(0, 2));
+        e.move_left(false, false);
+        e.move_left(false, false);
+        assert_eq!(e.cursor_count(), 1);
     }
 }

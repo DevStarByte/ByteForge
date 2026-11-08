@@ -196,6 +196,7 @@ impl Element for EditorElement {
                 // The chevrons sit between the line numbers and the git change markers.
                 fold_left: f32::from(bounds.left()) + gutter - fold_width - style.gutter_right.min(6.0),
                 fold_width,
+                minimap: if view.minimap_enabled && f32::from(bounds.size.width) > 500.0 { theme.n("minimap.width", 80.0).round() } else { 0.0 },
             };
             if fold_width > 0.0 {
                 // Cached per buffer version.
@@ -204,6 +205,7 @@ impl Element for EditorElement {
             view.take_pending_reveal();
             view.scroll = view.clamp_scroll(view.scroll);
             view.scroll_target = view.clamp_scroll(view.scroll_target);
+            view.refresh_minimap(&theme);
 
             // Smooth scrolling + gliding caret share one frame-driven animation step.
             let now = Instant::now();
@@ -478,7 +480,7 @@ impl Element for EditorElement {
 
         // Each area is painted exactly once so translucent themes stay translucent (alphas don't stack).
         window.paint_quad(fill(Bounds::new(point(px(gutter_right), bounds.top()), size(width - px(l.gutter), bounds.size.height)), theme.bg("editor.background")));
-        let text_clip = Bounds::new(point(px(gutter_right), bounds.top()), size(width - px(l.gutter), bounds.size.height));
+        let text_clip = Bounds::new(point(px(gutter_right), bounds.top()), size(px(l.text_width() + (l.text_left - gutter_right)), bounds.size.height));
 
         window.with_content_mask(Some(gpui::ContentMask { bounds: text_clip }), |window| {
             let caret = view.caret;
@@ -567,6 +569,13 @@ impl Element for EditorElement {
                 let key = if focused { "editor.selectionBackground" } else { "editor.inactiveSelectionBackground" };
                 let border = theme.has("editor.selectionBorder").then(|| theme.c("editor.selectionBorder"));
                 paint_range(window, s, e, theme.bg(key), border, true);
+            }
+            for &(_, (s, e)) in &view.extra_cursors {
+                if s != e {
+                    let key = if focused { "editor.selectionBackground" } else { "editor.inactiveSelectionBackground" };
+                    let border = theme.has("editor.selectionBorder").then(|| theme.c("editor.selectionBorder"));
+                    paint_range(window, s, e, theme.bg(key), border, true);
+                }
             }
             if let Some((a, b)) = view.bracket_match {
                 for p in [Some(a), b].into_iter().flatten() {
@@ -682,6 +691,28 @@ impl Element for EditorElement {
             // Caret.
             if focused {
                 let opacity = view.opacity;
+                // Extra cursors: drawn in place (only the primary caret glides).
+                if opacity > 0.01 {
+                    let mut color = theme.c("editorCursor.foreground");
+                    color.a *= opacity;
+                    let w = style.caret_width;
+                    for &(c, _) in &view.extra_cursors {
+                        if c.line < first || c.line > last || view.is_hidden(c.line) {
+                            continue;
+                        }
+                        let (x, y) = (x_at(c.line, c.col).round(), line_top(c.line));
+                        let rect = match style.caret_style {
+                            CaretStyle::Line => Bounds::new(point(px(x), y), size(px(w), px(lh))),
+                            CaretStyle::Block | CaretStyle::BlockOutline => Bounds::new(point(px(x), y), size(px(cw), px(lh))),
+                            CaretStyle::Underline => Bounds::new(point(px(x), y + px(lh - w)), size(px(cw), px(w))),
+                        };
+                        if style.caret_style == CaretStyle::Line {
+                            window.paint_quad(fill(rect, color));
+                        } else {
+                            window.paint_quad(outline(rect, color, gpui::BorderStyle::Solid));
+                        }
+                    }
+                }
                 if opacity > 0.01 {
                     let (cxp, cyp) = view.caret_drawn.unwrap_or((0.0, 0.0));
                     let x = (origin_x + cxp).round();
@@ -820,6 +851,13 @@ impl Element for EditorElement {
             }
         });
 
+        if let Some(map) = &view.minimap {
+            let mm = Bounds::new(point(px(view.minimap_left), bounds.top()), size(px(l.minimap), bounds.size.height));
+            window.with_content_mask(Some(gpui::ContentMask { bounds: mm }), |window| {
+                super::minimap::paint(window, &theme, map, mm, sy / lh.max(1.0), l.height / lh.max(1.0), view.caret_row, view.selection_rows, view.minimap_hover);
+            });
+        }
+
         // Scrollbars.
         let bar = 10.0;
         let content_h = view.row_count as f32 * lh + l.height - lh;
@@ -838,7 +876,7 @@ impl Element for EditorElement {
             ));
         }
         let content_w = view.max_line_chars as f32 * cw + cw * 8.0;
-        let view_w = l.width - l.gutter;
+        let view_w = l.text_width() + (l.text_left - gutter_right);
         if content_w > view_w + 1.0 {
             let track = view_w;
             let thumb = (track * track / content_w).max(24.0);
@@ -867,7 +905,14 @@ struct Snap {
     caret: TPoint,
     has_selection: bool,
     selection: (TPoint, TPoint),
+    /// Extra cursors (multi-cursor editing) touching the visible lines: caret and selection.
+    extra_cursors: Vec<(TPoint, (TPoint, TPoint))>,
     find: Vec<(TPoint, TPoint)>,
+    minimap: Option<std::sync::Arc<super::minimap::MiniMap>>,
+    minimap_left: f32,
+    minimap_hover: bool,
+    caret_row: Option<usize>,
+    selection_rows: Option<(usize, usize)>,
     bracket_match: Option<(TPoint, Option<TPoint>)>,
     show_indent_guides: bool,
     diagnostics: Vec<super::Diagnostic>,
@@ -904,6 +949,18 @@ impl Snap {
             caret: v.state.caret(),
             has_selection: v.state.has_selection(),
             selection: v.state.selection(),
+            extra_cursors: v
+                .state
+                .cursors()
+                .into_iter()
+                .filter(|(c, primary)| !primary && c.selection().1.line >= first && c.selection().0.line <= last)
+                .map(|(c, _)| (c.caret, c.selection()))
+                .collect(),
+            minimap: v.minimap.clone(),
+            minimap_left: v.minimap_left(),
+            minimap_hover: v.minimap_hover,
+            caret_row: Some(v.folds.row_of(v.state.caret().line)),
+            selection_rows: super::minimap::selection_rows(v),
             find: v.find_matches().iter().filter(|(s, e)| e.line >= first && s.line <= last).copied().collect(),
             bracket_match: v.bracket_match,
             show_indent_guides: v.show_indent_guides,

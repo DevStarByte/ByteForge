@@ -18,10 +18,10 @@ The language server already supports all of these; the client needs the requests
 ## 2. Editor
 
 - [x] Code folding (braces, `#region`; indentation for XML/YAML), with gutter chevrons. Still open: folding `using` blocks and comment blocks.
-- [ ] Multiple cursors: Alt+Click, Ctrl+Alt+Up/Down, Ctrl+D to add the next match.
-- [ ] Split editor (two editor groups side by side).
+- [x] Multiple cursors: Alt+Click, Ctrl+Alt+Up/Down, Ctrl+D to add the next match (plus Ctrl+Shift+L). Line commands (comment, move, duplicate) and completions still work on one cursor.
+- [x] Split editor (two editor groups side by side): Ctrl+\\, Ctrl+1/2. Still open: the same file in both groups (one shared buffer) and dragging tabs between groups.
 - [x] User snippets (`prop`, `ctor`, `foreach`, `try`, …) offered in completion, with Tab between fields.
-- [ ] Minimap.
+- [x] Minimap.
 
 ## 3. .NET workflow
 
