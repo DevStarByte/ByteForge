@@ -21,3 +21,4 @@ bf-syntax.workspace = true
 bf-lsp.workspace = true
 bf-dap.workspace = true
 alacritty_terminal = "0.26"
+pulldown-cmark = { version = "0.13.6", default-features = false }

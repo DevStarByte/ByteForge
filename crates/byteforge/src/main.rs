@@ -9,6 +9,7 @@ mod editor;
 mod explorer;
 mod layout;
 mod markdown;
+mod markdown_preview;
 mod palette;
 mod scm;
 mod search;

@@ -281,7 +281,7 @@ impl Workbench {
         let t = Theme::global(cx);
         let muted = t.c("foreground.muted");
         let fg = t.c("sideBar.foreground");
-        let selected = self.active.and_then(|i| self.tabs.get(i)).and_then(|t| t.page.as_deref()) == Some(item.id.as_str());
+        let selected = self.active.and_then(|i| self.tabs.get(i)).and_then(|t| t.module_page()) == Some(item.id.as_str());
         let busy = self.module_busy.as_deref() == Some(item.id.as_str());
         let installed = item.dir.is_some();
         let dimmed = installed && !item.enabled;
@@ -418,7 +418,7 @@ impl Workbench {
 
     /// Opens the details page of a module in an editor tab (or switches to it when it's open).
     pub(super) fn open_module_page(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(ix) = self.tabs.iter().position(|t| t.page.as_deref() == Some(id.as_str())) {
+        if let Some(ix) = self.tabs.iter().position(|t| t.module_page() == Some(id.as_str())) {
             self.activate(ix, window, cx);
             return;
         }
@@ -431,7 +431,7 @@ impl Workbench {
         });
         self.add_tab(editor, None, format!("Module: {name}"), false, window, cx);
         if let Some(tab) = self.tabs.last_mut() {
-            tab.page = Some(id);
+            tab.page = Some(Page::Module(id));
         }
         cx.notify();
     }
@@ -461,7 +461,7 @@ impl Workbench {
 
         // The tab may have opened before the module list loaded; name it properly now.
         let title = format!("Module: {}", item.name);
-        for tab in self.tabs.iter_mut().filter(|t| t.page.as_deref() == Some(id)) {
+        for tab in self.tabs.iter_mut().filter(|t| t.module_page() == Some(id)) {
             if tab.title != title {
                 tab.title = title.clone();
             }

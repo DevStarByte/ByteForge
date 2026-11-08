@@ -3,6 +3,7 @@
 mod debug;
 mod docker;
 mod modules;
+mod preview;
 mod testing;
 mod references;
 mod symbols;
@@ -49,10 +50,34 @@ struct Tab {
     path: Option<PathBuf>,
     title: String,
     bom: bool,
-    /// A page instead of a document: the details of the module with this id. The tab keeps an empty,
-    /// read-only editor so editor-wide code keeps working; the editor area draws the page instead.
-    page: Option<String>,
+    /// A page instead of a document. The tab keeps an empty, read-only editor so editor-wide code keeps
+    /// working; the editor area draws the page instead.
+    page: Option<Page>,
     _subs: Vec<Subscription>,
+}
+
+#[derive(Clone, PartialEq)]
+enum Page {
+    /// The details of the module with this id.
+    Module(String),
+    /// A live preview of this Markdown file.
+    Markdown(PathBuf),
+}
+
+impl Tab {
+    fn module_page(&self) -> Option<&str> {
+        match &self.page {
+            Some(Page::Module(id)) => Some(id),
+            _ => None,
+        }
+    }
+
+    fn markdown_page(&self) -> Option<&Path> {
+        match &self.page {
+            Some(Page::Markdown(path)) => Some(path),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -211,6 +236,7 @@ pub struct Workbench {
     module_filter: Entity<TextInput>,
     /// The module whose details are open in the Modules view.
     registry_task: Option<Task<()>>,
+    md_cache: preview::DiskCache,
     plugin_tx: Option<flume::Sender<PluginMessage>>,
     formatters: Vec<Formatter>,
     format_requests: HashMap<u64, PendingFormat>,
@@ -425,6 +451,7 @@ impl Workbench {
             module_busy: None,
             module_filter,
             registry_task: None,
+            md_cache: HashMap::new(),
             plugin_tx: None,
             formatters: Vec::new(),
             format_requests: HashMap::new(),
@@ -2451,6 +2478,8 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &ShowOutput, _, cx| wb.show_panel(PanelView::Output, cx)))
             .on_action(cx.listener(|wb, _: &NextEditor, w, cx| wb.cycle_tab(1, w, cx)))
             .on_action(cx.listener(|wb, _: &SplitEditor, w, cx| wb.split_editor(w, cx)))
+            .on_action(cx.listener(|wb, _: &MarkdownOpenPreview, w, cx| wb.open_markdown_preview(false, w, cx)))
+            .on_action(cx.listener(|wb, _: &MarkdownOpenPreviewToSide, w, cx| wb.open_markdown_preview(true, w, cx)))
             .on_action(cx.listener(|wb, _: &FocusFirstGroup, w, cx| wb.focus_group(0, w, cx)))
             .on_action(cx.listener(|wb, _: &FocusSecondGroup, w, cx| wb.focus_group(1, w, cx)))
             .on_action(cx.listener(|wb, _: &PreviousEditor, w, cx| wb.cycle_tab(-1, w, cx)))
@@ -3129,10 +3158,7 @@ impl Workbench {
             let groups: Vec<_> = (0..2)
                 .map(|g| {
                     let shown = self.visible[g].and_then(|i| self.tabs.get(i)).map(|t| (t.editor.clone(), t.page.clone()));
-                    let editor: Option<gpui::AnyElement> = shown.map(|(editor, page)| match page {
-                        Some(page) => self.render_module_page(&page, cx).into_any_element(),
-                        None => editor.into_any_element(),
-                    });
+                    let editor: Option<gpui::AnyElement> = shown.map(|(editor, page)| self.render_page(page, editor, cx));
                     let tabs = show_tabs.then(|| self.render_tabs(tabs_at_bottom, g, cx));
                     let body = div().flex_1().min_h_0().children(editor);
                     div()
@@ -3158,8 +3184,7 @@ impl Workbench {
             div().size_full().flex().children(groups).into_any_element()
         } else {
             match self.active.and_then(|i| self.tabs.get(i)).map(|t| (t.editor.clone(), t.page.clone())) {
-                Some((_, Some(page))) => self.render_module_page(&page, cx).into_any_element(),
-                Some((editor, None)) => editor.into_any_element(),
+                Some((editor, page)) => self.render_page(page, editor, cx),
                 None => self.render_welcome(window, cx).into_any_element(),
             }
         });
@@ -3186,10 +3211,20 @@ impl Workbench {
         col
     }
 
+    /// What a tab shows: its page, or its editor.
+    fn render_page(&mut self, page: Option<Page>, editor: Entity<EditorView>, cx: &mut Context<Self>) -> gpui::AnyElement {
+        match page {
+            Some(Page::Module(id)) => self.render_module_page(&id, cx).into_any_element(),
+            Some(Page::Markdown(path)) => self.render_markdown_page(&path, cx).into_any_element(),
+            None => editor.into_any_element(),
+        }
+    }
+
     fn render_tabs(&mut self, at_bottom: bool, group: usize, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let t = Theme::global(cx);
         let indicator_bottom = t.layout.tab_indicator_bottom;
         let active = self.visible[group];
+        let markdown_source = active.and_then(|i| self.tabs.get(i)).is_some_and(|t| t.page.is_none() && t.path.as_deref().is_some_and(preview::is_markdown));
         let tab_els: Vec<_> = self
             .tabs
             .iter()
@@ -3285,6 +3320,20 @@ impl Workbench {
             })
             .border_color(t.c("editorGroupHeader.border"))
             .children(tab_els)
+            .when(markdown_source, |d| {
+                d.child(div().flex_1()).child(div().flex_none().h_full().flex().items_center().child(
+                    div()
+                        .id(SharedString::from(format!("md-preview-button-{group}")))
+                        .mx_2()
+                        .p(px(4.))
+                        .rounded(px(4.))
+                        .cursor_pointer()
+                        .hover(|s| s.bg(t.c("toolbar.hoverBackground")))
+                        .tooltip(tooltip("Open Preview to the Side (Ctrl+Shift+V opens it here)"))
+                        .child(icon("openPreview", px(16.), t.c("icon.foreground")))
+                        .on_click(cx.listener(|wb, _, w, cx| wb.open_markdown_preview(true, w, cx))),
+                ))
+            })
     }
 
     fn render_breadcrumbs(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {

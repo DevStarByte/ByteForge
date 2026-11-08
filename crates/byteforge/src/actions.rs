@@ -12,7 +12,8 @@ actions!(
         SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, About, Build, Run, Test, Clean, Restore, Stop,
         ToggleLineEnding, ReloadCSharp, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
         GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
-        FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup
+        FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup,
+        MarkdownOpenPreview, MarkdownOpenPreviewToSide
     ]
 );
 
@@ -152,6 +153,8 @@ fn builtin() -> Vec<(&'static str, &'static str, &'static str, Box<dyn Action>, 
         ("view.splitEditor", "Split Editor (Move to Other Group)", "View", Box::new(SplitEditor), Some("ctrl-\\")),
         ("view.focusFirstGroup", "Focus First Editor Group", "View", Box::new(FocusFirstGroup), Some("ctrl-1")),
         ("view.focusSecondGroup", "Focus Second Editor Group", "View", Box::new(FocusSecondGroup), Some("ctrl-2")),
+        ("markdown.openPreview", "Open Preview", "Markdown", Box::new(MarkdownOpenPreview), Some("ctrl-shift-v")),
+        ("markdown.openPreviewToSide", "Open Preview to the Side", "Markdown", Box::new(MarkdownOpenPreviewToSide), None),
         ("theme.select", "Color Theme", "Preferences", Box::new(SelectTheme), Some("ctrl-k")),
         ("theme.customize", "Customize Current Theme", "Preferences", Box::new(CustomizeTheme), None),
         ("theme.edit", "Open Current Theme File", "Preferences", Box::new(EditTheme), None),
