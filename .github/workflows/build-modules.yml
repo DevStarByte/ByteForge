@@ -1,0 +1,47 @@
+# Rebuild modules/index.json (the ByteForge module registry) whenever a module changes, and commit it
+# back to this branch. ByteForge's Modules view reads the index and downloads the listed files.
+# Same as running by hand:  python3 tools/mkindex.py
+name: Build module index
+
+on:
+  push:
+    branches: [packages]
+    paths:
+      - "modules/**"
+      - "!modules/index.json"
+      - "tools/mkindex.py"
+      - ".github/workflows/build-modules.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-modules
+  cancel-in-progress: false
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: packages
+
+      - name: Check the modules' Python
+        run: python3 -m py_compile modules/*/*.py
+
+      - name: Build the index
+        run: python3 tools/mkindex.py
+
+      - name: Commit the index
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add modules/index.json
+          if git diff --cached --quiet; then
+            echo "Index unchanged"
+            exit 0
+          fi
+          git commit -m "Build module index for ${GITHUB_SHA::7}"
+          git push origin HEAD:packages

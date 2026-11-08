@@ -1,0 +1,10 @@
+{
+  "id": "byteforge.dotnet-files",
+  "name": ".NET Project Files",
+  "version": "1.0.0",
+  "author": "ByteForge",
+  "category": ".NET",
+  "description": "Adds the files every .NET repo wants: .gitignore, .editorconfig (C# style and naming rules), Directory.Build.props, global.json (pinned to your SDK) and a .gitattributes. \"Files: Add …\" in the command palette; existing files are never overwritten.",
+  "command": "python3",
+  "args": ["dotnet_files.py"]
+}

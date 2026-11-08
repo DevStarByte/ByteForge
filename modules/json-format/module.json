@@ -1,0 +1,10 @@
+{
+  "id": "byteforge.json-format",
+  "name": "JSON Formatter",
+  "version": "1.0.0",
+  "author": "ByteForge",
+  "category": "Formatter",
+  "description": "Formats .json files (appsettings.json, launchSettings.json, global.json, …) with Format Document. Keeps comments and trailing commas out of the way: files with comments are left as they are.",
+  "command": "python3",
+  "args": ["json_format.py"]
+}

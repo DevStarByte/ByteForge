@@ -1,0 +1,10 @@
+{
+  "id": "byteforge.todos",
+  "name": "TODO Finder",
+  "version": "1.0.0",
+  "author": "ByteForge",
+  "category": "Productivity",
+  "description": "Finds TODO, FIXME, HACK and BUG comments in the workspace. \"TODOs: List All\" prints them with clickable locations; the count stays in the status bar and updates when you save.",
+  "command": "python3",
+  "args": ["todos.py"]
+}

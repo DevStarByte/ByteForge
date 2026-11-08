@@ -1,0 +1,100 @@
+{
+  "modules": [
+    {
+      "id": "byteforge.csharpier",
+      "name": "CSharpier",
+      "version": "1.0.0",
+      "description": "Opinionated C# and XML formatter (https://csharpier.com). Format Document: Shift+Alt+F.",
+      "author": "ByteForge",
+      "category": null,
+      "dir": "csharpier",
+      "files": [
+        "csharpier.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
+      "id": "byteforge.dotnet-files",
+      "name": ".NET Project Files",
+      "version": "1.0.0",
+      "description": "Adds the files every .NET repo wants: .gitignore, .editorconfig (C# style and naming rules), Directory.Build.props, global.json (pinned to your SDK) and a .gitattributes. \"Files: Add …\" in the command palette; existing files are never overwritten.",
+      "author": "ByteForge",
+      "category": ".NET",
+      "dir": "dotnet-files",
+      "files": [
+        "dotnet_files.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
+      "id": "byteforge.focus",
+      "name": "Focus Timer",
+      "version": "1.0.0",
+      "description": "A Pomodoro timer in the status bar: 25 minutes of focus, 5 minutes of break (every 4th: 15). Click it to start, pause or resume; a desktop notification (notify-send) says when time's up.",
+      "author": "ByteForge",
+      "category": "Productivity",
+      "dir": "focus",
+      "files": [
+        "focus.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
+      "id": "byteforge.guid",
+      "name": "GUID Generator",
+      "version": "1.0.0",
+      "description": "Inserts a new GUID at the cursor: \"GUID: Insert New GUID\" (Ctrl+Alt+G), plus uppercase, braced ({…}) and C# (new Guid(\"…\")) variants.",
+      "author": "ByteForge",
+      "category": "Snippets",
+      "dir": "guid",
+      "files": [
+        "guid.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
+      "id": "byteforge.json-format",
+      "name": "JSON Formatter",
+      "version": "1.0.0",
+      "description": "Formats .json files (appsettings.json, launchSettings.json, global.json, …) with Format Document. Keeps comments and trailing commas out of the way: files with comments are left as they are.",
+      "author": "ByteForge",
+      "category": "Formatter",
+      "dir": "json-format",
+      "files": [
+        "json_format.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
+      "id": "byteforge.todos",
+      "name": "TODO Finder",
+      "version": "1.0.0",
+      "description": "Finds TODO, FIXME, HACK and BUG comments in the workspace. \"TODOs: List All\" prints them with clickable locations; the count stays in the status bar and updates when you save.",
+      "author": "ByteForge",
+      "category": "Productivity",
+      "dir": "todos",
+      "files": [
+        "module.json",
+        "todos.py"
+      ],
+      "requires": [
+        "python3"
+      ]
+    }
+  ]
+}
