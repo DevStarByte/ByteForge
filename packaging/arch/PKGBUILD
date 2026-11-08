@@ -5,14 +5,14 @@
 #   makepkg -sfi                          # rebuild and reinstall after pulling changes
 # The cargo build lives in ./src/target, so later builds are incremental; `makepkg -C` starts clean.
 pkgname=byteforge
-pkgver=0.2.0  # keep in sync with Cargo.toml [workspace.package] version
+pkgver=0.3.0  # keep in sync with Cargo.toml [workspace.package] version
 pkgrel=1
 pkgdesc="A modular, themeable IDE for C# built with Rust and GPUI"
 arch=('x86_64' 'aarch64')
 url="https://github.com/DevStarByte/ByteForge"
 license=('MIT')
 depends=('vulkan-icd-loader' 'libxkbcommon' 'libxkbcommon-x11' 'wayland' 'libx11' 'libxcb'
-         'fontconfig' 'freetype2' 'alsa-lib' 'dotnet-sdk')
+         'fontconfig' 'freetype2' 'alsa-lib' 'dotnet-sdk' 'curl')
 makedepends=('rust' 'cmake' 'clang' 'pkgconf')
 optdepends=('ttf-jetbrains-mono: default editor font'
             'netcoredbg: debugger (AUR)'
