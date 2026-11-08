@@ -2,6 +2,7 @@
 
 mod debug;
 mod docker;
+mod modules;
 mod testing;
 mod references;
 mod symbols;
@@ -200,6 +201,11 @@ pub struct Workbench {
     plugins: Vec<PluginHandle>,
     /// Every module found, running or removed (for the Modules view).
     modules: Vec<ModuleManifest>,
+    /// The module registry (Modules view, "AVAILABLE").
+    registry: modules::RegistryState,
+    /// The module being installed, updated or uninstalled.
+    module_busy: Option<String>,
+    registry_task: Option<Task<()>>,
     plugin_tx: Option<flume::Sender<PluginMessage>>,
     formatters: Vec<Formatter>,
     format_requests: HashMap<u64, PendingFormat>,
@@ -404,6 +410,9 @@ impl Workbench {
             active_terminal: 0,
             plugins: Vec::new(),
             modules: Vec::new(),
+            registry: modules::RegistryState::Idle,
+            module_busy: None,
+            registry_task: None,
             plugin_tx: None,
             formatters: Vec::new(),
             format_requests: HashMap::new(),
@@ -1372,12 +1381,13 @@ impl Workbench {
 
     fn start_plugins(&mut self, _event_tx: flume::Sender<AppEvent>, cx: &mut Context<Self>) {
         let disabled: Vec<String> = self.settings.get("modules.disabled", Vec::new());
-        self.modules = discover(&self.paths.builtin_modules(), &self.paths.user_modules());
+        self.preinstall_modules();
+        self.modules = discover(&self.paths.user_modules());
         let (tx, rx) = flume::unbounded::<PluginMessage>();
         self.plugin_tx = Some(tx);
         for manifest in self.modules.clone() {
             if disabled.contains(&manifest.id) {
-                self.log(format!("Module {} ({}) is removed or disabled.", manifest.name, manifest.id));
+                self.log(format!("Module {} ({}) is disabled.", manifest.name, manifest.id));
                 continue;
             }
             self.start_module(manifest);
@@ -1415,50 +1425,6 @@ impl Workbench {
             self.plugin_commands.remove(command);
         }
         cx.global_mut::<Commands>().list.retain(|c| !commands.contains(&c.id));
-        cx.notify();
-    }
-
-    /// Removes a module: a built-in one is disabled (and can be restored), a user module is deleted.
-    fn remove_module(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(manifest) = self.modules.iter().find(|m| m.id == id).cloned() else { return };
-        if manifest.builtin {
-            self.stop_module(&id, cx);
-            let mut disabled: Vec<String> = self.settings.get("modules.disabled", Vec::new());
-            if !disabled.contains(&id) {
-                disabled.push(id);
-                self.settings.set("modules.disabled", json!(disabled));
-            }
-            self.log(format!("Removed the built-in module '{}'. Restore it in the Modules view.", manifest.name));
-            return;
-        }
-        let rx = window.prompt(PromptLevel::Warning, &format!("Uninstall the module '{}'?", manifest.name), Some(&format!("This deletes {}.", manifest.dir.display())), &["Uninstall", "Cancel"], cx);
-        cx.spawn_in(window, async move |this, cx| {
-            if let Ok(0) = rx.await {
-                let _ = this.update(cx, |wb, cx| {
-                    wb.stop_module(&manifest.id, cx);
-                    match std::fs::remove_dir_all(&manifest.dir) {
-                        Ok(()) => {
-                            wb.modules.retain(|m| m.id != manifest.id);
-                            wb.log(format!("Uninstalled the module '{}'.", manifest.name));
-                        }
-                        Err(e) => wb.log(format!("Could not delete {}: {e}", manifest.dir.display())),
-                    }
-                    cx.notify();
-                });
-            }
-        })
-        .detach();
-    }
-
-    fn restore_module(&mut self, id: String, cx: &mut Context<Self>) {
-        let mut disabled: Vec<String> = self.settings.get("modules.disabled", Vec::new());
-        disabled.retain(|d| *d != id);
-        self.settings.set("modules.disabled", json!(disabled));
-        if let Some(manifest) = self.modules.iter().find(|m| m.id == id).cloned()
-            && !self.plugins.iter().any(|p| p.manifest.id == id)
-        {
-            self.start_module(manifest);
-        }
         cx.notify();
     }
 
@@ -1649,6 +1615,11 @@ impl Workbench {
                 if let Some(window) = cx.active_window() {
                     let entity = cx.entity();
                     let _ = window.update(cx, |_, window, cx| entity.update(cx, |wb, cx| wb.open_file(path, point, window, cx)));
+                }
+            }
+            PluginMessage::InsertText { text } => {
+                if let Some(editor) = self.active_editor() {
+                    editor.update(cx, |e, cx| e.insert_text(&text, cx));
                 }
             }
             PluginMessage::ShowView { id } => match id.as_str() {
@@ -3083,91 +3054,6 @@ impl Workbench {
             col = col.child(div().flex_1().min_h_0().child(c));
         }
         col.child(sash)
-    }
-
-    fn render_modules(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
-        let t = Theme::global(cx);
-        let dir = self.paths.user_modules();
-        let muted = t.c("foreground.muted");
-        let small_button = |id: SharedString, label: &'static str| {
-            div()
-                .id(id)
-                .px_2()
-                .py(px(2.))
-                .rounded(t.radius("button.radius", 4.0))
-                .text_size(px(11.))
-                .cursor_pointer()
-                .border_1()
-                .border_color(t.c("button.border"))
-                .hover(|s| s.bg(t.c("list.hoverBackground")))
-                .child(label)
-        };
-        let cards: Vec<gpui::AnyElement> = self
-            .modules
-            .iter()
-            .map(|m| {
-                let running = self.plugins.iter().any(|p| p.manifest.id == m.id);
-                let formats: Vec<String> = self.formatters.iter().filter(|f| f.module == m.id).map(|f| format!("formats .{}", f.extensions.join(", ."))).collect();
-                let id = m.id.clone();
-                let action = if running {
-                    small_button(SharedString::from(format!("mod-remove-{}", m.id)), if m.builtin { "Remove" } else { "Uninstall" })
-                        .tooltip(tooltip(if m.builtin { "Turn this built-in module off (Restore brings it back)" } else { "Delete this module" }))
-                        .on_click(cx.listener(move |wb, _, w, cx| wb.remove_module(id.clone(), w, cx)))
-                } else {
-                    small_button(SharedString::from(format!("mod-restore-{}", m.id)), "Restore").on_click(cx.listener(move |wb, _, _, cx| wb.restore_module(id.clone(), cx)))
-                };
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap_1()
-                    .p_2()
-                    .rounded(px(6.))
-                    .bg(t.c("list.hoverBackground"))
-                    .when(!running, |d| d.opacity(0.6))
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(div().flex_1().font_weight(gpui::FontWeight::SEMIBOLD).child(m.name.clone()))
-                            .child(div().text_size(px(11.)).text_color(muted).child(match (m.builtin, running) {
-                                (_, false) => "removed",
-                                (true, true) => "built-in",
-                                (false, true) => "installed",
-                            }))
-                            .child(action),
-                    )
-                    .children(m.description.clone().map(|d| div().text_size(px(12.)).child(d)))
-                    .children(formats.into_iter().map(|f| div().text_size(px(11.)).text_color(muted).child(f)))
-                    .child(div().text_size(px(11.)).text_color(muted).child(m.id.clone()))
-                    .into_any_element()
-            })
-            .collect();
-        div()
-            .p_3()
-            .flex()
-            .flex_col()
-            .gap_2()
-            .children(cards)
-            .when(self.modules.is_empty(), |d| d.child(div().text_color(muted).child("No modules installed.")))
-            .child(div().mt_2().text_size(px(12.)).text_color(muted).child(format!(
-                "Modules are folders with a module.json in {}. They run as separate processes and talk JSON over stdio (see README).",
-                dir.display()
-            )))
-            .child(
-                div()
-                    .id("open-modules")
-                    .px_3()
-                    .py_1()
-                    .rounded(t.radius("button.radius", 4.0))
-                    .bg(t.bg("button.background"))
-                    .text_color(t.c("button.foreground"))
-                    .cursor_pointer()
-                    .flex()
-                    .justify_center()
-                    .child("Open Modules Folder")
-                    .on_click(move |_, _, cx| cx.reveal_path(&dir)),
-            )
     }
 
     /// The editor column; `editor.order` arranges tabs, breadcrumbs, content and the panel.

@@ -1,4 +1,4 @@
-//! Runs the built-in CSharpier module through the module host, like ByteForge does. Skips (passes)
+//! Runs the preinstalled CSharpier module through the module host, like ByteForge does. Skips (passes)
 //! without `python3`. Without CSharpier installed it checks the "not installed" answer instead.
 
 use std::path::Path;
@@ -12,9 +12,9 @@ fn csharpier_module_formats_over_the_module_protocol() {
         println!("SKIPPED: python3 not found");
         return;
     }
-    let builtin = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
-    let manifest = discover(&builtin, Path::new("/nonexistent")).into_iter().find(|m| m.id == "byteforge.csharpier").expect("built-in CSharpier module");
-    assert!(manifest.builtin);
+    let bundled = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
+    let manifest = discover(&bundled).into_iter().find(|m| m.id == "byteforge.csharpier").expect("bundled CSharpier module");
+    assert!(manifest.version.is_some());
     let (tx, rx) = flume::unbounded();
     let module = PluginHandle::start(manifest, tx).unwrap();
 

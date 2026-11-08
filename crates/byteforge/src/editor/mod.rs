@@ -1790,6 +1790,15 @@ impl EditorView {
         }
     }
 
+    /// Inserts text at every caret, replacing the selections (modules' `insertText`).
+    pub fn insert_text(&mut self, text: &str, cx: &mut Context<Self>) {
+        if self.read_only {
+            return;
+        }
+        self.state.insert(text);
+        self.after_edit(cx);
+    }
+
     /// Appends text without undo (used by the Output panel).
     pub fn append(&mut self, text: &str, cx: &mut Context<Self>) {
         let end = self.state.buffer.end();

@@ -6,7 +6,7 @@
 //!
 //! The host starts the command in the module folder and talks newline-delimited JSON over stdio.
 //! Module → host: `registerCommand {id,title,category?,keybinding?}`, `status {id,text,tooltip?,command?,alignment?}`,
-//! `log {text}`, `openFile {path,line?,column?}`, `showView {id}`,
+//! `log {text}`, `openFile {path,line?,column?}`, `showView {id}`, `insertText {text}` (at the caret(s) of the active editor),
 //! `registerFormatter {id,name,extensions}`, `formatResult {requestId,text?|error?}`.
 //! Host → module: `activate {workspace}`, `executeCommand {id}`, `event {name, path?}` (folderOpened, fileSaved, themeChanged),
 //! `format {requestId,path,text}`.
@@ -30,11 +30,12 @@ pub struct ModuleManifest {
     pub args: Vec<String>,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub author: Option<String>,
     #[serde(skip)]
     pub dir: PathBuf,
-    /// Shipped with ByteForge (removing it disables it); user modules can be deleted.
-    #[serde(skip)]
-    pub builtin: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -44,6 +45,8 @@ pub enum PluginMessage {
     Log { module: String, text: String },
     OpenFile { path: PathBuf, line: Option<usize>, column: Option<usize> },
     ShowView { id: String },
+    /// Insert text at the caret(s) of the active editor.
+    InsertText { text: String },
     /// The module formats files with these extensions (without the dot).
     RegisterFormatter { module: String, id: String, name: String, extensions: Vec<String> },
     /// The answer to a `format` request: the formatted text, or why it couldn't be formatted.
@@ -51,27 +54,28 @@ pub enum PluginMessage {
     Exited { module: String, reason: String },
 }
 
-/// Finds the modules in the built-in and user folders. A user module with the id of a built-in one
-/// replaces it.
-pub fn discover(builtin: &Path, user: &Path) -> Vec<ModuleManifest> {
+/// Finds the installed modules (folders with a `module.json`) in `dir`, sorted by name. Preinstalled
+/// modules were copied there on first start (see [`crate::registry::preinstall`]).
+pub fn discover(dir: &Path) -> Vec<ModuleManifest> {
     let mut found: Vec<ModuleManifest> = Vec::new();
-    for (dir, is_builtin) in [(user, false), (builtin, true)] {
-        let Ok(entries) = std::fs::read_dir(dir) else { continue };
-        for entry in entries.flatten() {
-            let manifest = entry.path().join("module.json");
-            let Ok(text) = std::fs::read_to_string(&manifest) else { continue };
-            match json5::from_str::<ModuleManifest>(&text) {
-                Ok(mut m) => {
-                    m.dir = entry.path();
-                    m.builtin = is_builtin;
-                    if !found.iter().any(|f| f.id == m.id) {
-                        found.push(m);
-                    }
+    let Ok(entries) = std::fs::read_dir(dir) else { return found };
+    for entry in entries.flatten() {
+        if entry.file_name().to_string_lossy().starts_with('.') {
+            continue; // staging folders of installs in progress
+        }
+        let manifest = entry.path().join("module.json");
+        let Ok(text) = std::fs::read_to_string(&manifest) else { continue };
+        match json5::from_str::<ModuleManifest>(&text) {
+            Ok(mut m) => {
+                m.dir = entry.path();
+                if !found.iter().any(|f| f.id == m.id) {
+                    found.push(m);
                 }
-                Err(e) => log::warn!("invalid module manifest {}: {e}", manifest.display()),
             }
+            Err(e) => log::warn!("invalid module manifest {}: {e}", manifest.display()),
         }
     }
+    found.sort_by_key(|m| m.name.to_lowercase());
     found
 }
 
@@ -173,6 +177,7 @@ fn parse(module: &str, line: &str) -> Option<PluginMessage> {
             column: v.get("column").and_then(Value::as_u64).map(|n| n as usize),
         },
         "showView" => PluginMessage::ShowView { id: s("id")? },
+        "insertText" => PluginMessage::InsertText { text: s("text")? },
         "registerFormatter" => PluginMessage::RegisterFormatter {
             id: s("id")?,
             name: s("name").unwrap_or_else(|| module.clone()),

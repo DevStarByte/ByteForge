@@ -8,6 +8,7 @@ pub mod git;
 pub mod links;
 pub mod paths;
 pub mod plugins;
+pub mod registry;
 pub mod search;
 pub mod settings;
 pub mod snippets;

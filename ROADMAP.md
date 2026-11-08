@@ -41,4 +41,6 @@ The language server already supports all of these; the client needs the requests
 
 ## Done
 
+- [x] Module packages: a module registry (`modules/` on the `packages` branch) with install/update/disable/uninstall in the Modules view; CSharpier preinstalled; TODO Finder, JSON Formatter, GUID Generator, .NET Project Files and Focus Timer packages.
+
 - [x] Dockerfile and Compose (YAML) highlighting, Docker view, Add Docker Support / Compose File.

@@ -52,7 +52,7 @@ UI is styled from theme files that reload live.
   the tooltip. Test methods get a marker in the gutter (▷ not run, ✓ passed, ✗ failed); clicking it runs the
   test. Debugging starts the test host under the debugger, so breakpoints in tests work.
 - **Formatting**: Format Document (Shift+Alt+F), optional format on save. **CSharpier** is the default
-  formatter for C# and MSBuild/XML files. It's a built-in module you can remove (and restore) in the Modules view; without it, or with
+  formatter for C# and MSBuild/XML files. It's a preinstalled module you can uninstall (and install again) in the Modules view; without it, or with
   `"editor.defaultFormatter": "csharp-ls"`, csharp-ls (Roslyn) formats C#. "Format Document With…" switches.
 - **Integrated terminal** (`` Ctrl+` ``): your shell (`$SHELL`, e.g. fish) on a real PTY, run by Alacritty's
   terminal engine and drawn in the panel. It supports 256 and true colors, scrollback, mouse selection,
@@ -295,13 +295,34 @@ comma-separated strings:
 | Ctrl+K | Color theme | Ctrl+Tab | Next editor |
 | Ctrl+Shift+G | Source Control | | |
 
-## Writing a module
+## Modules
 
-A module is a folder in `~/.config/byteforge/modules/` (or `<install dir>/modules/`) with a `module.json`:
+Modules add commands, formatters and status bar items. They're packages: the **Modules** view (puzzle icon) lists
+what's **installed** (update, disable, uninstall) and what's **available** from the ByteForge module registry
+(install with one click):
+
+| Module | What it does |
+|---|---|
+| CSharpier | C# / MSBuild formatter, **preinstalled** (copied into your modules folder on first start; uninstall it like any other) |
+| TODO Finder | TODO / FIXME / HACK comments: count in the status bar, "TODOs: List All" with clickable locations |
+| JSON Formatter | Format Document for `.json` files; leaves JSON with comments alone |
+| GUID Generator | "GUID: Insert New GUID" (Ctrl+Alt+G), uppercase, `{braced}` and `new Guid("…")` variants |
+| .NET Project Files | "Files: Add .gitignore / .editorconfig / Directory.Build.props / global.json / .gitattributes" |
+| Focus Timer | a Pomodoro countdown in the status bar, with desktop notifications |
+
+The registry is the `modules/` folder of the `packages` branch (`modules/index.json` lists the packages and
+their files; a workflow regenerates it). `"modules.registry"` in settings points ByteForge at another one (also
+`file://`). Downloads use `curl`; installed modules live in `~/.config/byteforge/modules/<name>/`.
+
+### Writing a module
+
+A module is a folder in `~/.config/byteforge/modules/` with a `module.json`:
 
 ```json
-{ "id": "me.hello", "name": "Hello", "command": "python", "args": ["hello.py"] }
+{ "id": "me.hello", "name": "Hello", "version": "1.0.0", "description": "…", "command": "python3", "args": ["hello.py"] }
 ```
+
+To publish it, add the folder to `modules/` on the `packages` branch.
 
 ByteForge starts the command in that folder and exchanges one JSON object per line:
 
@@ -313,6 +334,7 @@ ByteForge starts the command in that folder and exchanges one JSON object per li
   - `{"type":"log","text"}`
   - `{"type":"openFile","path","line","column"}`
   - `{"type":"showView","id"}`
+  - `{"type":"insertText","text"}`: insert at the caret(s) of the active editor
 - **IDE → module:**
   - `{"type":"activate","workspace"}`
   - `{"type":"executeCommand","id"}`
@@ -320,9 +342,8 @@ ByteForge starts the command in that folder and exchanges one JSON object per li
   - `{"type":"event","name":"folderOpened|fileSaved|themeChanged","path"}`
 
 `samples/hello-module` is a complete Python example: a command with a key binding plus a status bar clock.
-`modules/csharpier` is the built-in formatter module. Built-in modules live in `<install dir>/modules/`; a user module with
-the same id replaces one. The Modules view removes modules (built-in ones are only turned off and can be restored) and
-uninstalls user modules.
+`modules/csharpier` is the preinstalled formatter module: the modules in `<install dir>/modules/` are copied into the
+user's modules folder once (an uninstalled one isn't copied again).
 
 The CSharpier module uses a version pinned in the project's dotnet tool manifest (`dotnet tool install csharpier`
 in the repository), else a global one. Without either, the status bar offers to run `dotnet tool install -g csharpier`.
