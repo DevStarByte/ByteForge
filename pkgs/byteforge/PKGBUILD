@@ -5,14 +5,14 @@
 #   2. set pkgver=0.2.0 (pkgrel=1) here, commit and push to `packages`
 # For a packaging-only change, bump pkgrel instead. The Build packages workflow does the rest.
 pkgname=byteforge
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="A modular, themeable IDE for C# built with Rust and GPUI"
 arch=('x86_64')
 url="https://github.com/DevStarByte/ByteForge"
 license=('MIT')
 depends=('vulkan-icd-loader' 'libxkbcommon' 'libxkbcommon-x11' 'wayland' 'libx11' 'libxcb'
-         'fontconfig' 'freetype2' 'alsa-lib' 'dotnet-sdk')
+         'fontconfig' 'freetype2' 'alsa-lib' 'dotnet-sdk' 'curl')
 makedepends=('git' 'rust' 'cmake' 'clang' 'pkgconf')
 optdepends=('ttf-jetbrains-mono: default editor font'
             'netcoredbg: debugger (AUR)'

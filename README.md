@@ -27,7 +27,7 @@ Updates arrive with `sudo pacman -Syu`. Remove with `sudo pacman -R byteforge`.
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| [byteforge](pkgs/byteforge) | 0.2.0 | A modular, themeable IDE for C# built with Rust and GPUI. |
+| [byteforge](pkgs/byteforge) | 0.3.0 | A modular, themeable IDE for C# built with Rust and GPUI. |
 
 ## Modules (IDE packages)
 
