@@ -8,7 +8,7 @@
 //! "sideBar.order": ["header", "content"],                          // add "activityBar" for a horizontal one
 //! "titleBar.left": ["logo", "menu"], "titleBar.center": ["commandCenter"], "titleBar.right": [...],
 //! "statusBar.left": [...], "statusBar.center": [], "statusBar.right": [...],
-//! "activityBar.items": ["explorer", "search", "scm", "debug", "docker", "modules", "spacer", "settings"],
+//! "activityBar.items": ["explorer", "search", "scm", "debug", "testing", "docker", "modules", "spacer", "settings"],
 //! ```
 //!
 //! Lists can be JSON arrays or comma-separated strings. Any bar also accepts `"command:<id>"` or
@@ -115,7 +115,7 @@ impl LayoutConfig {
             status_left: list(s, "statusBar.left", &["branch", "sync", "problems", "run", "modules"]),
             status_center: list(s, "statusBar.center", &[]),
             status_right: list(s, "statusBar.right", &["modules", "position", "indent", "encoding", "eol", "language", "lsp"]),
-            activity_items: list(s, "activityBar.items", &["explorer", "search", "scm", "debug", "docker", "modules", "spacer", "settings"]),
+            activity_items: list(s, "activityBar.items", &["explorer", "search", "scm", "debug", "testing", "docker", "modules", "spacer", "settings"]),
             panel_tabs: list(s, "panel.tabs", &["problems", "output", "debugConsole", "terminal"]),
             menus: list(s, "menuBar.menus", &["File", "Edit", "View", "Go", "Git", "Run", "Preferences", "Help"]),
             welcome: list(s, "welcome.order", &["logo", "title", "shortcuts"]),

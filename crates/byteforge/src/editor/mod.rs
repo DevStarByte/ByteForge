@@ -58,6 +58,8 @@ pub enum EditorEvent {
     ApplyWorkspaceEdit(Box<bf_lsp::WorkspaceEdit>),
     /// A status message for the Output panel (e.g. "nothing to rename here").
     Log(String),
+    /// The test marker in the gutter on this line was clicked: run that test.
+    RunTestAt(usize),
 }
 
 /// A breakpoint in the gutter (0-based line). `verified` is false while the debugger couldn't bind it.
@@ -200,6 +202,8 @@ pub struct EditorView {
     pub(crate) inlays: Vec<inlays::Inlay>,
     pub inlay_hints_enabled: bool,
     pub minimap_enabled: bool,
+    /// Test Explorer states of the tests (and test classes) declared in this file, by line.
+    test_marks: Vec<(usize, crate::testing::TestState)>,
     minimap: Option<Arc<minimap::MiniMap>>,
     minimap_hover: bool,
     inlay_task: Option<Task<()>>,
@@ -310,6 +314,7 @@ impl EditorView {
             inlays: Vec::new(),
             inlay_hints_enabled: true,
             minimap_enabled: false,
+            test_marks: Vec::new(),
             minimap: None,
             minimap_hover: false,
             inlay_task: None,
@@ -526,6 +531,13 @@ impl EditorView {
         breakpoints.dedup_by_key(|b| b.line);
         if breakpoints != self.breakpoints {
             self.breakpoints = breakpoints;
+            cx.notify();
+        }
+    }
+
+    pub fn set_test_marks(&mut self, marks: Vec<(usize, crate::testing::TestState)>, cx: &mut Context<Self>) {
+        if marks != self.test_marks {
+            self.test_marks = marks;
             cx.notify();
         }
     }
@@ -1441,6 +1453,11 @@ impl EditorView {
             return;
         }
         if self.glyph_margin && x < self.layout.left + self.layout.glyph && y < self.layout.top + self.layout.height {
+            // A test marker runs its test (F9 still sets a breakpoint on that line).
+            if self.test_marks.iter().any(|m| m.0 == p.line) && !self.breakpoints.iter().any(|b| b.line == p.line) {
+                cx.emit(EditorEvent::RunTestAt(p.line));
+                return;
+            }
             self.toggle_breakpoint(p.line, cx);
             return;
         }

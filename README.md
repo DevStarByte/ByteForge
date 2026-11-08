@@ -45,6 +45,12 @@ UI is styled from theme files that reload live.
   - step over/into/out, pause, restart, stop. The paused line is highlighted.
   - a Run and Debug view (`Ctrl+Shift+D`) with call stack, expandable variables and the breakpoint list
   - a Debug Console with program output and expression evaluation in the selected frame
+- **Test Explorer** (the beaker in the activity bar): the tests of every test project (xUnit, NUnit, MSTest) as
+  project → class → test, found in the source so they show up right away. Run or debug a test, a class, a
+  project or everything (hover a row, or "Test: Run/Debug Test at Cursor"), rerun the failed ones. Results come
+  from `dotnet test` (TRX): pass/fail/skip icons, durations, theory cases, and the failure message and stack in
+  the tooltip. Test methods get a marker in the gutter (▷ not run, ✓ passed, ✗ failed); clicking it runs the
+  test. Debugging starts the test host under the debugger, so breakpoints in tests work.
 - **Formatting**: Format Document (Shift+Alt+F), optional format on save. **CSharpier** is the default
   formatter for C# and MSBuild/XML files. It's a built-in module you can remove (and restore) in the Modules view; without it, or with
   `"editor.defaultFormatter": "csharp-ls"`, csharp-ls (Roslyn) formats C#. "Format Document With…" switches.
@@ -194,6 +200,7 @@ The theme sections:
 - **editor**: caret style, blink mode and speed, smooth-caret animation and speed, line highlight mode,
   selection radius, whitespace rendering, squiggle style, rainbow brackets, bracket matching, indent guides,
   rulers and paddings.
+- **testing**: `testing.iconPassed`, `iconFailed`, `iconSkipped`, `iconQueued`, `iconUnset` (in `colors`).
 - **minimap and groups**: `minimap.background`, `minimap.selectionHighlight`, `minimap.caretLine`,
   `minimapSlider.background` / `hoverBackground` and `editorGroup.border` (in `colors`), `minimap.width` (in
   `metrics`).

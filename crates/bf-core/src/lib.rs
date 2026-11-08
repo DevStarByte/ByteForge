@@ -11,6 +11,7 @@ pub mod plugins;
 pub mod search;
 pub mod settings;
 pub mod snippets;
+pub mod testing;
 pub mod theme;
 pub mod watch;
 pub mod workspace;

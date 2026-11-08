@@ -51,6 +51,11 @@ actions!(
 );
 
 actions!(
+    testing,
+    [ShowTesting, RunAllTests, RerunFailedTests, RunTestAtCursor, DebugTestAtCursor, RefreshTests]
+);
+
+actions!(
     editor,
     [
         MoveLeft, MoveRight, MoveUp, MoveDown, SelectLeft, SelectRight, SelectUp, SelectDown, MoveWordLeft, MoveWordRight,
@@ -171,6 +176,12 @@ fn builtin() -> Vec<(&'static str, &'static str, &'static str, Box<dyn Action>, 
         ("view.debug", "Run and Debug", "View", Box::new(ShowDebug), Some("ctrl-shift-d")),
         ("view.debugConsole", "Debug Console", "View", Box::new(ShowDebugConsole), Some("ctrl-shift-y")),
         ("view.docker", "Docker", "View", Box::new(ShowDocker), None),
+        ("view.testing", "Testing", "View", Box::new(ShowTesting), None),
+        ("test.runAll", "Run All Tests", "Test", Box::new(RunAllTests), None),
+        ("test.rerunFailed", "Rerun Failed Tests", "Test", Box::new(RerunFailedTests), None),
+        ("test.runAtCursor", "Run Test at Cursor", "Test", Box::new(RunTestAtCursor), None),
+        ("test.debugAtCursor", "Debug Test at Cursor", "Test", Box::new(DebugTestAtCursor), None),
+        ("test.refresh", "Find Tests Again", "Test", Box::new(RefreshTests), None),
         ("docker.refresh", "Refresh", "Docker", Box::new(DockerRefresh), None),
         ("docker.build", "Build Image…", "Docker", Box::new(DockerBuild), None),
         ("docker.composeUp", "Compose Up", "Docker", Box::new(DockerComposeUp), None),

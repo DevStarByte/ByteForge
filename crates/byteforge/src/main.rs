@@ -13,6 +13,7 @@ mod palette;
 mod scm;
 mod search;
 mod terminal;
+mod testing;
 mod text_input;
 mod theme;
 mod workbench;

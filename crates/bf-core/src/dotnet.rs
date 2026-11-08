@@ -83,13 +83,19 @@ pub struct DotnetProcess {
 
 impl DotnetProcess {
     pub fn start(root: &Path, args: Vec<String>) -> anyhow::Result<(Self, flume::Receiver<RunEvent>)> {
-        Self::start_program("dotnet", root, args)
+        Self::start_program("dotnet", root, args, &[])
     }
 
-    fn start_program(program: &str, root: &Path, args: Vec<String>) -> anyhow::Result<(Self, flume::Receiver<RunEvent>)> {
+    /// Like [`start`](Self::start) with extra environment variables (e.g. `VSTEST_HOST_DEBUG=1`).
+    pub fn start_with_env(root: &Path, args: Vec<String>, env: &[(String, String)]) -> anyhow::Result<(Self, flume::Receiver<RunEvent>)> {
+        Self::start_program("dotnet", root, args, env)
+    }
+
+    fn start_program(program: &str, root: &Path, args: Vec<String>, env: &[(String, String)]) -> anyhow::Result<(Self, flume::Receiver<RunEvent>)> {
         let mut command = Command::new(program);
         command
             .args(&args)
+            .envs(env.iter().map(|(k, v)| (k, v)))
             .current_dir(root)
             .env("DOTNET_NOLOGO", "1")
             .env("DOTNET_CLI_TELEMETRY_OPTOUT", "1")
@@ -178,7 +184,7 @@ mod tests {
         let marker = format!("bf-kill-test-{}", std::process::id());
         // Like `dotnet run`: a parent that waits on a child doing the real work.
         let script = format!("sh -c 'exec -a {marker} sleep 120' & wait");
-        let (process, events) = DotnetProcess::start_program("sh", Path::new("."), vec!["-c".into(), script]).unwrap();
+        let (process, events) = DotnetProcess::start_program("sh", Path::new("."), vec!["-c".into(), script], &[]).unwrap();
         let running = || Command::new("pgrep").args(["-f", &marker]).output().is_ok_and(|o| o.status.success());
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         while !running() {

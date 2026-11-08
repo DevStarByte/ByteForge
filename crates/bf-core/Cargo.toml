@@ -14,3 +14,4 @@ notify.workspace = true
 dirs.workspace = true
 log.workspace = true
 similar = "2"
+roxmltree = "0.20"

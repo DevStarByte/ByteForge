@@ -814,6 +814,40 @@ impl Element for EditorElement {
             if l.glyph > 0.0 {
                 let d = (l.glyph.min(lh) * 0.62).round();
                 let cx_ = l.left + l.glyph / 2.0;
+                // Test markers (a breakpoint on the same line wins).
+                for &(line, state) in view.test_marks.iter().filter(|m| !view.is_hidden(m.0)) {
+                    if view.breakpoints.iter().any(|b| b.line == line) {
+                        continue;
+                    }
+                    let (x0, y0) = (cx_ - d / 2.0, f32::from(line_top(line)) + (lh - d) / 2.0);
+                    let color = crate::testing::state_color(state, &theme);
+                    let polygon = |window: &mut Window, points: &[(f32, f32)]| {
+                        let mut path = gpui::PathBuilder::fill();
+                        for (i, &(px_, py_)) in points.iter().enumerate() {
+                            let p = point(px(x0 + px_ * d), px(y0 + py_ * d));
+                            if i == 0 { path.move_to(p) } else { path.line_to(p) }
+                        }
+                        path.close();
+                        if let Ok(path) = path.build() {
+                            window.paint_path(path, color);
+                        }
+                    };
+                    use crate::testing::TestState;
+                    match state {
+                        TestState::Passed => polygon(window, &[(0.05, 0.55), (0.2, 0.4), (0.4, 0.6), (0.8, 0.15), (0.95, 0.3), (0.4, 0.88)]),
+                        TestState::Failed => {
+                            polygon(window, &[(0.15, 0.05), (0.95, 0.85), (0.85, 0.95), (0.05, 0.15)]);
+                            polygon(window, &[(0.85, 0.05), (0.95, 0.15), (0.15, 0.95), (0.05, 0.85)]);
+                        }
+                        TestState::NotRun => polygon(window, &[(0.2, 0.08), (0.9, 0.5), (0.2, 0.92)]),
+                        TestState::Skipped => polygon(window, &[(0.1, 0.4), (0.9, 0.4), (0.9, 0.6), (0.1, 0.6)]),
+                        TestState::Running => {
+                            let r = d * 0.7;
+                            let rect = Bounds::new(point(px(cx_ - r / 2.0), px(y0 + (d - r) / 2.0)), size(px(r), px(r)));
+                            window.paint_quad(quad(rect, Corners::all(px(r / 2.0)), color, 0.0, Hsla::default(), gpui::BorderStyle::Solid));
+                        }
+                    }
+                }
                 for b in view.breakpoints.iter().filter(|b| !view.is_hidden(b.line)) {
                     let rect = Bounds::new(point(px(cx_ - d / 2.0), line_top(b.line) + px((lh - d) / 2.0)), size(px(d), px(d)));
                     if b.verified {
@@ -923,6 +957,7 @@ struct Snap {
     git_marks: Vec<(usize, bf_core::git::LineChangeKind)>,
     line_backgrounds: Vec<(usize, &'static str)>,
     breakpoints: Vec<super::Breakpoint>,
+    test_marks: Vec<(usize, crate::testing::TestState)>,
     exec_line: Option<(usize, bool)>,
     word_highlights: Vec<super::inlays::WordHighlight>,
     /// Inlay hints on the visible lines, sorted.
@@ -972,6 +1007,7 @@ impl Snap {
             git_marks: v.git_marks.iter().filter(|(l, _)| *l + 1 >= first && *l <= last + 1).copied().collect(),
             line_backgrounds: v.line_backgrounds.iter().filter(|(l, _)| *l >= first && *l <= last).copied().collect(),
             breakpoints: v.breakpoints.iter().filter(|b| b.line >= first && b.line <= last).copied().collect(),
+            test_marks: v.test_marks.iter().filter(|m| m.0 >= first && m.0 <= last).copied().collect(),
             exec_line: v.exec_line,
             word_highlights: v.word_highlights.iter().filter(|h| h.end.line >= first && h.start.line <= last).copied().collect(),
             inlays: v.inlays.iter().filter(|h| h.at.line >= first && h.at.line <= last).cloned().collect(),

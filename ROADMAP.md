@@ -25,7 +25,7 @@ The language server already supports all of these; the client needs the requests
 
 ## 3. .NET workflow
 
-- [ ] Test Explorer: discover tests (`dotnet test --list-tests`), run/debug one test, a class or all; pass/fail markers.
+- [x] Test Explorer: run/debug one test, a class or all; pass/fail markers. Tests are found in the source (test attributes), not with `dotnet test --list-tests`: instant, and it knows where each test is. Still open: tests generated at runtime (e.g. `[MemberData]` cases listed individually) and live per-test progress during long runs.
 - [ ] Solution view: projects from the `.sln`/`.slnx`, their dependencies and project references.
 - [ ] NuGet: search, add, update and remove packages (`dotnet add package`, `dotnet list package --outdated`).
 - [ ] Hot reload: "Run with Watch" (`dotnet watch`).

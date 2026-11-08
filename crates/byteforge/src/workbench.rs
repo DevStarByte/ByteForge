@@ -2,6 +2,7 @@
 
 mod debug;
 mod docker;
+mod testing;
 mod references;
 mod symbols;
 
@@ -24,6 +25,7 @@ use serde_json::json;
 use crate::actions::*;
 use crate::assets::{self, icon};
 use crate::docker::DockerView;
+use crate::testing::TestView;
 use crate::editor::{EditorEvent, EditorView};
 use crate::terminal::{TerminalEvent, TerminalView};
 use crate::text_input::{InputEvent, TextInput};
@@ -55,6 +57,7 @@ enum SideView {
     Search,
     SourceControl,
     Debug,
+    Testing,
     Docker,
     Modules,
 }
@@ -96,6 +99,8 @@ enum PromptKind {
 
 /// Runs when a dotnet process started by `start_dotnet` exits (argument: whether it succeeded).
 type DotnetDone = Box<dyn FnOnce(&mut Workbench, bool, &mut Window, &mut Context<Workbench>)>;
+/// Called with each output line of a dotnet process.
+type LineHook = Box<dyn FnMut(&mut Workbench, &str, &mut Window, &mut Context<Workbench>)>;
 
 /// A formatter contributed by a module.
 struct Formatter {
@@ -126,12 +131,13 @@ struct StatusEntry {
 const MENUS: &[(&str, &[&str])] = &[
     ("File", &["file.newFile", "file.openFile", "file.openFolder", "-", "file.save", "file.saveAs", "file.saveAll", "-", "file.close", "file.closeAll", "-", "app.exit"]),
     ("Edit", &["edit.undo", "edit.redo", "-", "edit.find", "edit.replace", "-", "edit.toggleComment", "edit.duplicateLines", "edit.triggerSuggest", "edit.signatureHelp", "-", "edit.rename", "-", "edit.toggleLineEnding"]),
-    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.docker", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.toggleSideBar", "view.togglePanel"]),
+    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.docker", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.toggleSideBar", "view.togglePanel"]),
     ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.init"]),
     ("Run", &[
         "debug.start", "dotnet.run", "debug.restart", "dotnet.stop", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
         "debug.toggleBreakpoint", "debug.removeAllBreakpoints", "debug.attach", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
+        "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
         "docker.build", "docker.composeUp", "docker.composeDown", "docker.addDockerSupport", "docker.addCompose", "-", "csharp.reload",
     ]),
     ("Preferences", &["settings.open", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
@@ -155,6 +161,9 @@ pub struct Workbench {
     search: Entity<SearchView>,
     scm: Entity<ScmView>,
     docker: Entity<DockerView>,
+    tests: Entity<TestView>,
+    /// Numbers the results folders of test runs.
+    test_runs: u64,
     git_head: Option<Option<String>>,
     output: Entity<EditorView>,
     palette: Option<(Entity<Palette>, Subscription)>,
@@ -265,6 +274,7 @@ impl Workbench {
         let search = cx.new(|cx| SearchView::new(workspace.clone(), window, cx));
         let scm = cx.new(|cx| ScmView::new(workspace.clone(), window, cx));
         let docker = cx.new(|cx| DockerView::new(workspace.clone(), cx));
+        let tests = cx.new(|cx| TestView::new(workspace.clone(), cx));
         let output = cx.new(|cx| {
             let mut e = EditorView::new("", None, cx);
             e.read_only = true;
@@ -293,6 +303,7 @@ impl Workbench {
             }),
             cx.subscribe_in(&scm, window, Self::on_scm_event),
             cx.subscribe_in(&docker, window, Self::on_docker_event),
+            cx.subscribe_in(&tests, window, Self::on_test_event),
             // File references in program output open on click.
             cx.subscribe_in(&output, window, Self::on_output_event),
             cx.subscribe_in(&debug_console, window, Self::on_output_event),
@@ -333,6 +344,9 @@ impl Workbench {
                         AppEvent::FilesChanged => {
                             wb.explorer.update(cx, |e, cx| e.refresh(cx));
                             wb.docker.update(cx, |d, cx| d.files_changed(cx));
+                            if wb.tests.read(cx).is_discovered() {
+                                wb.tests.update(cx, |t, cx| t.files_changed(cx));
+                            }
                         }
                     })
                     .is_ok();
@@ -357,6 +371,8 @@ impl Workbench {
             search,
             scm,
             docker,
+            tests,
+            test_runs: 0,
             git_head: None,
             output,
             palette: None,
@@ -558,6 +574,7 @@ impl Workbench {
         self.explorer.update(cx, |e, cx| e.refresh(cx));
         self.scm.update(cx, |s, cx| s.open_folder(cx));
         self.docker.update(cx, |d, cx| d.refresh(cx));
+        self.tests.update(cx, |t, cx| t.open_folder(cx));
         self.git_head = None;
         self.side = side_view_named(&Theme::global(cx).layout.side_default).unwrap_or(SideView::Explorer);
         self.build_problems.clear();
@@ -628,6 +645,8 @@ impl Workbench {
             self.prepare_debuggable_editor(&editor, &path, cx);
             let title = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
             self.add_tab(editor.clone(), Some(path.clone()), title, bom, window, cx);
+            let marks = self.tests.read(cx).marks_for(&path);
+            editor.update(cx, |e, cx| e.set_test_marks(marks, cx));
             self.load_git_base(editor, path.clone(), cx);
         }
         if let (Some(at), Some(editor)) = (at, self.active_editor()) {
@@ -655,6 +674,11 @@ impl Workbench {
             EditorEvent::Log(text) => {
                 self.log(text);
                 self.show_panel(PanelView::Output, cx);
+            }
+            EditorEvent::RunTestAt(line) => {
+                if let Some(path) = self.tabs.iter().find(|t| t.editor == *editor).and_then(|t| t.path.clone()) {
+                    self.run_test_at(&path, *line, false, window, cx);
+                }
             }
             _ => cx.notify(),
         }
@@ -1088,13 +1112,29 @@ impl Workbench {
     /// Runs `dotnet <args>` in `root` with output streamed to the Output panel. Compiler errors and
     /// warnings go to Problems. `then` runs when the process exits, with whether it succeeded.
     fn start_dotnet(&mut self, root: PathBuf, args: Vec<String>, then: Option<DotnetDone>, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        self.start_dotnet_with(root, args, Vec::new(), None, then, window, cx)
+    }
+
+    /// [`start_dotnet`](Self::start_dotnet) with extra environment variables and a hook called with each
+    /// output line.
+    #[allow(clippy::too_many_arguments)]
+    fn start_dotnet_with(
+        &mut self,
+        root: PathBuf,
+        args: Vec<String>,
+        env: Vec<(String, String)>,
+        mut on_line: Option<LineHook>,
+        then: Option<DotnetDone>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
         let verb = args.first().cloned().unwrap_or_default();
         let compiles = matches!(verb.as_str(), "build" | "run" | "test");
         if compiles {
             self.build_problems.clear();
         }
         self.log(format!("> dotnet {}", args.join(" ")));
-        match DotnetProcess::start(&root, args) {
+        match DotnetProcess::start_with_env(&root, args, &env) {
             Ok((process, rx)) => {
                 self.dotnet = Some(process);
                 let tx = self.output_tx.clone();
@@ -1104,6 +1144,9 @@ impl Workbench {
                             RunEvent::Line(line) => {
                                 if compiles && let Some(d) = bf_core::debug::parse_build_line(&line, &root) {
                                     let _ = this.update(cx, |wb, _| wb.add_build_problem(d));
+                                }
+                                if let Some(hook) = on_line.as_mut() {
+                                    let _ = this.update_in(cx, |wb, window, cx| hook(wb, &line, window, cx));
                                 }
                                 let _ = tx.send(line);
                             }
@@ -2220,6 +2263,8 @@ impl Render for Workbench {
         window.set_window_title(&title);
         let docker_visible = self.side_visible && self.side == SideView::Docker;
         self.docker.update(cx, |d, cx| d.set_visible(docker_visible, cx));
+        let tests_visible = self.side_visible && self.side == SideView::Testing;
+        self.tests.update(cx, |t, cx| t.set_visible(tests_visible, cx));
 
         // Every region is placed by the theme layout (see layout.rs).
         let lay = &t.layout;
@@ -2399,7 +2444,13 @@ impl Render for Workbench {
             }))
             .on_action(cx.listener(|wb, _: &Build, w, cx| wb.run_dotnet("build", w, cx)))
             .on_action(cx.listener(|wb, _: &Run, w, cx| wb.run_dotnet("run", w, cx)))
-            .on_action(cx.listener(|wb, _: &Test, w, cx| wb.run_dotnet("test", w, cx)))
+            .on_action(cx.listener(|wb, _: &Test, w, cx| wb.run_all_tests(w, cx)))
+            .on_action(cx.listener(|wb, _: &ShowTesting, w, cx| wb.toggle_side(SideView::Testing, w, cx)))
+            .on_action(cx.listener(|wb, _: &RunAllTests, w, cx| wb.run_all_tests(w, cx)))
+            .on_action(cx.listener(|wb, _: &RerunFailedTests, w, cx| wb.rerun_failed_tests(w, cx)))
+            .on_action(cx.listener(|wb, _: &RunTestAtCursor, w, cx| wb.run_test_at_cursor(false, w, cx)))
+            .on_action(cx.listener(|wb, _: &DebugTestAtCursor, w, cx| wb.run_test_at_cursor(true, w, cx)))
+            .on_action(cx.listener(|wb, _: &RefreshTests, _, cx| wb.tests.update(cx, |t, cx| t.discover(cx))))
             .on_action(cx.listener(|wb, _: &Clean, w, cx| wb.run_dotnet("clean", w, cx)))
             .on_action(cx.listener(|wb, _: &Restore, w, cx| wb.run_dotnet("restore", w, cx)))
             .on_action(cx.listener(|wb, _: &Stop, _, cx| {
@@ -2922,6 +2973,7 @@ impl Workbench {
                 "search" => Some((SideView::Search, "search", "Search (Ctrl+Shift+F)")),
                 "scm" => Some((SideView::SourceControl, "sourceControl", "Source Control (Ctrl+Shift+G)")),
                 "debug" => Some((SideView::Debug, "debug", "Run and Debug (Ctrl+Shift+D)")),
+                "testing" | "tests" => Some((SideView::Testing, "beaker", "Testing")),
                 "docker" => Some((SideView::Docker, "docker", "Docker")),
                 "modules" => Some((SideView::Modules, "puzzle", "Modules")),
                 _ => None,
@@ -2960,6 +3012,7 @@ impl Workbench {
             SideView::Search => "SEARCH",
             SideView::SourceControl => "SOURCE CONTROL",
             SideView::Debug => "RUN AND DEBUG",
+            SideView::Testing => "TESTING",
             SideView::Docker => "DOCKER",
             SideView::Modules => "MODULES",
         };
@@ -2968,6 +3021,7 @@ impl Workbench {
             SideView::Search => self.search.clone().into_any_element(),
             SideView::SourceControl => self.scm.clone().into_any_element(),
             SideView::Debug => self.render_debug_view(cx),
+            SideView::Testing => self.tests.clone().into_any_element(),
             SideView::Docker => self.docker.clone().into_any_element(),
             SideView::Modules => self.render_modules(cx).into_any_element(),
         });
@@ -3747,7 +3801,10 @@ fn default_command_icon(id: &str) -> &'static str {
         "view.togglePanel" | "view.problems" | "view.output" => "layoutPanel",
         "view.modules" => "puzzle",
         "view.docker" | "docker.build" | "docker.addDockerSupport" | "docker.prune" => "docker",
-        "docker.composeUp" => "play",
+        "docker.composeUp" | "test.runAll" | "test.runAtCursor" => "play",
+        "view.testing" | "test.refresh" => "beaker",
+        "test.debugAtCursor" => "debug",
+        "test.rerunFailed" => "refresh",
         "docker.composeDown" => "stop",
         "docker.addCompose" => "layers",
         "docker.refresh" => "refresh",
@@ -3799,6 +3856,7 @@ fn side_view_named(name: &str) -> Option<SideView> {
         "search" => Some(SideView::Search),
         "scm" | "sourcecontrol" | "git" => Some(SideView::SourceControl),
         "debug" | "run" => Some(SideView::Debug),
+        "testing" | "tests" | "test" => Some(SideView::Testing),
         "docker" | "containers" => Some(SideView::Docker),
         "modules" => Some(SideView::Modules),
         _ => None,

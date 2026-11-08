@@ -512,6 +512,7 @@ dependencies = [
  "log",
  "notify",
  "parking_lot",
+ "roxmltree",
  "serde",
  "serde_json",
  "similar",
