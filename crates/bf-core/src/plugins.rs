@@ -8,7 +8,7 @@
 //! Module → host: `registerCommand {id,title,category?,keybinding?}`, `status {id,text,tooltip?,command?,alignment?}`,
 //! `log {text}`, `openFile {path,line?,column?}`, `showView {id}`, `insertText {text}` (at the caret(s) of the active editor), `setTheme {name}`,
 //! `registerFormatter {id,name,extensions}`, `formatResult {requestId,text?|error?}`.
-//! Host → module: `activate {workspace}`, `executeCommand {id}`, `event {name, path?}` (folderOpened, fileSaved, themeChanged),
+//! Host → module: `activate {workspace}`, `executeCommand {id}`, `event {name, path?}` (folderOpened, fileSaved, themeChanged, editorChanged),
 //! `format {requestId,path,text}`.
 //! Modules can be written in any language and cannot crash the IDE.
 

@@ -342,7 +342,7 @@ ByteForge starts the command in that folder and exchanges one JSON object per li
   - `{"type":"activate","workspace"}`
   - `{"type":"executeCommand","id"}`
   - `{"type":"format","requestId","path","text"}` (formatter modules only)
-  - `{"type":"event","name":"folderOpened|fileSaved|themeChanged","path"}`
+  - `{"type":"event","name":"folderOpened|fileSaved|themeChanged|editorChanged","path"}` (`editorChanged`: the active tab changed; `path` is null for untitled documents and pages)
 
 `samples/hello-module` is a complete Python example: a command with a key binding plus a status bar clock.
 `modules/csharpier` is the preinstalled formatter module: the modules in `<install dir>/modules/` are copied into the

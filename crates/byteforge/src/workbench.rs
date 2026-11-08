@@ -722,6 +722,7 @@ impl Workbench {
             editor.update(cx, |e, _| e.focus(window));
             let path = self.tabs[ix].path.clone();
             self.explorer.update(cx, |e, cx| e.set_active(path.as_deref(), cx));
+            self.notify_editor_changed();
             cx.notify();
         }
     }
@@ -867,8 +868,22 @@ impl Workbench {
         } else {
             window.focus(&self.focus);
             self.explorer.update(cx, |e, cx| e.set_active(None, cx));
+            self.notify_editor_changed();
         }
         cx.notify();
+    }
+
+    /// The file of the active tab (None for untitled documents and pages).
+    fn active_path(&self) -> Option<PathBuf> {
+        self.active.and_then(|i| self.tabs.get(i)).and_then(|t| t.path.clone())
+    }
+
+    /// Tells modules which file is in front (`editorChanged`, path null when none is).
+    fn notify_editor_changed(&self) {
+        let path = self.active_path();
+        for p in &self.plugins {
+            p.event("editorChanged", path.as_deref());
+        }
     }
 
     fn should_close(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
@@ -1418,6 +1433,7 @@ impl Workbench {
         match PluginHandle::start(manifest.clone(), tx) {
             Ok(handle) => {
                 handle.activate(self.workspace.root().as_deref());
+                handle.event("editorChanged", self.active_path().as_deref());
                 self.log(format!("Module '{}' started", manifest.name));
                 self.plugins.push(handle);
             }
