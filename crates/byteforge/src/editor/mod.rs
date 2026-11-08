@@ -263,12 +263,7 @@ impl EditorView {
     pub fn new(text: &str, path: Option<PathBuf>, cx: &mut Context<Self>) -> Self {
         let language = path.as_deref().and_then(Language::from_path);
         let mut state = EditorState::new(Buffer::new(text));
-        state.line_comment = match language {
-            Some(Language::CSharp) => Some("//"),
-            Some(Language::Json) => Some("//"),
-            Some(Language::Dockerfile | Language::Yaml) => Some("#"),
-            Some(Language::Razor | Language::Xml) | None => None,
-        };
+        state.line_comment = language.and_then(Language::line_comment);
         state.block_comment = match language {
             Some(Language::Razor) => Some(("@*", "*@")),
             Some(Language::Xml) => Some(("<!--", "-->")),
@@ -592,6 +587,26 @@ impl EditorView {
         let max = self.state.buffer.line_count() - 1;
         // Rows to lines: folded lines between them aren't drawn.
         (self.folds.line_of(first).min(max), self.folds.line_of(last).min(max))
+    }
+
+    /// Re-detects the language from the file name (a module's language appeared or went away) and
+    /// re-highlights when it changed.
+    pub fn redetect_language(&mut self, cx: &mut Context<Self>) {
+        let language = self.path.as_deref().and_then(Language::from_path);
+        if language == self.language {
+            return;
+        }
+        self.language = language;
+        self.state.line_comment = language.and_then(Language::line_comment);
+        let text = self.state.buffer.text();
+        self.syntax = language.map(|lang| {
+            let mut highlighter = Highlighter::new(lang);
+            highlighter.parse(&text);
+            Arc::new(Mutex::new(SyntaxState { highlighter, pending: Vec::new(), full: false }))
+        });
+        self.syntax_spans = Spans::default();
+        self.schedule_highlight(cx);
+        cx.notify();
     }
 
     fn schedule_highlight(&mut self, cx: &mut Context<Self>) {

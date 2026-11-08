@@ -198,17 +198,9 @@ pub fn render(markdown: &str, cx: &App) -> AnyElement {
     col.into_any_element()
 }
 
-/// A code block with syntax colors when the language is known (C#, Razor, JSON, XML, Dockerfile, YAML).
+/// A code block with syntax colors when the language is known (C#, Razor, JSON, XML, YAML, or a module's).
 pub(crate) fn code_text(text: &str, language: Option<&str>, font: &gpui::Font, fg: Hsla, t: &Theme) -> StyledText {
-    let language = match language {
-        Some("csharp" | "cs" | "c#") => Some(bf_syntax::Language::CSharp),
-        Some("razor" | "cshtml") => Some(bf_syntax::Language::Razor),
-        Some("json" | "jsonc") => Some(bf_syntax::Language::Json),
-        Some("xml" | "csproj" | "msbuild") => Some(bf_syntax::Language::Xml),
-        Some("dockerfile" | "docker" | "containerfile") => Some(bf_syntax::Language::Dockerfile),
-        Some("yaml" | "yml" | "compose") => Some(bf_syntax::Language::Yaml),
-        _ => None,
-    };
+    let language = language.and_then(bf_syntax::Language::from_id);
     let run = |len: usize, color: Hsla, bold: bool, italic: bool| TextRun {
         len,
         font: gpui::Font {

@@ -152,14 +152,38 @@ impl Explorer {
     }
 }
 
-/// The icon and its color for a file or folder name: (icon name, theme color key).
-pub(crate) fn file_icon(name: &str, is_dir: bool, expanded: bool) -> (&'static str, &'static str) {
+/// File icons declared by the turned-on modules, in module order: (rule, registered icon name).
+static MODULE_FILE_ICONS: parking_lot::RwLock<Vec<(bf_core::plugins::FileIconRule, String)>> = parking_lot::RwLock::new(Vec::new());
+
+/// Installs the file icons of these (turned-on) modules; they win over the built-in icons.
+pub(crate) fn set_module_file_icons(modules: &[bf_core::plugins::ModuleManifest]) {
+    let mut rules = Vec::new();
+    let mut paths = std::collections::HashMap::new();
+    for m in modules {
+        for (i, rule) in m.file_icons.iter().enumerate() {
+            let name = format!("module-{}-{i}", m.id);
+            paths.insert(name.clone(), rule.icon.clone());
+            rules.push((rule.clone(), name));
+        }
+    }
+    *MODULE_FILE_ICONS.write() = rules;
+    crate::assets::set_module_icons(paths);
+}
+
+/// The icon and its color for a file or folder name: (icon name, theme color key or color).
+pub(crate) fn file_icon(name: &str, is_dir: bool, expanded: bool) -> (std::borrow::Cow<'static, str>, std::borrow::Cow<'static, str>) {
     if is_dir {
-        return (if expanded { "folderOpen" } else { "folder" }, "icon.folder");
+        return ((if expanded { "folderOpen" } else { "folder" }).into(), "icon.folder".into());
     }
-    if bf_syntax::is_dockerfile_name(name) || bf_core::docker::is_compose_file_name(name) || name.eq_ignore_ascii_case(".dockerignore") {
-        return ("docker", "icon.docker");
+    if let Some((rule, icon_name)) = MODULE_FILE_ICONS.read().iter().find(|(r, _)| r.matches(name)) {
+        return (icon_name.clone().into(), rule.color.clone().unwrap_or_else(|| "icon.file".to_owned()).into());
     }
+    let (icon_name, color) = builtin_file_icon(name);
+    (icon_name.into(), color.into())
+}
+
+/// The built-in icon for a file name: (icon name, theme color key).
+fn builtin_file_icon(name: &str) -> (&'static str, &'static str) {
     let lower = name.to_ascii_lowercase();
     match lower.as_str() {
         ".gitignore" | ".gitattributes" | ".gitmodules" | ".editorconfig" | ".env" | "global.json" | "nuget.config" => {
@@ -190,8 +214,12 @@ pub(crate) fn file_icon(name: &str, is_dir: bool, expanded: bool) -> (&'static s
     }
 }
 
-/// Theme color for a file icon key. Themes written before a key existed fall back to a related one.
+/// Theme color for a file icon key (or a literal color from a module). Themes written before a key existed
+/// fall back to a related one.
 pub(crate) fn file_icon_color(t: &Theme, key: &str) -> gpui::Hsla {
+    if let Some(color) = key.starts_with('#').then(|| crate::theme::parse_color(key)).flatten() {
+        return color;
+    }
     let mut key = key;
     while !t.has(key) {
         key = match key {
@@ -300,7 +328,7 @@ impl Render for Explorer {
                             }))
                             .child({
                                 let (icon_name, color_key) = file_icon(&row.name, row.is_dir, expanded);
-                                icon(icon_name, icon_size, file_icon_color(&t, color_key))
+                                icon(&icon_name, icon_size, file_icon_color(&t, &color_key))
                             })
                             .child(
                                 div()
@@ -423,19 +451,31 @@ impl Render for Explorer {
 
 #[cfg(test)]
 mod tests {
-    use super::file_icon;
+    use super::{builtin_file_icon, file_icon, set_module_file_icons};
 
     #[test]
     fn picks_an_icon_per_file_type() {
-        assert_eq!(file_icon("Program.cs", false, false), ("fileCsharp", "icon.csharp"));
-        assert_eq!(file_icon("App.csproj", false, false), ("fileProject", "icon.project"));
-        assert_eq!(file_icon("App.sln", false, false), ("fileSolution", "icon.solution"));
-        assert_eq!(file_icon("Index.cshtml", false, false), ("fileRazor", "icon.razor"));
-        assert_eq!(file_icon("appsettings.Development.json", false, false), ("fileJson", "icon.json"));
-        assert_eq!(file_icon("logo.SVG", false, false), ("fileImage", "icon.image"));
-        assert_eq!(file_icon(".gitignore", false, false), ("fileConfig", "icon.config"));
-        assert_eq!(file_icon("Dockerfile", false, false), ("docker", "icon.docker"));
-        assert_eq!(file_icon("notes", false, false), ("file", "icon.file"));
-        assert_eq!(file_icon("src", true, true), ("folderOpen", "icon.folder"));
+        assert_eq!(builtin_file_icon("Program.cs"), ("fileCsharp", "icon.csharp"));
+        assert_eq!(builtin_file_icon("App.csproj"), ("fileProject", "icon.project"));
+        assert_eq!(builtin_file_icon("App.sln"), ("fileSolution", "icon.solution"));
+        assert_eq!(builtin_file_icon("Index.cshtml"), ("fileRazor", "icon.razor"));
+        assert_eq!(builtin_file_icon("appsettings.Development.json"), ("fileJson", "icon.json"));
+        assert_eq!(builtin_file_icon("logo.SVG"), ("fileImage", "icon.image"));
+        assert_eq!(builtin_file_icon(".gitignore"), ("fileConfig", "icon.config"));
+        assert_eq!(builtin_file_icon("notes"), ("file", "icon.file"));
+        assert_eq!(file_icon("src", true, true), ("folderOpen".into(), "icon.folder".into()));
+        assert_eq!(builtin_file_icon("Dockerfile"), ("file", "icon.file"));
+    }
+
+    #[test]
+    fn module_icons_win_while_installed() {
+        let module: bf_core::plugins::ModuleManifest = serde_json::from_str(
+            r#"{ "id": "t.docker", "name": "Docker", "fileIcons": [{ "icon": "M0,0Z", "color": "icon.docker", "names": ["Dockerfile"] }] }"#,
+        )
+        .unwrap();
+        set_module_file_icons(std::slice::from_ref(&module));
+        assert_eq!(file_icon("Dockerfile", false, false), ("module-t.docker-0".into(), "icon.docker".into()));
+        set_module_file_icons(&[]);
+        assert_eq!(file_icon("Dockerfile", false, false), ("file".into(), "icon.file".into()));
     }
 }

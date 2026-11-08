@@ -1,7 +1,7 @@
 //! The workbench: window layout, tabs, panels, title bar, menus, status bar and all workbench commands.
 
 mod debug;
-mod docker;
+mod module_views;
 mod modules;
 mod preview;
 mod testing;
@@ -26,7 +26,6 @@ use serde_json::json;
 
 use crate::actions::*;
 use crate::assets::{self, icon};
-use crate::docker::DockerView;
 use crate::testing::TestView;
 use crate::editor::{EditorEvent, EditorView};
 use crate::terminal::{TerminalEvent, TerminalView};
@@ -87,7 +86,8 @@ enum SideView {
     SourceControl,
     Debug,
     Testing,
-    Docker,
+    /// A module's view (which one: `module_view`).
+    Module,
     Modules,
 }
 
@@ -160,14 +160,14 @@ struct StatusEntry {
 const MENUS: &[(&str, &[&str])] = &[
     ("File", &["file.newFile", "file.openFile", "file.openFolder", "-", "file.save", "file.saveAs", "file.saveAll", "-", "file.close", "file.closeAll", "-", "app.exit"]),
     ("Edit", &["edit.undo", "edit.redo", "-", "edit.find", "edit.replace", "-", "edit.toggleComment", "edit.duplicateLines", "edit.triggerSuggest", "edit.signatureHelp", "-", "edit.rename", "-", "edit.toggleLineEnding"]),
-    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.docker", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.toggleSideBar", "view.togglePanel"]),
+    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.toggleSideBar", "view.togglePanel"]),
     ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.init"]),
     ("Run", &[
         "debug.start", "dotnet.run", "debug.restart", "dotnet.stop", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
         "debug.toggleBreakpoint", "debug.removeAllBreakpoints", "debug.attach", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
-        "docker.build", "docker.composeUp", "docker.composeDown", "docker.addDockerSupport", "docker.addCompose", "-", "csharp.reload",
+        "csharp.reload",
     ]),
     ("Preferences", &["settings.open", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
     ("Help", &["view.modules", "app.about"]),
@@ -189,7 +189,6 @@ pub struct Workbench {
     explorer: Entity<Explorer>,
     search: Entity<SearchView>,
     scm: Entity<ScmView>,
-    docker: Entity<DockerView>,
     tests: Entity<TestView>,
     /// Numbers the results folders of test runs.
     test_runs: u64,
@@ -243,6 +242,11 @@ pub struct Workbench {
     next_format_request: u64,
     plugin_commands: HashMap<String, String>,
     plugin_status: Vec<StatusEntry>,
+    /// Side bar views of the turned-on modules, the one shown (with `SideView::Module`), and the one the
+    /// module was last told is visible.
+    module_views: Vec<module_views::ModuleView>,
+    module_view: Option<String>,
+    module_view_shown: Option<(String, String)>,
     output_tx: flume::Sender<String>,
     focus: FocusHandle,
     theme_version: usize,
@@ -310,7 +314,6 @@ impl Workbench {
         let explorer = cx.new(|cx| Explorer::new(workspace.clone(), cx));
         let search = cx.new(|cx| SearchView::new(workspace.clone(), window, cx));
         let scm = cx.new(|cx| ScmView::new(workspace.clone(), window, cx));
-        let docker = cx.new(|cx| DockerView::new(workspace.clone(), cx));
         let tests = cx.new(|cx| TestView::new(workspace.clone(), cx));
         let output = cx.new(|cx| {
             let mut e = EditorView::new("", None, cx);
@@ -340,7 +343,6 @@ impl Workbench {
                 SearchEvent::Open(path, point) => wb.open_file(path.clone(), Some(*point), window, cx),
             }),
             cx.subscribe_in(&scm, window, Self::on_scm_event),
-            cx.subscribe_in(&docker, window, Self::on_docker_event),
             cx.subscribe_in(&tests, window, Self::on_test_event),
             // File references in program output open on click.
             cx.subscribe_in(&output, window, Self::on_output_event),
@@ -386,7 +388,9 @@ impl Workbench {
                         AppEvent::SettingsChanged => wb.apply_settings(window, cx),
                         AppEvent::FilesChanged => {
                             wb.explorer.update(cx, |e, cx| e.refresh(cx));
-                            wb.docker.update(cx, |d, cx| d.files_changed(cx));
+                            for p in &wb.plugins {
+                                p.event("filesChanged", None);
+                            }
                             if wb.tests.read(cx).is_discovered() {
                                 wb.tests.update(cx, |t, cx| t.files_changed(cx));
                             }
@@ -413,7 +417,6 @@ impl Workbench {
             explorer,
             search,
             scm,
-            docker,
             tests,
             test_runs: 0,
             git_head: None,
@@ -458,6 +461,9 @@ impl Workbench {
             next_format_request: 1,
             plugin_commands: HashMap::new(),
             plugin_status: Vec::new(),
+            module_views: Vec::new(),
+            module_view: None,
+            module_view_shown: None,
             output_tx,
             focus: cx.focus_handle(),
             theme_version,
@@ -556,11 +562,15 @@ impl Workbench {
     }
 
     fn apply_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let theme: String = self.settings.get("workbench.theme", "Klarheit".to_string());
+        let theme: String = self.settings.get("workbench.theme", "ByteForge Dark".to_string());
         if !theme.eq_ignore_ascii_case(&Theme::global(cx).data.name) {
             self.apply_theme(&theme, window, cx);
         }
         self.workspace.set_excludes(self.settings.get("files.exclude", Vec::<String>::new()));
+        let all = self.settings.all();
+        for p in &self.plugins {
+            p.settings_changed(&all);
+        }
         let auto_reveal = self.settings.get("explorer.autoReveal", true);
         self.explorer.update(cx, |e, _| e.auto_reveal = auto_reveal);
         let overrides: HashMap<String, String> = self.settings.get("keybindings", HashMap::new());
@@ -621,7 +631,6 @@ impl Workbench {
         self.state.set("lastFolder", Some(&path.to_string_lossy()));
         self.explorer.update(cx, |e, cx| e.refresh(cx));
         self.scm.update(cx, |s, cx| s.open_folder(cx));
-        self.docker.update(cx, |d, cx| d.refresh(cx));
         self.tests.update(cx, |t, cx| t.open_folder(cx));
         self.git_head = None;
         self.side = side_view_named(&Theme::global(cx).layout.side_default).unwrap_or(SideView::Explorer);
@@ -1446,6 +1455,7 @@ impl Workbench {
             }
             self.start_module(manifest);
         }
+        self.refresh_module_contributions(cx);
         self._tasks.push(cx.spawn(async move |this, cx| {
             while let Ok(message) = rx.recv_async().await {
                 if this.update(cx, |wb, cx| wb.on_plugin_message(message, cx)).is_err() {
@@ -1456,10 +1466,17 @@ impl Workbench {
     }
 
     fn start_module(&mut self, manifest: ModuleManifest) {
+        if manifest.command.trim().is_empty() {
+            return; // only declares things (file icons), nothing to run
+        }
         let Some(tx) = self.plugin_tx.clone() else { return };
         match PluginHandle::start(manifest.clone(), tx) {
             Ok(handle) => {
-                handle.activate(self.workspace.root().as_deref());
+                handle.activate(self.workspace.root().as_deref(), &self.settings.all());
+                // A restarted module learns again that its view is visible.
+                if self.module_view_shown.as_ref().is_some_and(|(m, _)| *m == manifest.id) {
+                    self.module_view_shown = None;
+                }
                 handle.event("editorChanged", self.active_path().as_deref());
                 self.log(format!("Module '{}' started", manifest.name));
                 self.plugins.push(handle);
@@ -1689,8 +1706,35 @@ impl Workbench {
                 "problems" => self.show_panel(PanelView::Problems, cx),
                 "explorer" => self.show_side(SideView::Explorer, cx),
                 "search" => self.show_side(SideView::Search, cx),
+                other if self.module_views.iter().any(|v| v.id == other) => self.show_module_view(other, cx),
                 other => self.show_side(side_view_named(other).unwrap_or(SideView::Modules), cx),
             },
+            PluginMessage::SetTree { module, tree } => self.set_module_tree(module, tree),
+            PluginMessage::RunInTerminal { title, command, cwd, save_all } => {
+                if let Some(window) = cx.active_window() {
+                    let entity = cx.entity();
+                    let _ = window.update(cx, |_, window, cx| {
+                        entity.update(cx, |wb, cx| {
+                            if save_all {
+                                wb.save_all(window, cx);
+                            }
+                            wb.run_in_terminal(title, command, cwd, window, cx);
+                        })
+                    });
+                }
+            }
+            PluginMessage::QuickPick { module, request, placeholder, items } => {
+                if let Some(window) = cx.active_window() {
+                    let entity = cx.entity();
+                    let _ = window.update(cx, |_, window, cx| entity.update(cx, |wb, cx| wb.module_quick_pick(module, request, placeholder, items, window, cx)));
+                }
+            }
+            PluginMessage::Prompt { module, prompt } => {
+                if let Some(window) = cx.active_window() {
+                    let entity = cx.entity();
+                    let _ = window.update(cx, |_, window, cx| entity.update(cx, |wb, cx| wb.module_prompt(module, prompt, window, cx)));
+                }
+            }
             PluginMessage::RegisterFormatter { module, id, name, extensions } => {
                 self.formatters.retain(|f| f.id != id);
                 self.formatters.push(Formatter { module, id, name, extensions });
@@ -1703,6 +1747,7 @@ impl Workbench {
             }
             PluginMessage::Exited { module, reason } => {
                 self.formatters.retain(|f| f.module != module);
+                self.module_views_stopped(&module);
                 self.log(format!("Module {module} stopped: {reason}"));
             }
         }
@@ -2319,8 +2364,7 @@ impl Render for Workbench {
             None => "ByteForge".into(),
         };
         window.set_window_title(&title);
-        let docker_visible = self.side_visible && self.side == SideView::Docker;
-        self.docker.update(cx, |d, cx| d.set_visible(docker_visible, cx));
+        self.sync_module_view_visibility();
         let tests_visible = self.side_visible && self.side == SideView::Testing;
         self.tests.update(cx, |t, cx| t.set_visible(tests_visible, cx));
 
@@ -2510,6 +2554,7 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &RerunFailedTests, w, cx| wb.rerun_failed_tests(w, cx)))
             .on_action(cx.listener(|wb, _: &RunTestAtCursor, w, cx| wb.run_test_at_cursor(false, w, cx)))
             .on_action(cx.listener(|wb, _: &DebugTestAtCursor, w, cx| wb.run_test_at_cursor(true, w, cx)))
+            .on_action(cx.listener(|wb, a: &ModulePickChoice, _, _| wb.module_pick_choice(a)))
             .on_action(cx.listener(|wb, _: &RefreshTests, _, cx| wb.tests.update(cx, |t, cx| t.discover(cx))))
             .on_action(cx.listener(|wb, _: &Clean, w, cx| wb.run_dotnet("clean", w, cx)))
             .on_action(cx.listener(|wb, _: &Restore, w, cx| wb.run_dotnet("restore", w, cx)))
@@ -2542,17 +2587,6 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &AttachToProcess, w, cx| wb.open_attach_picker(w, cx)))
             .on_action(cx.listener(|wb, action: &AttachToPid, w, cx| wb.debug_attach(action.pid, w, cx)))
             .on_action(cx.listener(|wb, _: &ShowDebug, w, cx| wb.toggle_side(SideView::Debug, w, cx)))
-            .on_action(cx.listener(|wb, _: &ShowDocker, w, cx| wb.toggle_side(SideView::Docker, w, cx)))
-            .on_action(cx.listener(|wb, _: &DockerRefresh, _, cx| wb.docker.update(cx, |d, cx| d.refresh(cx))))
-            .on_action(cx.listener(|wb, _: &DockerPrune, w, cx| wb.docker.update(cx, |d, cx| d.prune(w, cx))))
-            .on_action(cx.listener(|wb, _: &DockerBuild, w, cx| wb.docker_pick_file(false, None, w, cx)))
-            .on_action(cx.listener(|wb, _: &DockerComposeUp, w, cx| wb.docker_pick_file(true, Some(true), w, cx)))
-            .on_action(cx.listener(|wb, _: &DockerComposeDown, w, cx| wb.docker_pick_file(true, Some(false), w, cx)))
-            .on_action(cx.listener(|wb, a: &DockerBuildFile, w, cx| wb.docker_build(a.path.clone(), w, cx)))
-            .on_action(cx.listener(|wb, a: &DockerComposeFile, w, cx| wb.docker_compose(a.path.clone(), a.up, w, cx)))
-            .on_action(cx.listener(|wb, _: &DockerAddSupport, w, cx| wb.docker_add_support(w, cx)))
-            .on_action(cx.listener(|wb, a: &DockerAddSupportTo, w, cx| wb.docker_add_support_to(a.path.clone(), w, cx)))
-            .on_action(cx.listener(|wb, _: &DockerAddCompose, w, cx| wb.docker_add_compose(w, cx)))
             .on_action(cx.listener(|wb, _: &ToggleTerminal, w, cx| wb.toggle_terminal(w, cx)))
             .on_action(cx.listener(|wb, _: &NewTerminal, w, cx| wb.new_terminal(w, cx)))
             .on_action(cx.listener(|wb, _: &KillTerminal, w, cx| wb.kill_terminal(w, cx)))
@@ -3025,7 +3059,6 @@ impl Workbench {
         let side_visible = self.side_visible;
         let side = self.side;
         let scm_count = self.scm.read(cx).status().count();
-        let running_containers = self.docker.read(cx).running_count();
         let mut bar = div()
             .flex_none()
             .flex()
@@ -3039,15 +3072,33 @@ impl Workbench {
                     d.w(item_w).h_full().flex_col().when(right, |d| d.border_l_1()).when(!right, |d| d.border_r_1())
                 }
             });
+        // Module views: where the layout names them, else before the first spacer (or at the end).
+        let module_views: Vec<(String, String, String, u64)> = self.module_views.iter().map(|v| (v.id.clone(), v.title.clone(), v.icon.clone(), v.badge)).collect();
+        let module_item = |n: String, (view_id, title, icon_name, count): &(String, String, String, u64), cx: &mut Context<Self>| {
+            let active = self.module_view_active(view_id);
+            let view_id = view_id.clone();
+            item(SharedString::from(format!("act-m-{n}-{}", if horizontal { "h" } else { "v" })), icon_name, title.clone(), title, active)
+                .children(badge(*count as usize))
+                .on_click(cx.listener(move |wb, _, _, cx| wb.toggle_module_view(&view_id, cx)))
+        };
+        let mut unplaced: Vec<&(String, String, String, u64)> = module_views.iter().filter(|v| !t.layout.activity_items.iter().any(|i| i == &v.0)).collect();
         for (n, name) in t.layout.activity_items.iter().enumerate() {
             let id = SharedString::from(format!("act-{n}-{}", if horizontal { "h" } else { "v" }));
+            if let Some(v) = module_views.iter().find(|v| &v.0 == name) {
+                bar = bar.child(module_item(n.to_string(), v, cx));
+                continue;
+            }
+            if name == "spacer" {
+                for (k, v) in std::mem::take(&mut unplaced).into_iter().enumerate() {
+                    bar = bar.child(module_item(format!("{n}-{k}"), v, cx));
+                }
+            }
             let view = match name.as_str() {
                 "explorer" => Some((SideView::Explorer, "files", "Explorer (Ctrl+Shift+E)", "Files")),
                 "search" => Some((SideView::Search, "search", "Search (Ctrl+Shift+F)", "Search")),
                 "scm" => Some((SideView::SourceControl, "sourceControl", "Source Control (Ctrl+Shift+G)", "Git")),
                 "debug" => Some((SideView::Debug, "debug", "Run and Debug (Ctrl+Shift+D)", "Debug")),
                 "testing" | "tests" => Some((SideView::Testing, "beaker", "Testing", "Tests")),
-                "docker" => Some((SideView::Docker, "docker", "Docker", "Docker")),
                 "modules" => Some((SideView::Modules, "puzzle", "Modules", "Modules")),
                 _ => None,
             };
@@ -3055,9 +3106,6 @@ impl Workbench {
                 let mut el = item(id, icon_name, tip.into(), label, side_visible && side == view);
                 if view == SideView::SourceControl {
                     el = el.children(badge(scm_count));
-                }
-                if view == SideView::Docker {
-                    el = el.children(badge(running_containers));
                 }
                 bar = bar.child(el.on_click(cx.listener(move |wb, _, w, cx| wb.toggle_side(view, w, cx))));
                 continue;
@@ -3074,20 +3122,23 @@ impl Workbench {
                 }
             }
         }
+        for (k, v) in unplaced.into_iter().enumerate() {
+            bar = bar.child(module_item(format!("end-{k}"), v, cx));
+        }
         bar
     }
 
     /// The side bar; `sideBar.order` arranges header, content and (optionally) a horizontal activity bar.
     fn render_side_bar(&mut self, right: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let t = Theme::global(cx);
-        let title = match self.side {
-            SideView::Explorer => "EXPLORER",
-            SideView::Search => "SEARCH",
-            SideView::SourceControl => "SOURCE CONTROL",
-            SideView::Debug => "RUN AND DEBUG",
-            SideView::Testing => "TESTING",
-            SideView::Docker => "DOCKER",
-            SideView::Modules => "MODULES",
+        let title: SharedString = match self.side {
+            SideView::Explorer => "EXPLORER".into(),
+            SideView::Search => "SEARCH".into(),
+            SideView::SourceControl => "SOURCE CONTROL".into(),
+            SideView::Debug => "RUN AND DEBUG".into(),
+            SideView::Testing => "TESTING".into(),
+            SideView::Module => self.module_views.iter().find(|v| Some(&v.id) == self.module_view.as_ref()).map_or("MODULE".into(), |v| v.title.to_uppercase().into()),
+            SideView::Modules => "MODULES".into(),
         };
         let mut content: Option<gpui::AnyElement> = Some(match self.side {
             SideView::Explorer => self.explorer.clone().into_any_element(),
@@ -3095,7 +3146,7 @@ impl Workbench {
             SideView::SourceControl => self.scm.clone().into_any_element(),
             SideView::Debug => self.render_debug_view(cx),
             SideView::Testing => self.tests.clone().into_any_element(),
-            SideView::Docker => self.docker.clone().into_any_element(),
+            SideView::Module => self.render_module_view(cx),
             SideView::Modules => self.render_modules(cx).into_any_element(),
         });
         let sash_hover = t.c("sash.hoverBorder");
@@ -3139,7 +3190,7 @@ impl Workbench {
                             .text_size(t.m("sideBarTitle.fontSize", 11.0))
                             .font_weight(t.weight("sideBarTitle.weight", gpui::FontWeight::NORMAL))
                             .text_color(t.c("sideBarTitle.foreground"))
-                            .child(title),
+                            .child(title.clone()),
                     )
                 }
                 "content" => {
@@ -3814,14 +3865,10 @@ fn default_command_icon(id: &str) -> &'static str {
         "view.toggleSideBar" => "layoutSideBar",
         "view.togglePanel" | "view.problems" | "view.output" => "layoutPanel",
         "view.modules" => "puzzle",
-        "view.docker" | "docker.build" | "docker.addDockerSupport" | "docker.prune" => "docker",
-        "docker.composeUp" | "test.runAll" | "test.runAtCursor" => "play",
+        "test.runAll" | "test.runAtCursor" => "play",
         "view.testing" | "test.refresh" => "beaker",
         "test.debugAtCursor" => "debug",
         "test.rerunFailed" => "refresh",
-        "docker.composeDown" => "stop",
-        "docker.addCompose" => "layers",
-        "docker.refresh" => "refresh",
         "file.newFile" | "file.openFile" | "file.save" | "file.saveAs" | "file.saveAll" => "file",
         "file.openFolder" => "folderOpen",
         "file.close" | "file.closeAll" | "app.exit" => "close",
@@ -3871,7 +3918,6 @@ fn side_view_named(name: &str) -> Option<SideView> {
         "scm" | "sourcecontrol" | "git" => Some(SideView::SourceControl),
         "debug" | "run" => Some(SideView::Debug),
         "testing" | "tests" | "test" => Some(SideView::Testing),
-        "docker" | "containers" => Some(SideView::Docker),
         "modules" => Some(SideView::Modules),
         _ => None,
     }

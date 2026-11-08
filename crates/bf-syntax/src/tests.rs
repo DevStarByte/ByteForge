@@ -71,11 +71,11 @@ fn assert_well_formed(spans: &[Span], range: Range<usize>) {
 
 #[test]
 fn queries_compile() {
-    for language in [Language::CSharp, Language::Json, Language::Razor, Language::Xml, Language::Dockerfile, Language::Yaml] {
+    for language in [Language::CSharp, Language::Json, Language::Razor, Language::Xml, Language::Yaml] {
         let h = Highlighter::new(language);
         assert_eq!(h.language(), language);
         // Every capture that is not a predicate helper must map to a kind.
-        for (name, kind) in h.query.capture_names().iter().zip(&h.capture_kinds) {
+        for (name, kind) in h.query.as_ref().expect("tree-sitter language").capture_names().iter().zip(&h.capture_kinds) {
             assert!(
                 name.starts_with('_') || kind.is_some(),
                 "unmapped capture @{name}"
@@ -481,35 +481,41 @@ fn xml_kinds() {
 }
 
 #[test]
-fn dockerfile_detection() {
-    for name in ["Dockerfile", "dockerfile", "src/Api/Dockerfile", "Dockerfile.dev", "api.dockerfile", "Containerfile", "x.Containerfile"] {
-        assert_eq!(Language::from_path(Path::new(name)), Some(Language::Dockerfile), "{name}");
-    }
-    for name in ["Dockerfiles", "my-dockerfile", ".dockerignore", "Dockerfile."] {
-        assert_ne!(Language::from_path(Path::new(name)), Some(Language::Dockerfile), "{name}");
-    }
+fn module_languages_detect_files_and_highlight_with_regexes() {
+    use crate::module_lang::{ModuleLanguage, RegexRule, set_module_languages};
+    set_module_languages(vec![ModuleLanguage {
+        id: "dockerfile",
+        name: "Dockerfile",
+        line_comment: Some("#"),
+        matches: Box::new(|name: &str| name.eq_ignore_ascii_case("Dockerfile")),
+        rules: vec![
+            RegexRule::new(r"^\s*#.*$", 0, "comment").unwrap(),
+            RegexRule::new(r"(?i)^\s*(FROM|RUN)\b", 1, "keyword").unwrap(),
+            RegexRule::new(r#""[^"]*""#, 0, "string").unwrap(),
+            RegexRule::new(r"\b(AS)\b", 1, "keyword").unwrap(),
+        ],
+    }]);
+    let lang = Language::from_path(Path::new("src/Api/Dockerfile")).expect("module language");
+    assert_eq!((lang.id(), lang.name(), lang.line_comment()), ("dockerfile", "Dockerfile", Some("#")));
+    assert_eq!(Language::from_id("dockerfile"), Some(lang));
     assert_eq!(Language::from_path(Path::new("compose.yaml")), Some(Language::Yaml));
-    assert_eq!(Language::from_path(Path::new("docker-compose.override.yml")), Some(Language::Yaml));
-}
 
-#[test]
-fn dockerfile_kinds() {
-    let text = "# syntax=docker/dockerfile:1\nFROM mcr.microsoft.com/dotnet/sdk:9.0 AS build\nARG BUILD_CONFIGURATION=Release\nENV ASPNETCORE_HTTP_PORTS=8080\nWORKDIR /src\nCOPY [\"Api/Api.csproj\", \"Api/\"]\nRUN dotnet restore \"Api/Api.csproj\"\nCOPY --from=build /app/publish .\nEXPOSE 8080\nENTRYPOINT [\"dotnet\", \"Api.dll\"]\n";
-    let spans = highlight_all(Language::Dockerfile, text);
+    let text = "# base\nFROM sdk AS build\nRUN echo \"# not a comment\"\n";
+    let spans = highlight_all(lang, text);
     assert_well_formed(&spans, 0..text.len());
     let k = |needle: &str| kind_of(&spans, text, needle, 0);
-    assert_eq!(k("# syntax=docker/dockerfile:1\n"), Some("comment"));
-    assert_eq!(k(":9.0"), Some("number"));
+    assert_eq!(k("# base"), Some("comment"));
     assert_eq!(k("FROM"), Some("keyword"));
     assert_eq!(k("AS"), Some("keyword"));
-    assert_eq!(k("mcr.microsoft.com/dotnet/sdk"), Some("class name"));
-    assert_eq!(k("build"), Some("label name"));
-    assert_eq!(k("BUILD_CONFIGURATION"), Some("property name"));
-    assert_eq!(k("ASPNETCORE_HTTP_PORTS"), Some("property name"));
-    assert_eq!(k("\"Api/Api.csproj\""), Some("string"));
-    assert_eq!(k("--from=build"), Some("parameter name"));
-    assert_eq!(kind_of(&spans, text, "8080", 1), Some("number"));
-    assert_eq!(k("ENTRYPOINT"), Some("keyword"));
+    assert_eq!(k("\"# not a comment\""), Some("string"));
+    // A window in the middle of a line still gets that line's spans, clipped.
+    let mid = text.find("sdk").unwrap();
+    let h = Highlighter::new(lang);
+    assert!(h.highlight(text, mid..mid + 6).iter().any(|s| s.kind == "keyword" && s.start >= mid));
+
+    set_module_languages(Vec::new());
+    assert_eq!(Language::from_path(Path::new("Dockerfile")), None);
+    assert!(Highlighter::new(lang).highlight(text, 0..text.len()).is_empty());
 }
 
 #[test]

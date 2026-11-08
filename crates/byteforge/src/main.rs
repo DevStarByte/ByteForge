@@ -4,7 +4,6 @@
 
 mod actions;
 mod assets;
-mod docker;
 mod editor;
 mod explorer;
 mod layout;

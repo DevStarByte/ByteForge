@@ -1,8 +1,7 @@
 //! UI-independent kernel of ByteForge: paths, settings, themes, workspace indexing and watching,
-//! search, the dotnet CLI runner, Docker, .NET debugging helpers and the out-of-process module (plugin) host.
+//! search, the dotnet CLI runner, .NET debugging helpers and the out-of-process module (plugin) host.
 
 pub mod debug;
-pub mod docker;
 pub mod dotnet;
 pub mod git;
 pub mod links;

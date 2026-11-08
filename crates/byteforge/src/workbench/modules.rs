@@ -75,6 +75,7 @@ impl Workbench {
                         {
                             wb.start_module(m);
                         }
+                        wb.refresh_module_contributions(cx);
                         wb.log(format!("{} the module '{}' {}.", if updating { "Updated" } else { "Installed" }, package.name, package.version));
                         let missing: Vec<&String> = package.requires.iter().filter(|r| which(r).is_none()).collect();
                         if !missing.is_empty() {
@@ -110,6 +111,7 @@ impl Workbench {
                         Ok(()) => {
                             wb.modules.retain(|m| m.id != manifest.id);
                             wb.log(format!("Uninstalled the module '{}'.", manifest.name));
+                            wb.refresh_module_contributions(cx);
                         }
                         Err(e) => wb.log(format!("Could not uninstall '{}': {e:#}", manifest.name)),
                     }
@@ -136,6 +138,7 @@ impl Workbench {
         } else {
             self.stop_module(&id, cx);
         }
+        self.refresh_module_contributions(cx);
         cx.notify();
     }
 
@@ -165,7 +168,10 @@ impl Workbench {
                     requires: package.map(|p| p.requires.clone()).unwrap_or_default(),
                     dir: Some(m.dir.clone()),
                     enabled: !disabled.contains(&m.id),
-                    running: self.plugins.iter().any(|p| p.manifest.id == m.id),
+                    // A module without a program (only file icons) works whenever it's turned on.
+                    running: self.plugins.iter().any(|p| p.manifest.id == m.id) || (m.command.trim().is_empty() && !disabled.contains(&m.id)),
+                    process: !m.command.trim().is_empty(),
+                    file_icons: m.file_icons.iter().map(describe_icon_rule).collect(),
                     update: package.filter(|p| registry::is_newer(&p.version, m.version.as_deref().unwrap_or("0"))).cloned(),
                     package: None,
                     category: package.and_then(|p| p.category.clone()),
@@ -186,6 +192,8 @@ impl Workbench {
                 dir: None,
                 enabled: false,
                 running: false,
+                process: true,
+                file_icons: Vec::new(),
                 update: None,
                 package: Some(p.clone()),
                 category: p.category.clone(),
@@ -492,7 +500,7 @@ impl Workbench {
         } else if !missing.is_empty() {
             (format!("Running, but needs {}, which isn't installed", missing.join(" and ")), error)
         } else {
-            ("Running".to_owned(), ok)
+            ((if item.process { "Running" } else { "On" }).to_owned(), ok)
         };
 
         // Buttons: one filled in the module's color for the main action, quiet outlines for the rest.
@@ -648,11 +656,14 @@ impl Workbench {
             adds = adds.child(div().text_size(px(13.)).text_color(muted).child("Install it to see the commands and features it adds."));
         } else if !item.running {
             adds = adds.child(div().text_size(px(13.)).text_color(muted).child(if item.enabled { "It isn't running, so it adds nothing right now." } else { "Turn it on to see what it adds." }));
-        } else if commands.is_empty() && formatters.is_empty() && status.is_empty() {
+        } else if commands.is_empty() && formatters.is_empty() && status.is_empty() && item.file_icons.is_empty() {
             adds = adds.child(div().text_size(px(13.)).text_color(muted).child("It runs in the background and hasn't added any commands, formatters or status bar items."));
         } else {
             for f in formatters {
                 adds = adds.child(row(f));
+            }
+            for i in &item.file_icons {
+                adds = adds.child(row(i.clone()));
             }
             for s in status {
                 adds = adds.child(row(format!("Status bar: {s}")));
@@ -761,6 +772,10 @@ struct Item {
     dir: Option<PathBuf>,
     enabled: bool,
     running: bool,
+    /// Whether the module runs a program (icon-only modules don't).
+    process: bool,
+    /// The file icons it adds, described for its page.
+    file_icons: Vec<String>,
     /// Installed with a newer version available.
     update: Option<PackageInfo>,
     /// Available (not installed).
@@ -846,4 +861,11 @@ fn switch(id: SharedString, on: bool, accent: Hsla, t: &Theme) -> gpui::Stateful
 fn which(program: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path).map(|d| d.join(program)).find(|p| p.is_file() || p.with_extension("exe").is_file())
+}
+
+/// "File icon for Dockerfile, Dockerfile.*, .dockerfile files" for a module's page.
+fn describe_icon_rule(rule: &bf_core::plugins::FileIconRule) -> String {
+    let mut what: Vec<String> = rule.names.iter().chain(&rule.patterns).cloned().collect();
+    what.extend(rule.extensions.iter().map(|e| format!(".{} files", e.trim_start_matches('.'))));
+    format!("File icon for {}", what.join(", "))
 }

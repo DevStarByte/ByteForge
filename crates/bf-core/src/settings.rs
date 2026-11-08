@@ -66,6 +66,11 @@ impl Settings {
         self.values.read().get(key).and_then(|v| serde_json::from_value(v.clone()).ok()).unwrap_or(fallback)
     }
 
+    /// All settings as one JSON object (what modules receive).
+    pub fn all(&self) -> Value {
+        Value::Object(self.values.read().clone())
+    }
+
     pub fn get_string(&self, key: &str) -> Option<String> {
         self.values.read().get(key).and_then(|v| v.as_str().map(str::to_owned)).filter(|s| !s.is_empty())
     }

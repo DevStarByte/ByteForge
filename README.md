@@ -58,11 +58,12 @@ UI is styled from theme files that reload live.
   terminal engine and drawn in the panel. It supports 256 and true colors, scrollback, mouse selection,
   Ctrl+Shift+C/V copy and paste (middle-click pastes), and several terminals at once. Shell keys like Ctrl+R,
   Ctrl+W and Ctrl+K go to the shell while the terminal is focused.
-- **Docker**: Dockerfile and Compose (YAML) highlighting, and a Docker view with the workspace's Dockerfiles and
-  Compose files (build, compose up/down), containers grouped by Compose project (start, stop, restart, logs, shell,
-  remove) and images (run, remove). "Docker: Add Docker Support to Project…" generates a multi-stage Dockerfile and
-  `.dockerignore` for a .NET project, like Visual Studio; "Add Docker Compose File" a `compose.yaml` for them.
-  Interactive commands run in the terminal. Set `"docker.composeCommand": "docker-compose"` for the standalone tool.
+- **Docker** comes from the preinstalled **Docker** module (without it, ByteForge has no Docker support): Dockerfile
+  highlighting and file icons, and a Docker view with the workspace's Dockerfiles and Compose files (build, compose
+  up/down), containers grouped by Compose project (start, stop, restart, logs, shell, remove) and images (run, remove).
+  "Docker: Add Docker Support to Project…" generates a multi-stage Dockerfile and `.dockerignore` for a .NET project,
+  like Visual Studio; "Add Docker Compose File" a `compose.yaml` for them. Interactive commands run in the terminal.
+  Set `"docker.composeCommand": "docker-compose"` for the standalone tool.
 - **XML** highlighting for MSBuild and .NET files (`.csproj`, `.props`, `.targets`, `.slnx`, `.config`, `.resx`,
   `.xaml`, `.nuspec`, …), with MSBuild references (`$(Property)`, `@(Item)`, `%(Metadata)`) in their own color and
   `<!-- -->` comment toggling.
@@ -142,7 +143,7 @@ your theme's `layout` section to keep server-side decorations. That setting take
 ```
 crates/
   bf-text     rope buffer, undo, and the editing model (caret, selection, every editing command); UI-free and tested
-  bf-syntax   tree-sitter highlighting (C#, JSON, Razor, XML) emitting theme token names; incremental and viewport-ranged
+  bf-syntax   tree-sitter highlighting (C#, JSON, Razor, XML, YAML) and modules' regex languages, emitting theme token names; incremental and viewport-ranged
   bf-lsp      LSP client (std threads + flume channels, no async runtime); tested live against csharp-ls
   bf-dap      Debug Adapter Protocol client in the same style; tested live against netcoredbg
   bf-core     paths, settings, themes (inheritance, hot reload), workspace index/watcher, search, dotnet runner,
@@ -212,7 +213,8 @@ The theme sections:
   parts to move them, leave them out to hide them (see the next section).
 - **icons**: replace any built-in icon (logo, files, search, window buttons, …) with SVG path data. Every file
   type has its own icon (a page with the type's symbol: `#` for C#, `{ }` for JSON, `< >` for markup, …), colored
-  by `icon.csharp`, `icon.json`, `icon.razor`, `icon.yaml`, `icon.script` and the other `icon.*` keys.
+  by `icon.csharp`, `icon.json`, `icon.razor`, `icon.yaml`, `icon.script` and the other `icon.*` keys. Modules can
+  add icons for more file types (the preinstalled Docker module does this for Docker files).
 
 ## Layout: arrange every part of the window
 
@@ -299,7 +301,7 @@ comma-separated strings:
 
 ## Modules
 
-Modules add commands, formatters and status bar items. They're packages: the **Modules** view (puzzle icon) lists
+Modules add commands, formatters, status bar items, side bar views, file icons and languages. They're packages: the **Modules** view (puzzle icon) lists
 what's **installed** and what's **available** from the ByteForge module registry. Search filters both lists; each
 module has a tile in one of the current theme's syntax colors. The switch turns an installed module on or off,
 **Install** and **Update** do what they say, and clicking a module opens its details (full description, version,
@@ -308,6 +310,7 @@ requirements, the file types it formats, Show files and Uninstall):
 | Module | What it does |
 |---|---|
 | CSharpier | C# / MSBuild formatter, **preinstalled** (copied into your modules folder on first start; uninstall it like any other) |
+| Docker | the Docker view, Docker commands, Dockerfile highlighting and Docker file icons, **preinstalled** |
 | TODO Finder | TODO / FIXME / HACK comments: count in the status bar, "TODOs: List All" with clickable locations |
 | JSON Formatter | Format Document for `.json` files; leaves JSON with comments alone |
 | GUID Generator | "GUID: Insert New GUID" (Ctrl+Alt+G), uppercase, `{braced}` and `new Guid("…")` variants |
@@ -328,6 +331,20 @@ A module is a folder in `~/.config/byteforge/modules/` with a `module.json`:
 
 On the module's page the author links to `https://github.com/<author>`; set `"authorUrl"` to link somewhere else.
 
+`module.json` can also declare, without any code:
+
+- **`fileIcons`**: SVG path data (24×24 view box, even-odd fill) for the files it's for, matched ignoring case by
+  exact `names`, `patterns` with `*`, or `extensions`. `color` is a theme color key (`icon.docker`) or a color
+  (`#2496ed`). Module icons win over the built-in ones.
+- **`languages`**: an `id`, `name`, the files (`names`, `patterns`, `extensions`), a `lineComment` and highlighting
+  `rules`: `{ "match": "<regex>", "token": "keyword", "group": 1 }`. Rules apply per line; where matches overlap, the
+  earlier rule wins. `token` is a theme token name (`keyword`, `string`, `comment`, `number`, `class name`, …).
+- **`views`**: side bar views (`id`, `title`, `icon`: a built-in icon name or path data). Each gets an activity bar
+  item; the module fills it with `setTree`.
+
+A module that only declares things leaves out `"command"` and isn't started. Everything a module adds shows while
+it's installed and turned on. `modules/docker` uses all of it.
+
 To publish it, add the folder to `modules/` on the `packages` branch.
 
 ByteForge starts the command in that folder and exchanges one JSON object per line:
@@ -342,11 +359,22 @@ ByteForge starts the command in that folder and exchanges one JSON object per li
   - `{"type":"showView","id"}`
   - `{"type":"insertText","text"}`: insert at the caret(s) of the active editor
   - `{"type":"setTheme","name"}`: switch to a color theme (for example one the module wrote to `~/.config/byteforge/themes/`)
+  - `{"type":"setTree","view","items","message","error","badge","actions"}`: the content of one of its views. Items:
+    `{"id","label","description","tooltip","icon","iconColor","header","count","expanded","children","actions"}`;
+    `icon` is a built-in icon name, path data or `file:<name>` (that file's icon); `header` items are section headers;
+    `actions` (`{"id","icon","tooltip"}`) are buttons on a hovered row, or in the view's top row. `badge` is a number
+    on the activity bar item.
+  - `{"type":"runInTerminal","title","command","cwd","saveAll"}`: run a command line in a new terminal tab
+  - `{"type":"quickPick","requestId","placeholder","items":[{"label","detail","hint","value"}]}`: a pick list
+  - `{"type":"prompt","requestId","message","detail","buttons":["Remove","Cancel"]}`: a question
 - **IDE → module:**
-  - `{"type":"activate","workspace"}`
+  - `{"type":"activate","workspace","settings"}` (`settings`: the user's settings object)
+  - `{"type":"treeAction","view","item","action"}`: a row (`"click"`) or button was clicked (`item` is null for the top row)
+  - `{"type":"quickPickResult","requestId","value"}` (only when something was picked), `{"type":"promptResult","requestId","index"}` (null when dismissed)
   - `{"type":"executeCommand","id"}`
   - `{"type":"format","requestId","path","text"}` (formatter modules only)
   - `{"type":"event","name":"folderOpened|fileSaved|themeChanged|editorChanged","path"}` (`editorChanged`: the active tab changed; `path` is null for untitled documents and pages)
+  - `{"type":"event","name":"viewShown|viewHidden","view"}`, `{"type":"event","name":"filesChanged"}`, `{"type":"event","name":"settingsChanged","settings"}`
 
 `samples/hello-module` is a complete Python example: a command with a key binding plus a status bar clock.
 `modules/csharpier` is the preinstalled formatter module: the modules in `<install dir>/modules/` are copied into the

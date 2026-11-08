@@ -112,7 +112,7 @@ impl Workbench {
                         .gap_2()
                         .child({
                                     let (icon_name, color_key) = crate::explorer::file_icon(&name, false, false);
-                                    icon(icon_name, t.m("explorer.iconSize", 15.0), crate::explorer::file_icon_color(&t, color_key))
+                                    icon(&icon_name, t.m("explorer.iconSize", 15.0), crate::explorer::file_icon_color(&t, &color_key))
                                 })
                         .child(div().whitespace_nowrap().font_weight(gpui::FontWeight::SEMIBOLD).child(name))
                         .child(div().whitespace_nowrap().text_size(px(11.)).text_color(muted).child(dir))

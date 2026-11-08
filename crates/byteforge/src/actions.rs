@@ -17,31 +17,13 @@ actions!(
     ]
 );
 
-actions!(
-    docker,
-    [ShowDocker, DockerRefresh, DockerBuild, DockerComposeUp, DockerComposeDown, DockerAddSupport, DockerAddCompose, DockerPrune]
-);
-
-/// Builds the image of this Dockerfile in a terminal.
+/// The choice in a module's pick list (`quickPick`), sent back to the module.
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
-#[action(namespace = docker, no_json)]
-pub struct DockerBuildFile {
-    pub path: std::path::PathBuf,
-}
-
-/// `docker compose up` (or `down` when `up` is false) for this Compose file, in a terminal.
-#[derive(Clone, PartialEq, Debug, gpui::Action)]
-#[action(namespace = docker, no_json)]
-pub struct DockerComposeFile {
-    pub path: std::path::PathBuf,
-    pub up: bool,
-}
-
-/// Generates a Dockerfile (and `.dockerignore`) for this .NET project.
-#[derive(Clone, PartialEq, Debug, gpui::Action)]
-#[action(namespace = docker, no_json)]
-pub struct DockerAddSupportTo {
-    pub path: std::path::PathBuf,
+#[action(namespace = module, no_json)]
+pub struct ModulePickChoice {
+    pub module: String,
+    pub request: u64,
+    pub value: String,
 }
 
 actions!(terminal, [ToggleTerminal, NewTerminal, KillTerminal, TerminalCopy, TerminalPaste, SelectDefaultShell]);
@@ -178,20 +160,12 @@ fn builtin() -> Vec<(&'static str, &'static str, &'static str, Box<dyn Action>, 
         ("debug.attach", "Attach to .NET Process…", "Debug", Box::new(AttachToProcess), None),
         ("view.debug", "Run and Debug", "View", Box::new(ShowDebug), Some("ctrl-shift-d")),
         ("view.debugConsole", "Debug Console", "View", Box::new(ShowDebugConsole), Some("ctrl-shift-y")),
-        ("view.docker", "Docker", "View", Box::new(ShowDocker), None),
         ("view.testing", "Testing", "View", Box::new(ShowTesting), None),
         ("test.runAll", "Run All Tests", "Test", Box::new(RunAllTests), None),
         ("test.rerunFailed", "Rerun Failed Tests", "Test", Box::new(RerunFailedTests), None),
         ("test.runAtCursor", "Run Test at Cursor", "Test", Box::new(RunTestAtCursor), None),
         ("test.debugAtCursor", "Debug Test at Cursor", "Test", Box::new(DebugTestAtCursor), None),
         ("test.refresh", "Find Tests Again", "Test", Box::new(RefreshTests), None),
-        ("docker.refresh", "Refresh", "Docker", Box::new(DockerRefresh), None),
-        ("docker.build", "Build Image…", "Docker", Box::new(DockerBuild), None),
-        ("docker.composeUp", "Compose Up", "Docker", Box::new(DockerComposeUp), None),
-        ("docker.composeDown", "Compose Down", "Docker", Box::new(DockerComposeDown), None),
-        ("docker.addDockerSupport", "Add Docker Support to Project…", "Docker", Box::new(DockerAddSupport), None),
-        ("docker.addCompose", "Add Docker Compose File", "Docker", Box::new(DockerAddCompose), None),
-        ("docker.prune", "System Prune…", "Docker", Box::new(DockerPrune), None),
         ("terminal.toggle", "Toggle Terminal", "Terminal", Box::new(ToggleTerminal), Some("ctrl-`")),
         ("terminal.new", "New Terminal", "Terminal", Box::new(NewTerminal), Some("ctrl-shift-`")),
         ("terminal.kill", "Kill Terminal", "Terminal", Box::new(KillTerminal), None),

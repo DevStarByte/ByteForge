@@ -1,4 +1,5 @@
-//! Incremental tree-sitter syntax highlighting for ByteForge.
+//! Incremental tree-sitter syntax highlighting for ByteForge, plus line-based regex highlighting for
+//! languages that modules contribute ([`module_lang`]).
 //!
 //! Produces [`Span`]s whose `kind` strings match the IDE's theme token names
 //! (Roslyn classification names), so existing theme files keep working.
@@ -12,7 +13,6 @@ use tree_sitter::{InputEdit, Parser, Point, Query, QueryCursor, Tree};
 const CSHARP_QUERY: &str = include_str!("../queries/csharp.scm");
 const JSON_QUERY: &str = include_str!("../queries/json.scm");
 const XML_QUERY: &str = include_str!("../queries/xml.scm");
-const DOCKERFILE_QUERY: &str = include_str!("../queries/dockerfile.scm");
 const YAML_QUERY: &str = include_str!("../queries/yaml.scm");
 /// Razor embeds C# with the C# grammar's node names, so its query is the C# one plus Razor rules.
 const RAZOR_QUERY: &str = concat!(include_str!("../queries/csharp.scm"), "\n", include_str!("../queries/razor.scm"));
@@ -69,20 +69,20 @@ pub enum Language {
     Razor,
     /// XML, including MSBuild projects (`.csproj`, `.props`, `.targets`) and .NET resource/config files.
     Xml,
-    /// Dockerfiles and Containerfiles (`Dockerfile`, `Dockerfile.dev`, `app.dockerfile`, `Containerfile`).
-    Dockerfile,
     /// YAML, including Docker Compose files.
     Yaml,
+    /// A language from a module (index into the registered module languages).
+    Module(u16),
 }
 
 impl Language {
-    /// Detects the language from a file name or extension (`.cs`/`.csx` → C#, `.json`/`.jsonc` → JSON,
-    /// `.razor`/`.cshtml` → Razor, `.csproj`/`.props`/`.xml`/… → XML, `Dockerfile`/`*.dockerfile` → Dockerfile,
-    /// `.yml`/`.yaml` → YAML).
+    /// Detects the language from a file name or extension: a module language that claims the file, else
+    /// `.cs`/`.csx` → C#, `.json`/`.jsonc` → JSON, `.razor`/`.cshtml` → Razor, `.csproj`/`.props`/`.xml`/… → XML,
+    /// `.yml`/`.yaml` → YAML.
     pub fn from_path(path: &Path) -> Option<Language> {
-        let name = path.file_name()?.to_str()?.to_ascii_lowercase();
-        if is_dockerfile_name(&name) {
-            return Some(Language::Dockerfile);
+        let name = path.file_name()?.to_str()?;
+        if let Some(index) = module_lang::find(name) {
+            return Some(Language::Module(index));
         }
         let ext = path.extension()?.to_str()?.to_ascii_lowercase();
         match ext.as_str() {
@@ -98,6 +98,18 @@ impl Language {
         }
     }
 
+    /// The language for a fenced code block's tag or a language id ("csharp", "json", a module's id, …).
+    pub fn from_id(id: &str) -> Option<Language> {
+        match id.to_ascii_lowercase().as_str() {
+            "csharp" | "cs" | "c#" => Some(Language::CSharp),
+            "razor" | "cshtml" => Some(Language::Razor),
+            "json" | "jsonc" => Some(Language::Json),
+            "xml" | "csproj" | "msbuild" => Some(Language::Xml),
+            "yaml" | "yml" | "compose" => Some(Language::Yaml),
+            other => module_lang::find_id(other).map(Language::Module),
+        }
+    }
+
     /// Language id as VS Code and LSP use it ("csharp", "json", …), e.g. for snippet file names.
     pub fn id(self) -> &'static str {
         match self {
@@ -105,8 +117,18 @@ impl Language {
             Language::Json => "json",
             Language::Razor => "razor",
             Language::Xml => "xml",
-            Language::Dockerfile => "dockerfile",
             Language::Yaml => "yaml",
+            Language::Module(i) => module_lang::get(i).map_or("plaintext", |l| l.id),
+        }
+    }
+
+    /// The line comment token (`//`, `#`), if the language has one.
+    pub fn line_comment(self) -> Option<&'static str> {
+        match self {
+            Language::CSharp | Language::Json => Some("//"),
+            Language::Yaml => Some("#"),
+            Language::Razor | Language::Xml => None,
+            Language::Module(i) => module_lang::get(i).and_then(|l| l.line_comment),
         }
     }
 
@@ -117,19 +139,20 @@ impl Language {
             Language::Json => "JSON",
             Language::Razor => "Razor",
             Language::Xml => "XML",
-            Language::Dockerfile => "Dockerfile",
             Language::Yaml => "YAML",
+            Language::Module(i) => module_lang::get(i).map_or("Plain Text", |l| l.name),
         }
     }
 
-    fn ts_language(self) -> tree_sitter::Language {
+    /// The tree-sitter grammar (`None` for module languages, which are highlighted with regexes).
+    fn ts_language(self) -> Option<tree_sitter::Language> {
         match self {
-            Language::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
-            Language::Json => tree_sitter_json::LANGUAGE.into(),
-            Language::Razor => tree_sitter_razor_modern::LANGUAGE.into(),
-            Language::Xml => tree_sitter_xml::LANGUAGE_XML.into(),
-            Language::Dockerfile => tree_sitter_containerfile::LANGUAGE.into(),
-            Language::Yaml => tree_sitter_yaml::LANGUAGE.into(),
+            Language::CSharp => Some(tree_sitter_c_sharp::LANGUAGE.into()),
+            Language::Json => Some(tree_sitter_json::LANGUAGE.into()),
+            Language::Razor => Some(tree_sitter_razor_modern::LANGUAGE.into()),
+            Language::Xml => Some(tree_sitter_xml::LANGUAGE_XML.into()),
+            Language::Yaml => Some(tree_sitter_yaml::LANGUAGE.into()),
+            Language::Module(_) => None,
         }
     }
 
@@ -139,21 +162,10 @@ impl Language {
             Language::Json => JSON_QUERY,
             Language::Razor => RAZOR_QUERY,
             Language::Xml => XML_QUERY,
-            Language::Dockerfile => DOCKERFILE_QUERY,
             Language::Yaml => YAML_QUERY,
+            Language::Module(_) => "",
         }
     }
-}
-
-/// `Dockerfile`, `Containerfile`, `Dockerfile.<variant>` (`Dockerfile.dev`), `<name>.Dockerfile` and
-/// `<name>.Containerfile`, in any case.
-pub fn is_dockerfile_name(name: &str) -> bool {
-    let name = name.to_ascii_lowercase();
-    ["dockerfile", "containerfile"].iter().any(|base| {
-        name == *base
-            || name.strip_prefix(base).is_some_and(|rest| rest.starts_with('.') && rest.len() > 1)
-            || name.strip_suffix(base).is_some_and(|rest| rest.ends_with('.') && rest.len() > 1)
-    })
 }
 
 /// One highlighted region in byte offsets of the full document text.
@@ -192,9 +204,10 @@ impl From<Edit> for InputEdit {
 /// Incremental syntax highlighter for a single document.
 pub struct Highlighter {
     language: Language,
-    parser: Parser,
+    /// `None` for module languages (regex highlighting, nothing to parse).
+    parser: Option<Parser>,
     tree: Option<Tree>,
-    query: Query,
+    query: Option<Query>,
     /// Index into [`CAPTURE_KINDS`] per query capture index (`None` for helper captures).
     capture_kinds: Vec<Option<u8>>,
 }
@@ -203,7 +216,9 @@ impl Highlighter {
     /// Creates a highlighter for `language`. Panics only if the embedded query is invalid
     /// (guarded by unit tests).
     pub fn new(language: Language) -> Self {
-        let ts_language = language.ts_language();
+        let Some(ts_language) = language.ts_language() else {
+            return Self { language, parser: None, tree: None, query: None, capture_kinds: Vec::new() };
+        };
         let mut parser = Parser::new();
         parser
             .set_language(&ts_language)
@@ -222,9 +237,9 @@ impl Highlighter {
             .collect();
         Self {
             language,
-            parser,
+            parser: Some(parser),
             tree: None,
-            query,
+            query: Some(query),
             capture_kinds,
         }
     }
@@ -236,15 +251,18 @@ impl Highlighter {
 
     /// Full (re)parse of the document.
     pub fn parse(&mut self, text: &str) {
-        self.tree = self.parser.parse(text, None);
+        if let Some(parser) = self.parser.as_mut() {
+            self.tree = parser.parse(text, None);
+        }
     }
 
     /// Applies an edit to the existing tree, then incrementally reparses `new_text`.
     pub fn edit(&mut self, edit: Edit, new_text: &str) {
+        let Some(parser) = self.parser.as_mut() else { return };
         match self.tree.as_mut() {
             Some(tree) => {
                 tree.edit(&edit.into());
-                self.tree = self.parser.parse(new_text, Some(tree));
+                self.tree = parser.parse(new_text, Some(tree));
             }
             None => self.parse(new_text),
         }
@@ -253,7 +271,10 @@ impl Highlighter {
     /// Returns spans intersecting `byte_range`, sorted by start, non-overlapping
     /// (innermost capture wins) and clipped to the range.
     pub fn highlight(&self, text: &str, byte_range: Range<usize>) -> Vec<Span> {
-        let Some(tree) = &self.tree else {
+        if let Language::Module(index) = self.language {
+            return module_lang::get(index).map(|l| module_lang::highlight(&l, text, byte_range)).unwrap_or_default();
+        }
+        let (Some(tree), Some(query)) = (&self.tree, &self.query) else {
             return Vec::new();
         };
         let start = byte_range.start.min(text.len());
@@ -266,7 +287,7 @@ impl Highlighter {
         let mut captures: Vec<(usize, usize, usize, u8)> = Vec::new();
         let mut cursor = QueryCursor::new();
         cursor.set_byte_range(start..end);
-        let mut matches = cursor.matches(&self.query, tree.root_node(), text.as_bytes());
+        let mut matches = cursor.matches(query, tree.root_node(), text.as_bytes());
         while let Some(m) = matches.next() {
             for capture in m.captures {
                 let Some(kind) = self.capture_kinds[capture.index as usize] else {
@@ -361,6 +382,7 @@ fn paint_msbuild_references(text: &[u8], start: usize, paint: &mut [u8]) {
 }
 
 mod markup;
+pub mod module_lang;
 
 #[cfg(test)]
 mod tests;
