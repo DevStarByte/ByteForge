@@ -720,6 +720,7 @@ impl Render for ScmView {
                                         e1.update(cx, |v, cx| v.load_history(false, cx))
                                     })),
                                 )
+                                .children(remote_actions(view, &t, &entity))
                                 .on_click(move |_, _, cx| e2.update(cx, |v, cx| v.toggle_history(cx)))
                                 .into_any_element()
                         }
@@ -859,10 +860,7 @@ impl Render for ScmView {
                     .gap_1()
                     .child(icon("sourceControl", icon_size, t.c("icon.foreground")))
                     .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().child(branch).child(div().text_size(px(11.)).text_color(muted).child(sync)))
-                    .child(tool("scm-refresh", "refresh", "Refresh").on_click(cx.listener(|v, _, _, cx| v.refresh(cx))))
-                    .child(tool("scm-pull", "arrowDown", "Pull").on_click(cx.listener(|v, _, _, cx| v.pull(cx))))
-                    .child(tool("scm-push", "arrowUp", "Push").on_click(cx.listener(|v, _, _, cx| v.push(cx))))
-                    .child(tool("scm-fetch", "sync", "Fetch").on_click(cx.listener(|v, _, _, cx| v.fetch(cx)))),
+                    .child(tool("scm-refresh", "refresh", "Refresh").on_click(cx.listener(|v, _, _, cx| v.refresh(cx)))),
             )
             .child(div().px_3().child(self.message.clone()))
             .child(
@@ -890,4 +888,48 @@ mod tests {
         assert_eq!(super::short_age("2 years, 3 months ago"), "2y");
         assert_eq!(super::short_age("yesterday"), "yesterday");
     }
+}
+
+/// Pull / push / fetch buttons for the HISTORY header (like the Graph header in VS Code), with the number of
+/// incoming and outgoing commits. An unpublished branch gets a single Publish button.
+fn remote_actions(view: &ScmView, t: &Theme, entity: &Entity<ScmView>) -> Vec<gpui::AnyElement> {
+    let s = &view.status;
+    if !s.has_commits {
+        return Vec::new();
+    }
+    let busy = view.busy.is_some();
+    let button = |id: &'static str, name: &'static str, count: u32, tip: String, run: fn(&mut ScmView, &mut Context<ScmView>)| {
+        let e = entity.clone();
+        div()
+            .id(id)
+            .px(px(3.))
+            .py(px(2.))
+            .flex()
+            .items_center()
+            .gap(px(2.))
+            .rounded(px(3.))
+            .cursor_pointer()
+            .font_weight(gpui::FontWeight::NORMAL)
+            .text_color(t.c("foreground.muted"))
+            .hover(|st| st.bg(t.c("toolbar.hoverBackground")))
+            .when(busy, |d| d.opacity(0.5))
+            .tooltip(tooltip(tip))
+            .child(icon(name, px(14.), t.c("icon.foreground")))
+            .when(count > 0, |d| d.child(count.to_string()))
+            .on_click(move |_, _, cx| {
+                cx.stop_propagation();
+                e.update(cx, |v, cx| run(v, cx))
+            })
+            .into_any_element()
+    };
+    if s.upstream.is_none() {
+        return vec![button("history-publish", "arrowUp", 0, "Publish Branch to origin".into(), ScmView::push)];
+    }
+    let incoming = if s.behind > 0 { format!("Pull {} incoming commit(s) (fast-forward)", s.behind) } else { "Pull (fast-forward)".into() };
+    let outgoing = if s.ahead > 0 { format!("Push {} outgoing commit(s)", s.ahead) } else { "Push".into() };
+    vec![
+        button("history-fetch", "sync", 0, "Fetch (update incoming commits, don't change any files)".into(), ScmView::fetch),
+        button("history-pull", "arrowDown", s.behind, incoming, ScmView::pull),
+        button("history-push", "arrowUp", s.ahead, outgoing, ScmView::push),
+    ]
 }
