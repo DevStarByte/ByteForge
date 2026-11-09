@@ -1657,6 +1657,17 @@ impl Workbench {
         cx.notify();
     }
 
+    /// Runs `f` with the active window once the current update is done. Module messages are handled while the
+    /// workbench is already being updated, so updating it again right away (to get a `Window`) would panic.
+    fn with_window(cx: &mut Context<Self>, f: impl FnOnce(&mut Self, &mut Window, &mut Context<Self>) + 'static) {
+        let entity = cx.entity();
+        cx.defer(move |cx| {
+            if let Some(window) = cx.active_window() {
+                let _ = window.update(cx, |_, window, cx| entity.update(cx, |wb, cx| f(wb, window, cx)));
+            }
+        });
+    }
+
     fn on_plugin_message(&mut self, message: PluginMessage, cx: &mut Context<Self>) {
         match message {
             PluginMessage::RegisterCommand { module, id, title, category, keybinding } => {
@@ -1684,10 +1695,7 @@ impl Workbench {
             PluginMessage::Log { module, text } => self.log(format!("[{module}] {text}")),
             PluginMessage::OpenFile { path, line, column } => {
                 let point = line.map(|l| Point::new(l, column.unwrap_or(0)));
-                if let Some(window) = cx.active_window() {
-                    let entity = cx.entity();
-                    let _ = window.update(cx, |_, window, cx| entity.update(cx, |wb, cx| wb.open_file(path, point, window, cx)));
-                }
+                Self::with_window(cx, move |wb, window, cx| wb.open_file(path, point, window, cx));
             }
             PluginMessage::InsertText { text } => {
                 if let Some(editor) = self.active_editor() {
@@ -1695,11 +1703,8 @@ impl Workbench {
                 }
             }
             PluginMessage::SetTheme { name } => {
-                if let Some(window) = cx.active_window() {
-                    let entity = cx.entity();
-                    let _ = window.update(cx, |_, window, cx| entity.update(cx, |wb, cx| wb.apply_theme(&name, window, cx)));
-                }
                 self.settings.set("workbench.theme", json!(name));
+                Self::with_window(cx, move |wb, window, cx| wb.apply_theme(&name, window, cx));
             }
             PluginMessage::ShowView { id } => match id.as_str() {
                 "output" => self.show_panel(PanelView::Output, cx),
@@ -1710,40 +1715,24 @@ impl Workbench {
                 other => self.show_side(side_view_named(other).unwrap_or(SideView::Modules), cx),
             },
             PluginMessage::SetTree { module, tree } => self.set_module_tree(module, tree),
-            PluginMessage::RunInTerminal { title, command, cwd, save_all } => {
-                if let Some(window) = cx.active_window() {
-                    let entity = cx.entity();
-                    let _ = window.update(cx, |_, window, cx| {
-                        entity.update(cx, |wb, cx| {
-                            if save_all {
-                                wb.save_all(window, cx);
-                            }
-                            wb.run_in_terminal(title, command, cwd, window, cx);
-                        })
-                    });
+            PluginMessage::RunInTerminal { title, command, cwd, save_all } => Self::with_window(cx, move |wb, window, cx| {
+                if save_all {
+                    wb.save_all(window, cx);
                 }
-            }
+                wb.run_in_terminal(title, command, cwd, window, cx);
+            }),
             PluginMessage::QuickPick { module, request, placeholder, items } => {
-                if let Some(window) = cx.active_window() {
-                    let entity = cx.entity();
-                    let _ = window.update(cx, |_, window, cx| entity.update(cx, |wb, cx| wb.module_quick_pick(module, request, placeholder, items, window, cx)));
-                }
+                Self::with_window(cx, move |wb, window, cx| wb.module_quick_pick(module, request, placeholder, items, window, cx));
             }
             PluginMessage::Prompt { module, prompt } => {
-                if let Some(window) = cx.active_window() {
-                    let entity = cx.entity();
-                    let _ = window.update(cx, |_, window, cx| entity.update(cx, |wb, cx| wb.module_prompt(module, prompt, window, cx)));
-                }
+                Self::with_window(cx, move |wb, window, cx| wb.module_prompt(module, prompt, window, cx));
             }
             PluginMessage::RegisterFormatter { module, id, name, extensions } => {
                 self.formatters.retain(|f| f.id != id);
                 self.formatters.push(Formatter { module, id, name, extensions });
             }
             PluginMessage::FormatResult { request, result, .. } => {
-                if let Some(window) = cx.active_window() {
-                    let entity = cx.entity();
-                    let _ = window.update(cx, |_, window, cx| entity.update(cx, |wb, cx| wb.on_format_result(request, result, window, cx)));
-                }
+                Self::with_window(cx, move |wb, window, cx| wb.on_format_result(request, result, window, cx));
             }
             PluginMessage::Exited { module, reason } => {
                 self.formatters.retain(|f| f.module != module);
