@@ -503,7 +503,7 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "bf-core"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "dirs 5.0.1",
@@ -520,7 +520,7 @@ dependencies = [
 
 [[package]]
 name = "bf-dap"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "bf-core",
@@ -533,7 +533,7 @@ dependencies = [
 
 [[package]]
 name = "bf-lsp"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "flume",
@@ -545,7 +545,7 @@ dependencies = [
 
 [[package]]
 name = "bf-syntax"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "log",
  "regex",
@@ -560,7 +560,7 @@ dependencies = [
 
 [[package]]
 name = "bf-text"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "ropey",
 ]
@@ -767,7 +767,7 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "byteforge"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
