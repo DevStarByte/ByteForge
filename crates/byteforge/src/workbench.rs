@@ -245,6 +245,8 @@ pub struct Workbench {
     /// Side bar views of the turned-on modules, the one shown (with `SideView::Module`), and the one the
     /// module was last told is visible.
     module_views: Vec<module_views::ModuleView>,
+    /// The open context menu of a module view's row.
+    module_menu: Option<module_views::ModuleMenu>,
     module_view: Option<String>,
     module_view_shown: Option<(String, String)>,
     output_tx: flume::Sender<String>,
@@ -462,6 +464,7 @@ impl Workbench {
             plugin_commands: HashMap::new(),
             plugin_status: Vec::new(),
             module_views: Vec::new(),
+            module_menu: None,
             module_view: None,
             module_view_shown: None,
             output_tx,
@@ -2945,29 +2948,17 @@ impl Workbench {
         let t = Theme::global(cx);
         let (_, entries) = MENUS[i];
         let commands = cx.global::<Commands>();
-        let hover = t.c("menu.selectionBackground");
         let items: Vec<gpui::AnyElement> = entries
             .iter()
             .enumerate()
             .filter_map(|(ix, id)| {
                 if *id == "-" {
-                    return Some(div().h(px(1.)).my_1().bg(t.c("menu.border")).into_any_element());
+                    return Some(crate::menu::separator(&t).into_any_element());
                 }
                 let cmd = commands.get(id)?;
                 let action = cmd.action.boxed_clone();
                 Some(
-                    div()
-                        .id(ix)
-                        .flex()
-                        .items_center()
-                        .gap_6()
-                        .px_3()
-                        .py_1()
-                        .rounded(px(4.))
-                        .cursor_pointer()
-                        .hover(move |s| s.bg(hover))
-                        .child(div().flex_1().child(cmd.title.clone()))
-                        .child(div().text_color(t.c("foreground.muted")).text_size(px(12.)).child(default_key(id)))
+                    crate::menu::item(&t, ix, cmd.title.clone(), Some(default_key(id).into()))
                         .on_click(cx.listener(move |wb, _, w, cx| {
                             wb.menu_open = None;
                             w.dispatch_action(action.boxed_clone(), cx);
@@ -2977,16 +2968,7 @@ impl Workbench {
                 )
             })
             .collect();
-        let menu = div()
-            .min_w(px(240.))
-            .bg(t.bg("menu.background"))
-            .text_color(t.c("menu.foreground"))
-            .border_1()
-            .border_color(t.c("menu.border"))
-            .rounded(t.radius("widget.radius", 6.0))
-            .shadow(t.shadow("widget.shadow"))
-            .p_1()
-            .text_size(t.m("ui.size", 13.0))
+        let menu = crate::menu::panel(&t, 240.)
             .on_mouse_down_out(cx.listener(|wb, _, _, cx| {
                 wb.menu_open = None;
                 cx.notify();

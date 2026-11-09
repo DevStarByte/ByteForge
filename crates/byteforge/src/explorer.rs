@@ -419,22 +419,11 @@ impl Render for Explorer {
         .flex_1();
 
         let menu = self.menu.clone().map(|(path, pos)| {
-            let item = |id: &'static str, label: &'static str| {
-                div().id(id).px_3().py_1().rounded(px(4.)).cursor_pointer().hover(|s| s.bg(t.c("menu.selectionBackground"))).child(label)
-            };
+            let item = |id: &'static str, label: &'static str| crate::menu::item(&t, id, label, None);
             let (p1, p2, p3, p4, p5) = (path.clone(), path.clone(), path.clone(), path.clone(), path.clone());
             gpui::deferred(
                 gpui::anchored().position(pos).child(
-                    div()
-                        .min_w(px(180.))
-                        .bg(t.bg("menu.background"))
-                        .text_color(t.c("menu.foreground"))
-                        .border_1()
-                        .border_color(t.c("menu.border"))
-                        .rounded(t.radius("widget.radius", 6.0))
-                        .shadow(t.shadow("widget.shadow"))
-                        .p_1()
-                        .text_size(t.m("ui.size", 13.0))
+                    crate::menu::panel(&t, 180.)
                         .on_mouse_down_out(cx.listener(|e, _, _, cx| {
                             e.menu = None;
                             cx.notify();
@@ -453,10 +442,12 @@ impl Render for Explorer {
                             e.menu = None;
                             cx.emit(ExplorerEvent::Rename(p3.clone()));
                         })))
+                        .child(crate::menu::separator(&t))
                         .child(item("m-delete", "Delete").on_click(cx.listener(move |e, _, _, cx| {
                             e.menu = None;
                             cx.emit(ExplorerEvent::Delete(p4.clone()));
                         })))
+                        .child(crate::menu::separator(&t))
                         .child(item("m-copy", "Copy Path").on_click(cx.listener(move |e, _, _, cx| {
                             e.menu = None;
                             cx.write_to_clipboard(gpui::ClipboardItem::new_string(p5.display().to_string()));

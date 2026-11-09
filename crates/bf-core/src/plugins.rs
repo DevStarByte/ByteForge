@@ -124,6 +124,9 @@ pub struct TreeItem {
     pub children: Vec<TreeItem>,
     #[serde(default)]
     pub actions: Vec<TreeAction>,
+    /// More entries for the row's context menu, after its `actions` (`{"id":"-"}` is a separator).
+    #[serde(default)]
+    pub menu: Vec<TreeAction>,
 }
 
 /// The content of a module's view (`setTree`).
@@ -157,6 +160,20 @@ pub struct TreeAction {
     pub icon: String,
     #[serde(default)]
     pub tooltip: String,
+    /// The entry's name in the context menu; the tooltip when left out.
+    #[serde(default)]
+    pub label: Option<String>,
+}
+
+impl TreeAction {
+    /// The name to show in a menu.
+    pub fn menu_label(&self) -> &str {
+        self.label.as_deref().filter(|l| !l.is_empty()).unwrap_or(&self.tooltip)
+    }
+
+    pub fn is_separator(&self) -> bool {
+        self.id == "-"
+    }
 }
 
 /// An entry of a module's pick list (`quickPick`).
@@ -448,6 +465,18 @@ fn parse(module: &str, line: &str) -> Option<PluginMessage> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn tree_items_carry_menu_entries_and_labels() {
+        let item: super::TreeItem = serde_json::from_str(
+            r#"{"id":"c1","actions":[{"id":"remove","icon":"trash","tooltip":"Remove the container","label":"Remove…"}],
+                "menu":[{"id":"-"},{"id":"copy","tooltip":"Copy ID"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(item.actions[0].menu_label(), "Remove…");
+        assert!(item.menu[0].is_separator());
+        assert_eq!(item.menu[1].menu_label(), "Copy ID");
+    }
+
     #[test]
     fn file_icon_rules_match_names_patterns_and_extensions() {
         let rule = super::FileIconRule {

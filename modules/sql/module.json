@@ -4,7 +4,7 @@
   // SQL highlighting; and a formatter for .sql files (keyword case, trailing whitespace).
   "id": "byteforge.sql",
   "name": "SQL",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Languages",

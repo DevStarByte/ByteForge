@@ -75,10 +75,12 @@ ByteForge starts the command in the module's folder and exchanges one JSON objec
 - `{"type":"insertText","text"}`: insert at the caret(s) of the active editor
 - `{"type":"setTheme","name"}`: switch to a color theme (for example one the module wrote to `~/.config/byteforge/themes/`)
 - `{"type":"setTree","view","items","message","error","badge","actions"}`: the content of one of its views. Items:
-  `{"id","label","description","tooltip","icon","iconColor","header","count","expanded","children","actions"}`;
+  `{"id","label","description","tooltip","icon","iconColor","header","count","expanded","children","actions","menu"}`;
   `icon` is a built-in icon name, path data or `file:<name>` (that file's icon); `header` items are section headers;
-  `actions` (`{"id","icon","tooltip"}`) are buttons on a hovered row, or in the view's top row. `badge` is a number
-  on the activity bar item.
+  `actions` (`{"id","icon","tooltip","label"}`) are buttons on a hovered row, or in the view's top row. A row's
+  right-click menu lists its `actions` (by `label`, else `tooltip`), then its `menu` entries (same shape, no icon
+  needed; `{"id":"-"}` is a separator); choosing one sends the same `treeAction`. The menu is drawn by the IDE, like
+  the Explorer's, so every module looks the same. `badge` is a number on the activity bar item.
 - `{"type":"runInTerminal","title","command","cwd","saveAll"}`: run a command line in a new terminal tab
 - `{"type":"quickPick","requestId","placeholder","items":[{"label","detail","hint","value"}]}`: a pick list
 - `{"type":"prompt","requestId","message","detail","buttons":["Remove","Cancel"]}`: a question

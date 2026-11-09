@@ -821,8 +821,8 @@ class Module:
         parent = os.path.dirname(path)
         directory = relative(parent, self.workspace) if self.workspace and starts_with(parent, self.workspace) else ""
         if compose:
-            actions = [{"id": "up", "icon": "play", "tooltip": "Compose Up (build and start in the background)"},
-                       {"id": "down", "icon": "stop", "tooltip": "Compose Down (stop and remove the containers)"}]
+            actions = [{"id": "up", "icon": "play", "tooltip": "Compose Up (build and start in the background)", "label": "Compose Up"},
+                       {"id": "down", "icon": "stop", "tooltip": "Compose Down (stop and remove the containers)", "label": "Compose Down"}]
         else:
             actions = [{"id": "build", "icon": "build", "tooltip": "Build Image"}]
         return {"id": f"file:{path}", "label": name, "description": directory, "tooltip": path,
@@ -839,9 +839,9 @@ class Module:
         tip = f"{c['name']}\n{c['status']}\nimage: {c['image']}\nid: {c['id']}"
         if c["ports"]:
             tip += f"\nports: {c['ports']}"
-        actions = [{"id": "logs", "icon": "file", "tooltip": "Logs (follow in a terminal)"}]
+        actions = [{"id": "logs", "icon": "file", "tooltip": "Logs (follow in a terminal)", "label": "View Logs"}]
         if is_running(c):
-            actions += [{"id": "shell", "icon": "terminal", "tooltip": "Open a Shell in the Container"},
+            actions += [{"id": "shell", "icon": "terminal", "tooltip": "Open a Shell in the Container", "label": "Open Shell"},
                         {"id": "pause", "icon": "pause", "tooltip": "Pause"},
                         {"id": "restart", "icon": "refresh", "tooltip": "Restart"},
                         {"id": "stop", "icon": "stop", "tooltip": "Stop"}]
@@ -849,8 +849,8 @@ class Module:
             actions.append({"id": "unpause", "icon": "play", "tooltip": "Unpause"})
         else:
             actions.append({"id": "start", "icon": "play", "tooltip": "Start"})
-        actions.append({"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)"})
-        actions.append({"id": "remove", "icon": "trash", "tooltip": "Remove"})
+        actions.append({"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)", "label": "Inspect"})
+        actions.append({"id": "remove", "icon": "trash", "tooltip": "Remove", "label": "Remove…"})
         return {"id": f"container:{c['id']}", "label": label,
                 "description": c["ports"] if is_running(c) and c["ports"] else c["status"],
                 "tooltip": tip, "icon": "breakpoint", "iconColor": color, "actions": actions,
@@ -898,8 +898,8 @@ class Module:
         tip += f"\nused by: {', '.join(users)}" if users else "\nnot used by any container"
         return {"id": f"volume:{v['name']}", "label": label, "description": description, "tooltip": tip,
                 "icon": VOLUME_ICON, "iconColor": "icon.docker" if users else "foreground.muted",
-                "actions": [{"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)"},
-                            {"id": "remove", "icon": "trash", "tooltip": "Remove Volume"}]}
+                "actions": [{"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)", "label": "Inspect"},
+                            {"id": "remove", "icon": "trash", "tooltip": "Remove Volume", "label": "Remove…"}]}
 
     def network_item(self, n):
         users = self.users_of_network(n["name"])
@@ -908,9 +908,9 @@ class Module:
         tip = f"{n['name']}\nid: {n['id']}\ndriver: {n['driver']}\nscope: {n['scope']}"
         if users:
             tip += f"\ncontainers: {', '.join(users)}"
-        actions = [{"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)"}]
+        actions = [{"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)", "label": "Inspect"}]
         if not builtin:
-            actions.append({"id": "remove", "icon": "trash", "tooltip": "Remove Network"})
+            actions.append({"id": "remove", "icon": "trash", "tooltip": "Remove Network", "label": "Remove…"})
         return {"id": f"network:{n['name']}", "label": n["name"], "description": description, "tooltip": tip,
                 "icon": NETWORK_ICON, "iconColor": "foreground.muted" if builtin else "icon.docker", "actions": actions}
 
@@ -1002,9 +1002,9 @@ class Module:
                 "description": f"{image['size']} · {used} container{'s' if used != 1 else ''}" if used else image["size"],
                 "tooltip": f"{reference}\nid: {image['id']}\nsize: {image['size']}\ncreated {image['created']}",
                 "icon": "layers", "iconColor": "icon.docker",
-                "actions": [{"id": "run", "icon": "play", "tooltip": "Run and open a shell in it (ports published, removed when the shell exits)"},
-                            {"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)"},
-                            {"id": "remove", "icon": "trash", "tooltip": "Remove Image"}]}
+                "actions": [{"id": "run", "icon": "play", "tooltip": "Run and open a shell in it (ports published, removed when the shell exits)", "label": "Run Interactive"},
+                            {"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)", "label": "Inspect"},
+                            {"id": "remove", "icon": "trash", "tooltip": "Remove Image", "label": "Remove…"}]}
 
     def tree(self):
         with self.lock:

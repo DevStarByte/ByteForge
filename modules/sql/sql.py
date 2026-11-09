@@ -926,7 +926,7 @@ class Module:
         item = {"id": f"conn:{cid}", "label": conn["name"] + ("  ✓" if active else ""), "description": description,
                 "tooltip": "\n".join(t for t in tooltip if t), "icon": DATABASE_ICON,
                 "iconColor": DRIVER_COLORS[conn["driver"]],
-                "actions": [{"id": "run", "icon": "play", "tooltip": "Run the Active .sql File Here"},
+                "actions": [{"id": "run", "icon": "play", "tooltip": "Run the Active .sql File Here", "label": "Run Active File Here"},
                             {"id": "shell", "icon": "terminal", "tooltip": "Open Shell"},
                             {"id": "refresh", "icon": "refresh", "tooltip": "Reload Tables"}]}
         if loading:
@@ -953,7 +953,7 @@ class Module:
         tree = {"type": "setTree", "view": VIEW, "badge": 0,
                 "items": [{"id": "section:connections", "label": "CONNECTIONS", "header": True,
                            "count": len(connections), "children": children}],
-                "actions": [{"id": "add", "icon": "add", "tooltip": "Add a Connection (opens settings)"},
+                "actions": [{"id": "add", "icon": "add", "tooltip": "Add a Connection (opens settings)", "label": "Add Connection…"},
                             {"id": "refresh", "icon": "refresh", "tooltip": "Refresh"}]}
         if not scanned:
             tree["message"] = "Looking for connections…"

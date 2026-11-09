@@ -23,6 +23,15 @@ pub(super) struct ModuleView {
     pub toggled: HashSet<String>,
 }
 
+/// The context menu of a row: the row's buttons, then its extra `menu` entries.
+pub(super) struct ModuleMenu {
+    module: String,
+    view: String,
+    item: String,
+    entries: Vec<TreeAction>,
+    position: gpui::Point<gpui::Pixels>,
+}
+
 /// A tree row to draw: the item, its depth and whether it's expanded.
 struct Row<'a> {
     item: &'a TreeItem,
@@ -317,6 +326,21 @@ impl Workbench {
                 }
                 el = el.child(buttons);
             }
+            let mut entries = item.actions.clone();
+            if !item.menu.is_empty() {
+                if !entries.is_empty() && !item.menu[0].is_separator() {
+                    entries.push(TreeAction { id: "-".into(), ..Default::default() });
+                }
+                entries.extend(item.menu.iter().cloned());
+            }
+            if entries.iter().any(|e| !e.is_separator()) {
+                let (m, v, i) = (module.clone(), view_id.clone(), item.id.clone());
+                el = el.on_mouse_down(MouseButton::Right, cx.listener(move |wb, ev: &gpui::MouseDownEvent, _, cx| {
+                    wb.module_menu = Some(ModuleMenu { module: m.clone(), view: v.clone(), item: i.clone(), entries: entries.clone(), position: ev.position });
+                    cx.stop_propagation();
+                    cx.notify();
+                }));
+            }
             el = el.on_click(cx.listener(move |wb, _, _, cx| {
                 if has_children {
                     if let Some(view) = wb.module_views.iter_mut().find(|x| x.module == m && x.id == v)
@@ -332,11 +356,39 @@ impl Workbench {
             list = list.child(el);
         }
 
+        let menu = self.module_menu.as_ref().filter(|m| m.module == module && m.view == view_id).map(|m| {
+            let mut panel = crate::menu::panel(&t, 180.).on_mouse_down_out(cx.listener(|wb, _, _, cx| {
+                wb.module_menu = None;
+                cx.notify();
+            }));
+            let mut last_separator = true;
+            for (ix, entry) in m.entries.iter().enumerate() {
+                if entry.is_separator() {
+                    if !last_separator {
+                        panel = panel.child(crate::menu::separator(&t));
+                    }
+                    last_separator = true;
+                    continue;
+                }
+                last_separator = false;
+                let (md, v, i, action) = (m.module.clone(), m.view.clone(), m.item.clone(), entry.id.clone());
+                panel = panel.child(crate::menu::item(&t, SharedString::from(format!("mv-menu-{ix}")), entry.menu_label().to_owned(), None).on_click(cx.listener(
+                    move |wb, _, _, cx| {
+                        wb.module_menu = None;
+                        wb.send_tree_action(&md, &v, Some(&i), &action);
+                        cx.notify();
+                    },
+                )));
+            }
+            gpui::deferred(gpui::anchored().position(m.position).snap_to_window().child(panel)).with_priority(1)
+        });
+
         div()
             .size_full()
             .flex()
             .flex_col()
             .gap_1()
+            .children(menu)
             .child(top)
             .when_some(view.error.clone(), |d, e| d.child(div().px_3().text_size(px(11.)).text_color(t.c("errorForeground")).child(e)))
             .child(list)
