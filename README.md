@@ -10,7 +10,7 @@
 [![.NET](https://img.shields.io/badge/.NET-SDK-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Linux](https://img.shields.io/badge/Linux-X11%20%7C%20Wayland-FCC624?logo=linux&logoColor=black)](#install)
 [![Windows](https://img.shields.io/badge/Windows-supported-0078D6?logo=windows&logoColor=white)](#install)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](Cargo.toml)
+[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE)
 
 </div>
 
@@ -99,4 +99,4 @@ cargo run --release -p byteforge -- ~/code/my-project
 
 ## License
 
-MIT
+ByteForge is licensed under the [GNU General Public License v2.0](LICENSE).

@@ -5,7 +5,7 @@ members = ["crates/bf-core", "crates/bf-text", "crates/bf-syntax", "crates/bf-ls
 [workspace.package]
 version = "0.3.1"
 edition = "2024"
-license = "MIT"
+license = "GPL-2.0-only"
 
 [workspace.dependencies]
 gpui = "=0.2.2"

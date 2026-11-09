@@ -10,7 +10,7 @@ pkgrel=1
 pkgdesc="A modular, themeable IDE for C# built with Rust and GPUI"
 arch=('x86_64' 'aarch64')
 url="https://github.com/DevStarByte/ByteForge"
-license=('MIT')
+license=('GPL-2.0-only')
 depends=('vulkan-icd-loader' 'libxkbcommon' 'libxkbcommon-x11' 'wayland' 'libx11' 'libxcb'
          'fontconfig' 'freetype2' 'alsa-lib' 'dotnet-sdk' 'curl')
 makedepends=('rust' 'cmake' 'clang' 'pkgconf')
