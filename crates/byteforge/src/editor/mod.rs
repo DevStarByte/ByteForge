@@ -726,6 +726,17 @@ impl EditorView {
         }
     }
 
+    /// The file was renamed or moved: the language server forgets the old path and opens the new one.
+    pub fn set_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        let lsp = self.lsp.clone();
+        self.detach_lsp();
+        self.path = Some(path);
+        if let Some(lsp) = lsp {
+            self.attach_lsp(lsp, cx);
+        }
+        cx.notify();
+    }
+
     pub fn detach_lsp(&mut self) {
         if let (Some(lsp), Some(path)) = (self.lsp.take(), &self.path) {
             lsp.did_close(path);

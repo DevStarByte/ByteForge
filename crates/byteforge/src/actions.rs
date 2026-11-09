@@ -26,6 +26,8 @@ pub struct ModulePickChoice {
     pub value: String,
 }
 
+actions!(explorer, [RenameEntry]);
+
 actions!(terminal, [ToggleTerminal, NewTerminal, KillTerminal, TerminalCopy, TerminalPaste, SelectDefaultShell]);
 
 actions!(
@@ -218,6 +220,7 @@ impl Commands {
 const EDITOR: &str = "Editor";
 const INPUT: &str = "TextInput";
 const TERMINAL: &str = "Terminal";
+const EXPLORER: &str = "Explorer";
 
 /// Ctrl+letter keys that belong to the shell inside the terminal (line editing, history search, ^C, …),
 /// even though some are IDE shortcuts elsewhere. Ctrl+P and Ctrl+J stay with the IDE, like in VS Code.
@@ -316,6 +319,8 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         KeyBinding::new("ctrl-shift-space", ShowSignatureHelp, e),
         KeyBinding::new("escape", Cancel, e),
     ]);
+
+    cx.bind_keys([KeyBinding::new("f2", RenameEntry, Some(EXPLORER))]);
 
     let term = Some(TERMINAL);
     let mut terminal_bindings = vec![KeyBinding::new("ctrl-shift-c", TerminalCopy, term), KeyBinding::new("ctrl-shift-v", TerminalPaste, term), KeyBinding::new("shift-insert", TerminalPaste, term)];

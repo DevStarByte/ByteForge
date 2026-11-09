@@ -5,20 +5,53 @@ use std::path::{Path, PathBuf};
 
 use bf_core::Workspace;
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, MouseButton, MouseDownEvent, Pixels, Point, UniformListScrollHandle, Window, div,
-    prelude::*, px, uniform_list,
+    App, ClickEvent, Context, EventEmitter, FocusHandle, Focusable, MouseButton, MouseDownEvent, Pixels, Point, UniformListScrollHandle, Window,
+    div, prelude::*, px, uniform_list,
 };
 
+use crate::actions::RenameEntry;
 use crate::assets::icon;
 use crate::theme::Theme;
 
 pub enum ExplorerEvent {
-    Open(PathBuf),
+    /// Open a file; `true` moves the focus to the editor (double click), `false` keeps it in the explorer.
+    Open(PathBuf, bool),
+    /// Move a file or folder (dragged) into this folder.
+    Move { from: PathBuf, to_dir: PathBuf },
     NewFile(PathBuf),
     NewFolder(PathBuf),
     Rename(PathBuf),
     Delete(PathBuf),
     OpenFolderRequested,
+}
+
+/// A file or folder being dragged; also draws itself under the mouse while dragging.
+#[derive(Clone)]
+pub struct DraggedEntry {
+    path: PathBuf,
+    name: String,
+    is_dir: bool,
+}
+
+impl Render for DraggedEntry {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let t = Theme::global(cx);
+        let (icon_name, color_key) = file_icon(&self.name, self.is_dir, false);
+        div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .px_2()
+            .py(px(2.))
+            .rounded(px(4.))
+            .bg(t.bg("menu.background"))
+            .text_color(t.c("menu.foreground"))
+            .border_1()
+            .border_color(t.c("menu.border"))
+            .text_size(t.m("list.fontSize", 13.0))
+            .child(icon(&icon_name, px(14.), file_icon_color(&t, &color_key)))
+            .child(self.name.clone())
+    }
 }
 
 #[derive(Clone)]
@@ -128,7 +161,20 @@ impl Explorer {
         }
     }
 
-    fn click(&mut self, ix: usize, cx: &mut Context<Self>) {
+    /// Follows a rename or move of `from` to `to`: expanded folders, the selection and the active file below
+    /// it keep their state under the new path.
+    pub fn path_moved(&mut self, from: &Path, to: &Path, cx: &mut Context<Self>) {
+        let remap = |p: &Path| p.strip_prefix(from).ok().map(|rest| if rest.as_os_str().is_empty() { to.to_path_buf() } else { to.join(rest) });
+        self.expanded = self.expanded.iter().map(|p| remap(p).unwrap_or_else(|| p.clone())).collect();
+        for p in [&mut self.selected, &mut self.active].into_iter().flatten() {
+            if let Some(new) = remap(p) {
+                *p = new;
+            }
+        }
+        self.refresh(cx);
+    }
+
+    fn click(&mut self, ix: usize, focus_editor: bool, cx: &mut Context<Self>) {
         let Some(row) = self.rows.get(ix).cloned() else { return };
         self.selected = Some(row.path.clone());
         self.menu = None;
@@ -138,7 +184,7 @@ impl Explorer {
             }
             self.refresh(cx);
         } else {
-            cx.emit(ExplorerEvent::Open(row.path));
+            cx.emit(ExplorerEvent::Open(row.path, focus_editor));
             cx.notify();
         }
     }
@@ -299,6 +345,10 @@ impl Render for Explorer {
                         let e1 = entity.clone();
                         let e2 = entity.clone();
                         let path = row.path.clone();
+                        let drop_dir = if row.is_dir { Some(row.path.clone()) } else { row.path.parent().map(Path::to_path_buf) };
+                        let dragged = DraggedEntry { path: row.path.clone(), name: row.name.clone(), is_dir: row.is_dir };
+                        let e3 = entity.clone();
+                        let drop_highlight = t.c("list.hoverBackground");
                         div()
                             .id(ix)
                             .relative()
@@ -340,9 +390,22 @@ impl Render for Explorer {
                                     .child(row.name.clone()),
                             )
                             .when_some(deco, |d, (letter, key)| d.child(div().flex_none().text_size(px(11.)).text_color(t.c(key)).child(letter.to_string())))
-                            .on_click(move |_, _, cx| e1.update(cx, |e, cx| e.click(ix, cx)))
-                            .on_mouse_down(MouseButton::Right, move |ev: &MouseDownEvent, _, cx| {
+                            .on_click(move |ev: &ClickEvent, window, cx| {
+                                e1.update(cx, |e, cx| {
+                                    window.focus(&e.focus);
+                                    e.click(ix, ev.click_count() > 1, cx)
+                                })
+                            })
+                            .on_drag(dragged, |d, _, _, cx| cx.new(|_| d.clone()))
+                            .when(row.is_dir, |d| d.drag_over::<DraggedEntry>(move |s, _, _, _| s.bg(drop_highlight)))
+                            .on_drop(move |d: &DraggedEntry, _, cx| {
+                                if let Some(to_dir) = drop_dir.clone() {
+                                    e3.update(cx, |_, cx| cx.emit(ExplorerEvent::Move { from: d.path.clone(), to_dir }));
+                                }
+                            })
+                            .on_mouse_down(MouseButton::Right, move |ev: &MouseDownEvent, window, cx| {
                                 e2.update(cx, |e, cx| {
+                                    window.focus(&e.focus);
                                     e.selected = Some(path.clone());
                                     e.menu = Some((path.clone(), ev.position));
                                     cx.notify();
@@ -411,6 +474,14 @@ impl Render for Explorer {
 
         div()
             .track_focus(&self.focus)
+            .key_context("Explorer")
+            .on_action(cx.listener(|e, _: &RenameEntry, _, cx| {
+                if let Some(path) = e.selected.clone() {
+                    cx.emit(ExplorerEvent::Rename(path));
+                }
+            }))
+            // Dropped outside any row (empty space, header): move to the workspace root.
+            .on_drop(cx.listener(move |_, d: &DraggedEntry, _, cx| cx.emit(ExplorerEvent::Move { from: d.path.clone(), to_dir: root.clone() })))
             .size_full()
             .flex()
             .flex_col()
