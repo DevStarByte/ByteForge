@@ -10,6 +10,7 @@ mod layout;
 mod markdown;
 mod markdown_preview;
 mod palette;
+mod prompt;
 mod scm;
 mod search;
 mod terminal;
@@ -68,6 +69,7 @@ fn main() {
         let theme = Theme::build(data, 1, cx);
         let custom_titlebar = !theme.layout("titleBar.style").is_some_and(|s| s.eq_ignore_ascii_case("native"));
         theme.install(cx);
+        prompt::install(cx);
 
         let overrides: HashMap<String, String> = settings.get("keybindings", HashMap::new());
         actions::install(cx, &overrides);
