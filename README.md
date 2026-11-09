@@ -1,33 +1,22 @@
-# ByteForge Package Repo
+# ByteForge Module Registry
 
-This is the `packages` branch of ByteForge: the pacman repository only, kept
-apart from the IDE on `master` so cloning the source doesn't drag every built
-package along. pacman downloads straight from here.
+This is the `packages` branch of ByteForge. It holds the module registry that
+the IDE's Modules view reads, kept apart from the source on `master`.
 
-## Install on Arch Linux
+## Install ByteForge on Arch Linux
 
-Add the repo to `/etc/pacman.conf`:
+The pacman package moved to the shared DevStarByte repo,
+[DevStarByte/arch-repo](https://github.com/DevStarByte/arch-repo). Replace the
+old `[byteforge]` section in `/etc/pacman.conf` with:
 
 ```ini
-[byteforge]
+[devstarbyte]
 SigLevel = Optional TrustAll
-Server = https://raw.githubusercontent.com/DevStarByte/ByteForge/packages/$arch
+Server = https://raw.githubusercontent.com/DevStarByte/arch-repo/main/$arch
 ```
 
-Then:
-
-```sh
-sudo pacman -Sy byteforge
-dotnet tool install -g csharp-ls      # C# language server
-```
-
-Updates arrive with `sudo pacman -Syu`. Remove with `sudo pacman -R byteforge`.
-
-## Packages
-
-| Package | Version | Description |
-|---------|---------|-------------|
-| [byteforge](pkgs/byteforge) | 0.3.1 | A modular, themeable IDE for C# built with Rust and GPUI. |
+Then `sudo pacman -Sy byteforge`. The old `[byteforge]` repo in `x86_64/` here
+no longer gets updates.
 
 ## Modules (IDE packages)
 
@@ -52,25 +41,7 @@ installed copies show an Update button.
 ## Layout
 
 ```
-pkgs/<name>/PKGBUILD                      pacman package sources (edit these)
-modules/<name>/module.json, …             ByteForge module packages (edit these)
-modules/index.json                        module registry index (generated)
-x86_64/<name>-<ver>-<rel>-x86_64.pkg.tar.zst  built packages  (generated)
-x86_64/byteforge.db, byteforge.files      repo database   (generated)
+modules/<name>/module.json, …   ByteForge module packages (edit these)
+modules/index.json              module registry index (generated)
+x86_64/                         old [byteforge] pacman repo (frozen at 0.3.1)
 ```
-
-## Adding or changing a package
-
-1. Edit `pkgs/<name>/PKGBUILD`. When only the packaging changes, bump
-   `pkgrel`; for a new release, tag master (`git tag v0.2.0 && git push
-   origin v0.2.0`) and set `pkgver` to match.
-2. Commit and push. The **Build packages** workflow builds it in an Arch
-   container, updates `x86_64/` with `repo-add` and commits it back.
-   Computers pick the change up on their next `pacman -Syu`.
-
-To build by hand instead: `cd pkgs/byteforge && makepkg -si`.
-
-For signed packages, add an armored GPG private key without passphrase as the
-secret `GPG_PRIVATE_KEY`; then import the public key on each machine
-(`sudo pacman-key --add key.asc && sudo pacman-key --lsign-key <id>`) and set
-`SigLevel = Required`.
