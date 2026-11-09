@@ -1,6 +1,23 @@
 {
   "modules": [
     {
+      "id": "byteforge.aspire",
+      "name": "Aspire",
+      "version": "0.1.0",
+      "description": "Aspire view with your AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and commands to run, create, add integrations, publish and deploy Aspire apps. Needs the Aspire CLI (aspire.dev) and python3.",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
+      "category": "Tools",
+      "dir": "aspire",
+      "files": [
+        "aspire.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
       "id": "byteforge.caelestia-theme",
       "name": "Caelestia Theme",
       "version": "1.0.1",
@@ -153,6 +170,23 @@
       "requires": [
         "python3",
         "dotnet"
+      ]
+    },
+    {
+      "id": "byteforge.sql",
+      "name": "SQL",
+      "version": "0.1.1",
+      "description": "SQL highlighting and formatting, and a Database view with your connections (from settings, appsettings.json ConnectionStrings and SQLite files in the workspace) and their tables, views and columns. Run .sql files (Ctrl+Shift+Enter), select the top rows of a table, or open a shell. SQLite works out of the box; PostgreSQL, MySQL / MariaDB and SQL Server use psql, mysql and sqlcmd. Needs python3.",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
+      "category": "Languages",
+      "dir": "sql",
+      "files": [
+        "module.json",
+        "sql.py"
+      ],
+      "requires": [
+        "python3"
       ]
     },
     {

@@ -1,0 +1,29 @@
+{
+  // Aspire for ByteForge: an Aspire view with the workspace's AppHosts and, while one runs, its resources
+  // (state, health, endpoints) with start / stop / restart and logs, plus the aspire CLI's commands
+  // (run, new, init, add, update, publish, deploy, doctor). It drives the `aspire` CLI.
+  "id": "byteforge.aspire",
+  "name": "Aspire",
+  "version": "0.1.0",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
+  "category": "Tools",
+  "description": "Aspire view with your AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and commands to run, create, add integrations, publish and deploy Aspire apps. Needs the Aspire CLI (aspire.dev) and python3.",
+  "command": "python3",
+  "args": ["aspire.py"],
+  "views": [
+    {
+      "id": "aspire",
+      "title": "Aspire",
+      "icon": "M12,2L20.66,7V17L12,22L3.34,17V7Z M12,4L5.07,8V16L12,20L18.93,16V8Z M12,8.5L15.03,10.25V13.75L12,15.5L8.97,13.75V10.25Z"
+    }
+  ],
+  "fileIcons": [
+    {
+      "icon": "M6,2H14L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2Z M14,3.5V8H18.5Z M12,10.5L16.33,13V18L12,20.5L7.67,18V13Z",
+      "color": "#7455dd",
+      "names": ["apphost.cs", "apphost.ts", "apphost.mts", "apphost.cts", "apphost.js", "apphost.mjs", "apphost.cjs",
+                "apphost.go", "apphost.rs", "apphost.java", "aspire.config.json"]
+    }
+  ]
+}

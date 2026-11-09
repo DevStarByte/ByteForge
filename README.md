@@ -34,7 +34,9 @@ AVAILABLE and installs, updates and uninstalls them in `~/.config/byteforge/modu
 |--------|---------|--------------|
 | [CSharpier](modules/csharpier) | 1.0.0 | C# / MSBuild formatter. **Preinstalled** with ByteForge (uninstall and reinstall it like any other). |
 | [ReSharper Formatter](modules/resharper-format) | 1.0.0 | C# formatting with JetBrains' `jb cleanupcode` (the Rider/ReSharper formatter); follows .editorconfig and .DotSettings. Needs `dotnet`. |
-| [Docker](modules/docker) | 1.1.1 | Docker view for containers, images, volumes, networks and the workspace's Dockerfiles and Compose files; build, Compose, run-with-shell and .NET Docker support commands. **Preinstalled** with ByteForge. Needs `docker`. |
+| [Docker](modules/docker) | 1.1.2 | Docker view for containers, images, volumes, networks and the workspace's Dockerfiles and Compose files; build, Compose, run-with-shell and .NET Docker support commands. **Preinstalled** with ByteForge. Needs `docker`. |
+| [SQL](modules/sql) | 0.1.1 | SQL highlighting and formatting; a Database view with connections from settings, appsettings.json and workspace SQLite files, their tables and columns. Run .sql files (Ctrl+Shift+Enter), Select Top rows, open a shell. **Preinstalled** with ByteForge. SQLite works out of the box; PostgreSQL, MySQL / MariaDB and SQL Server need `psql`, `mysql`, `sqlcmd`. |
+| [Aspire](modules/aspire) | 0.1.0 | Aspire view with AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and run, new, add, publish and deploy commands. **Preinstalled** with ByteForge. Needs the Aspire CLI. |
 | [TODO Finder](modules/todos) | 1.0.0 | TODO / FIXME / HACK comments: count in the status bar, "TODOs: List All" with clickable locations. |
 | [JSON Formatter](modules/json-format) | 1.0.0 | Format Document for `.json` (appsettings, launchSettings, …); leaves JSON with comments alone. |
 | [GUID Generator](modules/guid) | 1.0.0 | "GUID: Insert New GUID" (Ctrl+Alt+G), uppercase, `{braced}` and `new Guid("…")` variants. |

@@ -1,0 +1,61 @@
+{
+  // SQL for ByteForge: a Database view with the workspace's connections (settings, appsettings ConnectionStrings,
+  // SQLite files) and their tables, views and columns; "SQL: Run File" for .sql files; a shell per connection;
+  // SQL highlighting; and a formatter for .sql files (keyword case, trailing whitespace).
+  "id": "byteforge.sql",
+  "name": "SQL",
+  "version": "0.1.1",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
+  "category": "Languages",
+  "description": "SQL highlighting and formatting, and a Database view with your connections (from settings, appsettings.json ConnectionStrings and SQLite files in the workspace) and their tables, views and columns. Run .sql files (Ctrl+Shift+Enter), select the top rows of a table, or open a shell. SQLite works out of the box; PostgreSQL, MySQL / MariaDB and SQL Server use psql, mysql and sqlcmd. Needs python3.",
+  "command": "python3",
+  "args": ["sql.py"],
+  "views": [
+    {
+      "id": "sql",
+      "title": "Database",
+      "icon": "M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z"
+    }
+  ],
+  "fileIcons": [
+    {
+      "icon": "M6,2H14L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2Z M14,3.5V8H18.5Z M7.5,11.5A4.5,1.6 0 1,0 16.5,11.5A4.5,1.6 0 1,0 7.5,11.5Z M7.5,13.4C8.5,14.3 10.2,14.7 12,14.7C13.8,14.7 15.5,14.3 16.5,13.4V15.4C15.5,16.3 13.8,16.7 12,16.7C10.2,16.7 8.5,16.3 7.5,15.4Z M7.5,17.2C8.5,18.1 10.2,18.5 12,18.5C13.8,18.5 15.5,18.1 16.5,17.2V18.4C16.5,19.3 14.5,20 12,20C9.5,20 7.5,19.3 7.5,18.4Z",
+      "color": "#e8a33d",
+      "extensions": ["sql", "psql", "pgsql", "tsql", "mysql"]
+    },
+    {
+      "icon": "M6,2H14L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2Z M14,3.5V8H18.5Z M7.5,11.5A4.5,1.6 0 1,0 16.5,11.5A4.5,1.6 0 1,0 7.5,11.5Z M7.5,13.4C8.5,14.3 10.2,14.7 12,14.7C13.8,14.7 15.5,14.3 16.5,13.4V15.4C15.5,16.3 13.8,16.7 12,16.7C10.2,16.7 8.5,16.3 7.5,15.4Z M7.5,17.2C8.5,18.1 10.2,18.5 12,18.5C13.8,18.5 15.5,18.1 16.5,17.2V18.4C16.5,19.3 14.5,20 12,20C9.5,20 7.5,19.3 7.5,18.4Z",
+      "color": "#44a8e0",
+      "extensions": ["db", "sqlite", "sqlite3", "db3"]
+    }
+  ],
+  "languages": [
+    {
+      "id": "sql",
+      "name": "SQL",
+      "extensions": ["sql", "psql", "pgsql", "tsql", "mysql"],
+      "lineComment": "--",
+      // Applied per line; where matches overlap, the earlier rule wins. Block comments are only
+      // recognized on the line they start on.
+      "rules": [
+        {"match": "--.*$", "token": "comment"},
+        {"match": "/\\*.*?(?:\\*/|$)", "token": "comment"},
+        {"match": "^\\s*#.*$", "token": "comment"},
+        {"match": "[NnEeXxBb]?'(?:[^']|'')*'?", "token": "string"},
+        {"match": "\\$([A-Za-z_][A-Za-z0-9_]*)?\\$", "token": "string"},
+        {"match": "\"(?:[^\"]|\"\")*\"?|`(?:[^`]|``)*`?", "token": "field name"},
+        {"match": "\\[[A-Za-z_ ][^\\]]*\\]", "token": "field name"},
+        {"match": "@@?[A-Za-z_][A-Za-z0-9_$#@]*", "token": "local name"},
+        {"match": "(?:^|[^:]):([A-Za-z_][A-Za-z0-9_]*)", "group": 1, "token": "parameter name"},
+        {"match": "\\$\\d+", "token": "parameter name"},
+        {"match": "\\b0[xX][0-9A-Fa-f]+\\b|\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b", "token": "number"},
+        {"match": "(?i)\\b(bigint|binary|bit|blob|bool|boolean|bytea|char|character|citext|date|datetime|datetime2|datetimeoffset|decimal|double|float|image|inet|int|int2|int4|int8|integer|interval|json|jsonb|longtext|mediumint|mediumtext|money|nchar|ntext|numeric|nvarchar|real|rowversion|serial|bigserial|smalldatetime|smallint|smallmoney|text|time|timestamp|timestamptz|tinyint|tinytext|uniqueidentifier|uuid|varbinary|varchar|xml|year)\\b", "group": 1, "token": "class name"},
+        {"match": "(?i)\\b(add|all|alter|analyze|and|any|as|asc|autoincrement|auto_increment|begin|between|both|by|cascade|case|cast|check|clustered|collate|column|commit|conflict|constraint|create|cross|current_date|current_time|current_timestamp|cursor|database|deallocate|declare|default|deferrable|delete|desc|distinct|do|drop|each|else|elsif|end|escape|except|exec|execute|exists|explain|false|fetch|filter|first|for|foreign|from|full|function|go|grant|group|having|identity|if|ignore|ilike|in|index|inner|insert|intersect|into|is|join|key|language|last|lateral|leading|left|like|limit|materialized|merge|natural|next|no|nocount|nonclustered|not|nothing|null|nulls|of|offset|on|only|or|order|outer|output|over|partition|pragma|precision|primary|procedure|raise|recursive|references|reindex|release|rename|replace|restrict|return|returning|returns|revoke|right|rollback|row|rows|savepoint|schema|select|sequence|set|table|temp|temporary|then|to|top|trailing|tran|transaction|trigger|true|truncate|union|unique|unsigned|update|upsert|use|using|vacuum|values|view|when|where|while|window|with|without)\\b", "group": 1, "token": "keyword"},
+        {"match": "\\b([A-Za-z_][A-Za-z0-9_$]*)\\s*\\(", "group": 1, "token": "method name"},
+        {"match": "[-+*/%=<>!|&^~]+", "token": "operator"},
+        {"match": "[(),;.]", "token": "punctuation"}
+      ]
+    }
+  ]
+}
