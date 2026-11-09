@@ -55,7 +55,7 @@
     {
       "id": "byteforge.docker",
       "name": "Docker",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "description": "Docker view for containers (with their ports, volumes and networks), images, volumes, networks and the workspace's Dockerfiles and Compose files, setup checks with one-click fixes, and build, Compose and .NET Docker support commands, Dockerfile highlighting and file icons.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
