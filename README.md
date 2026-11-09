@@ -37,12 +37,12 @@ live, and modules written in any language can extend it.
 
 ### Arch Linux
 
-Add the ByteForge repo to `/etc/pacman.conf`:
+Add the DevStarByte repo to `/etc/pacman.conf` (one repo for all DevStarByte projects):
 
 ```ini
-[byteforge]
+[devstarbyte]
 SigLevel = Optional TrustAll
-Server = https://raw.githubusercontent.com/DevStarByte/ByteForge/packages/$arch
+Server = https://raw.githubusercontent.com/DevStarByte/arch-repo/main/$arch
 ```
 
 Then install it, along with the C# language server:
