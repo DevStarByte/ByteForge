@@ -1,12 +1,15 @@
 """Docker module for ByteForge.
 
-A side bar view with the workspace's Dockerfiles and Compose files and the engine's containers and images,
-with the usual actions (build, compose up/down, start/stop/restart, logs, shell, run, remove), plus "Add Docker
+A side bar view with the workspace's Dockerfiles and Compose files and the engine's containers (with their ports,
+volumes and networks), images, volumes and networks, with the usual actions (build, compose up/down, start/stop/restart, logs, shell, run, remove), plus "Add Docker
 Support" (a multi-stage Dockerfile and .dockerignore for a .NET project) and "Add Docker Compose File".
 
 Everything goes through the `docker` CLI, so contexts, credentials and Docker Desktop or Podman's `docker` shim
 all apply. Long-running and interactive commands run in an IDE terminal; quick ones run on a background thread
 here. The engine is polled every 4 seconds, but only while the view is shown.
+
+When Docker isn't usable, a SETUP section says why (engine stopped, not in the docker group, Compose or Buildx
+missing) with a button that fixes it in a terminal.
 """
 
 import json
@@ -14,6 +17,7 @@ import os
 import posixpath
 import queue
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -25,6 +29,15 @@ SKIP_DIRS = {".git", "bin", "obj", "node_modules", ".vs", ".idea"}
 RUNNING_COLOR = "#3fb950"
 PAUSED_COLOR = "#d29922"
 SHELL_SCRIPT = "command -v bash >/dev/null && exec bash || exec sh"
+BUILTIN_NETWORKS = {"bridge", "host", "none"}
+# Material Design Icons (Apache 2.0): database and lan.
+VOLUME_ICON = ("M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 "
+               "7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 "
+               "12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z")
+NETWORK_ICON = ("M10,2C8.89,2 8,2.89 8,4V7C8,8.11 8.89,9 10,9H11V11H2V13H6V15H5C3.89,15 3,15.89 3,17V20C3,21.11 3.89,22 "
+                "5,22H9C10.11,22 11,21.11 11,20V17C11,15.89 10.11,15 9,15H8V13H16V15H15C13.89,15 13,15.89 13,17V20C13,21.11 "
+                "13.89,22 15,22H19C20.11,22 21,21.11 21,20V17C21,15.89 20.11,15 19,15H18V13H22V11H13V9H14C15.11,9 16,8.11 "
+                "16,7V4C16,2.89 15.11,2 14,2H10M10,4H14V7H10V4M5,17H9V20H5V17M15,17H19V20H15V17Z")
 
 # ───────────── docker CLI ─────────────
 
@@ -39,7 +52,7 @@ def run_docker(args, timeout=300):
     if os.name == "nt":
         kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
     try:
-        done = subprocess.run(["docker"] + list(args), stdin=subprocess.DEVNULL, capture_output=True,
+        done = subprocess.run(docker_argv(args), stdin=subprocess.DEVNULL, capture_output=True,
                               timeout=timeout, **kwargs)
     except OSError as error:
         raise DockerError(f"could not run docker (is it installed?): {error}")
@@ -52,6 +65,100 @@ def run_docker(args, timeout=300):
     raise DockerError(stderr.strip() if stderr.strip() else stdout.strip())
 
 
+# ───────────── setup diagnosis ─────────────
+
+# True while the user is listed in the `docker` group but this session doesn't have it yet (it was added after
+# logging in): docker then runs through `sg docker -c …`, so no logout is needed.
+use_sg = False
+
+
+def docker_group():
+    """Linux: (listed, active) for the `docker` group, or None when there's no such group (or we're root)."""
+    if not sys.platform.startswith("linux") or os.getuid() == 0:
+        return None
+    try:
+        import grp
+        import pwd
+        group = grp.getgrnam("docker")
+        user = pwd.getpwuid(os.getuid())
+    except (ImportError, KeyError):
+        return None
+    listed = user.pw_name in group.gr_mem or user.pw_gid == group.gr_gid
+    active = group.gr_gid in os.getgroups() or os.getgid() == group.gr_gid
+    return listed, active
+
+
+def update_sg():
+    global use_sg
+    state = docker_group()
+    use_sg = bool(state and state[0] and not state[1] and shutil.which("sg"))
+
+
+def docker_argv(args):
+    """The argv that runs `docker <args>`, through `sg docker` when needed."""
+    argv = ["docker"] + list(args)
+    return ["sg", "docker", "-c", command_line(argv)] if use_sg else argv
+
+
+def run_shell_args(reference):
+    """Arguments that start an image's container in the background (ports published) and then open a shell at `/`
+    in it, in the same terminal. Leaving the shell removes the container. When the container doesn't stay up (its
+    command exits right away), its logs are shown instead."""
+    script = "; ".join([
+        'id=$(docker run --detach --interactive --tty --publish-all "$1") || exit',
+        'docker port "$id"',
+        'if [ "$(docker inspect --format \'{{.State.Running}}\' "$id")" = true ]',
+        'then docker exec --interactive --tty --workdir / "$id" sh -c ' + shell_quote(SHELL_SCRIPT),
+        'else echo "The container exited:"; docker logs "$id"',
+        'fi',
+        'docker rm --force "$id" >/dev/null'])
+    return ["sh", "-c", script, "sh", reference]
+
+
+def terminal_line(args):
+    """A shell command line for a terminal, through `sg docker` when needed."""
+    line = command_line(args)
+    return command_line(["sg", "docker", "-c", line]) if use_sg else line
+
+
+def classify_engine_error(text):
+    """"permission" (no access to the socket), "stopped" (no daemon) or "other"."""
+    t = (text or "").lower()
+    if "permission denied" in t:
+        return "permission"
+    if any(s in t for s in ("no such file or directory", "is the docker daemon running", "cannot connect to the docker",
+                            "connection refused", "failed to connect to the docker api")):
+        return "stopped"
+    return "other"
+
+
+def package_manager():
+    """The install command prefix for the system's package manager, or None."""
+    for tool, prefix in (("pacman", "sudo pacman -S --needed"), ("apt-get", "sudo apt-get install -y"),
+                         ("dnf", "sudo dnf install -y"), ("zypper", "sudo zypper install -y")):
+        if shutil.which(tool):
+            return tool, prefix
+    return None
+
+
+def plugin_packages(tool, compose, buildx):
+    """Package names for the missing Compose and Buildx plugins."""
+    names = {"pacman": ("docker-compose", "docker-buildx")}.get(tool, ("docker-compose-plugin", "docker-buildx-plugin"))
+    return [n for n, missing in zip(names, (compose, buildx)) if missing]
+
+
+def can_systemctl():
+    return sys.platform.startswith("linux") and shutil.which("systemctl") is not None
+
+
+def plugin_works(args):
+    try:
+        run_docker(args, timeout=30)
+        return True
+    except DockerError:
+        return False
+
+
 def cli_available():
     """Whether the `docker` CLI is installed (the daemon may still be down)."""
     try:
@@ -62,10 +169,13 @@ def cli_available():
 
 
 def snapshot():
-    """(containers, images): all containers, not only running ones. Raises DockerError when the daemon is down."""
+    """All containers (not only running ones), images, volumes and networks. Raises DockerError when the daemon is
+    down."""
     containers = parse_containers(run_docker(["ps", "--all", "--no-trunc", "--format", "{{json .}}"], timeout=60))
     images = parse_images(run_docker(["images", "--format", "{{json .}}"], timeout=60))
-    return containers, images
+    volumes = parse_volumes(run_docker(["volume", "ls", "--format", "{{json .}}"], timeout=60))
+    networks = parse_networks(run_docker(["network", "ls", "--no-trunc", "--format", "{{json .}}"], timeout=60))
+    return containers, images, volumes, networks
 
 
 def _field(raw, key, required):
@@ -110,7 +220,8 @@ def parse_containers(text):
             continue
         fields = {}
         for key, required in (("ID", True), ("Names", True), ("Image", True), ("State", False), ("Status", False),
-                              ("Ports", False), ("Labels", False)):
+                              ("Ports", False), ("Labels", False), ("Mounts", False),
+                              ("Networks", False), ("Command", False), ("RunningFor", False)):
             fields[key] = _field(raw, key, required)
         if any(v is None for v in fields.values()):
             continue
@@ -132,9 +243,75 @@ def parse_containers(text):
             "ports": fields["Ports"],
             "compose_project": label("com.docker.compose.project"),
             "compose_service": label("com.docker.compose.service"),
+            "mounts": split_list(fields["Mounts"]),
+            "networks": split_list(fields["Networks"]),
+            "command": fields["Command"].strip('"'),
+            "age": fields["RunningFor"],
         })
     containers.sort(key=lambda c: (c["compose_project"] is None, c["compose_project"] or "", c["name"]))
     return containers
+
+
+def split_list(text):
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
+def json_lines(text):
+    for line in text.splitlines():
+        try:
+            raw = json.loads(line.strip())
+        except ValueError:
+            continue
+        if isinstance(raw, dict):
+            yield raw
+
+
+def label_value(labels, key):
+    for pair in (labels if isinstance(labels, str) else "").split(","):
+        if pair.startswith(key + "="):
+            return pair[len(key) + 1:] or None
+    return None
+
+
+def parse_volumes(text):
+    """Parses `docker volume ls --format '{{json .}}'`: named volumes first, then anonymous ones."""
+    volumes = []
+    for raw in json_lines(text):
+        name = raw.get("Name")
+        if not isinstance(name, str) or not name:
+            continue
+        mountpoint = raw.get("Mountpoint")
+        volumes.append({
+            "name": name,
+            "driver": raw.get("Driver") if isinstance(raw.get("Driver"), str) else "",
+            "mountpoint": mountpoint if isinstance(mountpoint, str) else "",
+            "compose_project": label_value(raw.get("Labels"), "com.docker.compose.project"),
+            "anonymous": is_anonymous_volume(name),
+        })
+    volumes.sort(key=lambda v: (v["anonymous"], v["name"]))
+    return volumes
+
+
+def is_anonymous_volume(name):
+    return len(name) == 64 and all(c in "0123456789abcdef" for c in name)
+
+
+def parse_networks(text):
+    """Parses `docker network ls --format '{{json .}}'`: the built-in ones (bridge, host, none) last."""
+    networks = []
+    for raw in json_lines(text):
+        name, network_id = raw.get("Name"), raw.get("ID")
+        if not isinstance(name, str) or not isinstance(network_id, str) or not name:
+            continue
+        networks.append({
+            "id": network_id[:12],
+            "name": name,
+            "driver": raw.get("Driver") if isinstance(raw.get("Driver"), str) else "",
+            "scope": raw.get("Scope") if isinstance(raw.get("Scope"), str) else "",
+            "compose_project": label_value(raw.get("Labels"), "com.docker.compose.project"),
+        })
+    networks.sort(key=lambda n: (n["name"] in BUILTIN_NETWORKS, n["name"]))
+    return networks
 
 
 def parse_images(text):
@@ -607,6 +784,9 @@ class Module:
         self.engine_error = None  # why the engine couldn't be queried (usually: the daemon isn't running)
         self.containers = []
         self.images = []
+        self.volumes = []
+        self.networks = []
+        self.missing_plugins = None  # (compose, buildx) missing, once known
         self.dockerfiles = []
         self.compose_files = []
         self.busy = None
@@ -627,8 +807,14 @@ class Module:
         if self.cli is False:
             return "Docker isn't installed (no docker command found)."
         if self.engine_error is not None:
-            return "The Docker engine isn't reachable. Start it (e.g. systemctl start docker) or check your Docker context."
-        return f"{self.running_count()} running · {len(self.containers)} containers · {len(self.images)} images"
+            kind = classify_engine_error(self.engine_error)
+            if kind == "stopped":
+                return "The Docker engine isn't running. See SETUP below."
+            if kind == "permission":
+                return "No permission to use Docker. See SETUP below."
+            return "The Docker engine isn't reachable. Check your Docker context."
+        return (f"{self.running_count()} running · {len(self.containers)} containers · {len(self.images)} images · "
+                f"{len(self.volumes)} volumes · {len(self.networks)} networks")
 
     def file_item(self, path, compose):
         name = os.path.basename(path)
@@ -656,24 +842,168 @@ class Module:
         actions = [{"id": "logs", "icon": "file", "tooltip": "Logs (follow in a terminal)"}]
         if is_running(c):
             actions += [{"id": "shell", "icon": "terminal", "tooltip": "Open a Shell in the Container"},
+                        {"id": "pause", "icon": "pause", "tooltip": "Pause"},
                         {"id": "restart", "icon": "refresh", "tooltip": "Restart"},
                         {"id": "stop", "icon": "stop", "tooltip": "Stop"}]
         elif is_paused(c):
             actions.append({"id": "unpause", "icon": "play", "tooltip": "Unpause"})
         else:
             actions.append({"id": "start", "icon": "play", "tooltip": "Start"})
+        actions.append({"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)"})
         actions.append({"id": "remove", "icon": "trash", "tooltip": "Remove"})
         return {"id": f"container:{c['id']}", "label": label,
                 "description": c["ports"] if is_running(c) and c["ports"] else c["status"],
-                "tooltip": tip, "icon": "breakpoint", "iconColor": color, "actions": actions}
+                "tooltip": tip, "icon": "breakpoint", "iconColor": color, "actions": actions,
+                "expanded": False, "children": self.container_details(c)}
+
+    def container_details(self, c):
+        """The rows under a container: what it runs, its ports, volumes and networks."""
+        base = f"detail:{c['id']}"
+
+        def row(key, label, kind, icon, color=None, tooltip=None):
+            item = {"id": f"{base}:{key}", "label": label, "description": kind, "tooltip": tooltip or label, "icon": icon}
+            if color:
+                item["iconColor"] = color
+            return item
+
+        rows = [row("image", c["image"], "image", "layers", "icon.docker"),
+                row("status", c["status"] or c["state"], "status", "info",
+                    tooltip=f"{c['status']}\ncreated {c['age']}" if c.get("age") else None)]
+        for i, port in enumerate(split_list(c["ports"])):
+            rows.append(row(f"port{i}", port, "port", "arrowDown" if "->" in port else "remove"))
+        volume_names = {v["name"] for v in self.volumes}
+        for i, mount in enumerate(c.get("mounts", [])):
+            named = mount in volume_names
+            shown = mount[:12] + "…" if is_anonymous_volume(mount) else mount
+            rows.append(row(f"mount{i}", shown, "volume" if named else "bind mount", VOLUME_ICON, None, mount))
+        for i, network in enumerate(c.get("networks", [])):
+            rows.append(row(f"net{i}", network, "network", NETWORK_ICON))
+        if c.get("command"):
+            rows.append(row("command", c["command"], "command", "terminal"))
+        return rows
+
+    def users_of_volume(self, name):
+        return [c["name"] for c in self.containers if name in c.get("mounts", [])]
+
+    def users_of_network(self, name):
+        return [c["name"] for c in self.containers if name in c.get("networks", [])]
+
+    def volume_item(self, v):
+        users = self.users_of_volume(v["name"])
+        label = v["name"][:12] + "… (anonymous)" if v["anonymous"] else v["name"]
+        description = f"used by {', '.join(users)}" if users else "unused"
+        tip = f"{v['name']}\ndriver: {v['driver']}\nmountpoint: {v['mountpoint']}"
+        if v["compose_project"]:
+            tip += f"\ncompose project: {v['compose_project']}"
+        tip += f"\nused by: {', '.join(users)}" if users else "\nnot used by any container"
+        return {"id": f"volume:{v['name']}", "label": label, "description": description, "tooltip": tip,
+                "icon": VOLUME_ICON, "iconColor": "icon.docker" if users else "foreground.muted",
+                "actions": [{"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)"},
+                            {"id": "remove", "icon": "trash", "tooltip": "Remove Volume"}]}
+
+    def network_item(self, n):
+        users = self.users_of_network(n["name"])
+        builtin = n["name"] in BUILTIN_NETWORKS
+        description = n["driver"] + (f" · {len(users)} container{'s' if len(users) != 1 else ''}" if users else "")
+        tip = f"{n['name']}\nid: {n['id']}\ndriver: {n['driver']}\nscope: {n['scope']}"
+        if users:
+            tip += f"\ncontainers: {', '.join(users)}"
+        actions = [{"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)"}]
+        if not builtin:
+            actions.append({"id": "remove", "icon": "trash", "tooltip": "Remove Network"})
+        return {"id": f"network:{n['name']}", "label": n["name"], "description": description, "tooltip": tip,
+                "icon": NETWORK_ICON, "iconColor": "foreground.muted" if builtin else "icon.docker", "actions": actions}
+
+    def setup_items(self):
+        """Rows that explain what's keeping Docker from working, each with a button that fixes it in a terminal."""
+        items = []
+        if self.cli is False:
+            items.append({"id": "setup:install", "label": "Docker isn't installed",
+                          "description": "install the docker package", "icon": "error", "iconColor": "errorForeground",
+                          "tooltip": "No docker command was found on PATH. Install Docker Engine (Linux) or Docker "
+                                     "Desktop, then refresh."})
+            return items
+        if self.cli is not True:
+            return items
+        group = docker_group()
+        kind = classify_engine_error(self.engine_error) if self.engine_error is not None else None
+        if kind == "stopped":
+            item = {"id": "setup:engine", "label": "The Docker engine isn't running", "icon": "error",
+                    "iconColor": "errorForeground", "tooltip": self.engine_error}
+            if can_systemctl():
+                item["description"] = "▶ start it and enable it at boot"
+                item["actions"] = [{"id": "start-engine", "icon": "play",
+                                    "tooltip": "Start Docker now and at every boot (sudo systemctl enable --now docker)"}]
+            else:
+                item["description"] = "start Docker Desktop"
+            items.append(item)
+        if group and not group[0]:
+            items.append({"id": "setup:group", "label": "You aren't in the docker group",
+                          "description": "▶ add yourself (needs sudo)", "icon": "warning",
+                          "iconColor": "editorWarning.foreground",
+                          "tooltip": "Without it, only root can talk to the Docker engine. ByteForge picks up the "
+                                     "change right away; other programs after you log in again.",
+                          "actions": [{"id": "add-group", "icon": "add",
+                                       "tooltip": "Add yourself to the docker group (sudo usermod -aG docker $USER)"}]})
+        elif kind == "permission":
+            items.append({"id": "setup:permission", "label": "No permission to use the Docker socket",
+                          "description": "check the socket's group", "icon": "error", "iconColor": "errorForeground",
+                          "tooltip": self.engine_error})
+        if group and group[0] and not group[1]:
+            items.append({"id": "setup:relogin", "label": "Using the docker group through sg",
+                          "description": "log in again to make it permanent", "icon": "info",
+                          "tooltip": "You were added to the docker group after logging in. ByteForge runs docker "
+                                     "through `sg docker` until you log out and back in."})
+        if kind == "other":
+            items.append({"id": "setup:other", "label": "The Docker engine isn't reachable",
+                          "description": "check your Docker context", "icon": "error", "iconColor": "errorForeground",
+                          "tooltip": self.engine_error})
+        if self.missing_plugins and any(self.missing_plugins):
+            compose, buildx = self.missing_plugins
+            names = " and ".join(n for n, m in (("Compose", compose), ("Buildx", buildx)) if m)
+            item = {"id": "setup:plugins", "label": f"Docker {names} {'is' if compose != buildx else 'are'} missing",
+                    "icon": "warning", "iconColor": "editorWarning.foreground",
+                    "tooltip": ("Compose Up/Down needs the Compose plugin. " if compose else "")
+                               + ("Builds use the legacy builder without Buildx." if buildx else "")}
+            manager = package_manager()
+            if manager:
+                packages = plugin_packages(manager[0], compose, buildx)
+                item["description"] = f"▶ install {' '.join(packages)}"
+                item["actions"] = [{"id": "install-plugins", "icon": "add",
+                                    "tooltip": f"{manager[1]} {' '.join(packages)}"}]
+            else:
+                item["description"] = "install them with your package manager"
+            items.append(item)
+        return items
+
+    def setup_action(self, item, action):
+        if item == "setup:engine" and action in ("start-engine", "click") and can_systemctl():
+            self.setup_terminal("start Docker", "sudo systemctl enable --now docker")
+        elif item == "setup:group" and action in ("add-group", "click"):
+            self.setup_terminal("docker group", 'sudo usermod -aG docker "$USER"')
+        elif item == "setup:plugins" and action in ("install-plugins", "click") and self.missing_plugins:
+            manager = package_manager()
+            if manager:
+                packages = plugin_packages(manager[0], *self.missing_plugins)
+                with self.lock:
+                    self.missing_plugins = None  # checked again on the next refresh
+                self.setup_terminal("install Docker plugins", f"{manager[1]} {' '.join(packages)}")
+
+    def setup_terminal(self, title, command):
+        """Runs a setup command in a terminal (it asks for the sudo password there); the view picks up the result."""
+        log(f"> {command}")
+        send({"type": "runInTerminal", "title": title, "command": command})
+        self.request_refresh()
 
     def image_item(self, image):
         reference = image_reference(image)
+        used = sum(1 for c in self.containers if c["image"] in (reference, image["repository"], image["id"]))
         return {"id": image_key(image), "label": "<none>" if image["repository"] == "<none>" else reference,
-                "description": image["size"],
+                "description": f"{image['size']} · {used} container{'s' if used != 1 else ''}" if used else image["size"],
                 "tooltip": f"{reference}\nid: {image['id']}\nsize: {image['size']}\ncreated {image['created']}",
                 "icon": "layers", "iconColor": "icon.docker",
-                "actions": [{"id": "run", "icon": "play", "tooltip": "Run (interactive, removed on exit, ports published)"},
+                "actions": [{"id": "run", "icon": "play", "tooltip": "Run and open a shell in it (ports published, removed when the shell exits)"},
+                            {"id": "inspect", "icon": "info", "tooltip": "Inspect (in a terminal)"},
                             {"id": "remove", "icon": "trash", "tooltip": "Remove Image"}]}
 
     def tree(self):
@@ -683,7 +1013,13 @@ class Module:
             count = len(files)
             if not files:
                 files = [{"id": "note:files", "label": "No Dockerfile yet: run \"Docker: Add Docker Support to Project…\""}]
-            items = [{"id": "section:files", "label": "WORKSPACE FILES", "header": True, "count": count, "children": files}]
+            items = []
+            setup = self.setup_items()
+            if setup:
+                items.append({"id": "section:setup", "label": "SETUP", "header": True, "count": len(setup),
+                              "children": setup})
+            items.append({"id": "section:files", "label": "WORKSPACE FILES", "header": True, "count": count,
+                          "children": files})
             if self.cli is True and self.engine_error is None:
                 children = []
                 groups = {}
@@ -701,6 +1037,14 @@ class Module:
                               "count": len(self.containers), "children": children})
                 items.append({"id": "section:images", "label": "IMAGES", "header": True, "count": len(self.images),
                               "children": [self.image_item(i) for i in self.images]})
+                items.append({"id": "section:volumes", "label": "VOLUMES", "header": True, "count": len(self.volumes),
+                              "children": [self.volume_item(v) for v in self.volumes] or
+                              [{"id": "note:volumes", "label": "No volumes"}],
+                              "actions": [{"id": "prune-volumes", "icon": "trash",
+                                           "tooltip": "Remove Unused Anonymous Volumes…"}]})
+                items.append({"id": "section:networks", "label": "NETWORKS", "header": True,
+                              "count": len(self.networks), "expanded": False,
+                              "children": [self.network_item(n) for n in self.networks]})
             return {"type": "setTree", "view": VIEW, "items": items,
                     "message": f"docker {self.busy}…" if self.busy else self.engine_text(),
                     "error": self.engine_error, "badge": self.running_count(),
@@ -729,17 +1073,28 @@ class Module:
             if self.busy:
                 return  # refreshed when the operation finishes
             check_cli = self.cli is not True
+            check_plugins = self.missing_plugins is None or any(self.missing_plugins)
         self.scan_files()
+        update_sg()
         cli = cli_available() if check_cli else True
-        containers, images, error = [], [], None
+        containers, images, volumes, networks, error = [], [], [], [], None
+        plugins = None
         if cli:
             try:
-                containers, images = snapshot()
+                containers, images, volumes, networks = snapshot()
             except DockerError as e:
                 error = str(e)
+            if check_plugins:
+                compose = self.compose_command()
+                compose_ok = plugin_works(["compose", "version"]) if compose == "docker compose" \
+                    else shutil.which(compose.split()[0]) is not None
+                plugins = (not compose_ok, not plugin_works(["buildx", "version"]))
         with self.lock:
             self.cli = cli
             self.containers, self.images, self.engine_error = containers, images, error
+            self.volumes, self.networks = volumes, networks
+            if plugins is not None:
+                self.missing_plugins = plugins
         self.publish()
 
     def refresher(self):
@@ -810,7 +1165,7 @@ class Module:
         self.run_op(f"{verb} {c['name']}", args)
 
     def terminal(self, title, args, cwd=None, save_all=False):
-        message = {"type": "runInTerminal", "title": title, "command": command_line(args)}
+        message = {"type": "runInTerminal", "title": title, "command": terminal_line(args)}
         if cwd:
             message["cwd"] = cwd
         if save_all:
@@ -836,7 +1191,17 @@ class Module:
             return
         if not isinstance(item, str):
             return
-        if item.startswith("file:"):
+        if item.startswith("setup:"):
+            self.setup_action(item, action)
+        elif item == "section:volumes" and action == "prune-volumes":
+            self.prompt("Remove all anonymous volumes no container uses?",
+                        "Named volumes are kept. Their data is lost; this cannot be undone.", ["Prune", "Cancel"],
+                        lambda: self.run_op("volume prune", ["volume", "prune", "--force"]))
+        elif item.startswith("volume:"):
+            self.volume_action(item[len("volume:"):], action)
+        elif item.startswith("network:"):
+            self.network_action(item[len("network:"):], action)
+        elif item.startswith("file:"):
             path = item[len("file:"):]
             if action == "click":
                 send({"type": "openFile", "path": path})
@@ -853,18 +1218,42 @@ class Module:
             if image:
                 reference = image_reference(image)
                 if action == "run":
-                    self.terminal(f"run: {reference}", ["docker", "run", "--rm", "-it", "--publish-all", reference])
+                    self.terminal(f"run: {reference}", run_shell_args(reference))
+                elif action == "inspect":
+                    self.terminal(f"inspect: {reference}", ["docker", "image", "inspect", reference])
                 elif action == "remove":
                     self.prompt(f"Remove image '{reference}'?", "Images used by a container can't be removed.",
                                 ["Remove", "Cancel"], lambda: self.run_op(f"rmi {reference}", ["rmi", reference]))
 
+    def volume_action(self, name, action):
+        if action == "inspect":
+            self.terminal(f"volume: {name[:12]}", ["docker", "volume", "inspect", name])
+        elif action == "remove":
+            with self.lock:
+                users = self.users_of_volume(name)
+            if users:
+                log(f"Volume {name} is used by {', '.join(users)}; remove those containers first.")
+                show_output()
+                return
+            self.prompt(f"Remove volume '{name}'?", "Its data is lost. This cannot be undone.", ["Remove", "Cancel"],
+                        lambda: self.run_op(f"volume rm {name[:12]}", ["volume", "rm", name]))
+
+    def network_action(self, name, action):
+        if action == "inspect":
+            self.terminal(f"network: {name}", ["docker", "network", "inspect", name])
+        elif action == "remove" and name not in BUILTIN_NETWORKS:
+            self.prompt(f"Remove network '{name}'?", "Containers still attached to it keep it from being removed.",
+                        ["Remove", "Cancel"], lambda: self.run_op(f"network rm {name}", ["network", "rm", name]))
+
     def container_action(self, c, action):
-        if action == "logs":
+        if action == "inspect":
+            self.terminal(f"inspect: {c['name']}", ["docker", "inspect", c["id"]])
+        elif action == "logs":
             self.terminal(f"logs: {c['name']}", ["docker", "logs", "--follow", "--tail", "500", c["id"]])
         elif action == "shell":
             # bash when the image has it, else sh (Alpine, distroless debug images, …).
             self.terminal(f"shell: {c['name']}", ["docker", "exec", "-it", c["id"], "sh", "-c", SHELL_SCRIPT])
-        elif action in ("start", "stop", "restart", "unpause"):
+        elif action in ("start", "stop", "restart", "pause", "unpause"):
             self.container_op(action, c)
         elif action == "remove":
             detail = ("The container is running; it will be stopped first." if is_running(c)
@@ -891,7 +1280,7 @@ class Module:
         root = self.workspace or os.path.dirname(dockerfile)
         context = build_context(dockerfile, root)
         tag = image_name_for(dockerfile)
-        command = command_line(["docker", "build", "--file", dockerfile, "--tag", tag, context])
+        command = terminal_line(["docker", "build", "--file", dockerfile, "--tag", tag, context])
         log(f"> {command}")
         send({"type": "runInTerminal", "title": f"build: {tag}", "command": command, "saveAll": True})
 
@@ -899,7 +1288,7 @@ class Module:
         """`<compose> up --build --detach` (or `down`) for a Compose file in a terminal."""
         args = self.compose_command().split() + ["--file", file]
         args += ["up", "--build", "--detach"] if up else ["down"]
-        command = command_line(args)
+        command = terminal_line(args)
         log(f"> {command}")
         name = os.path.basename(os.path.dirname(file))
         message = {"type": "runInTerminal", "title": f"compose {'up' if up else 'down'}: {name}", "command": command}

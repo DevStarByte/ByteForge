@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import sys
+import subprocess
 import tempfile
 import unittest
 
@@ -92,6 +93,17 @@ class NameTests(unittest.TestCase):
     def test_shell_command(self):
         line = dk.command_line(["docker", "exec", "-it", "abc", "sh", "-c", dk.SHELL_SCRIPT])
         self.assertEqual(line, "docker exec -it abc sh -c 'command -v bash >/dev/null && exec bash || exec sh'")
+
+
+    def test_run_shell_command(self):
+        args = dk.run_shell_args("my app:latest")
+        self.assertEqual(args[0:2], ["sh", "-c"])
+        self.assertEqual(args[3:], ["sh", "my app:latest"])
+        script = args[2]
+        self.assertIn('docker run --detach --interactive --tty --publish-all "$1"', script)
+        self.assertIn("docker exec --interactive --tty --workdir / \"$id\" sh -c '" + dk.SHELL_SCRIPT + "'", script)
+        self.assertIn('docker rm --force "$id"', script)
+        subprocess.run(["sh", "-n", "-c", script], check=True)
 
 
 class DotnetTests(unittest.TestCase):
@@ -241,14 +253,102 @@ class ManifestTests(unittest.TestCase):
 
 
 class ProtocolTests(unittest.TestCase):
+    def setUp(self):
+        self.real_group = dk.docker_group
+        dk.docker_group = lambda: None  # don't depend on the test machine's groups
+
+    def tearDown(self):
+        dk.docker_group = self.real_group
+
+    def test_setup_for_the_docker_group(self):
+        module = dk.Module()
+        module.cli = True
+        dk.docker_group = lambda: (False, False)
+        self.assertEqual([i["id"] for i in module.setup_items()], ["setup:group"])
+        dk.docker_group = lambda: (True, False)
+        self.assertEqual([i["id"] for i in module.setup_items()], ["setup:relogin"])
+        dk.docker_group = lambda: (True, True)
+        self.assertEqual(module.setup_items(), [])
+
     def test_tree_without_docker(self):
         module = dk.Module()
         module.cli = False
         tree = module.tree()
         self.assertEqual(tree["type"], "setTree")
         self.assertEqual(tree["message"], "Docker isn't installed (no docker command found).")
-        self.assertEqual([i["id"] for i in tree["items"]], ["section:files"])
-        self.assertEqual(tree["items"][0]["children"][0]["id"], "note:files")
+        self.assertEqual([i["id"] for i in tree["items"]], ["section:setup", "section:files"])
+        self.assertEqual(tree["items"][0]["children"][0]["id"], "setup:install")
+        self.assertEqual(tree["items"][1]["children"][0]["id"], "note:files")
+
+    def test_setup_when_engine_stopped_and_plugins_missing(self):
+        module = dk.Module()
+        module.cli = True
+        module.engine_error = ("failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is "
+                               "correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such "
+                               "file or directory")
+        module.missing_plugins = (True, False)
+        tree = module.tree()
+        self.assertEqual(tree["message"], "The Docker engine isn't running. See SETUP below.")
+        setup = tree["items"][0]
+        ids = [i["id"] for i in setup["children"]]
+        self.assertEqual(ids[0], "setup:engine")
+        self.assertIn("setup:plugins", ids)
+        self.assertEqual(setup["children"][ids.index("setup:plugins")]["label"], "Docker Compose is missing")
+        self.assertNotIn("section:containers", [i["id"] for i in tree["items"]])
+
+    def test_error_classification_and_packages(self):
+        self.assertEqual(dk.classify_engine_error("permission denied while trying to connect to the Docker daemon socket"),
+                         "permission")
+        self.assertEqual(dk.classify_engine_error("Cannot connect to the Docker daemon at unix:///var/run/docker.sock. "
+                                                  "Is the docker daemon running?"), "stopped")
+        self.assertEqual(dk.classify_engine_error("context deadline exceeded"), "other")
+        self.assertEqual(dk.plugin_packages("pacman", True, True), ["docker-compose", "docker-buildx"])
+        self.assertEqual(dk.plugin_packages("apt-get", False, True), ["docker-buildx-plugin"])
+
+    def test_sg_wrapping(self):
+        import shlex
+        try:
+            dk.use_sg = True
+            self.assertEqual(dk.docker_argv(["ps"]), ["sg", "docker", "-c", "docker ps"])
+            line = dk.terminal_line(["docker", "logs", "a b"])
+            self.assertEqual(shlex.split(line), ["sg", "docker", "-c", "docker logs 'a b'"])
+        finally:
+            dk.use_sg = False
+        self.assertEqual(dk.docker_argv(["ps"]), ["docker", "ps"])
+
+    def test_volumes_and_networks(self):
+        anon = "a" * 64
+        volumes = dk.parse_volumes(
+            '{"Driver":"local","Labels":"","Mountpoint":"/v/%s","Name":"%s"}\n' % (anon, anon) +
+            '{"Driver":"local","Labels":"com.docker.compose.project=shop,x=1","Mountpoint":"/v/shop_pg","Name":"shop_pg"}\n'
+            '{"Name":5}')
+        self.assertEqual([v["name"] for v in volumes], ["shop_pg", anon])
+        self.assertEqual(volumes[0]["compose_project"], "shop")
+        self.assertTrue(volumes[1]["anonymous"])
+        networks = dk.parse_networks(
+            '{"ID":"0123456789abcdef","Name":"bridge","Driver":"bridge","Scope":"local"}\n'
+            '{"ID":"fedcba9876543210","Name":"shop_default","Driver":"bridge","Scope":"local","Labels":""}')
+        self.assertEqual([n["name"] for n in networks], ["shop_default", "bridge"])
+
+        module = dk.Module()
+        module.cli = True
+        module.volumes, module.networks = volumes, networks
+        module.containers = dk.parse_containers(json.dumps({
+            "ID": "ccc", "Names": "db", "Image": "postgres:17", "State": "running", "Status": "Up", "Ports": "5432/tcp",
+            "Mounts": "shop_pg,/home/me/data", "Networks": "shop_default", "Command": '"docker-entrypoint.s…"',
+            "RunningFor": "2 hours ago"}))
+        tree = module.tree()
+        sections = {i["id"]: i for i in tree["items"]}
+        db = sections["section:containers"]["children"][0]
+        self.assertEqual([(r["label"], r["description"]) for r in db["children"]], [
+            ("postgres:17", "image"), ("Up", "status"), ("5432/tcp", "port"), ("shop_pg", "volume"),
+            ("/home/me/data", "bind mount"), ("shop_default", "network"), ("docker-entrypoint.s…", "command")])
+        pg, anonymous = sections["section:volumes"]["children"]
+        self.assertEqual((pg["label"], pg["description"]), ("shop_pg", "used by db"))
+        self.assertEqual((anonymous["label"], anonymous["description"]), ("aaaaaaaaaaaa… (anonymous)", "unused"))
+        shop, bridge = sections["section:networks"]["children"]
+        self.assertEqual(shop["description"], "bridge · 1 container")
+        self.assertEqual([a["id"] for a in bridge["actions"]], ["inspect"])
 
     def test_tree_with_containers(self):
         module = dk.Module()
@@ -262,8 +362,10 @@ class ProtocolTests(unittest.TestCase):
             '{"ID":"bbb","Names":"db","Image":"pg","State":"paused","Status":"Up (Paused)"}')
         tree = module.tree()
         self.assertEqual(tree["badge"], 1)
-        self.assertEqual(tree["message"], "1 running · 2 containers · 0 images")
-        files, containers, images = tree["items"]
+        self.assertEqual(tree["message"], "1 running · 2 containers · 0 images · 0 volumes · 0 networks")
+        self.assertEqual([i["id"] for i in tree["items"]],
+                         ["section:files", "section:containers", "section:images", "section:volumes", "section:networks"])
+        files, containers, images = tree["items"][:3]
         self.assertEqual([c["id"] for c in files["children"]], ["file:/w/compose.yaml", "file:/w/Api/Dockerfile"])
         self.assertEqual(files["children"][1]["icon"], "file:Dockerfile")
         self.assertEqual(files["children"][1]["description"], "Api")
@@ -271,8 +373,10 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(group["id"], "group:shop")
         api = group["children"][0]
         self.assertEqual((api["label"], api["iconColor"], api["description"]), ("api", "#3fb950", "0.0.0.0:80->80/tcp"))
-        self.assertEqual([a["id"] for a in api["actions"]], ["logs", "shell", "restart", "stop", "remove"])
-        self.assertEqual([a["id"] for a in db["actions"]], ["logs", "unpause", "remove"])
+        self.assertEqual([a["id"] for a in api["actions"]], ["logs", "shell", "pause", "restart", "stop", "inspect", "remove"])
+        self.assertEqual([a["id"] for a in db["actions"]], ["logs", "unpause", "inspect", "remove"])
+        self.assertFalse(api["expanded"])
+        self.assertEqual([r["description"] for r in api["children"]], ["image", "status", "port"])
         self.assertEqual(db["iconColor"], "#d29922")
         self.assertEqual(images["count"], 0)
 
