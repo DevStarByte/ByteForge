@@ -121,6 +121,24 @@
       ]
     },
     {
+      "id": "byteforge.resharper-format",
+      "name": "ReSharper Formatter",
+      "version": "1.0.0",
+      "description": "Formats C# with JetBrains' ReSharper command line tools (jb cleanupcode), the same engine as Rider and ReSharper. It follows your .editorconfig and the solution's .DotSettings. Pick it with \"Format Document With…\" or \"editor.defaultFormatter\": \"resharper\". \"resharper.profile\" picks the cleanup profile (default \"Built-in: Reformat Code\"). \"ReSharper: Install\" installs the tools (dotnet tool install -g JetBrains.ReSharper.GlobalTools).",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
+      "category": "Formatter",
+      "dir": "resharper-format",
+      "files": [
+        "module.json",
+        "resharper_format.py"
+      ],
+      "requires": [
+        "python3",
+        "dotnet"
+      ]
+    },
+    {
       "id": "byteforge.todos",
       "name": "TODO Finder",
       "version": "1.0.1",
