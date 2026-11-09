@@ -38,6 +38,7 @@ AVAILABLE and installs, updates and uninstalls them in `~/.config/byteforge/modu
 |--------|---------|--------------|
 | [CSharpier](modules/csharpier) | 1.0.0 | C# / MSBuild formatter. **Preinstalled** with ByteForge (uninstall and reinstall it like any other). |
 | [ReSharper Formatter](modules/resharper-format) | 1.0.0 | C# formatting with JetBrains' `jb cleanupcode` (the Rider/ReSharper formatter); follows .editorconfig and .DotSettings. Needs `dotnet`. |
+| [Docker](modules/docker) | 1.1.1 | Docker view for containers, images, volumes, networks and the workspace's Dockerfiles and Compose files; build, Compose, run-with-shell and .NET Docker support commands. **Preinstalled** with ByteForge. Needs `docker`. |
 | [TODO Finder](modules/todos) | 1.0.0 | TODO / FIXME / HACK comments: count in the status bar, "TODOs: List All" with clickable locations. |
 | [JSON Formatter](modules/json-format) | 1.0.0 | Format Document for `.json` (appsettings, launchSettings, …); leaves JSON with comments alone. |
 | [GUID Generator](modules/guid) | 1.0.0 | "GUID: Insert New GUID" (Ctrl+Alt+G), uppercase, `{braced}` and `new Guid("…")` variants. |

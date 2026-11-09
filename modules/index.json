@@ -53,6 +53,23 @@
       ]
     },
     {
+      "id": "byteforge.docker",
+      "name": "Docker",
+      "version": "1.1.1",
+      "description": "Docker view for containers (with their ports, volumes and networks), images, volumes, networks and the workspace's Dockerfiles and Compose files, setup checks with one-click fixes, and build, Compose and .NET Docker support commands, Dockerfile highlighting and file icons.",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
+      "category": "Languages",
+      "dir": "docker",
+      "files": [
+        "docker.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
       "id": "byteforge.dotnet-files",
       "name": ".NET Project Files",
       "version": "1.0.1",
