@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚒️ ByteForge
+# ByteForge
 
 **A fast, modular, VS Code–style IDE for C#, built from scratch in Rust.**
 
@@ -12,47 +12,47 @@ GPU-rendered with [GPUI](https://github.com/zed-industries/zed) (the UI framewor
 [![Issues](https://img.shields.io/github/issues/DevStarByte/ByteForge)](https://github.com/DevStarByte/ByteForge/issues)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](Cargo.toml)
 
-[![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange?logo=rust)](https://www.rust-lang.org/)
+[![Rust][rust-badge]](https://www.rust-lang.org/)
 [![GPUI](https://img.shields.io/badge/UI-GPUI-084CCF?logo=zedindustries&logoColor=white)](https://github.com/zed-industries/zed)
-[![C#](https://img.shields.io/badge/C%23-first--class-239120?logo=dotnet&logoColor=white)](#-languages)
+[![C#](https://img.shields.io/badge/C%23-first--class-239120?logo=dotnet&logoColor=white)](#languages)
 [![.NET](https://img.shields.io/badge/.NET-SDK-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![Razor](https://img.shields.io/badge/Razor%20%2F%20Blazor-supported-5C2D91?logo=blazor&logoColor=white)](#-languages)
+[![Razor](https://img.shields.io/badge/Razor%20%2F%20Blazor-supported-5C2D91?logo=blazor&logoColor=white)](#languages)
 [![LSP](https://img.shields.io/badge/LSP-csharp--ls-informational)](https://github.com/razzmatazz/csharp-language-server)
 [![DAP](https://img.shields.io/badge/DAP-netcoredbg-informational)](https://github.com/Samsung/netcoredbg)
-[![Docker](https://img.shields.io/badge/Docker-module-2496ED?logo=docker&logoColor=white)](#-docker)
+[![Docker](https://img.shields.io/badge/Docker-module-2496ED?logo=docker&logoColor=white)](#docker)
 [![tree-sitter](https://img.shields.io/badge/highlighting-tree--sitter-green)](https://tree-sitter.github.io/)
 
-[![Linux](https://img.shields.io/badge/Linux-X11%20%7C%20Wayland-FCC624?logo=linux&logoColor=black)](#-getting-started)
-[![Windows](https://img.shields.io/badge/Windows-supported-0078D6?logo=windows&logoColor=white)](#-getting-started)
+[![Linux](https://img.shields.io/badge/Linux-X11%20%7C%20Wayland-FCC624?logo=linux&logoColor=black)](#getting-started)
+[![Windows](https://img.shields.io/badge/Windows-supported-0078D6?logo=windows&logoColor=white)](#getting-started)
 [![Arch](https://img.shields.io/badge/Arch-pacman%20repo-1793D1?logo=archlinux&logoColor=white)](#arch-linux)
 [![Vulkan](https://img.shields.io/badge/renderer-Vulkan-AC162C?logo=vulkan&logoColor=white)](#arch-linux)
 
-[Features](#-features) · [Getting started](#-getting-started) · [Themes](#-themes) · [Layout](#-layout) · [Settings](#%EF%B8%8F-settings-and-keybindings) · [Modules](#-modules) · [Architecture](#%EF%B8%8F-architecture) · [Roadmap](#-limitations-and-next-steps)
+[Features](#features) · [Getting started](#getting-started) · [Themes](#themes) · [Layout](#layout) · [Settings](#settings-and-keybindings) · [Modules](#modules) · [Architecture](#architecture) · [Roadmap](#limitations-and-next-steps)
 
 </div>
 
 ---
 
-## ✨ Highlights
+## Highlights
 
-|  |  |
+| Area | What you get |
 |---|---|
-| 🧠 **Real C# intelligence** | Roslyn-based `csharp-ls`: completion, hover, go to definition, references, rename, quick fixes, inlay hints |
-| 🐞 **Debugger** | netcoredbg over DAP: breakpoints, stepping, variables, call stack, Debug Console, ASP.NET Core launch profiles |
-| 🧪 **Test Explorer** | xUnit, NUnit and MSTest: run or debug any test, gutter markers, failure details |
-| 🌿 **Git built in** | Source Control view, gutter change markers, diffs, branches, pull / push / fetch / sync |
-| 🐳 **Docker** | containers, images, volumes, networks, Compose, and one-click Dockerfile generation |
-| 🎨 **Themeable everything** | 127 colors, 99 metrics, fonts, icons and the whole window layout, hot-reloaded |
-| 🧩 **Modules** | out-of-process plugins in any language, over JSON on stdio; a broken one can't crash the IDE |
-| ⚡ **Fast** | rope buffer, viewport-only shaping, background tree-sitter highlighting, nothing blocks the UI |
+| **Real C# intelligence** | Roslyn-based `csharp-ls`: completion, hover, go to definition, references, rename, quick fixes, inlay hints |
+| **Debugger** | netcoredbg over DAP: breakpoints, stepping, variables, call stack, Debug Console, ASP.NET Core launch profiles |
+| **Test Explorer** | xUnit, NUnit and MSTest: run or debug any test, gutter markers, failure details |
+| **Git built in** | Source Control view, gutter change markers, diffs, branches, pull / push / fetch / sync |
+| **Docker** | containers, images, volumes, networks, Compose, and one-click Dockerfile generation |
+| **Themeable everything** | 127 colors, 99 metrics, fonts, icons and the whole window layout, hot-reloaded |
+| **Modules** | out-of-process plugins in any language, over JSON on stdio; a broken one can't crash the IDE |
+| **Fast** | rope buffer, viewport-only shaping, background tree-sitter highlighting, nothing blocks the UI |
 
 Runs on **Linux** (X11 and Wayland, including Arch) and **Windows**.
 
 ---
 
-## 🚀 Features
+## Features
 
-### ✏️ Editor
+### Editor
 
 A custom editor on a rope-backed buffer (`ropey`) that renders only the visible lines and caches the shaped text
 per line.
@@ -79,7 +79,7 @@ per line.
 - **Instant syntax colors** from **tree-sitter**, computed around the viewport on background threads.
   Semantic colors are layered on top as they arrive.
 
-### 🧠 Languages
+### Languages
 
 - **C#** via the **csharp-ls** language server (Roslyn-based, LSP): semantic highlighting, diagnostics,
   completion, Markdown hover, go to definition (F12 / Ctrl+Click), **Find All References** (Shift+F12, in a
@@ -99,7 +99,7 @@ per line.
   Modules view; without it, or with `"editor.defaultFormatter": "csharp-ls"`, csharp-ls (Roslyn) formats C#.
   "Format Document With…" switches.
 
-### 🐞 Run, debug and test
+### Run, debug and test
 
 - **.NET CLI:** build, run, test, clean and restore, with output streamed into the Output panel and compiler
   errors collected in Problems.
@@ -121,7 +121,7 @@ per line.
   errors (`File.cs(12,5)`), .NET stack traces (`in /src/File.cs:line 42`), `path:line:col` and plain paths open at
   that line.
 
-### 🌿 Git
+### Git
 
 Through the `git` CLI, so your config, credentials and hooks apply.
 
@@ -133,7 +133,7 @@ Through the `git` CLI, so your config, credentials and hooks apply.
 - colored names and status letters in the explorer, and a diff tab for any change ("Git: Open Changes")
 - unmodified editors reload when a pull, checkout or discard changes their files on disk
 
-### 🐳 Docker
+### Docker
 
 Docker support comes from the preinstalled **Docker** module (without it, ByteForge has no Docker support).
 
@@ -150,7 +150,7 @@ Docker support comes from the preinstalled **Docker** module (without it, ByteFo
 
 Interactive commands run in the terminal. Set `"docker.composeCommand": "docker-compose"` for the standalone tool.
 
-### 🖥️ Workbench and terminal
+### Workbench and terminal
 
 - a custom title bar with menus, a search box ("command center"), layout toggles and window controls
 - an activity bar, a lazily expanded file explorer with create/rename/delete, and search in files. The file
@@ -168,7 +168,7 @@ Interactive commands run in the terminal. Set `"docker.composeCommand": "docker-
 
 ---
 
-## 📦 Getting started
+## Getting started
 
 ### Requirements
 
@@ -218,7 +218,7 @@ starts from scratch). The package puts ByteForge in `/usr/lib/byteforge`, `bytef
 
 ---
 
-## 🎨 Themes
+## Themes
 
 Themes are JSON files (comments allowed) in two places:
 
@@ -266,7 +266,7 @@ from the base theme.
   `editorGutter.changeWidth/changeOffset/changeRadius`, `scm.iconSize`, `activityBarBadge.size`.
 - **effects**: window backdrop (`blur`, `transparent` or `none`) and shadows for the palette and other widgets.
 - **layout**: where every part of the window goes. Each container is an ordered list of parts: reorder
-  parts to move them, leave them out to hide them (see [Layout](#-layout)).
+  parts to move them, leave them out to hide them (see [Layout](#layout)).
 - **icons**: replace any built-in icon (logo, files, search, window buttons, …) with SVG path data. Every file
   type has its own icon (a page with the type's symbol: `#` for C#, `{ }` for JSON, `< >` for markup, …), colored
   by `icon.csharp`, `icon.json`, `icon.razor`, `icon.yaml`, `icon.script` and the other `icon.*` keys. Modules can
@@ -276,7 +276,7 @@ from the base theme.
 
 ---
 
-## 🧱 Layout
+## Layout
 
 The `layout` section of a theme describes the whole window as ordered lists. Lists can be JSON arrays or
 comma-separated strings:
@@ -316,7 +316,7 @@ comma-separated strings:
 
 ---
 
-## ⚙️ Settings and keybindings
+## Settings and keybindings
 
 `~/.config/byteforge/settings.json` (**Preferences → Open Settings**) reloads live:
 
@@ -368,7 +368,7 @@ comma-separated strings:
 
 ---
 
-## 🧩 Modules
+## Modules
 
 Modules add commands, formatters, status bar items, side bar views, file icons and languages. They're packages:
 the **Modules** view (puzzle icon) lists what's **installed** and what's **available** from the ByteForge module
@@ -378,8 +378,8 @@ opens its details (full description, version, requirements, the file types it fo
 
 | Module | What it does |
 |---|---|
-| **CSharpier** ⭐ | C# / MSBuild formatter, **preinstalled** (copied into your modules folder on first start; uninstall it like any other) |
-| **Docker** ⭐ | the Docker view, Docker commands, Dockerfile highlighting and Docker file icons, **preinstalled** |
+| **CSharpier** | C# / MSBuild formatter, **preinstalled** (copied into your modules folder on first start; uninstall it like any other) |
+| **Docker** | the Docker view, Docker commands, Dockerfile highlighting and Docker file icons, **preinstalled** |
 | TODO Finder | TODO / FIXME / HACK comments: count in the status bar, "TODOs: List All" with clickable locations |
 | JSON Formatter | Format Document for `.json` files; leaves JSON with comments alone |
 | GUID Generator | "GUID: Insert New GUID" (Ctrl+Alt+G), uppercase, `{braced}` and `new Guid("…")` variants |
@@ -459,7 +459,7 @@ ByteForge starts the command in the module's folder and exchanges one JSON objec
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 crates/
@@ -476,7 +476,7 @@ packaging/    Linux install script, desktop entry, Arch PKGBUILD for local build
               (the repo's PKGBUILD and build workflow live on the `packages` branch)
 ```
 
-### ⚡ Performance
+### Performance
 
 - Edits are O(log n) in the rope.
 - Highlighting runs on background threads over a window around the viewport (about 3 ms for a 32 KB window of
@@ -487,7 +487,7 @@ packaging/    Linux install script, desktop entry, Arch PKGBUILD for local build
 
 ---
 
-## 🗺️ Limitations and next steps
+## Limitations and next steps
 
 - **Build:** the Linux build compiles on Arch. `libc` is pinned to 0.2.189 in `Cargo.lock` because newer versions
   removed `ENOATTR`, which `xattr` 0.2 (pulled in by GPUI) still needs.
@@ -508,6 +508,9 @@ See [ROADMAP.md](ROADMAP.md) for what's planned.
 
 <div align="center">
 
-Made with 🦀 Rust and ⚡ GPUI · MIT licensed
+Built with Rust and GPUI · MIT licensed
 
 </div>
+
+<!-- Rust badge with Ferris the crab (public domain, rustacean.net) as its logo -->
+[rust-badge]: https://img.shields.io/badge/Rust-1.85%2B-orange?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAwIDgwMCI%2BPGc%2BPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNTk3IDYzNykiPjxwYXRoIGQ9Ik0wLC0yODBDLTEyMSwtMjgwLTIzMSwtMjY1LTMxMywtMjQxTC0zMTMsLTM4Qy0yMzEsLTE1LTEyMSwwIDAsMEMxMzksMCAyNjMsLTE5IDM0NiwtNDlMMzQ2LC0yMzBDMjYzLC0yNjAgMTM5LC0yODAgMCwtMjgwIiBmaWxsPSIjYTUyYjAwIi8%2BPC9nPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDEwNjkgNTc2KSI%2BPHBhdGggZD0iTTAsLTUzTC0xNCwtODNDLTE0LC04NC0xNCwtODUtMTQsLTg2Qy0xNCwtMTE5LTQ5LC0xNTAtMTA3LC0xNzVMLTEwNywzQy04MCwtOS01OCwtMjItNDIsLTM1Qy00NywtMTctNjMsMjEtNzUsNDhDLTk2LDg2LTEwNCwxMTktMTAzLDEyMUMtMTAyLDEyMi05NSwxMTEtODQsOTNDLTYwLDU4LTE0LC04LTUsLTI1QzYsLTQ0IDAsLTUzIDAsLTUzIiBmaWxsPSIjYTUyYjAwIi8%2BPC9nPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDE0OSA1OTEpIj48cGF0aCBkPSJNMCwtMTAwQzAsLTk0IDEsLTg3IDQsLTgxTC01LC02NkMtNSwtNjYtMTIsLTU3IDAsLTM4QzExLC0yMiA2NCw0MyA5Miw3NkMxMDQsOTQgMTEyLDEwNCAxMTMsMTAzQzExNCwxMDIgMTA2LDY5IDgyLDMyQzcwLDEyIDU3LC0xNCA0OSwtMzRDNzEsLTIwIDEwMSwtNyAxMzUsNEwxMzUsLTIwNEM1MiwtMTc4IDAsLTE0MSAwLC0xMDAiIGZpbGw9IiNhNTJiMDAiLz48L2c%2BPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTE1MSAyODIpIj48cGF0aCBkPSJNMCwyNDBMLTkzLDE3MkMtOTQsMTY4LTk1LDE2NS05NiwxNjJMLTY1LDExOEMtNjIsMTEzLTYyLDEwOC02NCwxMDJDLTY2LDk3LTcwLDk0LTc1LDkzTC0xMjcsODRDLTEyOSw4MC0xMzEsNzYtMTM0LDcyTC0xMTIsMjJDLTExMCwxNy0xMTAsMTEtMTEzLDZDLTExNiwyLTEyMSwtMS0xMjYsLTFMLTE3OSwxQy0xODIsLTMtMTg0LC02LTE4NywtMTBMLTE3NSwtNjNDLTE3NCwtNjgtMTc1LC03NC0xNzksLTc4Qy0xODMsLTgyLTE4OSwtODQtMTk0LC04MkwtMjQ1LC03MEMtMjQ4LC03My0yNTIsLTc2LTI1NSwtNzhMLTI1MywtMTMzQy0yNTMsLTEzOS0yNTYsLTE0NC0yNjAsLTE0N0MtMjY1LC0xNTAtMjcwLC0xNTEtMjc1LC0xNDlMLTMyMywtMTI2Qy0zMjcsLTEyOC0zMzEsLTEzMC0zMzUsLTEzMkwtMzQzLC0xODZDLTM0NCwtMTkyLTM0NywtMTk3LTM1MiwtMTk5Qy0zNTcsLTIwMS0zNjMsLTIwMC0zNjcsLTE5N0wtNDEwLC0xNjVDLTQxNCwtMTY2LTQxOCwtMTY4LTQyMywtMTY5TC00NDEsLTIyMEMtNDQzLC0yMjUtNDQ3LC0yMjktNDUyLC0yMzBDLTQ1OCwtMjMxLTQ2MywtMjMwLTQ2NywtMjI2TC01MDMsLTE4NUMtNTA3LC0xODYtNTExLC0xODYtNTE2LC0xODdMLTU0MywtMjMzQy01NDYsLTIzOC01NTEsLTI0MS01NTYsLTI0MUMtNTYyLC0yNDEtNTY3LC0yMzgtNTcwLC0yMzNMLTU5NywtMTg3Qy02MDIsLTE4Ni02MDYsLTE4Ni02MTAsLTE4NUwtNjQ2LC0yMjZDLTY1MCwtMjMwLTY1NSwtMjMxLTY2MSwtMjMwQy02NjYsLTIyOS02NzAsLTIyNS02NzIsLTIyMEwtNjkwLC0xNjlDLTY5NSwtMTY4LTY5OSwtMTY2LTcwMywtMTY1TC03NDYsLTE5N0MtNzUwLC0yMDAtNzU2LC0yMDEtNzYxLC0xOTlDLTc2NiwtMTk3LTc2OSwtMTkyLTc3MCwtMTg2TC03NzgsLTEzMkMtNzgyLC0xMzAtNzg2LC0xMjgtNzkwLC0xMjZMLTgzOCwtMTQ5Qy04NDMsLTE1MS04NDgsLTE1MC04NTMsLTE0N0MtODU3LC0xNDQtODYwLC0xMzktODYwLC0xMzNMLTg1OCwtNzhDLTg2MSwtNzYtODY1LC03My04NjgsLTcwTC05MTksLTgyQy05MjQsLTg0LTkzMCwtODItOTM0LC03OEMtOTM3LC03NC05MzksLTY4LTkzOCwtNjNMLTkyNiwtMTBDLTkyOCwtNi05MzEsLTMtOTM0LDFMLTk4NywtMUMtOTkyLC0xLTk5NywyLTEwMDAsNkMtMTAwMywxMS0xMDAzLDE3LTEwMDEsMjJMLTk3OSw3MkMtOTgyLDc2LTk4NCw4MC05ODYsODRMLTEwMzgsOTNDLTEwNDMsOTQtMTA0Nyw5Ny0xMDQ5LDEwMkMtMTA1MSwxMDgtMTA1MSwxMTMtMTA0OCwxMThMLTEwMTcsMTYyQy0xMDE3LDE2My0xMDE3LDE2NC0xMDE4LDE2NUwtMTEwNCwyNTdDLTExMDQsMjU3LTExMTgsMjY3LTEwOTgsMjkyQy0xMDgxLDMxMy05OTQsMzk5LTk0Nyw0NDRDLTkyOCw0NjctOTE0LDQ4MS05MTMsNDgwQy05MTEsNDc4LTkyMiw0MzYtOTYxLDM4OEMtOTkwLDM0NC0xMDI5LDI3Ny0xMDIwLDI2OUMtMTAyMCwyNjktMTAxMCwyNTYtOTg5LDI0N0MtOTg4LDI0Ny05OTAsMjQ2LTk4OSwyNDdDLTk4OSwyNDctNTU0LDQ0Ny0xNTAsMjUwQy0xMDQsMjQyLTc2LDI2Ny03NiwyNjdDLTY3LDI3Mi05MiwzNDEtMTEyLDM4N0MtMTQwLDQzOS0xNDQsNDc5LTE0Miw0ODFDLTE0MCw0ODEtMTMwLDQ2Ni0xMTYsNDQxQy04MCwzOTItMTIsMjk3IDAsMjc0QzE0LDI0OCAwLDI0MCAwLDI0MCIgZmlsbD0iI2Y3NGMwMCIvPjwvZz48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSg0NTAgNDg0KSI%2BPHBhdGggZD0iTTAsMTY3Qy0yLDE2Ni0zLDE2NS0zLDE2NUwxNDAsMTUzQzI0LDAtNjksMTIyLTc5LDEzNkwtNzksMTY3TDAsMTY3WiIgc3R5bGU9ImZpbGwtcnVsZTpub256ZXJvOyIvPjwvZz48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSg3NDcgNDc3KSI%2BPHBhdGggZD0iTTAsMTcyQzIsMTcxIDMsMTcwIDMsMTcwTC0xMzQsMTYwQy0xOCwwIDY5LDEyNyA3OSwxNDBMNzksMTcyTDAsMTcyWiIgc3R5bGU9ImZpbGwtcnVsZTpub256ZXJvOyIvPjwvZz48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSg5NjYgODExKSI%2BPHBhdGggZD0iTTAsLTMxNEMwLC0zMTQtMTYsLTI1Mi0xMTIsLTE4N0wtMTQwLC0xODBDLTE0MCwtMTgwLTIyOCwtMzQxLTM1MiwtMTYwQy0zNTIsLTE2MC0zMTMsLTE4My0yMDksLTE1NUMtMjA5LC0xNTUtMjU3LC04Mi0zNTMsLTg0Qy0zNTMsLTg0LTI2MSwyNy0xMjAsLTEzM0MtMTIwLC0xMzMgMjgsLTE5MSA0MCwtMzE0TDAsLTMxNFoiIGZpbGw9IiNmNzRjMDAiLz48L2c%2BPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNjc3IDUxMCkiPjxwYXRoIGQ9Ik0wLC05MkMwLC05MiA0MywtMTQwIDg3LC05MkM4NywtOTIgMTIxLC0yOSA4NywzQzg3LDMgMzEsNDggMCwzQzAsMy0zNywtMzIgMCwtOTIiIHN0eWxlPSJmaWxsLXJ1bGU6bm9uemVybzsiLz48L2c%2BPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNzI4IDQzNSkiPjxwYXRoIGQ9Ik0wLDBDMCwxOS0xMSwzNC0yNCwzNEMtMzgsMzQtNDksMTktNDksMEMtNDksLTE5LTM4LC0zNC0yNCwtMzRDLTExLC0zNCAwLC0xOSAwLDAiIGZpbGw9IiNmZmYiLz48L2c%2BPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoNDgzIDUwMykiPjxwYXRoIGQ9Ik0wLC05OEMwLC05OCA3NSwtMTMxIDk1LC01OEM5NSwtNTggMTE2LDI4IDM0LDMzQzM0LDMzLTcyLDEzIDAsLTk4IiBzdHlsZT0iZmlsbC1ydWxlOm5vbnplcm87Ii8%2BPC9nPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDUyMSA0MzYpIj48cGF0aCBkPSJNMCwwQzAsMTktMTEsMzUtMjUsMzVDLTM5LDM1LTUwLDE5LTUwLDBDLTUwLC0xOS0zOSwtMzUtMjUsLTM1Qy0xMSwtMzUgMCwtMTkgMCwwIiBmaWxsPSIjZmZmIi8%2BPC9nPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDQ0MSA2ODgpIj48cGF0aCBkPSJNMCwtMjVDOTIsLTM3IDE0NSwtMzggMTQ1LC0zOEMyMiwtMjAwLTc4LC01My03OCwtNTNDLTEwMywtNjItMTI4LC05Ny0xNDcsLTEyOUwtMjIzLC0xNTFDLTEzNiwtMi03MCwwLTcwLDBDNjYsMTc1IDEzMSwzNCAxMzEsMzRDNTQsMjYgMCwtMjUgMCwtMjUiIGZpbGw9IiNmNzRjMDAiLz48L2c%2BPC9nPjwvc3ZnPg%3D%3D
