@@ -11,8 +11,15 @@ old `[byteforge]` section in `/etc/pacman.conf` with:
 
 ```ini
 [devstarbyte]
-SigLevel = Optional TrustAll
+SigLevel = Required
 Server = https://raw.githubusercontent.com/DevStarByte/arch-repo/main/$arch
+```
+
+and trust its signing key once:
+
+```sh
+curl -sL https://raw.githubusercontent.com/DevStarByte/arch-repo/main/devstarbyte.asc | sudo pacman-key --add -
+sudo pacman-key --lsign-key 2F59DCCF36A08B6C4BB5556DF8E225736ED216F0
 ```
 
 Then `sudo pacman -Sy byteforge`. The old `[byteforge]` repo in `x86_64/` here
