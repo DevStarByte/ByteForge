@@ -379,9 +379,13 @@ mod tests {
 
     use bf_syntax::{Highlighter, Language};
 
+    /// Module languages are global: tests that install some take turns.
+    static LANGUAGES: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// The bundled Docker module highlights Dockerfiles the way the old built-in grammar did.
     #[test]
     fn docker_module_highlights_dockerfiles() {
+        let _turn = LANGUAGES.lock().unwrap_or_else(|e| e.into_inner());
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
         let docker = bf_core::plugins::discover(&dir).into_iter().find(|m| m.id == "byteforge.docker").expect("modules/docker");
         let lang = docker.languages.iter().find(|l| l.id == "dockerfile").expect("dockerfile language");
@@ -412,6 +416,41 @@ mod tests {
         assert_eq!(kind("--from", 0), Some("parameter name"));
         assert_eq!(kind("8080", 1), Some("number"));
         assert_eq!(kind("ENTRYPOINT", 0), Some("keyword"));
+        bf_syntax::module_lang::set_module_languages(Vec::new());
+    }
+
+    /// The bundled SQL module's rules all compile (Rust regex syntax) and highlight a query.
+    #[test]
+    fn sql_module_highlights_queries() {
+        let _turn = LANGUAGES.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
+        let module = bf_core::plugins::discover(&dir).into_iter().find(|m| m.id == "byteforge.sql").expect("modules/sql");
+        let lang = module.languages.iter().find(|l| l.id == "sql").expect("sql language");
+        let compiled = super::module_language(lang);
+        assert_eq!(compiled.rules.len(), lang.rules.len(), "every rule compiles");
+        bf_syntax::module_lang::set_module_languages(vec![compiled]);
+        assert!(module.file_icons.iter().any(|r| r.matches("schema.sql")) && module.file_icons.iter().any(|r| r.matches("app.db")));
+        let language = Language::from_path(Path::new("queries/report.sql")).expect("sql files");
+        assert_eq!(language.line_comment(), Some("--"));
+
+        let text = "-- top customers\nSELECT c.name, count(*) AS n FROM \"Customers\" c\nWHERE c.email LIKE '%@example.com' AND c.id > 10 AND c.kind = @kind\nCREATE TABLE t (id INT, name NVARCHAR(50)); /* note */\n";
+        let spans = Highlighter::new(language).highlight(text, 0..text.len());
+        let kind = |needle: &str, nth: usize| {
+            let start = text.match_indices(needle).nth(nth).map(|(i, _)| i).unwrap();
+            spans.iter().find(|s| s.start <= start && start < s.end).map(|s| s.kind)
+        };
+        assert_eq!(kind("-- top", 0), Some("comment"));
+        assert_eq!(kind("SELECT", 0), Some("keyword"));
+        assert_eq!(kind("count", 0), Some("method name"));
+        assert_eq!(kind("\"Customers\"", 0), Some("field name"));
+        assert_eq!(kind("'%@example.com'", 0), Some("string"));
+        assert_eq!(kind("10", 0), Some("number"));
+        assert_eq!(kind("@kind", 0), Some("local name"));
+        assert_eq!(kind("INT", 0), Some("class name"));
+        assert_eq!(kind("NVARCHAR", 0), Some("class name"));
+        assert_eq!(kind("50", 0), Some("number"));
+        assert_eq!(kind("/* note */", 0), Some("comment"));
+        assert_eq!(kind(">", 0), Some("operator"));
         bf_syntax::module_lang::set_module_languages(Vec::new());
     }
 }

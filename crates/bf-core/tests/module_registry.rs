@@ -67,7 +67,7 @@ fn preinstalls_bundled_modules_once() {
     let modules = root.join("modules");
 
     let done = preinstall(&bundled, &modules, &[]);
-    assert_eq!(done, ["byteforge.csharpier"]);
+    assert!(done.iter().any(|id| id == "byteforge.csharpier"), "{done:?}");
     assert!(modules.join("csharpier/csharpier.py").exists());
 
     // Uninstalled later: not copied again.

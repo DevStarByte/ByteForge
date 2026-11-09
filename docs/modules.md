@@ -11,6 +11,7 @@ opens its details (full description, version, requirements, the file types it fo
 | **CSharpier** | C# / MSBuild formatter, **preinstalled** (copied into your modules folder on first start; uninstall it like any other) |
 | **Docker** | the Docker view, Docker commands, Dockerfile highlighting and Docker file icons, **preinstalled** |
 | **Aspire** | the Aspire view: AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and run / new / init / add / publish / deploy commands; needs the [Aspire CLI](https://aspire.dev), **preinstalled** |
+| **SQL** | the Database view: connections from `"sql.connections"` in settings, appsettings.json `ConnectionStrings` and SQLite files, with their tables, views and columns; "SQL: Run File" (Ctrl+Shift+Enter), Select Top 100, a shell per connection, SQL highlighting and a keyword-case formatter. SQLite needs only Python; PostgreSQL, MySQL / MariaDB and SQL Server use `psql`, `mysql` and `sqlcmd`, **preinstalled** |
 | TODO Finder | TODO / FIXME / HACK comments: count in the status bar, "TODOs: List All" with clickable locations |
 | JSON Formatter | Format Document for `.json` files; leaves JSON with comments alone |
 | GUID Generator | "GUID: Insert New GUID" (Ctrl+Alt+G), uppercase, `{braced}` and `new Guid("…")` variants |
@@ -21,10 +22,17 @@ The registry is the `modules/` folder of the `packages` branch (`modules/index.j
 their files; a workflow regenerates it). `"modules.registry"` in settings points ByteForge at another one (also
 `file://`). Downloads use `curl`; installed modules live in `~/.config/byteforge/modules/<name>/`.
 
-The modules in `<install dir>/modules/` (`modules/csharpier`, `modules/docker`, `modules/aspire`) are preinstalled: they're copied
+The modules in `<install dir>/modules/` (`modules/csharpier`, `modules/docker`, `modules/aspire`, `modules/sql`) are preinstalled: they're copied
 into the user's modules folder once, and an uninstalled one isn't copied again. The CSharpier module uses a
 version pinned in the project's dotnet tool manifest (`dotnet tool install csharpier` in the repository), else a
 global one. Without either, the status bar offers to run `dotnet tool install -g csharpier`. It needs `python3`.
+
+The SQL module's settings: `"sql.connections"` (a list of `{ "name", "driver", "connectionString" }`, or
+`host`, `port`, `database`, `user`, `password`, `file` for SQLite, `integratedSecurity` and
+`trustServerCertificate` instead of a connection string; drivers: `sqlite`, `postgres`, `mysql`, `sqlserver`),
+`"sql.discover": false` to skip appsettings and SQLite files, `"sql.format.keywordCase"` (`upper`, `lower`,
+`preserve`) and `"sql.postgresPath"` / `"sql.mysqlPath"` / `"sql.sqlserverPath"` for clients that aren't on PATH.
+Queries and shells run in a terminal; passwords go to the client through its environment, never the command line.
 
 ## Writing a module
 
