@@ -1,0 +1,46 @@
+# Settings and keybindings
+
+`~/.config/byteforge/settings.json` (**Preferences → Open Settings**) reloads live:
+
+```jsonc
+{
+  "workbench.theme": "ByteForge Dark",
+  "editor.tabSize": 4, "editor.insertSpaces": true, "editor.smoothScrolling": true, "editor.minimap": true,
+  "files.exclude": ["bin", "obj", ".git", "node_modules", "target"],
+  "csharp.languageServer": "",                         // custom path to csharp-ls (optional)
+  "dotnet.project": "src/MyApp/MyApp.csproj",          // build/run/debug target (optional)
+  "dotnet.launchProfile": "https",                     // launchSettings.json profile (default: first "Project" one)
+  "debug.netcoredbgPath": "",                          // custom path to netcoredbg (optional)
+  "debug.justMyCode": true, "debug.stopAtEntry": false, "debug.openBrowser": true,
+  "debug.breakOnExceptions": ["user-unhandled"],       // or ["all"], or []
+  "terminal.shell": "/usr/bin/fish", "terminal.args": [],  // default: your login shell ($SHELL); also set by
+                                                     // "Terminal: Select Default Shell…" (palette or the panel button)
+  "editor.formatOnSave": false, "editor.defaultFormatter": "csharpier",   // or "csharp-ls"
+  "explorer.autoReveal": true,                         // expand and scroll the tree to the file you switch to
+  "keybindings": { "view.quickOpen": "ctrl-e", "theme.select": "" },   // "" unbinds
+  "modules.disabled": ["me.hello"]
+}
+```
+
+## Default shortcuts
+
+| Shortcut | Action | Shortcut | Action |
+|---|---|---|---|
+| Ctrl+Shift+P / F1 | Command palette | Ctrl+P | Go to file |
+| Ctrl+Shift+O | Open folder | Ctrl+G | Go to line |
+| Ctrl+S / Ctrl+Shift+S | Save / Save as | F12, Ctrl+Click | Go to definition |
+| Ctrl+F / Ctrl+H | Find / Replace | Ctrl+Space | Completion |
+| Ctrl+/ (Ctrl+# on DE) | Toggle comment | Alt+↑/↓ | Move lines |
+| Ctrl+D | Add next occurrence (multi-cursor) | Ctrl+Shift+K | Delete lines |
+| Alt+Click, Ctrl+Alt+↑/↓ | Add cursor | Shift+Alt+↓ | Duplicate lines |
+| Ctrl+\\ | Split editor | Ctrl+1 / Ctrl+2 | Focus editor group |
+| Ctrl+B / Ctrl+J | Toggle side bar / panel | Ctrl+Shift+E / F | Explorer / Search |
+| Ctrl+Shift+B | Build | F5 | Start debugging / Continue |
+| Ctrl+F5 | Run without debugging | Shift+F5 | Stop |
+| F9 | Toggle breakpoint | F10 / F11 / Shift+F11 | Step over / into / out |
+| F6 | Pause | Ctrl+Shift+F5 | Restart debugging |
+| Ctrl+Shift+D | Run and Debug | Ctrl+Shift+Y | Debug Console |
+| Ctrl+\` | Toggle terminal | Ctrl+Shift+\` | New terminal |
+| Ctrl+. | Quick fix / refactor at the cursor | Shift+Alt+F | Format document |
+| Ctrl+K | Color theme | Ctrl+Tab | Next editor |
+| Ctrl+Shift+G | Source Control | | |
