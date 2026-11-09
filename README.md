@@ -1,42 +1,108 @@
-# ByteForge
+<div align="center">
 
-A modular, from-scratch, VS Code–style IDE for **C#**, written in **Rust** with **GPUI** (the GPU-accelerated
-UI framework behind Zed). It runs on Linux (including Arch, on X11 and Wayland) and Windows. Every part of the
-UI is styled from theme files that reload live.
+# ⚒️ ByteForge
 
-## Features
+**A fast, modular, VS Code–style IDE for C#, built from scratch in Rust.**
 
-- **Custom editor:** a rope-backed buffer (`ropey`) that renders only the visible lines and caches the
-  shaped text per line.
-  - **Editing:** undo/redo that groups typing, auto-indent, bracket/quote auto-close, comment toggling,
-    move/duplicate/delete lines, find & replace, and word/line selection by double/triple click.
-  - **Multiple cursors:** Alt+Click adds (or removes) a cursor, Ctrl+Alt+Up/Down adds one on the line above/below,
-    Ctrl+D selects the word and then adds the next occurrence, Ctrl+Shift+L selects all occurrences. Typing,
-    deleting, Enter, Tab, the arrow keys, Home/End and copy/paste work at every cursor (pasting one line per
-    cursor when the clipboard has as many lines); Escape goes back to one cursor.
-  - **Minimap** at the right edge: the file in miniature in its syntax colors, with the visible part marked.
-    Click or drag it to scroll. `"editor.minimap": false` hides it.
-  - **Folding:** chevrons in the gutter fold `{ }` blocks and `#region`s (indentation in XML and YAML);
-    Ctrl+Shift+[ / ] fold and unfold at the caret, plus Fold All / Unfold All. Arrow keys step over folds.
-  - **Snippets:** `prop`, `propfull`, `ctor`, `class`, `foreach`, `for`, `if`, `try`, `switch`, `svm`, `test` and more
-    in C# completion; Tab / Shift+Tab move between the fields, repeated fields follow. Add your own in
-    `~/.config/byteforge/snippets/<language>.json` (VS Code's format; a user snippet replaces a built-in one
-    with the same prefix).
-  - **Look:** smooth scrolling, an animated gliding caret (line, block, outline or underline style; blink,
-    smooth, phase or solid), rainbow brackets, matching-bracket highlight, indent guides, visible whitespace,
-    rulers and diagnostic squiggles. The other uses of the symbol under the caret are highlighted (assignments
-    stronger), and **inlay hints** show parameter names and inferred types (`"editor.inlayHints": false` turns
-    them off).
-- **C# intelligence** via the **csharp-ls** language server (Roslyn-based, LSP): semantic highlighting,
-  diagnostics, completion, Markdown hover, go-to-definition (F12 / Ctrl+Click), **Find All References** (Shift+F12, in
-  a References panel grouped by file), **Go to Implementations** (Ctrl+F12) and **Type Definition**, **Go to Symbol**
-  in the file ("@" in Go to File) or the whole workspace (Ctrl+T, "#"), **Rename Symbol** (F2, across files), **parameter hints** while typing a call
-  (Ctrl+Shift+Space; the arrows switch overloads) and **quick fixes**: Ctrl+. on an
-  error or warning lists the fixes (add a `using`, generate a type, …) and refactorings; picking one applies it,
-  also across files.
+GPU-rendered with [GPUI](https://github.com/zed-industries/zed) (the UI framework behind Zed) · themeable down to the last pixel · extensible in any language
+
+[![Version](https://img.shields.io/github/v/tag/DevStarByte/ByteForge?label=version&color=blue&sort=semver)](https://github.com/DevStarByte/ByteForge/tags)
+[![Last commit](https://img.shields.io/github/last-commit/DevStarByte/ByteForge)](https://github.com/DevStarByte/ByteForge/commits/master)
+[![Stars](https://img.shields.io/github/stars/DevStarByte/ByteForge?style=flat&logo=github)](https://github.com/DevStarByte/ByteForge/stargazers)
+[![Issues](https://img.shields.io/github/issues/DevStarByte/ByteForge)](https://github.com/DevStarByte/ByteForge/issues)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](Cargo.toml)
+
+[![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange?logo=rust)](https://www.rust-lang.org/)
+[![GPUI](https://img.shields.io/badge/UI-GPUI-084CCF?logo=zedindustries&logoColor=white)](https://github.com/zed-industries/zed)
+[![C#](https://img.shields.io/badge/C%23-first--class-239120?logo=dotnet&logoColor=white)](#-languages)
+[![.NET](https://img.shields.io/badge/.NET-SDK-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![Razor](https://img.shields.io/badge/Razor%20%2F%20Blazor-supported-5C2D91?logo=blazor&logoColor=white)](#-languages)
+[![LSP](https://img.shields.io/badge/LSP-csharp--ls-informational)](https://github.com/razzmatazz/csharp-language-server)
+[![DAP](https://img.shields.io/badge/DAP-netcoredbg-informational)](https://github.com/Samsung/netcoredbg)
+[![Docker](https://img.shields.io/badge/Docker-module-2496ED?logo=docker&logoColor=white)](#-docker)
+[![tree-sitter](https://img.shields.io/badge/highlighting-tree--sitter-green)](https://tree-sitter.github.io/)
+
+[![Linux](https://img.shields.io/badge/Linux-X11%20%7C%20Wayland-FCC624?logo=linux&logoColor=black)](#-getting-started)
+[![Windows](https://img.shields.io/badge/Windows-supported-0078D6?logo=windows&logoColor=white)](#-getting-started)
+[![Arch](https://img.shields.io/badge/Arch-pacman%20repo-1793D1?logo=archlinux&logoColor=white)](#arch-linux)
+[![Vulkan](https://img.shields.io/badge/renderer-Vulkan-AC162C?logo=vulkan&logoColor=white)](#arch-linux)
+
+[Features](#-features) · [Getting started](#-getting-started) · [Themes](#-themes) · [Layout](#-layout) · [Settings](#%EF%B8%8F-settings-and-keybindings) · [Modules](#-modules) · [Architecture](#%EF%B8%8F-architecture) · [Roadmap](#-limitations-and-next-steps)
+
+</div>
+
+---
+
+## ✨ Highlights
+
+|  |  |
+|---|---|
+| 🧠 **Real C# intelligence** | Roslyn-based `csharp-ls`: completion, hover, go to definition, references, rename, quick fixes, inlay hints |
+| 🐞 **Debugger** | netcoredbg over DAP: breakpoints, stepping, variables, call stack, Debug Console, ASP.NET Core launch profiles |
+| 🧪 **Test Explorer** | xUnit, NUnit and MSTest: run or debug any test, gutter markers, failure details |
+| 🌿 **Git built in** | Source Control view, gutter change markers, diffs, branches, pull / push / fetch / sync |
+| 🐳 **Docker** | containers, images, volumes, networks, Compose, and one-click Dockerfile generation |
+| 🎨 **Themeable everything** | 127 colors, 99 metrics, fonts, icons and the whole window layout, hot-reloaded |
+| 🧩 **Modules** | out-of-process plugins in any language, over JSON on stdio; a broken one can't crash the IDE |
+| ⚡ **Fast** | rope buffer, viewport-only shaping, background tree-sitter highlighting, nothing blocks the UI |
+
+Runs on **Linux** (X11 and Wayland, including Arch) and **Windows**.
+
+---
+
+## 🚀 Features
+
+### ✏️ Editor
+
+A custom editor on a rope-backed buffer (`ropey`) that renders only the visible lines and caches the shaped text
+per line.
+
+- **Editing:** undo/redo that groups typing, auto-indent, bracket/quote auto-close, comment toggling,
+  move/duplicate/delete lines, find & replace, and word/line selection by double/triple click.
+- **Multiple cursors:** Alt+Click adds (or removes) a cursor, Ctrl+Alt+Up/Down adds one on the line above/below,
+  Ctrl+D selects the word and then adds the next occurrence, Ctrl+Shift+L selects all occurrences. Typing,
+  deleting, Enter, Tab, the arrow keys, Home/End and copy/paste work at every cursor (pasting one line per
+  cursor when the clipboard has as many lines); Escape goes back to one cursor.
+- **Minimap** at the right edge: the file in miniature in its syntax colors, with the visible part marked.
+  Click or drag it to scroll. `"editor.minimap": false` hides it.
+- **Folding:** chevrons in the gutter fold `{ }` blocks and `#region`s (indentation in XML and YAML);
+  Ctrl+Shift+[ / ] fold and unfold at the caret, plus Fold All / Unfold All. Arrow keys step over folds.
+- **Snippets:** `prop`, `propfull`, `ctor`, `class`, `foreach`, `for`, `if`, `try`, `switch`, `svm`, `test` and more
+  in C# completion; Tab / Shift+Tab move between the fields, repeated fields follow. Add your own in
+  `~/.config/byteforge/snippets/<language>.json` (VS Code's format; a user snippet replaces a built-in one
+  with the same prefix).
+- **Look:** smooth scrolling, an animated gliding caret (line, block, outline or underline style; blink,
+  smooth, phase or solid), rainbow brackets, matching-bracket highlight, indent guides, visible whitespace,
+  rulers and diagnostic squiggles. The other uses of the symbol under the caret are highlighted (assignments
+  stronger), and **inlay hints** show parameter names and inferred types (`"editor.inlayHints": false` turns
+  them off).
+- **Instant syntax colors** from **tree-sitter**, computed around the viewport on background threads.
+  Semantic colors are layered on top as they arrive.
+
+### 🧠 Languages
+
+- **C#** via the **csharp-ls** language server (Roslyn-based, LSP): semantic highlighting, diagnostics,
+  completion, Markdown hover, go to definition (F12 / Ctrl+Click), **Find All References** (Shift+F12, in a
+  References panel grouped by file), **Go to Implementations** (Ctrl+F12) and **Type Definition**, **Go to Symbol**
+  in the file ("@" in Go to File) or the whole workspace (Ctrl+T, "#"), **Rename Symbol** (F2, across files),
+  **parameter hints** while typing a call (Ctrl+Shift+Space; the arrows switch overloads) and **quick fixes**:
+  Ctrl+. on an error or warning lists the fixes (add a `using`, generate a type, …) and refactorings; picking one
+  applies it, also across files.
 - **Razor** (`.razor` components, `.cshtml` pages and views): tree-sitter highlighting of directives, control
   flow, embedded C# and HTML markup, `@* *@` comment toggling, and Razor compile errors from `dotnet build` as
   squiggles and in Problems.
+- **XML** highlighting for MSBuild and .NET files (`.csproj`, `.props`, `.targets`, `.slnx`, `.config`, `.resx`,
+  `.xaml`, `.nuspec`, …), with MSBuild references (`$(Property)`, `@(Item)`, `%(Metadata)`) in their own color and
+  `<!-- -->` comment toggling.
+- **Formatting:** Format Document (Shift+Alt+F), optional format on save. **CSharpier** is the default
+  formatter for C# and MSBuild/XML files. It's a preinstalled module you can uninstall (and install again) in the
+  Modules view; without it, or with `"editor.defaultFormatter": "csharp-ls"`, csharp-ls (Roslyn) formats C#.
+  "Format Document With…" switches.
+
+### 🐞 Run, debug and test
+
+- **.NET CLI:** build, run, test, clean and restore, with output streamed into the Output panel and compiler
+  errors collected in Problems.
 - **Debugger** (netcoredbg over the Debug Adapter Protocol): F5 builds the startup project and runs it under the
   debugger. ASP.NET Core apps get the URLs and environment of their `launchSettings.json` profile, and the
   browser opens once the app listens. You can also attach to a running .NET process.
@@ -51,65 +117,76 @@ UI is styled from theme files that reload live.
   from `dotnet test` (TRX): pass/fail/skip icons, durations, theory cases, and the failure message and stack in
   the tooltip. Test methods get a marker in the gutter (▷ not run, ✓ passed, ✗ failed); clicking it runs the
   test. Debugging starts the test host under the debugger, so breakpoints in tests work.
-- **Formatting**: Format Document (Shift+Alt+F), optional format on save. **CSharpier** is the default
-  formatter for C# and MSBuild/XML files. It's a preinstalled module you can uninstall (and install again) in the Modules view; without it, or with
-  `"editor.defaultFormatter": "csharp-ls"`, csharp-ls (Roslyn) formats C#. "Format Document With…" switches.
-- **Integrated terminal** (`` Ctrl+` ``): your shell (`$SHELL`, e.g. fish) on a real PTY, run by Alacritty's
-  terminal engine and drawn in the panel. It supports 256 and true colors, scrollback, mouse selection,
-  Ctrl+Shift+C/V copy and paste (middle-click pastes), and several terminals at once. Shell keys like Ctrl+R,
-  Ctrl+W and Ctrl+K go to the shell while the terminal is focused.
-- **Docker** comes from the preinstalled **Docker** module (without it, ByteForge has no Docker support): Dockerfile
-  highlighting and file icons, and a Docker view with the workspace's Dockerfiles and Compose files (build, compose
-  up/down), containers grouped by Compose project (start, stop, restart, logs, shell, remove) and images (run, remove).
-  "Docker: Add Docker Support to Project…" generates a multi-stage Dockerfile and `.dockerignore` for a .NET project,
-  like Visual Studio; "Add Docker Compose File" a `compose.yaml` for them. Interactive commands run in the terminal.
-  Set `"docker.composeCommand": "docker-compose"` for the standalone tool.
-- **XML** highlighting for MSBuild and .NET files (`.csproj`, `.props`, `.targets`, `.slnx`, `.config`, `.resx`,
-  `.xaml`, `.nuspec`, …), with MSBuild references (`$(Property)`, `@(Item)`, `%(Metadata)`) in their own color and
-  `<!-- -->` comment toggling.
-- **Instant syntax colors** from **tree-sitter**, computed around the viewport on background threads.
-  Semantic colors are layered on top as they arrive.
-- **Workbench:**
-  - a custom title bar with menus, a search box ("command center"), layout toggles and window controls
-  - an activity bar, a lazily expanded file explorer with create/rename/delete, and search in files. The file
-    you're editing is highlighted with an accent bar, its folders are shown in bold, and the tree follows
-    as you switch tabs.
-  - tabs, breadcrumbs, and Problems and Output panels
-  - **split editor:** Ctrl+\\ moves the current tab into a second editor group beside the first (and back);
-    Ctrl+1 / Ctrl+2 focus the groups. Closing a group's last tab closes the group.
-  - a status bar, a command palette (`Ctrl+Shift+P`), go to file (`Ctrl+P`) and go to line (`Ctrl+G`)
-  - a theme picker with live preview and color swatches (`Ctrl+K`).
-- **Git** (through the `git` CLI, so your config, credentials and hooks apply):
-  - a Source Control view (`Ctrl+Shift+G`) with a commit box, staged and unstaged changes, stage/unstage/discard
-    per file or all at once, and pull, push, fetch and sync
-  - an activity bar badge with the number of changes, plus the branch and ahead/behind in the status bar; click
-    the branch to check out or create one
-  - change markers in the editor gutter (added, modified, deleted lines, compared with HEAD)
-  - colored names and status letters in the explorer, and a diff tab for any change ("Git: Open Changes")
-  - unmodified editors reload when a pull, checkout or discard changes their files on disk
-- **.NET CLI**: build, run, test, clean and restore, with output streamed into the Output panel and compiler
-  errors collected in Problems.
 - **Clickable file references** in Output, the Debug Console (click) and the terminal (Ctrl+Click): MSBuild
   errors (`File.cs(12,5)`), .NET stack traces (`in /src/File.cs:line 42`), `path:line:col` and plain paths open at
   that line.
-- **Modules**: out-of-process plugins in any language that speak JSON over stdio. They add commands, key
-  bindings and status bar items, and they receive workspace events. A broken module can't crash the IDE.
 
-## Running
+### 🌿 Git
 
-You need Rust (stable, 1.85+), the .NET SDK, and the C# language server:
+Through the `git` CLI, so your config, credentials and hooks apply.
+
+- a Source Control view (`Ctrl+Shift+G`) with a commit box, staged and unstaged changes, stage/unstage/discard
+  per file or all at once, and pull, push, fetch and sync
+- an activity bar badge with the number of changes, plus the branch and ahead/behind in the status bar; click
+  the branch to check out or create one
+- change markers in the editor gutter (added, modified, deleted lines, compared with HEAD)
+- colored names and status letters in the explorer, and a diff tab for any change ("Git: Open Changes")
+- unmodified editors reload when a pull, checkout or discard changes their files on disk
+
+### 🐳 Docker
+
+Docker support comes from the preinstalled **Docker** module (without it, ByteForge has no Docker support).
+
+- Dockerfile highlighting and file icons
+- a Docker view with the workspace's Dockerfiles and Compose files (build, compose up/down)
+- containers grouped by Compose project (start, stop, pause, restart, logs, shell, inspect, remove; expand one
+  to see its image, ports, volumes, networks and command)
+- images (run, inspect, remove), volumes (which containers use them, inspect, remove, prune) and networks
+- when Docker isn't usable, a SETUP section says why (engine stopped, not in the `docker` group, Compose or Buildx
+  missing) with a button that fixes it in a terminal; after joining the group, the module runs docker through
+  `sg docker` until you log in again
+- "Docker: Add Docker Support to Project…" generates a multi-stage Dockerfile and `.dockerignore` for a .NET
+  project, like Visual Studio; "Add Docker Compose File" a `compose.yaml` for them
+
+Interactive commands run in the terminal. Set `"docker.composeCommand": "docker-compose"` for the standalone tool.
+
+### 🖥️ Workbench and terminal
+
+- a custom title bar with menus, a search box ("command center"), layout toggles and window controls
+- an activity bar, a lazily expanded file explorer with create/rename/delete, and search in files. The file
+  you're editing is highlighted with an accent bar, its folders are shown in bold, and the tree follows
+  as you switch tabs.
+- tabs, breadcrumbs, and Problems and Output panels
+- **split editor:** Ctrl+\\ moves the current tab into a second editor group beside the first (and back);
+  Ctrl+1 / Ctrl+2 focus the groups. Closing a group's last tab closes the group.
+- a status bar, a command palette (`Ctrl+Shift+P`), go to file (`Ctrl+P`) and go to line (`Ctrl+G`)
+- a theme picker with live preview and color swatches (`Ctrl+K`)
+- **integrated terminal** (`` Ctrl+` ``): your shell (`$SHELL`, e.g. fish) on a real PTY, run by Alacritty's
+  terminal engine and drawn in the panel. It supports 256 and true colors, scrollback, mouse selection,
+  Ctrl+Shift+C/V copy and paste (middle-click pastes), and several terminals at once. Shell keys like Ctrl+R,
+  Ctrl+W and Ctrl+K go to the shell while the terminal is focused.
+
+---
+
+## 📦 Getting started
+
+### Requirements
+
+- Rust (stable, 1.85+)
+- the .NET SDK
+- the C# language server: `dotnet tool install -g csharp-ls`
+- for debugging, [netcoredbg](https://github.com/Samsung/netcoredbg): on Arch, the AUR package `netcoredbg`;
+  elsewhere, unpack a release to `~/.local/share/netcoredbg/` or set `"debug.netcoredbgPath"`
+- for ASP.NET Core, Razor and Blazor projects, the ASP.NET Core runtime and targeting pack (Arch: `aspnet-runtime`
+  and `aspnet-targeting-pack`)
+
+### Run from source
 
 ```sh
-dotnet tool install -g csharp-ls
 cargo run --release -p byteforge -- ~/code/my-project
 # a folder plus files to open in tabs
 cargo run --release -p byteforge -- ~/code/my-project ~/code/my-project/Program.cs
 ```
-
-For debugging you also need [netcoredbg](https://github.com/Samsung/netcoredbg): on Arch, use the AUR package
-`netcoredbg`. Elsewhere, unpack a release to `~/.local/share/netcoredbg/`, or set `"debug.netcoredbgPath"`. ASP.NET
-Core, Razor and Blazor projects also need the ASP.NET Core runtime and targeting pack (Arch: `aspnet-runtime`
-and `aspnet-targeting-pack`).
 
 ### Arch Linux
 
@@ -134,36 +211,14 @@ cd packaging/arch && makepkg -si
 After pulling changes, `makepkg -sfi` in `packaging/arch` rebuilds and reinstalls (incrementally; `makepkg -C`
 starts from scratch). The package puts ByteForge in `/usr/lib/byteforge`, `byteforge` on PATH and a desktop entry.
 
-GPUI renders through Vulkan on Linux, so you also need the Vulkan driver for your GPU (`vulkan-radeon`,
-`vulkan-intel` or `nvidia-utils`). If you use a tiling window manager, set `"titleBar.style": "native"` in
-your theme's `layout` section to keep server-side decorations. That setting takes effect on the next start.
+> [!NOTE]
+> GPUI renders through Vulkan on Linux, so you also need the Vulkan driver for your GPU (`vulkan-radeon`,
+> `vulkan-intel` or `nvidia-utils`). On a tiling window manager, set `"titleBar.style": "native"` in your theme's
+> `layout` section to keep server-side decorations (takes effect on the next start).
 
-## Architecture
+---
 
-```
-crates/
-  bf-text     rope buffer, undo, and the editing model (caret, selection, every editing command); UI-free and tested
-  bf-syntax   tree-sitter highlighting (C#, JSON, Razor, XML, YAML) and modules' regex languages, emitting theme token names; incremental and viewport-ranged
-  bf-lsp      LSP client (std threads + flume channels, no async runtime); tested live against csharp-ls
-  bf-dap      Debug Adapter Protocol client in the same style; tested live against netcoredbg
-  bf-core     paths, settings, themes (inheritance, hot reload), workspace index/watcher, search, dotnet runner,
-              debug helpers (launch profiles, target assembly, build diagnostics), module host
-  byteforge   the GPUI app: workbench, editor element, palette, explorer, search, theme → GPUI mapping, icons
-themes/       built-in themes (byteforge-dark.json documents every key)
-packaging/    Linux install script, desktop entry, Arch PKGBUILD for local builds
-              (the repo's PKGBUILD and build workflow live on the `packages` branch)
-```
-
-Performance notes:
-
-- Edits are O(log n) in the rope.
-- Highlighting runs on background threads over a window around the viewport (about 3 ms for a 32 KB window of
-  a 60k-line file) and is applied only if the document hasn't changed in the meantime. Existing colors are
-  shifted while you type, so nothing flickers.
-- Only visible lines are shaped, and shaped lines are cached by content and colors.
-- csharp-ls runs out of process, so a slow project load never blocks the UI.
-
-## Themes: customize every part of the UI
+## 🎨 Themes
 
 Themes are JSON files (comments allowed) in two places:
 
@@ -171,7 +226,8 @@ Themes are JSON files (comments allowed) in two places:
 - user: `~/.config/byteforge/themes/` (Windows: `%APPDATA%\byteforge\themes\`)
 
 Saving a theme file applies it immediately. **Preferences → Customize Current Theme** creates a user theme
-that inherits the current one and opens it in the editor.
+that inherits the current one and opens it in the editor. Every theme inherits the default **Klarheit** layout
+from the base theme.
 
 | Theme | What it shows off |
 |---|---|
@@ -186,11 +242,12 @@ that inherits the current one and opens it in the editor.
 | Neovim | Neovim's default colors and look: lualine-style status line with a NORMAL block, buffer tabs, no activity bar, block cursor, monospace UI |
 | Flipside | layout showcase: activity bar inside the side bar, tabs at the bottom, panel as a right column, centered menus |
 
-The theme sections:
+<details>
+<summary><b>Theme sections reference</b></summary>
 
 - **colors**: 127 keys covering every part of the workbench. Any color can be `#RGB`, `#RRGGBB`, `#RRGGBBAA`
-  (CSS order), `transparent`, or `linear-gradient(<angle>deg, c1, …, cN)`. GPUI gradients have two stops:
-  the first and last colors are used.
+  (CSS order), `transparent`, `linear-gradient(<angle>deg, c1, …, cN)`, or a reference like `@accent` or
+  `@accent/12` (12 % opacity). GPUI gradients have two stops: the first and last colors are used.
 - **tokenColors**: syntax colors by classification name (`class name`, `method name`, `keyword - control`,
   …), with optional bold, italic or underline. `a - b` falls back to `a`.
 - **fonts**: families, sizes, weights and styles for the UI, menus, tabs, lists, status bar, welcome page and
@@ -209,13 +266,17 @@ The theme sections:
   `editorGutter.changeWidth/changeOffset/changeRadius`, `scm.iconSize`, `activityBarBadge.size`.
 - **effects**: window backdrop (`blur`, `transparent` or `none`) and shadows for the palette and other widgets.
 - **layout**: where every part of the window goes. Each container is an ordered list of parts: reorder
-  parts to move them, leave them out to hide them (see the next section).
+  parts to move them, leave them out to hide them (see [Layout](#-layout)).
 - **icons**: replace any built-in icon (logo, files, search, window buttons, …) with SVG path data. Every file
   type has its own icon (a page with the type's symbol: `#` for C#, `{ }` for JSON, `< >` for markup, …), colored
   by `icon.csharp`, `icon.json`, `icon.razor`, `icon.yaml`, `icon.script` and the other `icon.*` keys. Modules can
   add icons for more file types (the preinstalled Docker module does this for Docker files).
 
-## Layout: arrange every part of the window
+</details>
+
+---
+
+## 🧱 Layout
 
 The `layout` section of a theme describes the whole window as ordered lists. Lists can be JSON arrays or
 comma-separated strings:
@@ -253,7 +314,9 @@ comma-separated strings:
 
 `themes/byteforge-dark.json` documents every key, and `themes/flipside.json` shows a rearranged window.
 
-## Settings and keybindings
+---
+
+## ⚙️ Settings and keybindings
 
 `~/.config/byteforge/settings.json` (**Preferences → Open Settings**) reloads live:
 
@@ -273,9 +336,12 @@ comma-separated strings:
   "editor.formatOnSave": false, "editor.defaultFormatter": "csharpier",   // or "csharp-ls"
   "explorer.autoReveal": true,                         // expand and scroll the tree to the file you switch to
   "keybindings": { "view.quickOpen": "ctrl-e", "theme.select": "" },   // "" unbinds
-  "modules.disabled": ["sample.hello"]
+  "modules.disabled": ["me.hello"]
 }
 ```
+
+<details open>
+<summary><b>Default shortcuts</b></summary>
 
 | Shortcut | Action | Shortcut | Action |
 |---|---|---|---|
@@ -293,23 +359,27 @@ comma-separated strings:
 | F9 | Toggle breakpoint | F10 / F11 / Shift+F11 | Step over / into / out |
 | F6 | Pause | Ctrl+Shift+F5 | Restart debugging |
 | Ctrl+Shift+D | Run and Debug | Ctrl+Shift+Y | Debug Console |
-| Ctrl+` | Toggle terminal | Ctrl+Shift+` | New terminal |
+| Ctrl+\` | Toggle terminal | Ctrl+Shift+\` | New terminal |
 | Ctrl+. | Quick fix / refactor at the cursor | Shift+Alt+F | Format document |
 | Ctrl+K | Color theme | Ctrl+Tab | Next editor |
 | Ctrl+Shift+G | Source Control | | |
 
-## Modules
+</details>
 
-Modules add commands, formatters, status bar items, side bar views, file icons and languages. They're packages: the **Modules** view (puzzle icon) lists
-what's **installed** and what's **available** from the ByteForge module registry. Search filters both lists; each
-module has a tile in one of the current theme's syntax colors. The switch turns an installed module on or off,
-**Install** and **Update** do what they say, and clicking a module opens its details (full description, version,
-requirements, the file types it formats, Show files and Uninstall):
+---
+
+## 🧩 Modules
+
+Modules add commands, formatters, status bar items, side bar views, file icons and languages. They're packages:
+the **Modules** view (puzzle icon) lists what's **installed** and what's **available** from the ByteForge module
+registry. Search filters both lists; each module has a tile in one of the current theme's syntax colors. The
+switch turns an installed module on or off, **Install** and **Update** do what they say, and clicking a module
+opens its details (full description, version, requirements, the file types it formats, Show files and Uninstall).
 
 | Module | What it does |
 |---|---|
-| CSharpier | C# / MSBuild formatter, **preinstalled** (copied into your modules folder on first start; uninstall it like any other) |
-| Docker | the Docker view, Docker commands, Dockerfile highlighting and Docker file icons, **preinstalled** |
+| **CSharpier** ⭐ | C# / MSBuild formatter, **preinstalled** (copied into your modules folder on first start; uninstall it like any other) |
+| **Docker** ⭐ | the Docker view, Docker commands, Dockerfile highlighting and Docker file icons, **preinstalled** |
 | TODO Finder | TODO / FIXME / HACK comments: count in the status bar, "TODOs: List All" with clickable locations |
 | JSON Formatter | Format Document for `.json` files; leaves JSON with comments alone |
 | GUID Generator | "GUID: Insert New GUID" (Ctrl+Alt+G), uppercase, `{braced}` and `new Guid("…")` variants |
@@ -320,6 +390,11 @@ The registry is the `modules/` folder of the `packages` branch (`modules/index.j
 their files; a workflow regenerates it). `"modules.registry"` in settings points ByteForge at another one (also
 `file://`). Downloads use `curl`; installed modules live in `~/.config/byteforge/modules/<name>/`.
 
+The modules in `<install dir>/modules/` (`modules/csharpier`, `modules/docker`) are preinstalled: they're copied
+into the user's modules folder once, and an uninstalled one isn't copied again. The CSharpier module uses a
+version pinned in the project's dotnet tool manifest (`dotnet tool install csharpier` in the repository), else a
+global one. Without either, the status bar offers to run `dotnet tool install -g csharpier`. It needs `python3`.
+
 ### Writing a module
 
 A module is a folder in `~/.config/byteforge/modules/` with a `module.json`:
@@ -329,6 +404,7 @@ A module is a folder in `~/.config/byteforge/modules/` with a `module.json`:
 ```
 
 On the module's page the author links to `https://github.com/<author>`; set `"authorUrl"` to link somewhere else.
+To publish it, add the folder to `modules/` on the `packages` branch.
 
 `module.json` can also declare, without any code:
 
@@ -344,57 +420,94 @@ On the module's page the author links to `https://github.com/<author>`; set `"au
 A module that only declares things leaves out `"command"` and isn't started. Everything a module adds shows while
 it's installed and turned on. `modules/docker` uses all of it.
 
-To publish it, add the folder to `modules/` on the `packages` branch.
+<details>
+<summary><b>Module protocol</b> (one JSON object per line over stdio)</summary>
 
-ByteForge starts the command in that folder and exchanges one JSON object per line:
+ByteForge starts the command in the module's folder and exchanges one JSON object per line.
 
-- **Module → IDE:**
-  - `{"type":"registerCommand","id","title","category","keybinding"}`
-  - `{"type":"registerFormatter","id","name","extensions":["cs","csproj"]}`: become a formatter for these files
-  - `{"type":"formatResult","requestId","text"}` or `{…,"error"}`: the answer to a `format` request
-  - `{"type":"status","id","text","tooltip","command","alignment":"left|right"}`
-  - `{"type":"log","text"}`
-  - `{"type":"openFile","path","line","column"}`
-  - `{"type":"showView","id"}`
-  - `{"type":"insertText","text"}`: insert at the caret(s) of the active editor
-  - `{"type":"setTheme","name"}`: switch to a color theme (for example one the module wrote to `~/.config/byteforge/themes/`)
-  - `{"type":"setTree","view","items","message","error","badge","actions"}`: the content of one of its views. Items:
-    `{"id","label","description","tooltip","icon","iconColor","header","count","expanded","children","actions"}`;
-    `icon` is a built-in icon name, path data or `file:<name>` (that file's icon); `header` items are section headers;
-    `actions` (`{"id","icon","tooltip"}`) are buttons on a hovered row, or in the view's top row. `badge` is a number
-    on the activity bar item.
-  - `{"type":"runInTerminal","title","command","cwd","saveAll"}`: run a command line in a new terminal tab
-  - `{"type":"quickPick","requestId","placeholder","items":[{"label","detail","hint","value"}]}`: a pick list
-  - `{"type":"prompt","requestId","message","detail","buttons":["Remove","Cancel"]}`: a question
-- **IDE → module:**
-  - `{"type":"activate","workspace","settings"}` (`settings`: the user's settings object)
-  - `{"type":"treeAction","view","item","action"}`: a row (`"click"`) or button was clicked (`item` is null for the top row)
-  - `{"type":"quickPickResult","requestId","value"}` (only when something was picked), `{"type":"promptResult","requestId","index"}` (null when dismissed)
-  - `{"type":"executeCommand","id"}`
-  - `{"type":"format","requestId","path","text"}` (formatter modules only)
-  - `{"type":"event","name":"folderOpened|fileSaved|themeChanged|editorChanged","path"}` (`editorChanged`: the active tab changed; `path` is null for untitled documents and pages)
-  - `{"type":"event","name":"viewShown|viewHidden","view"}`, `{"type":"event","name":"filesChanged"}`, `{"type":"event","name":"settingsChanged","settings"}`
+**Module → IDE**
 
-`modules/csharpier` is the preinstalled formatter module: the modules in `<install dir>/modules/` are copied into the
-user's modules folder once (an uninstalled one isn't copied again).
+- `{"type":"registerCommand","id","title","category","keybinding"}`
+- `{"type":"registerFormatter","id","name","extensions":["cs","csproj"]}`: become a formatter for these files
+- `{"type":"formatResult","requestId","text"}` or `{…,"error"}`: the answer to a `format` request
+- `{"type":"status","id","text","tooltip","command","alignment":"left|right"}`
+- `{"type":"log","text"}`
+- `{"type":"openFile","path","line","column"}`
+- `{"type":"showView","id"}`
+- `{"type":"insertText","text"}`: insert at the caret(s) of the active editor
+- `{"type":"setTheme","name"}`: switch to a color theme (for example one the module wrote to `~/.config/byteforge/themes/`)
+- `{"type":"setTree","view","items","message","error","badge","actions"}`: the content of one of its views. Items:
+  `{"id","label","description","tooltip","icon","iconColor","header","count","expanded","children","actions"}`;
+  `icon` is a built-in icon name, path data or `file:<name>` (that file's icon); `header` items are section headers;
+  `actions` (`{"id","icon","tooltip"}`) are buttons on a hovered row, or in the view's top row. `badge` is a number
+  on the activity bar item.
+- `{"type":"runInTerminal","title","command","cwd","saveAll"}`: run a command line in a new terminal tab
+- `{"type":"quickPick","requestId","placeholder","items":[{"label","detail","hint","value"}]}`: a pick list
+- `{"type":"prompt","requestId","message","detail","buttons":["Remove","Cancel"]}`: a question
 
-The CSharpier module uses a version pinned in the project's dotnet tool manifest (`dotnet tool install csharpier`
-in the repository), else a global one. Without either, the status bar offers to run `dotnet tool install -g csharpier`.
-It needs `python3`.
+**IDE → module**
 
-## Limitations and next steps
+- `{"type":"activate","workspace","settings"}` (`settings`: the user's settings object)
+- `{"type":"treeAction","view","item","action"}`: a row (`"click"`) or button was clicked (`item` is null for the top row)
+- `{"type":"quickPickResult","requestId","value"}` (only when something was picked), `{"type":"promptResult","requestId","index"}` (null when dismissed)
+- `{"type":"executeCommand","id"}`
+- `{"type":"format","requestId","path","text"}` (formatter modules only)
+- `{"type":"event","name":"folderOpened|fileSaved|themeChanged|editorChanged","path"}` (`editorChanged`: the active tab changed; `path` is null for untitled documents and pages)
+- `{"type":"event","name":"viewShown|viewHidden","view"}`, `{"type":"event","name":"filesChanged"}`, `{"type":"event","name":"settingsChanged","settings"}`
 
-- The Linux build compiles on Arch. `libc` is pinned to 0.2.189 in `Cargo.lock` because newer versions removed
-  `ENOATTR`, which `xattr` 0.2 (pulled in by GPUI) still needs.
-- csharp-ls loads the project from the opened folder. Very large solutions take a while before diagnostics
-  appear (the status bar shows progress).
-- IME composition is basic: committed text is inserted, but there's no inline pre-edit display.
-- Git: pull is fast-forward only, there is no merge-conflict editor, no side-by-side diff and no blame yet.
-- Razor has no language server yet: there is no completion or hover in `.razor`/`.cshtml` files, and errors appear
-  after a build. A `<` inside an inline `<script>` confuses the Razor grammar, so colors after it can be wrong.
-- Debugging: there are no conditional breakpoints, watch expressions or data tips yet. Blazor WebAssembly code runs
+</details>
+
+---
+
+## 🏗️ Architecture
+
+```
+crates/
+  bf-text     rope buffer, undo, and the editing model (caret, selection, every editing command); UI-free and tested
+  bf-syntax   tree-sitter highlighting (C#, JSON, Razor, XML, YAML) and modules' regex languages, emitting theme token names; incremental and viewport-ranged
+  bf-lsp      LSP client (std threads + flume channels, no async runtime); tested live against csharp-ls
+  bf-dap      Debug Adapter Protocol client in the same style; tested live against netcoredbg
+  bf-core     paths, settings, themes (inheritance, hot reload), workspace index/watcher, search, dotnet runner,
+              debug helpers (launch profiles, target assembly, build diagnostics), module host
+  byteforge   the GPUI app: workbench, editor element, palette, explorer, search, theme → GPUI mapping, icons
+modules/      preinstalled modules (CSharpier, Docker)
+themes/       built-in themes (byteforge-dark.json documents every key)
+packaging/    Linux install script, desktop entry, Arch PKGBUILD for local builds
+              (the repo's PKGBUILD and build workflow live on the `packages` branch)
+```
+
+### ⚡ Performance
+
+- Edits are O(log n) in the rope.
+- Highlighting runs on background threads over a window around the viewport (about 3 ms for a 32 KB window of
+  a 60k-line file) and is applied only if the document hasn't changed in the meantime. Existing colors are
+  shifted while you type, so nothing flickers.
+- Only visible lines are shaped, and shaped lines are cached by content and colors.
+- csharp-ls runs out of process, so a slow project load never blocks the UI.
+
+---
+
+## 🗺️ Limitations and next steps
+
+- **Build:** the Linux build compiles on Arch. `libc` is pinned to 0.2.189 in `Cargo.lock` because newer versions
+  removed `ENOATTR`, which `xattr` 0.2 (pulled in by GPUI) still needs.
+- **Large solutions:** csharp-ls loads the project from the opened folder. Very large solutions take a while
+  before diagnostics appear (the status bar shows progress).
+- **IME:** composition is basic: committed text is inserted, but there's no inline pre-edit display.
+- **Git:** pull is fast-forward only, there is no merge-conflict editor, no side-by-side diff and no blame yet.
+- **Razor:** no language server yet, so there is no completion or hover in `.razor`/`.cshtml` files, and errors
+  appear after a build. A `<` inside an inline `<script>` confuses the Razor grammar, so colors after it can be wrong.
+- **Debugging:** no conditional breakpoints, watch expressions or data tips yet. Blazor WebAssembly code runs
   in the browser and can't be debugged; Blazor Server and the server side of hosted apps can.
-- Terminal: mouse reporting for full-screen programs (clicking inside vim or htop) and IME pre-edit aren't
+- **Terminal:** mouse reporting for full-screen programs (clicking inside vim or htop) and IME pre-edit aren't
   supported yet.
-- Not implemented yet: folding, minimap, multi-cursor and
-  split editors. Modules can't add custom UI views yet, only commands, status items and logs.
+
+See [ROADMAP.md](ROADMAP.md) for what's planned.
+
+---
+
+<div align="center">
+
+Made with 🦀 Rust and ⚡ GPUI · MIT licensed
+
+</div>
