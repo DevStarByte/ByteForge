@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/bf-core", "crates/bf-text", "crates/bf-syntax", "crates/bf-lsp", "crates/bf-dap", "crates/byteforge"]
 
 [workspace.package]
-version = "0.3.2"
+version = "0.3.3"
 edition = "2024"
 license = "GPL-2.0-only"
 
