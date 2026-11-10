@@ -11,3 +11,7 @@
 /packaging/arch/*.pkg.tar.*
 /packaging/arch/*.log
 /dist
+
+# Python bytecode
+__pycache__/
+*.pyc
