@@ -5,6 +5,7 @@ pub mod debug;
 pub mod dotnet;
 pub mod git;
 pub mod links;
+pub mod nuget;
 pub mod paths;
 pub mod plugins;
 pub mod registry;

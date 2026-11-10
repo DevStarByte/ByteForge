@@ -24,6 +24,8 @@ pub enum Mode {
     Symbols,
     /// Symbols across the workspace, asked from the language server as you type ("#").
     WorkspaceSymbols,
+    /// NuGet packages, searched on the package feeds as you type.
+    Packages,
 }
 
 pub enum PaletteAction {
@@ -35,6 +37,8 @@ pub enum PaletteAction {
     Branch(bf_core::git::Branch),
     /// Open a file at a position.
     GoTo(PathBuf, bf_text::Point),
+    /// A NuGet package (id, version) to add to the project the search was opened for.
+    Package(String, String),
 }
 
 impl Clone for PaletteAction {
@@ -47,6 +51,7 @@ impl Clone for PaletteAction {
             Self::Prompt(s) => Self::Prompt(s.clone()),
             Self::Branch(b) => Self::Branch(b.clone()),
             Self::GoTo(p, at) => Self::GoTo(p.clone(), *at),
+            Self::Package(id, v) => Self::Package(id.clone(), v.clone()),
         }
     }
 }
@@ -74,7 +79,7 @@ pub enum PaletteEvent {
     Dismissed,
     /// The text changed to a different mode prefix (">", ":", "@" or "#"); the owner refills items.
     SwitchMode(Mode),
-    /// The query changed in a mode whose items come from a server (workspace symbols).
+    /// The query changed in a mode whose items come from a server (workspace symbols, packages).
     Query(String),
 }
 
@@ -158,7 +163,7 @@ impl Palette {
         };
         if let Some(mode) = wanted {
             cx.emit(PaletteEvent::SwitchMode(mode));
-        } else if self.mode == Mode::WorkspaceSymbols {
+        } else if matches!(self.mode, Mode::WorkspaceSymbols | Mode::Packages) {
             cx.emit(PaletteEvent::Query(self.query(cx)));
         }
         self.filter(cx);
@@ -180,7 +185,8 @@ impl Palette {
             .iter()
             .enumerate()
             .filter_map(|(i, item)| {
-                if query.is_empty() || matches!(self.mode, Mode::GoToLine | Mode::Prompt) {
+                // Package results are already ranked by the feed.
+                if query.is_empty() || matches!(self.mode, Mode::GoToLine | Mode::Prompt | Mode::Packages) {
                     return Some((i, 0));
                 }
                 let label = fuzzy(&item.label, &query).map(|s| s * 2);

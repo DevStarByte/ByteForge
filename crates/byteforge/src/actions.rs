@@ -26,6 +26,15 @@ pub struct ModulePickChoice {
     pub value: String,
 }
 
+/// Opens the NuGet search for this project (picked from the project list of "Add NuGet Package").
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = nuget, no_json)]
+pub struct AddPackageTo {
+    pub project: String,
+}
+
+actions!(nuget, [AddPackage, CheckPackageUpdates]);
+
 actions!(explorer, [RenameEntry]);
 
 actions!(terminal, [ToggleTerminal, NewTerminal, KillTerminal, TerminalCopy, TerminalPaste, SelectDefaultShell]);
@@ -164,6 +173,8 @@ fn builtin() -> Vec<(&'static str, &'static str, &'static str, Box<dyn Action>, 
         ("view.debugConsole", "Debug Console", "View", Box::new(ShowDebugConsole), Some("ctrl-shift-y")),
         ("view.testing", "Testing", "View", Box::new(ShowTesting), None),
         ("view.solution", "Solution", "View", Box::new(ShowSolution), None),
+        ("nuget.add", "Add Package…", "NuGet", Box::new(AddPackage), None),
+        ("nuget.checkUpdates", "Check for Package Updates", "NuGet", Box::new(CheckPackageUpdates), None),
         ("test.runAll", "Run All Tests", "Test", Box::new(RunAllTests), None),
         ("test.rerunFailed", "Rerun Failed Tests", "Test", Box::new(RerunFailedTests), None),
         ("test.runAtCursor", "Run Test at Cursor", "Test", Box::new(RunTestAtCursor), None),

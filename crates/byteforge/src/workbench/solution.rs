@@ -14,6 +14,9 @@ impl Workbench {
                 let label = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
                 self.run_tests(vec![TestRun { project: path.clone(), filter: None, label }], false, window, cx);
             }
+            SolutionEvent::AddPackage(project) => self.open_package_search(project.clone(), window, cx),
+            SolutionEvent::UpdatePackage(project, id, version) => self.add_package(project.clone(), id.clone(), Some(version.clone()), window, cx),
+            SolutionEvent::RemovePackage(project, id) => self.remove_package(project.clone(), id.clone(), window, cx),
             SolutionEvent::Reveal(path) => {
                 self.show_side(SideView::Explorer, cx);
                 self.explorer.update(cx, |e, cx| e.reveal(path, cx));

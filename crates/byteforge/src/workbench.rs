@@ -3,6 +3,7 @@
 mod debug;
 mod module_views;
 mod modules;
+mod nuget;
 mod preview;
 mod testing;
 mod references;
@@ -202,6 +203,9 @@ pub struct Workbench {
     palette_restore_theme: Option<String>,
     /// Loads symbols for the palette ("@" and "#"); replaced by each new query.
     symbol_task: Option<Task<()>>,
+    /// The project the NuGet search in the palette adds to.
+    package_target: Option<PathBuf>,
+    package_search: Option<Task<()>>,
     prompt: Option<PromptKind>,
     side: SideView,
     side_visible: bool,
@@ -440,6 +444,8 @@ impl Workbench {
             palette: None,
             palette_restore_theme: None,
             symbol_task: None,
+            package_target: None,
+            package_search: None,
             prompt: None,
             side: SideView::Explorer,
             side_visible: true,
@@ -1932,7 +1938,7 @@ impl Workbench {
             Mode::GoToLine => (Vec::new(), "Type a line number", ":"),
             Mode::Symbols => (Vec::new(), "Go to a symbol in this file", "@"),
             Mode::WorkspaceSymbols => (Vec::new(), "Type the name of a type or member", "#"),
-            Mode::Prompt | Mode::Branches | Mode::Pick => (Vec::new(), "Name", ""),
+            Mode::Prompt | Mode::Branches | Mode::Pick | Mode::Packages => (Vec::new(), "Name", ""),
         }
     }
 
@@ -1971,6 +1977,7 @@ impl Workbench {
                 palette.update(cx, |p, cx| p.set_items(*mode, items, cx));
                 self.load_palette_symbols(*mode, String::new(), cx);
             }
+            PaletteEvent::Query(query) if palette.read(cx).mode == Mode::Packages => self.search_packages(query.clone(), cx),
             PaletteEvent::Query(query) => self.load_palette_symbols(Mode::WorkspaceSymbols, query.clone(), cx),
             PaletteEvent::Preview(PaletteAction::Theme(name)) => {
                 let name = name.clone();
@@ -2002,6 +2009,11 @@ impl Workbench {
                     }
                     PaletteAction::Branch(branch) => self.scm.update(cx, |s, cx| s.checkout(branch, cx)),
                     PaletteAction::GoTo(path, at) => self.open_file(path, Some(at), window, cx),
+                    PaletteAction::Package(id, version) => {
+                        if let Some(project) = self.package_target.take() {
+                            self.add_package(project, id, Some(version), window, cx);
+                        }
+                    }
                     PaletteAction::Prompt(text) => {
                         if let Some(kind) = prompt {
                             self.complete_prompt(kind, text, window, cx);
@@ -2601,6 +2613,12 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &Test, w, cx| wb.run_all_tests(w, cx)))
             .on_action(cx.listener(|wb, _: &ShowTesting, w, cx| wb.toggle_side(SideView::Testing, w, cx)))
             .on_action(cx.listener(|wb, _: &ShowSolution, w, cx| wb.toggle_side(SideView::Solution, w, cx)))
+            .on_action(cx.listener(|wb, _: &AddPackage, w, cx| wb.add_package_command(w, cx)))
+            .on_action(cx.listener(|wb, a: &AddPackageTo, w, cx| wb.open_package_search(PathBuf::from(&a.project), w, cx)))
+            .on_action(cx.listener(|wb, _: &CheckPackageUpdates, _, cx| {
+                wb.show_side(SideView::Solution, cx);
+                wb.solution.update(cx, |s, cx| s.check_updates(cx));
+            }))
             .on_action(cx.listener(|wb, _: &RunAllTests, w, cx| wb.run_all_tests(w, cx)))
             .on_action(cx.listener(|wb, _: &RerunFailedTests, w, cx| wb.rerun_failed_tests(w, cx)))
             .on_action(cx.listener(|wb, _: &RunTestAtCursor, w, cx| wb.run_test_at_cursor(false, w, cx)))

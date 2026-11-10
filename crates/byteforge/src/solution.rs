@@ -1,10 +1,12 @@
 //! Solution view: the projects of the workspace's `.sln`/`.slnx` in their solution folders, each with
-//! its NuGet packages and project references. Building, running and testing go through the workbench.
+//! its NuGet packages and project references. Building, running, testing and changing packages go
+//! through the workbench; checking for package updates (`dotnet list package --outdated`) runs here.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use bf_core::Workspace;
+use bf_core::nuget::{self, Outdated};
 use bf_core::solution::{self, Folder, Project, Solution};
 use gpui::{Context, EventEmitter, Task, Window, div, prelude::*, px, uniform_list};
 
@@ -18,14 +20,19 @@ pub enum SolutionEvent {
     Run(PathBuf),
     Test(PathBuf),
     Reveal(PathBuf),
+    /// Search NuGet for a package to add to the project.
+    AddPackage(PathBuf),
+    /// Change a package reference to this version.
+    UpdatePackage(PathBuf, String, String),
+    RemovePackage(PathBuf, String),
 }
 
 #[derive(Clone)]
 enum Entry {
     Folder { key: String, name: String, count: usize, depth: usize },
     Project { project: Project, depth: usize },
-    Group { key: String, label: &'static str, count: usize, depth: usize },
-    Package { name: String, version: Option<String>, depth: usize },
+    Group { key: String, label: &'static str, count: usize, depth: usize, project: PathBuf },
+    Package { project: PathBuf, name: String, version: Option<String>, latest: Option<String>, depth: usize },
     Reference { name: String, path: PathBuf, depth: usize },
 }
 
@@ -42,6 +49,12 @@ pub struct SolutionView {
     loaded: bool,
     visible: bool,
     load_task: Option<Task<()>>,
+    /// The last update check: project → package id (lowercase) → newer version.
+    outdated: Outdated,
+    /// The update check is running, and why the last one failed.
+    checking: bool,
+    check_error: Option<String>,
+    check_task: Option<Task<()>>,
 }
 
 impl EventEmitter<SolutionEvent> for SolutionView {}
@@ -58,6 +71,10 @@ impl SolutionView {
             loaded: false,
             visible: false,
             load_task: None,
+            outdated: HashMap::new(),
+            checking: false,
+            check_error: None,
+            check_task: None,
         }
     }
 
@@ -81,6 +98,10 @@ impl SolutionView {
         self.loaded = false;
         self.collapsed.clear();
         self.expanded.clear();
+        self.outdated.clear();
+        self.check_error = None;
+        self.check_task = None;
+        self.checking = false;
         self.rebuild();
         if self.visible {
             self.load(cx);
@@ -125,12 +146,19 @@ impl SolutionView {
                 continue;
             }
             let packages = format!("packages:{}", project.path.display());
-            out.push(Entry::Group { key: packages.clone(), label: "Packages", count: project.packages.len(), depth: depth + 1 });
+            out.push(Entry::Group { key: packages.clone(), label: "Packages", count: project.packages.len(), depth: depth + 1, project: project.path.clone() });
             if self.expanded.contains(&packages) {
-                out.extend(project.packages.iter().map(|p| Entry::Package { name: p.name.clone(), version: p.version.clone(), depth: depth + 2 }));
+                let newer = self.outdated.get(&project.path);
+                out.extend(project.packages.iter().map(|p| Entry::Package {
+                    project: project.path.clone(),
+                    name: p.name.clone(),
+                    version: p.version.clone(),
+                    latest: newer.and_then(|n| n.get(&p.name.to_lowercase())).filter(|l| p.version.as_ref() != Some(*l)).cloned(),
+                    depth: depth + 2,
+                }));
             }
             let refs = format!("refs:{}", project.path.display());
-            out.push(Entry::Group { key: refs.clone(), label: "Projects", count: project.references.len(), depth: depth + 1 });
+            out.push(Entry::Group { key: refs.clone(), label: "Projects", count: project.references.len(), depth: depth + 1, project: project.path.clone() });
             if self.expanded.contains(&refs) {
                 out.extend(project.references.iter().map(|r| Entry::Reference {
                     name: r.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -139,6 +167,67 @@ impl SolutionView {
                 }));
             }
         }
+    }
+
+    /// Checks every project for newer package versions (`dotnet list package --outdated`), for the whole
+    /// solution at once when there is a solution file. Projects with updates get their Packages opened.
+    pub fn check_updates(&mut self, cx: &mut Context<Self>) {
+        let Some(root) = self.workspace.root() else { return };
+        if self.checking {
+            return;
+        }
+        if !self.loaded {
+            self.load(cx);
+        }
+        self.checking = true;
+        self.check_error = None;
+        let preferred = self.preferred.clone();
+        self.check_task = Some(cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let solution = solution::load(&root, preferred.as_deref());
+                    let targets: Vec<PathBuf> = match solution.path {
+                        Some(path) => vec![path],
+                        None => solution.root.all_projects().into_iter().filter(|p| p.exists).map(|p| p.path.clone()).collect(),
+                    };
+                    let mut all = Outdated::new();
+                    for target in targets {
+                        all.extend(nuget::outdated(&root, &target)?);
+                    }
+                    anyhow::Ok(all)
+                })
+                .await;
+            let _ = this.update(cx, |v, cx| {
+                v.checking = false;
+                match result {
+                    Ok(outdated) => {
+                        for (project, packages) in &outdated {
+                            if !packages.is_empty() {
+                                v.collapsed.remove(&project_key(project));
+                                v.expanded.insert(format!("packages:{}", project.display()));
+                            }
+                        }
+                        v.outdated = outdated;
+                    }
+                    Err(e) => v.check_error = Some(format!("{e:#}")),
+                }
+                v.rebuild();
+                cx.notify();
+            });
+        }));
+        cx.notify();
+    }
+
+    /// A package was updated or removed: its update hint no longer applies.
+    pub fn package_changed(&mut self, project: &Path, id: &str) {
+        if let Some(packages) = self.outdated.get_mut(project) {
+            packages.remove(&id.to_lowercase());
+        }
+    }
+
+    fn update_count(&self) -> usize {
+        self.outdated.values().map(HashMap::len).sum()
     }
 
     fn toggle_collapsed(&mut self, key: String, cx: &mut Context<Self>) {
@@ -189,6 +278,17 @@ impl Render for SolutionView {
                     None => format!("{what} (no solution file)"),
                 }
             }
+        };
+        let summary = match (self.checking, &self.check_error, self.update_count()) {
+            (true, _, _) => format!("{summary} · checking for updates…"),
+            (_, Some(_), _) => format!("{summary} · update check failed"),
+            (_, _, 0) => summary,
+            (_, _, 1) => format!("{summary} · 1 update"),
+            (_, _, n) => format!("{summary} · {n} updates"),
+        };
+        let check_tip = match &self.check_error {
+            Some(e) => format!("Check for Package Updates\n\nLast check failed: {e}"),
+            None => "Check for Package Updates".to_owned(),
         };
         let solution_path = self.solution.as_ref().and_then(|s| s.path.clone());
 
@@ -272,24 +372,76 @@ impl Render for SolutionView {
                                 .on_click(move |_, _, cx| e.update(cx, |v, cx| v.toggle_collapsed(key.clone(), cx)))
                                 .into_any_element()
                         }
-                        Entry::Group { key, label, count, depth } => {
+                        Entry::Group { key, label, count, depth, project } => {
                             let open = view.expanded.contains(&key);
-                            let e = entity.clone();
+                            let (e, add) = (entity.clone(), entity.clone());
+                            let is_packages = label == "Packages";
                             row(depth)
                                 .when(count > 0, |d| d.child(chevron(open)))
                                 .when(count == 0, |d| d.child(blank()))
                                 .child(icon(if label == "Packages" { "layers" } else { "fileProject" }, px(14.), t.c("icon.foreground")))
                                 .child(div().whitespace_nowrap().text_color(if count == 0 { t.c("foreground.muted") } else { t.c("foreground") }).child(label))
                                 .child(detail(count.to_string()))
+                                .when(is_packages, |d| {
+                                    d.child(div().invisible().group_hover("solution-row", |s| s.visible()).child(small("add", "add", "Add Package…").on_click(move |_, _, cx| {
+                                        cx.stop_propagation();
+                                        add.update(cx, |_, cx| cx.emit(SolutionEvent::AddPackage(project.clone())))
+                                    })))
+                                })
                                 .when(count > 0, |d| d.on_click(move |_, _, cx| e.update(cx, |v, cx| v.toggle_expanded(key.clone(), cx))))
                                 .into_any_element()
                         }
-                        Entry::Package { name, version, depth } => row(depth)
-                            .child(blank())
-                            .child(icon("layers", px(12.), t.c("foreground.muted")))
-                            .child(div().whitespace_nowrap().child(name))
-                            .child(detail(version.unwrap_or_default()))
-                            .into_any_element(),
+                        Entry::Package { project, name, version, latest, depth } => {
+                            let current = version.clone().unwrap_or_default();
+                            let (e1, e2) = (entity.clone(), entity.clone());
+                            let (p1, p2, n1, n2) = (project.clone(), project, name.clone(), name.clone());
+                            let newer = latest.clone();
+                            let update_color = t.c_or("solution.updateForeground", 0x3794ffff);
+                            row(depth)
+                                .child(blank())
+                                .child(icon("layers", px(12.), if latest.is_some() { update_color } else { t.c("foreground.muted") }))
+                                .child(div().whitespace_nowrap().child(name))
+                                .child(match &latest {
+                                    Some(l) => div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .overflow_hidden()
+                                        .whitespace_nowrap()
+                                        .text_size(px(11.))
+                                        .text_color(update_color)
+                                        .child(format!("{current} → {l}")),
+                                    None => detail(current),
+                                })
+                                .child(
+                                    div()
+                                        .flex()
+                                        .gap_1()
+                                        .invisible()
+                                        .group_hover("solution-row", |s| s.visible())
+                                        .when_some(newer, |d, l| {
+                                            let tip: gpui::SharedString = format!("Update to {l}").into();
+                                            d.child(
+                                                div()
+                                                    .id("update")
+                                                    .p(px(2.))
+                                                    .rounded(px(3.))
+                                                    .cursor_pointer()
+                                                    .hover(|s| s.bg(t.c("toolbar.hoverBackground")))
+                                                    .tooltip(tooltip(tip))
+                                                    .child(icon("arrowUp", px(14.), update_color))
+                                                    .on_click(move |_, _, cx| {
+                                                        cx.stop_propagation();
+                                                        e1.update(cx, |_, cx| cx.emit(SolutionEvent::UpdatePackage(p1.clone(), n1.clone(), l.clone())))
+                                                    }),
+                                            )
+                                        })
+                                        .child(small("remove", "trash", "Remove Package").on_click(move |_, _, cx| {
+                                            cx.stop_propagation();
+                                            e2.update(cx, |_, cx| cx.emit(SolutionEvent::RemovePackage(p2.clone(), n2.clone())))
+                                        })),
+                                )
+                                .into_any_element()
+                        }
                         Entry::Reference { name, path, depth } => {
                             let e = entity.clone();
                             row(depth)
@@ -323,6 +475,19 @@ impl Render for SolutionView {
                         let open = path.clone();
                         d.child(tool("solution-build", "build", "Build Solution").on_click(cx.listener(move |_, _, _, cx| cx.emit(SolutionEvent::Build(path.clone())))))
                             .child(tool("solution-open", "fileSolution", "Open Solution File").on_click(cx.listener(move |_, _, _, cx| cx.emit(SolutionEvent::OpenFile(open.clone())))))
+                    })
+                    .when(self.solution.as_ref().is_some_and(|s| s.root.project_count() > 0), |d| {
+                        d.child(
+                            div()
+                                .id("solution-updates")
+                                .p(px(3.))
+                                .rounded(px(4.))
+                                .cursor_pointer()
+                                .hover(|s| s.bg(t.c("toolbar.hoverBackground")))
+                                .tooltip(tooltip(check_tip))
+                                .child(icon("arrowUp", icon_size, if self.update_count() > 0 { t.c_or("solution.updateForeground", 0x3794ffff) } else { t.c("icon.foreground") }))
+                                .on_click(cx.listener(|v, _, _, cx| v.check_updates(cx))),
+                        )
                     })
                     .child(tool("solution-refresh", "refresh", "Reload").on_click(cx.listener(|v, _, _, cx| v.load(cx)))),
             )

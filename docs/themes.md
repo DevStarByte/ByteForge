@@ -37,6 +37,7 @@ from the base theme.
   selection radius, whitespace rendering, squiggle style, rainbow brackets, bracket matching, indent guides,
   rulers and paddings.
 - **testing**: `testing.iconPassed`, `iconFailed`, `iconSkipped`, `iconQueued`, `iconUnset` (in `colors`).
+- **solution**: `solution.updateForeground` for packages with a newer version (in `colors`).
 - **minimap and groups**: `minimap.background`, `minimap.selectionHighlight`, `minimap.caretLine`,
   `minimapSlider.background` / `hoverBackground` and `editorGroup.border` (in `colors`), `minimap.width` (in
   `metrics`).
