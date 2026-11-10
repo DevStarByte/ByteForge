@@ -37,7 +37,7 @@ actions!(
 
 actions!(
     testing,
-    [ShowTesting, RunAllTests, RerunFailedTests, RunTestAtCursor, DebugTestAtCursor, RefreshTests]
+    [ShowTesting, ShowSolution, RunAllTests, RerunFailedTests, RunTestAtCursor, DebugTestAtCursor, RefreshTests]
 );
 
 actions!(
@@ -163,6 +163,7 @@ fn builtin() -> Vec<(&'static str, &'static str, &'static str, Box<dyn Action>, 
         ("view.debug", "Run and Debug", "View", Box::new(ShowDebug), Some("ctrl-shift-d")),
         ("view.debugConsole", "Debug Console", "View", Box::new(ShowDebugConsole), Some("ctrl-shift-y")),
         ("view.testing", "Testing", "View", Box::new(ShowTesting), None),
+        ("view.solution", "Solution", "View", Box::new(ShowSolution), None),
         ("test.runAll", "Run All Tests", "Test", Box::new(RunAllTests), None),
         ("test.rerunFailed", "Rerun Failed Tests", "Test", Box::new(RerunFailedTests), None),
         ("test.runAtCursor", "Run Test at Cursor", "Test", Box::new(RunTestAtCursor), None),

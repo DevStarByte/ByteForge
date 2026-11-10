@@ -480,7 +480,7 @@
     // The side bar, top to bottom: header, content, activityBar (a horizontal activity bar).
     // "sideBar.order": ["header", "content"],
     // "sideBar.visible": true,            // initial visibility
-    // "sideBar.defaultView": "explorer",  // explorer | search | scm | debug | testing | modules
+    // "sideBar.defaultView": "explorer",  // explorer | search | scm | debug | testing | solution | modules
     // "panel.visible": false,
     // "panel.tabs": ["problems", "output", "debugConsole"],
 
@@ -491,9 +491,9 @@
     // "titleBar.right": ["layoutControls", "windowControls"],
     // "menuBar.menus": ["File", "Edit", "View", "Go", "Git", "Run", "Preferences", "Help"],
 
-    // Activity bar items: explorer, search, scm, debug, testing, modules, settings, spacer, commands, and the
+    // Activity bar items: explorer, search, scm, debug, testing, solution, modules, settings, spacer, commands, and the
     // id of a module's view (e.g. "docker"); module views not listed go before the first spacer.
-    // "activityBar.items": ["explorer", "search", "scm", "debug", "testing", "modules", "spacer", "settings"],
+    // "activityBar.items": ["explorer", "search", "scm", "debug", "testing", "solution", "modules", "spacer", "settings"],
 
     // Status bar zones. Parts: branch, sync, problems (errors + warnings), errors, warnings, run, modules
     // (module items, placed by their alignment), position, indent, encoding, eol, language, lsp, spacer, commands.

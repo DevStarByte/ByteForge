@@ -14,6 +14,7 @@ mod palette;
 mod prompt;
 mod scm;
 mod search;
+mod solution;
 mod terminal;
 mod testing;
 mod text_input;

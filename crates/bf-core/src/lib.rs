@@ -11,6 +11,7 @@ pub mod registry;
 pub mod search;
 pub mod settings;
 pub mod snippets;
+pub mod solution;
 pub mod testing;
 pub mod theme;
 pub mod watch;

@@ -6,6 +6,7 @@ mod modules;
 mod preview;
 mod testing;
 mod references;
+mod solution;
 mod symbols;
 
 use std::collections::{BTreeMap, HashMap};
@@ -26,6 +27,7 @@ use serde_json::json;
 
 use crate::actions::*;
 use crate::assets::{self, icon};
+use crate::solution::SolutionView;
 use crate::testing::TestView;
 use crate::editor::{EditorEvent, EditorView};
 use crate::terminal::{TerminalEvent, TerminalView};
@@ -86,6 +88,7 @@ enum SideView {
     SourceControl,
     Debug,
     Testing,
+    Solution,
     /// A module's view (which one: `module_view`).
     Module,
     Modules,
@@ -190,6 +193,7 @@ pub struct Workbench {
     search: Entity<SearchView>,
     scm: Entity<ScmView>,
     tests: Entity<TestView>,
+    solution: Entity<SolutionView>,
     /// Numbers the results folders of test runs.
     test_runs: u64,
     git_head: Option<Option<String>>,
@@ -317,6 +321,11 @@ impl Workbench {
         let search = cx.new(|cx| SearchView::new(workspace.clone(), window, cx));
         let scm = cx.new(|cx| ScmView::new(workspace.clone(), window, cx));
         let tests = cx.new(|cx| TestView::new(workspace.clone(), cx));
+        let solution = cx.new(|cx| {
+            let mut v = SolutionView::new(workspace.clone(), cx);
+            v.set_preferred(settings.get_string("dotnet.project"));
+            v
+        });
         let output = cx.new(|cx| {
             let mut e = EditorView::new("", None, cx);
             e.read_only = true;
@@ -346,6 +355,7 @@ impl Workbench {
             }),
             cx.subscribe_in(&scm, window, Self::on_scm_event),
             cx.subscribe_in(&tests, window, Self::on_test_event),
+            cx.subscribe_in(&solution, window, Self::on_solution_event),
             // File references in program output open on click.
             cx.subscribe_in(&output, window, Self::on_output_event),
             cx.subscribe_in(&debug_console, window, Self::on_output_event),
@@ -396,6 +406,9 @@ impl Workbench {
                             if wb.tests.read(cx).is_discovered() {
                                 wb.tests.update(cx, |t, cx| t.files_changed(cx));
                             }
+                            if wb.solution.read(cx).is_loaded() {
+                                wb.solution.update(cx, |s, cx| s.load(cx));
+                            }
                         }
                     })
                     .is_ok();
@@ -420,6 +433,7 @@ impl Workbench {
             search,
             scm,
             tests,
+            solution,
             test_runs: 0,
             git_head: None,
             output,
@@ -570,6 +584,8 @@ impl Workbench {
             self.apply_theme(&theme, window, cx);
         }
         self.workspace.set_excludes(self.settings.get("files.exclude", Vec::<String>::new()));
+        let preferred = self.settings.get_string("dotnet.project");
+        self.solution.update(cx, |s, _| s.set_preferred(preferred));
         let all = self.settings.all();
         for p in &self.plugins {
             p.settings_changed(&all);
@@ -635,6 +651,7 @@ impl Workbench {
         self.explorer.update(cx, |e, cx| e.refresh(cx));
         self.scm.update(cx, |s, cx| s.open_folder(cx));
         self.tests.update(cx, |t, cx| t.open_folder(cx));
+        self.solution.update(cx, |s, cx| s.open_folder(cx));
         self.git_head = None;
         self.side = side_view_named(&Theme::global(cx).layout.side_default).unwrap_or(SideView::Explorer);
         self.build_problems.clear();
@@ -2398,6 +2415,8 @@ impl Render for Workbench {
         self.sync_module_view_visibility();
         let tests_visible = self.side_visible && self.side == SideView::Testing;
         self.tests.update(cx, |t, cx| t.set_visible(tests_visible, cx));
+        let solution_visible = self.side_visible && self.side == SideView::Solution;
+        self.solution.update(cx, |s, cx| s.set_visible(solution_visible, cx));
 
         // Every region is placed by the theme layout (see layout.rs).
         let lay = &t.layout;
@@ -2581,6 +2600,7 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &Run, w, cx| wb.run_dotnet("run", w, cx)))
             .on_action(cx.listener(|wb, _: &Test, w, cx| wb.run_all_tests(w, cx)))
             .on_action(cx.listener(|wb, _: &ShowTesting, w, cx| wb.toggle_side(SideView::Testing, w, cx)))
+            .on_action(cx.listener(|wb, _: &ShowSolution, w, cx| wb.toggle_side(SideView::Solution, w, cx)))
             .on_action(cx.listener(|wb, _: &RunAllTests, w, cx| wb.run_all_tests(w, cx)))
             .on_action(cx.listener(|wb, _: &RerunFailedTests, w, cx| wb.rerun_failed_tests(w, cx)))
             .on_action(cx.listener(|wb, _: &RunTestAtCursor, w, cx| wb.run_test_at_cursor(false, w, cx)))
@@ -3109,6 +3129,7 @@ impl Workbench {
                 "scm" => Some((SideView::SourceControl, "sourceControl", "Source Control (Ctrl+Shift+G)", "Git")),
                 "debug" => Some((SideView::Debug, "debug", "Run and Debug (Ctrl+Shift+D)", "Debug")),
                 "testing" | "tests" => Some((SideView::Testing, "beaker", "Testing", "Tests")),
+                "solution" => Some((SideView::Solution, "fileSolution", "Solution", "Solution")),
                 "modules" => Some((SideView::Modules, "puzzle", "Modules", "Modules")),
                 _ => None,
             };
@@ -3147,6 +3168,7 @@ impl Workbench {
             SideView::SourceControl => "SOURCE CONTROL".into(),
             SideView::Debug => "RUN AND DEBUG".into(),
             SideView::Testing => "TESTING".into(),
+            SideView::Solution => "SOLUTION".into(),
             SideView::Module => self.module_views.iter().find(|v| Some(&v.id) == self.module_view.as_ref()).map_or("MODULE".into(), |v| v.title.to_uppercase().into()),
             SideView::Modules => "MODULES".into(),
         };
@@ -3156,6 +3178,7 @@ impl Workbench {
             SideView::SourceControl => self.scm.clone().into_any_element(),
             SideView::Debug => self.render_debug_view(cx),
             SideView::Testing => self.tests.clone().into_any_element(),
+            SideView::Solution => self.solution.clone().into_any_element(),
             SideView::Module => self.render_module_view(cx),
             SideView::Modules => self.render_modules(cx).into_any_element(),
         });
@@ -3928,6 +3951,7 @@ fn side_view_named(name: &str) -> Option<SideView> {
         "scm" | "sourcecontrol" | "git" => Some(SideView::SourceControl),
         "debug" | "run" => Some(SideView::Debug),
         "testing" | "tests" | "test" => Some(SideView::Testing),
+        "solution" | "projects" => Some(SideView::Solution),
         "modules" => Some(SideView::Modules),
         _ => None,
     }

@@ -28,6 +28,7 @@ live, and modules written in any language can extend it.
 - **Debugger:** breakpoints, stepping, variables and a Debug Console through netcoredbg; F5 runs ASP.NET Core apps
   with their launch profile
 - **Tests:** a Test Explorer for xUnit, NUnit and MSTest, with run and debug for any test
+- **Solution:** a Solution view with the projects of the `.sln`/`.slnx`, their packages and project references
 - **Git:** a Source Control view, change markers in the gutter, diffs, branches, and pull / push / fetch
 - **Docker:** containers, images, volumes and Compose, plus Dockerfile generation for .NET projects
 - **Terminal:** your own shell on a real PTY, with true color and several tabs
