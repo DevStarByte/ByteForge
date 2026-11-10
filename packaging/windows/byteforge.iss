@@ -5,6 +5,10 @@
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
+#ifndef NumVersion
+  ; numeric x.y.z for the file version (AppVersion may carry a "-beta.N" suffix)
+  #define NumVersion "0.0.0"
+#endif
 #ifndef SourceDir
   #define SourceDir "..\..\dist\ByteForge"
 #endif
@@ -17,6 +21,11 @@ AppId={{6E0B4C1E-2F3A-4D8B-9B7E-B7F0FE1D2C42}
 AppName=ByteForge
 AppVersion={#AppVersion}
 AppPublisher=DevStarByte
+AppCopyright=DevStarByte, GPL-2.0-only
+VersionInfoVersion={#NumVersion}
+VersionInfoDescription=ByteForge Setup
+VersionInfoProductName=ByteForge
+VersionInfoCompany=DevStarByte
 AppPublisherURL=https://github.com/DevStarByte/ByteForge
 AppSupportURL=https://github.com/DevStarByte/ByteForge/issues
 DefaultDirName={autopf}\ByteForge
