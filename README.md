@@ -70,6 +70,9 @@ Download `ByteForge-<version>-windows-x64-setup.exe` (installer, no admin rights
 dotnet tool install -g csharp-ls
 ```
 
+Windows builds are signed through SignPath Foundation once its approval comes through; see the
+[code signing policy](docs/code-signing.md).
+
 Pre-releases (betas) are marked as such on the Releases page; each release also carries the Arch package
 (`sudo pacman -U byteforge-*.pkg.tar.zst`) for trying a beta without the pacman repo.
 

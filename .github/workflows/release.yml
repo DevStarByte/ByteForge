@@ -68,6 +68,9 @@ jobs:
     runs-on: windows-latest
     env:
       VERSION: ${{ needs.version.outputs.version }}
+      # Tagged releases are signed through SignPath once the SIGNPATH_API_TOKEN secret
+      # exists (see docs/code-signing.md); everything else stays unsigned.
+      SIGN: ${{ github.ref_type == 'tag' && secrets.SIGNPATH_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -85,26 +88,70 @@ jobs:
           Copy-Item themes\*.json "$dir\themes"
           Copy-Item -Recurse modules "$dir\modules"
           Copy-Item README.md, LICENSE $dir
-          Compress-Archive -Path $dir -DestinationPath "dist\ByteForge-$env:VERSION-windows-x64.zip"
 
-      - name: Installer
+      # Sign byteforge.exe first, so both the zip and the installer carry the signed one.
+      - name: Upload unsigned exe
+        if: env.SIGN == 'true'
+        id: unsigned-exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-exe
+          path: dist/ByteForge/byteforge.exe
+
+      - name: Sign exe
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: exe
+          github-artifact-id: ${{ steps.unsigned-exe.outputs.artifact-id }}
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/ByteForge
+
+      - name: Zip and installer
         shell: pwsh
         run: |
+          Compress-Archive -Path dist\ByteForge -DestinationPath "dist\ByteForge-$env:VERSION-windows-x64.zip"
           $iscc = Get-Command iscc -ErrorAction SilentlyContinue
           if (-not $iscc) {
             $default = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
             if (-not (Test-Path $default)) { choco install innosetup -y --no-progress | Out-Null }
             $iscc = $default
           } else { $iscc = $iscc.Source }
-          & $iscc /Q "/DAppVersion=$env:VERSION" "/DSourceDir=$PWD\dist\ByteForge" "/DOutputDir=$PWD\dist" packaging\windows\byteforge.iss
+          New-Item -ItemType Directory -Force dist\setup | Out-Null
+          & $iscc /Q "/DAppVersion=$env:VERSION" "/DSourceDir=$PWD\dist\ByteForge" "/DOutputDir=$PWD\dist\setup" packaging\windows\byteforge.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload unsigned installer
+        if: env.SIGN == 'true'
+        id: unsigned-setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-setup
+          path: dist/setup/*-setup.exe
+
+      - name: Sign installer
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.unsigned-setup.outputs.artifact-id }}
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/setup
 
       - uses: actions/upload-artifact@v4
         with:
           name: windows
           path: |
             dist/*.zip
-            dist/*-setup.exe
+            dist/setup/*-setup.exe
           if-no-files-found: error
 
   arch:
@@ -145,6 +192,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: "{windows,arch}"
           path: dist
           merge-multiple: true
 
