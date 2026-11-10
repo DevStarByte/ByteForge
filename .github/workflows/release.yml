@@ -4,8 +4,8 @@
 #   git tag v0.4.0-beta.1 && git push origin v0.4.0-beta.1 -> pre-release (any tag with a "-")
 #
 # The tag (without its "-beta.N" part) must match the version in Cargo.toml.
-# Run it by hand (Actions -> Release -> Run workflow) to build the downloads
-# as workflow artifacts without publishing anything.
+# Pushes to master that touch the code (and runs started by hand) build the
+# downloads as workflow artifacts without publishing anything.
 #
 # Downloads:
 #   ByteForge-<ver>-windows-x64-setup.exe   installer (current user, no admin needed)
@@ -17,6 +17,15 @@ name: Release
 on:
   push:
     tags: ["v*"]
+    branches: [master]
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "themes/**"
+      - "modules/**"
+      - "packaging/**"
+      - ".github/workflows/release.yml"
   workflow_dispatch:
 
 permissions:
