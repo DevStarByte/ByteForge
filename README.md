@@ -26,7 +26,9 @@ live, and modules written in any language can extend it.
   `csharp-ls` (Roslyn)
 - **Razor and MSBuild:** highlighting for `.razor`, `.cshtml`, `.csproj` and other XML project files
 - **Debugger:** breakpoints, stepping, variables and a Debug Console through netcoredbg; F5 runs ASP.NET Core apps
-  with their launch profile
+  with their launch profile (pick one with "Select Launch Profile…")
+- **Hot reload:** "Run with Watch" (Alt+F5) runs the app under `dotnet watch`, applies edits while it runs and
+  restarts by itself when an edit can't be applied
 - **Tests:** a Test Explorer for xUnit, NUnit and MSTest, with run and debug for any test
 - **Solution and NuGet:** a Solution view with the projects of the `.sln`/`.slnx`, their packages and project
   references; search, add, update and remove NuGet packages, and see which ones have updates

@@ -181,7 +181,7 @@ const MENUS: &[(&str, &[&str])] = &[
     ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.init"]),
     ("Run", &[
-        "debug.start", "dotnet.run", "debug.restart", "dotnet.stop", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
+        "debug.start", "dotnet.run", "dotnet.watch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
         "debug.toggleBreakpoint", "debug.removeAllBreakpoints", "debug.attach", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
         "csharp.reload",
@@ -838,6 +838,8 @@ fn default_command_icon(id: &str) -> &'static str {
     match id {
         "dotnet.build" => "build",
         "dotnet.run" | "debug.start" => "play",
+        "dotnet.watch" => "flame",
+        "dotnet.selectLaunchProfile" => "settings",
         "debug.restart" => "refresh",
         "debug.pause" => "pause",
         "debug.stepOver" => "stepOver",
@@ -934,6 +936,7 @@ fn default_key(id: &str) -> &'static str {
         "view.previousEditor" => "Ctrl+Shift+Tab",
         "dotnet.build" => "Ctrl+Shift+B",
         "dotnet.run" => "Ctrl+F5",
+        "dotnet.watch" => "Alt+F5",
         "debug.start" => "F5",
         "debug.restart" => "Ctrl+Shift+F5",
         "debug.pause" => "F6",

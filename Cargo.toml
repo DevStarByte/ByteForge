@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/bf-core", "crates/bf-text", "crates/bf-syntax", "crates/bf-lsp", "crates/bf-dap", "crates/byteforge"]
 
 [workspace.package]
-version = "0.3.3"
+version = "0.3.4"
 edition = "2024"
 license = "GPL-2.0-only"
 
@@ -12,7 +12,7 @@ gpui = "=0.2.2"
 anyhow = "1"
 flume = "0.11"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 json5 = "0.4"
 ropey = "1.6"
 parking_lot = "0.12"

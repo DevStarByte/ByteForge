@@ -18,6 +18,8 @@ pub enum SolutionEvent {
     OpenFile(PathBuf),
     Build(PathBuf),
     Run(PathBuf),
+    /// `dotnet watch`: run with hot reload.
+    Watch(PathBuf),
     Test(PathBuf),
     Reveal(PathBuf),
     /// Search NuGet for a package to add to the project.
@@ -357,6 +359,7 @@ impl Render for SolutionView {
                                 .group_hover("solution-row", |s| s.visible())
                                 .when(project.exists, |d| d.child(small("build", "build", "Build").on_click(emit(SolutionEvent::Build))))
                                 .when(project.is_app, |d| d.child(small("run", "play", "Run").on_click(emit(SolutionEvent::Run))))
+                                .when(project.is_app, |d| d.child(small("watch", "flame", "Run with Watch (Hot Reload)").on_click(emit(SolutionEvent::Watch))))
                                 .when(project.is_test, |d| d.child(small("test", "beaker", "Run Tests").on_click(emit(SolutionEvent::Test))))
                                 .child(small("reveal", "files", "Reveal in Explorer").on_click(emit(SolutionEvent::Reveal)))
                                 .when(project.exists, |d| d.child(small("open", "fileProject", "Open Project File").on_click(emit(SolutionEvent::OpenFile))));

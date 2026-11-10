@@ -9,7 +9,7 @@ actions!(
     [
         NewFile, OpenFile, OpenFolder, Save, SaveAs, SaveAll, CloseEditor, CloseAllEditors, Quit, CommandPalette, QuickOpen, GoToLine,
         ToggleSideBar, TogglePanel, ShowExplorer, ShowSearch, ShowProblems, ShowOutput, ShowModules, NextEditor, PreviousEditor,
-        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, About, Build, Run, Test, Clean, Restore, Stop,
+        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, About, Build, Run, RunWithWatch, SelectLaunchProfile, Test, Clean, Restore, Stop,
         ToggleLineEnding, ReloadCSharp, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
         GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
         FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup,
@@ -69,6 +69,14 @@ actions!(input, [Confirm, InputBackspace, InputDelete, InputLeft, InputRight, In
 #[action(namespace = debug, no_json)]
 pub struct AttachToPid {
     pub pid: u32,
+}
+
+/// Makes `name` the launch profile for `project` (picked in "Select Launch Profile").
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = workbench, no_json)]
+pub struct UseLaunchProfile {
+    pub project: String,
+    pub name: String,
 }
 
 /// Makes `shell` the terminal's default (empty: the login shell, `$SHELL`) and opens a terminal with it.
@@ -158,6 +166,8 @@ fn builtin() -> Vec<Builtin> {
         ("app.about", "About ByteForge", "Help", Box::new(About), None),
         ("dotnet.build", "Build", "Run", Box::new(Build), Some("ctrl-shift-b")),
         ("dotnet.run", "Run Without Debugging", "Run", Box::new(Run), Some("ctrl-f5")),
+        ("dotnet.watch", "Run with Watch (Hot Reload)", "Run", Box::new(RunWithWatch), Some("alt-f5")),
+        ("dotnet.selectLaunchProfile", "Select Launch Profile…", "Run", Box::new(SelectLaunchProfile), None),
         ("dotnet.test", "Test", "Run", Box::new(Test), None),
         ("dotnet.clean", "Clean", "Run", Box::new(Clean), None),
         ("dotnet.restore", "Restore", "Run", Box::new(Restore), None),

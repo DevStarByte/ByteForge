@@ -412,7 +412,7 @@ impl Workbench {
         let mut profile = None;
         let (arguments, attached) = match &target {
             Target::Launch { project, program } => {
-                profile = launch_profile(project, self.settings.get_string("dotnet.launchProfile").as_deref());
+                profile = launch_profile(project, self.chosen_launch_profile(project).as_deref());
                 let mut env = serde_json::Map::new();
                 if let Some(p) = &profile {
                     for (key, value) in &p.env {

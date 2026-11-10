@@ -12,7 +12,7 @@ impl Workbench {
         if self.dotnet_busy(cx) {
             return;
         }
-        let runnable = verb == "run";
+        let runnable = matches!(verb, "run" | "watch");
         let configured = self.settings.get_string("dotnet.project");
         let Some(target) = find_target(&root, configured.as_deref(), runnable) else {
             self.log(format!("No .sln, .slnx or .csproj found in {}.", root.display()));
@@ -20,14 +20,107 @@ impl Workbench {
             return;
         };
         self.save_all(window, cx);
-        let mut args = vec![verb.to_owned()];
-        if runnable {
-            args.extend(["--project".into(), target.to_string_lossy().into_owned()]);
-        } else {
-            args.push(target.to_string_lossy().into_owned());
-        }
         self.show_panel(PanelView::Output, cx);
-        self.start_dotnet(root, args, None, window, cx);
+        self.start_dotnet_verb(root, verb, &target, window, cx);
+    }
+
+    /// Starts `dotnet build|clean|restore <target>`, `dotnet run --project <target>` or, for "watch",
+    /// `dotnet watch run --project <target>` (hot reload). Run and watch use the project's launch profile.
+    pub(super) fn start_dotnet_verb(&mut self, root: PathBuf, verb: &str, target: &Path, window: &mut Window, cx: &mut Context<Self>) {
+        let target_arg = target.to_string_lossy().into_owned();
+        let mut env = Vec::new();
+        let mut on_line: Option<LineHook> = None;
+        let args = match verb {
+            "run" | "watch" => {
+                let mut args = if verb == "watch" { vec!["watch".to_owned(), "run".into()] } else { vec!["run".to_owned()] };
+                args.extend(["--project".into(), target_arg]);
+                if let Some(profile) = self.chosen_launch_profile(target) {
+                    args.extend(["--launch-profile".into(), profile]);
+                }
+                if verb == "watch" {
+                    // No terminal to answer "restart?" prompts: restart by itself after edits hot reload can't apply.
+                    env.push(("DOTNET_WATCH_RESTART_ON_RUDE_EDIT".to_owned(), "1".to_owned()));
+                    env.push(("DOTNET_WATCH_SUPPRESS_EMOJIS".to_owned(), "1".to_owned()));
+                    // Each rebuild or hot reload attempt replaces the problems of the last one, and errors show
+                    // as they arrive (the process keeps running).
+                    let root = root.clone();
+                    on_line = Some(Box::new(move |wb: &mut Workbench, line: &str, _: &mut Window, cx: &mut Context<Workbench>| {
+                        let attempt = is_watch_attempt(line);
+                        if attempt {
+                            wb.build_problems.clear();
+                        }
+                        if attempt || bf_core::debug::parse_build_line(strip_watch_prefix(line), &root).is_some() {
+                            wb.apply_build_diagnostics(cx);
+                            cx.notify();
+                        }
+                    }));
+                }
+                args
+            }
+            _ => vec![verb.to_owned(), target_arg],
+        };
+        self.start_dotnet_with(root, args, env, on_line, None, window, cx);
+    }
+
+    // ───────────── launch profiles ─────────────
+
+    fn launch_profile_key(project: &Path) -> String {
+        format!("launchProfile:{}", project.display())
+    }
+
+    /// The launch profile picked for `project` (else the `dotnet.launchProfile` setting), if the project
+    /// still has it. `None` means the default: the first profile in launchSettings.json.
+    pub(super) fn chosen_launch_profile(&self, project: &Path) -> Option<String> {
+        let wanted = self.state.get(&Self::launch_profile_key(project)).or_else(|| self.settings.get_string("dotnet.launchProfile")).filter(|n| !n.is_empty())?;
+        bf_core::debug::launch_profiles(project).iter().any(|p| p.name == wanted).then_some(wanted)
+    }
+
+    /// The project F5 and Ctrl+F5 start.
+    fn startup_project(&self) -> Option<PathBuf> {
+        let root = self.workspace.root()?;
+        let configured = self.settings.get_string("dotnet.project");
+        find_target(&root, configured.as_deref(), true).filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("csproj")))
+    }
+
+    /// "Select Launch Profile…": the startup project's profiles from Properties/launchSettings.json.
+    pub(super) fn open_launch_profile_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(project) = self.startup_project() else {
+            self.log("No .csproj to run in this folder. Set \"dotnet.project\" to the project to start.");
+            self.show_panel(PanelView::Output, cx);
+            return;
+        };
+        let profiles = bf_core::debug::launch_profiles(&project);
+        let name = project.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if profiles.is_empty() {
+            self.log(format!("{name} has no launch profiles (Properties/launchSettings.json with \"commandName\": \"Project\")."));
+            self.show_panel(PanelView::Output, cx);
+            return;
+        }
+        let current = self.chosen_launch_profile(&project).unwrap_or_else(|| profiles[0].name.clone());
+        let project_arg = project.to_string_lossy().into_owned();
+        let items = profiles
+            .into_iter()
+            .map(|p| {
+                let mark = if p.name == current { "● " } else { "   " };
+                let mut item = PaletteItem::new(format!("{mark}{}", p.name), PaletteAction::Command(Box::new(UseLaunchProfile { project: project_arg.clone(), name: p.name.clone() })));
+                item.detail = Some(profile_summary(&p));
+                item.search = Some(p.name.clone());
+                item
+            })
+            .collect();
+        self.menu_open = None;
+        let palette = cx.new(|cx| Palette::new(Mode::Pick, items, &format!("Launch profile for {name} (F5, Ctrl+F5, Alt+F5)"), "", window, cx));
+        let sub = cx.subscribe_in(&palette, window, Self::on_palette_event);
+        palette.update(cx, |p, cx| p.focus_input(window, cx));
+        self.palette = Some((palette, sub));
+        cx.notify();
+    }
+
+    pub(super) fn use_launch_profile(&mut self, project: &Path, name: &str, cx: &mut Context<Self>) {
+        self.state.set(&Self::launch_profile_key(project), Some(name));
+        let project_name = project.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        self.log(format!("{project_name} now runs with launch profile \"{name}\"."));
+        cx.notify();
     }
 
     /// Logs and returns true when a dotnet process (or a debug session) is already running.
@@ -60,7 +153,7 @@ impl Workbench {
         cx: &mut Context<Self>,
     ) -> bool {
         let verb = args.first().cloned().unwrap_or_default();
-        let compiles = matches!(verb.as_str(), "build" | "run" | "test");
+        let compiles = matches!(verb.as_str(), "build" | "run" | "test" | "watch");
         if compiles {
             self.build_problems.clear();
         }
@@ -73,7 +166,7 @@ impl Workbench {
                     while let Ok(event) = rx.recv_async().await {
                         match event {
                             RunEvent::Line(line) => {
-                                if compiles && let Some(d) = bf_core::debug::parse_build_line(&line, &root) {
+                                if compiles && let Some(d) = bf_core::debug::parse_build_line(strip_watch_prefix(&line), &root) {
                                     let _ = this.update(cx, |wb, _| wb.add_build_problem(d));
                                 }
                                 if let Some(hook) = on_line.as_mut() {
@@ -151,4 +244,49 @@ impl Workbench {
     }
 
     // ───────────── terminal ─────────────
+}
+
+/// A `dotnet watch` line without its "dotnet watch : " prefix (hot reload reports compiler errors with it).
+fn strip_watch_prefix(line: &str) -> &str {
+    line.strip_prefix("dotnet watch").and_then(|rest| rest.trim_start().strip_prefix(':')).map_or(line, str::trim_start)
+}
+
+/// Whether a `dotnet watch` line starts a new build or hot reload attempt.
+fn is_watch_attempt(line: &str) -> bool {
+    let Some(rest) = line.strip_prefix("dotnet watch") else { return false };
+    let rest = rest.to_lowercase();
+    rest.contains("building") || rest.contains("file updated") || rest.contains("file changed")
+}
+
+/// One line about a launch profile for the picker: its URLs, arguments and environment.
+fn profile_summary(p: &bf_core::debug::LaunchProfile) -> String {
+    let mut parts = Vec::new();
+    if let Some(urls) = &p.application_url {
+        parts.push(urls.replace(';', "  "));
+    }
+    if !p.args.is_empty() {
+        parts.push(format!("args: {}", p.args.join(" ")));
+    }
+    if let Some((_, env)) = p.env.iter().find(|(k, _)| k == "ASPNETCORE_ENVIRONMENT" || k == "DOTNET_ENVIRONMENT") {
+        parts.push(env.clone());
+    }
+    if parts.is_empty() { "no URLs or arguments".into() } else { parts.join("  ·  ") }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_watch_lines() {
+        assert!(is_watch_attempt("dotnet watch : Building /src/W/W.csproj ..."));
+        assert!(is_watch_attempt("dotnet watch : File updated: ./Program.cs"));
+        assert!(!is_watch_attempt("dotnet watch : [W (net10.0)] Hot reload succeeded."));
+        assert!(!is_watch_attempt("info: building something"));
+        let error = "dotnet watch : /src/W/Program.cs(7,9): error CS0029: Cannot implicitly convert type 'string' to 'int'";
+        assert_eq!(strip_watch_prefix(error), "/src/W/Program.cs(7,9): error CS0029: Cannot implicitly convert type 'string' to 'int'");
+        let d = bf_core::debug::parse_build_line(strip_watch_prefix(error), Path::new("/src/W")).unwrap();
+        assert_eq!((d.line, d.column, d.code.as_deref()), (7, 9, Some("CS0029")));
+        assert_eq!(strip_watch_prefix("Now listening on: http://localhost:5039"), "Now listening on: http://localhost:5039");
+    }
 }

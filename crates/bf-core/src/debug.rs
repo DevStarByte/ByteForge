@@ -38,19 +38,44 @@ impl LaunchProfile {
 /// Reads the launch profile of `project` (a .csproj): the one named `wanted`, else the first
 /// `"commandName": "Project"` profile. `None` if the project has no launch settings.
 pub fn launch_profile(project: &Path, wanted: Option<&str>) -> Option<LaunchProfile> {
-    let file = project.parent()?.join("Properties").join("launchSettings.json");
-    let text = std::fs::read_to_string(file).ok()?;
-    parse_launch_settings(&text, wanted)
+    parse_launch_settings(&read_launch_settings(project)?, wanted)
+}
+
+/// The `"commandName": "Project"` profiles of `project` (the ones `dotnet run` can use), in file order
+/// (`dotnet run` defaults to the first).
+pub fn launch_profiles(project: &Path) -> Vec<LaunchProfile> {
+    read_launch_settings(project).map(|text| parse_profiles(&text)).unwrap_or_default()
+}
+
+fn read_launch_settings(project: &Path) -> Option<String> {
+    std::fs::read_to_string(project.parent()?.join("Properties").join("launchSettings.json")).ok()
+}
+
+fn profile_entries(text: &str) -> Option<serde_json::Map<String, Value>> {
+    let root: Value = json5::from_str(text).ok()?;
+    root.get("profiles")?.as_object().cloned()
+}
+
+fn is_project_profile(profile: &Value) -> bool {
+    profile.get("commandName").and_then(Value::as_str).is_none_or(|c| c == "Project")
+}
+
+fn parse_profiles(text: &str) -> Vec<LaunchProfile> {
+    profile_entries(text)
+        .map(|profiles| profiles.iter().filter(|(_, p)| is_project_profile(p)).map(|(name, p)| to_profile(name, p)).collect())
+        .unwrap_or_default()
 }
 
 fn parse_launch_settings(text: &str, wanted: Option<&str>) -> Option<LaunchProfile> {
-    let root: Value = json5::from_str(text).ok()?;
-    let profiles = root.get("profiles")?.as_object()?;
-    let is_project = |p: &Value| p.get("commandName").and_then(Value::as_str).is_none_or(|c| c == "Project");
+    let profiles = profile_entries(text)?;
     let (name, profile) = wanted
         .filter(|w| !w.is_empty())
         .and_then(|w| profiles.iter().find(|(name, _)| name.as_str() == w))
-        .or_else(|| profiles.iter().find(|(_, p)| is_project(p)))?;
+        .or_else(|| profiles.iter().find(|(_, p)| is_project_profile(p)))?;
+    Some(to_profile(name, profile))
+}
+
+fn to_profile(name: &str, profile: &Value) -> LaunchProfile {
     let text = |key: &str| profile.get(key).and_then(Value::as_str).map(str::to_owned).filter(|s| !s.is_empty());
     let mut env: Vec<(String, String)> = profile
         .get("environmentVariables")
@@ -58,14 +83,14 @@ fn parse_launch_settings(text: &str, wanted: Option<&str>) -> Option<LaunchProfi
         .map(|m| m.iter().map(|(k, v)| (k.clone(), v.as_str().map_or_else(|| v.to_string(), str::to_owned))).collect())
         .unwrap_or_default();
     env.sort();
-    Some(LaunchProfile {
-        name: name.clone(),
+    LaunchProfile {
+        name: name.to_owned(),
         args: text("commandLineArgs").map(|a| split_args(&a)).unwrap_or_default(),
         env,
         application_url: text("applicationUrl"),
         launch_browser: profile.get("launchBrowser").and_then(Value::as_bool).unwrap_or(false),
         launch_url: text("launchUrl"),
-    })
+    }
 }
 
 /// Splits a command line on whitespace, honoring double quotes.
@@ -316,6 +341,8 @@ mod tests {
         assert_eq!(p.application_url.as_deref(), Some("https://localhost:7001;http://localhost:5001"));
         assert_eq!(p.browser_url("https://localhost:7001/").as_deref(), Some("https://localhost:7001/swagger"));
         assert_eq!(parse_launch_settings(text, Some("IIS Express")).unwrap().name, "IIS Express");
+        let names: Vec<_> = parse_profiles(text).into_iter().map(|p| p.name).collect();
+        assert_eq!(names, vec!["https"]);
     }
 
     #[test]

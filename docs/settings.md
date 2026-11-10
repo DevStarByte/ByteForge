@@ -9,7 +9,7 @@
   "files.exclude": ["bin", "obj", ".git", "node_modules", "target"],
   "csharp.languageServer": "",                         // custom path to csharp-ls (optional)
   "dotnet.project": "src/MyApp/MyApp.csproj",          // build/run/debug target (optional)
-  "dotnet.launchProfile": "https",                     // launchSettings.json profile (default: first "Project" one)
+  "dotnet.launchProfile": "https",                     // launchSettings.json profile (default: first "Project" one; "Select Launch Profile…" overrides it per project)
   "debug.netcoredbgPath": "",                          // custom path to netcoredbg (optional)
   "debug.justMyCode": true, "debug.stopAtEntry": false, "debug.openBrowser": true,
   "debug.breakOnExceptions": ["user-unhandled"],       // or ["all"], or []
@@ -37,6 +37,7 @@
 | Ctrl+B / Ctrl+J | Toggle side bar / panel | Ctrl+Shift+E / F | Explorer / Search |
 | Ctrl+Shift+B | Build | F5 | Start debugging / Continue |
 | Ctrl+F5 | Run without debugging | Shift+F5 | Stop |
+| Alt+F5 | Run with Watch (hot reload) | | |
 | F9 | Toggle breakpoint | F10 / F11 / Shift+F11 | Step over / into / out |
 | F6 | Pause | Ctrl+Shift+F5 | Restart debugging |
 | Ctrl+Shift+D | Run and Debug | Ctrl+Shift+Y | Debug Console |

@@ -28,8 +28,8 @@ The language server already supports all of these; the client needs the requests
 - [x] Test Explorer: run/debug one test, a class or all; pass/fail markers. Tests are found in the source (test attributes), not with `dotnet test --list-tests`: instant, and it knows where each test is. Still open: tests generated at runtime (e.g. `[MemberData]` cases listed individually) and live per-test progress during long runs.
 - [x] Solution view: projects from the `.sln`/`.slnx` in their solution folders (or every `.csproj` without a solution), with target framework and kind, NuGet packages (central versions from `Directory.Packages.props` included) and project references; build, run, test, reveal and open from each project.
 - [x] NuGet: search the feeds as you type ("NuGet: Add Package…" or + on a project's Packages), update and remove from the Solution view, and "Check for Package Updates" marks newer versions (`dotnet package search`, `dotnet add/remove package`, `dotnet list package --outdated`). Still open: prerelease versions and picking a version other than the latest.
-- [ ] Hot reload: "Run with Watch" (`dotnet watch`).
-- [ ] Launch profile picker for F5 / Ctrl+F5 (`launchSettings.json`).
+- [x] Hot reload: "Run with Watch" (Alt+F5, or the flame on an app in the Solution view) runs `dotnet watch run`; edits apply while the app runs, rude edits restart it by themselves, and compiler errors from each attempt go to Problems. Still open: a manual "restart now" (Ctrl+R in a terminal).
+- [x] Launch profile picker: "Select Launch Profile…" lists the startup project's `launchSettings.json` profiles; the pick is remembered per project and used by F5, Ctrl+F5 and Run with Watch (`--launch-profile`). Still open: showing the current profile in the status bar.
 - [ ] New Project / New Item from `dotnet new` templates.
 - [ ] User secrets editor (`dotnet user-secrets`).
 - [ ] EF Core migrations commands (`dotnet ef migrations add/remove`, `database update`).
