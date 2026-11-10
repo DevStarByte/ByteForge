@@ -1,0 +1,148 @@
+# Builds the release downloads and publishes them as a GitHub Release.
+#
+#   git tag v0.4.0 && git push origin v0.4.0           -> release
+#   git tag v0.4.0-beta.1 && git push origin v0.4.0-beta.1 -> pre-release (any tag with a "-")
+#
+# The tag (without its "-beta.N" part) must match the version in Cargo.toml.
+# Run it by hand (Actions -> Release -> Run workflow) to build the downloads
+# as workflow artifacts without publishing anything.
+#
+# Downloads:
+#   ByteForge-<ver>-windows-x64-setup.exe   installer (current user, no admin needed)
+#   ByteForge-<ver>-windows-x64.zip         portable
+#   byteforge-<pkgver>-1-x86_64.pkg.tar.zst Arch package (`sudo pacman -U <file>`)
+# The signed [devstarbyte] pacman repo is still built by DevStarByte/arch-repo.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      pkgver: ${{ steps.v.outputs.pkgver }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          cargo_ver=$(sed -n '/^\[workspace.package\]/,/^\[/ s/^version *= *"\(.*\)"/\1/p' Cargo.toml)
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            ver=${GITHUB_REF_NAME#v}
+            if [ "${ver%%-*}" != "$cargo_ver" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml version $cargo_ver"
+              exit 1
+            fi
+          else
+            ver="$cargo_ver-dev.${GITHUB_SHA::7}"
+          fi
+          # pacman versions can't hold "-": 0.4.0-beta.1 -> 0.4.0beta.1 (sorts before 0.4.0)
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "pkgver=${ver//-/}" >> "$GITHUB_OUTPUT"
+          [[ "$ver" == *-* ]] && pre=true || pre=false
+          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
+          echo "Version $ver (pre-release: $pre)"
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release --locked -p byteforge
+
+      - name: Stage
+        shell: pwsh
+        run: |
+          $dir = "dist\ByteForge"
+          New-Item -ItemType Directory -Force "$dir\themes" | Out-Null
+          Copy-Item target\release\byteforge.exe $dir
+          Copy-Item themes\*.json "$dir\themes"
+          Copy-Item -Recurse modules "$dir\modules"
+          Copy-Item README.md, LICENSE $dir
+          Compress-Archive -Path $dir -DestinationPath "dist\ByteForge-$env:VERSION-windows-x64.zip"
+
+      - name: Installer
+        shell: pwsh
+        run: |
+          $iscc = Get-Command iscc -ErrorAction SilentlyContinue
+          if (-not $iscc) {
+            $default = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+            if (-not (Test-Path $default)) { choco install innosetup -y --no-progress | Out-Null }
+            $iscc = $default
+          } else { $iscc = $iscc.Source }
+          & $iscc /Q "/DAppVersion=$env:VERSION" "/DSourceDir=$PWD\dist\ByteForge" "/DOutputDir=$PWD\dist" packaging\windows\byteforge.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/*.zip
+            dist/*-setup.exe
+          if-no-files-found: error
+
+  arch:
+    needs: version
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      PKGVER: ${{ needs.version.outputs.pkgver }}
+    steps:
+      - name: Install git
+        run: pacman -Syu --noconfirm --needed git
+
+      - uses: actions/checkout@v4
+
+      # makepkg refuses to run as root
+      - name: Add a build user
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          chown -R builder: "$GITHUB_WORKSPACE"
+
+      - name: Build package
+        working-directory: packaging/arch
+        run: |
+          sed -i "s/^pkgver=.*/pkgver=$PKGVER/" PKGBUILD
+          sudo -u builder makepkg --syncdeps --noconfirm
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch
+          path: packaging/arch/*.pkg.tar.zst
+          if-no-files-found: error
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [version, windows, arch]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ByteForge ${{ needs.version.outputs.version }}
+          prerelease: ${{ needs.version.outputs.prerelease }}
+          generate_release_notes: true
+          files: dist/*
+          fail_on_unmatched_files: true

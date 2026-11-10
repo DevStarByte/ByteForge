@@ -59,6 +59,19 @@ sudo pacman -Sy byteforge
 dotnet tool install -g csharp-ls
 ```
 
+### Windows
+
+Download `ByteForge-<version>-windows-x64-setup.exe` (installer, no admin rights needed) or the portable
+`.zip` from [Releases](https://github.com/DevStarByte/ByteForge/releases). You also need the
+[.NET SDK](https://dotnet.microsoft.com/download) and the C# language server:
+
+```sh
+dotnet tool install -g csharp-ls
+```
+
+Pre-releases (betas) are marked as such on the Releases page; each release also carries the Arch package
+(`sudo pacman -U byteforge-*.pkg.tar.zst`) for trying a beta without the pacman repo.
+
 ### From source
 
 You need Rust 1.85+, the .NET SDK and `csharp-ls`:
