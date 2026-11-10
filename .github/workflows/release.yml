@@ -11,10 +11,6 @@
 #   ByteForge-<ver>-windows-x64-setup.exe   installer (current user, no admin needed)
 #   ByteForge-<ver>-windows-x64.zip         portable
 #   byteforge-<pkgver>-1-x86_64.pkg.tar.zst Arch package (`sudo pacman -U <file>`)
-# Stable releases are also sent to winget (DevStarByte.ByteForge) once the
-# WINGET_TOKEN secret exists: a classic token with the public_repo scope, and a
-# fork of microsoft/winget-pkgs under DevStarByte. The first version has to be
-# submitted by hand; this job only updates an existing package.
 # The signed [devstarbyte] pacman repo is still built by DevStarByte/arch-repo.
 name: Release
 
@@ -207,20 +203,3 @@ jobs:
           generate_release_notes: true
           files: dist/*
           fail_on_unmatched_files: true
-
-  winget:
-    if: github.ref_type == 'tag' && needs.version.outputs.prerelease == 'false'
-    needs: [version, release]
-    runs-on: windows-latest
-    env:
-      HAS_TOKEN: ${{ secrets.WINGET_TOKEN != '' }}
-    steps:
-      - name: Skip without token
-        if: env.HAS_TOKEN != 'true'
-        run: echo "::notice::No WINGET_TOKEN secret, not submitting to winget"
-      - uses: vedantmgoyal9/winget-releaser@v2
-        if: env.HAS_TOKEN == 'true'
-        with:
-          identifier: DevStarByte.ByteForge
-          installers-regex: '-windows-x64-setup\.exe$'
-          token: ${{ secrets.WINGET_TOKEN }}
