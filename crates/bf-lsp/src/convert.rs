@@ -248,10 +248,8 @@ pub(crate) fn flatten_hover(result: &Value) -> Option<String> {
 pub(crate) fn decode_semantic_tokens(data: &[u32], legend: &[String]) -> Vec<SemanticToken> {
     let mut tokens = Vec::with_capacity(data.len() / 5);
     let (mut line, mut start) = (0u32, 0u32);
-    for chunk in data.chunks_exact(5) {
-        let [delta_line, delta_start, length, token_type, _modifiers] = chunk else {
-            continue;
-        };
+    for chunk in data.as_chunks::<5>().0 {
+        let [delta_line, delta_start, length, token_type, _modifiers] = chunk;
         if *delta_line > 0 {
             line = line.saturating_add(*delta_line);
             start = *delta_start;

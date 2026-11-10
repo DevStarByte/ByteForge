@@ -37,11 +37,8 @@ fn csharpier_module_formats_over_the_module_protocol() {
     module.format(2, &dir.join("B.razor"), "<p>x</p>");
     let mut results = std::collections::HashMap::new();
     while results.len() < 2 {
-        match rx.recv_timeout(Duration::from_secs(60)).expect("no formatResult") {
-            PluginMessage::FormatResult { request, result, .. } => {
-                results.insert(request, result);
-            }
-            _ => {}
+        if let PluginMessage::FormatResult { request, result, .. } = rx.recv_timeout(Duration::from_secs(60)).expect("no formatResult") {
+            results.insert(request, result);
         }
     }
     module.stop();

@@ -294,9 +294,7 @@ impl Git {
 
     /// (old, new) texts for a change: HEAD ↔ index when `staged`, otherwise index ↔ working tree.
     pub fn diff_texts(&self, change: &FileChange, staged: bool) -> (String, String) {
-        let read = |p: &Path| std::fs::read(p).map(|b| String::from_utf8_lossy(&b).replace("
-", "
-")).unwrap_or_default();
+        let read = |p: &Path| std::fs::read(p).map(|b| String::from_utf8_lossy(&b).replace("\r\n", "\n")).unwrap_or_default();
         let orig = change.orig.as_deref().unwrap_or(&change.path);
         if staged {
             (self.head_content(orig).unwrap_or_default(), self.index_content(&change.path).unwrap_or_default())
@@ -609,6 +607,12 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         assert_eq!(files.len(), 1);
         assert_eq!(repo.commit_diff_texts(&log[0], &files[0]), ("class A {}\n".to_owned(), "class A { int y; }\n".to_owned()));
         assert_eq!(repo.commit_files(&log[1]).unwrap()[0].status, 'A');
+
+        // CRLF in the working tree is normalized, like the index side.
+        std::fs::write(&file, "class A {\r\n}\r\n").unwrap();
+        let change = repo.status().unwrap().change_for(&file).cloned().unwrap();
+        assert_eq!(repo.diff_texts(&change, false).1, "class A {\n}\n");
+        repo.discard(&[change]).unwrap();
 
         repo.create_branch("feature/x").unwrap();
         let branches = repo.branches().unwrap();

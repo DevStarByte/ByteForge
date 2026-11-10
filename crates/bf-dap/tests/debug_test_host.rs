@@ -57,7 +57,7 @@ fn debugging_a_test_stops_at_its_breakpoint() {
     recv(client.initialize(), "initialize");
     let attached = client.attach(json!({ "name": ".NET Attach", "type": "coreclr", "request": "attach", "processId": pid, "justMyCode": true }));
     let deadline = Instant::now() + TIMEOUT;
-    let mut next = |what: &str| events.recv_timeout(deadline.saturating_duration_since(Instant::now())).unwrap_or_else(|_| panic!("timed out waiting for {what}"));
+    let next = |what: &str| events.recv_timeout(deadline.saturating_duration_since(Instant::now())).unwrap_or_else(|_| panic!("timed out waiting for {what}"));
     while !matches!(next("initialized"), DapEvent::Initialized) {}
     client.set_breakpoints(&source, &[SourceBreakpoint { line: 8, condition: None }]).recv_timeout(TIMEOUT).unwrap().unwrap();
     recv(client.configuration_done(), "configurationDone");

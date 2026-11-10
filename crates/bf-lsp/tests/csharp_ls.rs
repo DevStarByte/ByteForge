@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-use bf_lsp::{LspClient, LspEvent, Position, ServerConfig, Severity, csharp_ls_command};
+use bf_lsp::{LspClient, LspEvent, Position, ServerConfig, csharp_ls_command};
 
 const PROGRAM: &str = r#"using System;
 

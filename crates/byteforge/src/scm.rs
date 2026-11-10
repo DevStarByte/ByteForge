@@ -879,17 +879,6 @@ impl Render for ScmView {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn short_ages() {
-        assert_eq!(super::short_age("14 minutes ago"), "14m");
-        assert_eq!(super::short_age("1 hour ago"), "1h");
-        assert_eq!(super::short_age("2 years, 3 months ago"), "2y");
-        assert_eq!(super::short_age("yesterday"), "yesterday");
-    }
-}
-
 /// Pull / push / fetch buttons for the HISTORY header (like the Graph header in VS Code), with the number of
 /// incoming and outgoing commits. An unpublished branch gets a single Publish button.
 fn remote_actions(view: &ScmView, t: &Theme, entity: &Entity<ScmView>) -> Vec<gpui::AnyElement> {
@@ -918,7 +907,7 @@ fn remote_actions(view: &ScmView, t: &Theme, entity: &Entity<ScmView>) -> Vec<gp
             .when(count > 0, |d| d.child(count.to_string()))
             .on_click(move |_, _, cx| {
                 cx.stop_propagation();
-                e.update(cx, |v, cx| run(v, cx))
+                e.update(cx, run)
             })
             .into_any_element()
     };
@@ -932,4 +921,15 @@ fn remote_actions(view: &ScmView, t: &Theme, entity: &Entity<ScmView>) -> Vec<gp
         button("history-pull", "arrowDown", s.behind, incoming, ScmView::pull),
         button("history-push", "arrowUp", s.ahead, outgoing, ScmView::push),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn short_ages() {
+        assert_eq!(super::short_age("14 minutes ago"), "14m");
+        assert_eq!(super::short_age("1 hour ago"), "1h");
+        assert_eq!(super::short_age("2 years, 3 months ago"), "2y");
+        assert_eq!(super::short_age("yesterday"), "yesterday");
+    }
 }

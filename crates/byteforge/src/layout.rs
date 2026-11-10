@@ -48,11 +48,10 @@ pub struct LayoutConfig {
 fn list(section: &Section, key: &str, default: &[&str]) -> Vec<String> {
     let Some(raw) = section.get(key) else { return default.iter().map(|s| (*s).to_owned()).collect() };
     let raw = raw.trim();
-    if raw.starts_with('[') {
-        if let Ok(items) = serde_json::from_str::<Vec<String>>(raw) {
+    if raw.starts_with('[')
+        && let Ok(items) = serde_json::from_str::<Vec<String>>(raw) {
             return items;
         }
-    }
     raw.split(',').map(str::trim).filter(|s| !s.is_empty()).map(str::to_owned).collect()
 }
 

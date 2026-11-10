@@ -107,7 +107,9 @@ impl CommandInfo {
 }
 
 /// (id, title, category, action, default key)
-fn builtin() -> Vec<(&'static str, &'static str, &'static str, Box<dyn Action>, Option<&'static str>)> {
+type Builtin = (&'static str, &'static str, &'static str, Box<dyn Action>, Option<&'static str>);
+
+fn builtin() -> Vec<Builtin> {
     vec![
         ("file.newFile", "New File", "File", Box::new(NewFile), Some("ctrl-n")),
         ("file.openFile", "Open File…", "File", Box::new(OpenFile), Some("ctrl-o")),
