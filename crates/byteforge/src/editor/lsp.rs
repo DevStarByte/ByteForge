@@ -285,18 +285,35 @@ impl EditorView {
         }
         self.clear_hover(cx);
         let range = self.hover_range(p);
+        // Paused in the debugger: the hovered expression's value comes first.
+        let debug = self.debug_evaluator.clone().and_then(|eval| Some((eval, hover_expression(&self.state.buffer.line(p.line), p.col)?)));
         let server = match (&self.lsp, &self.path) {
             (Some(lsp), Some(path)) => Some((lsp.clone(), path.clone(), self.lsp_position(p))),
-            _ if self.diagnostics_in(range).next().is_some() => None,
+            _ if self.diagnostics_in(range).next().is_some() || debug.is_some() => None,
             _ => return,
         };
         self.hover_pending = Some(range);
         self.hover_task = Some(cx.spawn(async move |this, cx| {
             // Ask only once the pointer rests on the word (dropping the task cancels this).
             cx.background_executor().timer(Duration::from_millis(400)).await;
+            let value = match debug {
+                Some((eval, expr)) => match eval(&expr).recv_async().await {
+                    Ok(Ok(r)) if !r.result.is_empty() => {
+                        let ty = r.type_name.map(|t| format!(" ({t})")).unwrap_or_default();
+                        Some(format!("```csharp\n{expr} = {}\n```\n{ty}", r.result).trim_end().to_owned())
+                    }
+                    _ => None,
+                },
+                None => None,
+            };
             let text = match server {
                 Some((lsp, path, position)) => lsp.hover(&path, position).recv_async().await.ok().and_then(Result::ok).flatten().unwrap_or_default(),
                 None => String::new(),
+            };
+            let text = match value {
+                Some(v) if text.trim().is_empty() => v,
+                Some(v) => format!("{v}\n\n---\n\n{text}"),
+                None => text,
             };
             let _ = this.update(cx, |view, cx| {
                 if view.hover_pending != Some(range) {
@@ -475,4 +492,65 @@ impl EditorView {
     }
 
     // ───────────── completion ─────────────
+}
+
+/// Evaluates an expression in the paused debugger's selected frame (set while the debugger is stopped).
+pub type DebugEvaluator = std::sync::Arc<dyn Fn(&str) -> flume::Receiver<anyhow::Result<bf_dap::EvaluateResult>> + Send + Sync>;
+
+/// The expression to show the value of when hovering `col` of `line`: the identifier there with the member
+/// chain before it (`order.Items` when hovering `Items` in `order.Items.Count`). `None` off identifiers
+/// and on keywords and literals.
+pub(crate) fn hover_expression(line: &str, col: usize) -> Option<String> {
+    let chars: Vec<char> = line.chars().collect();
+    let is_id = |c: char| c.is_alphanumeric() || c == '_' || c == '@';
+    if col >= chars.len() || !is_id(chars[col]) {
+        return None;
+    }
+    let mut end = col;
+    while end < chars.len() && is_id(chars[end]) {
+        end += 1;
+    }
+    let mut start = col;
+    while start > 0 && is_id(chars[start - 1]) {
+        start -= 1;
+    }
+    // Walk back over `.member` links (not `?.`, whose left side may be null, and not numbers like 1.5).
+    loop {
+        if start >= 2 && chars[start - 1] == '.' && is_id(chars[start - 2]) {
+            let mut s = start - 1;
+            while s > 0 && is_id(chars[s - 1]) {
+                s -= 1;
+            }
+            start = s;
+        } else {
+            break;
+        }
+    }
+    let expr: String = chars[start..end].iter().collect();
+    let first = expr.split('.').next().unwrap_or_default();
+    const KEYWORDS: &[&str] = &[
+        "var", "new", "return", "if", "else", "for", "foreach", "while", "using", "namespace", "class", "public", "private", "static", "void",
+        "int", "string", "bool", "true", "false", "null", "await", "async", "in", "is", "as", "out", "ref", "get", "set", "readonly", "const",
+    ];
+    if first.chars().next().is_some_and(|c| c.is_ascii_digit()) || (KEYWORDS.contains(&first) && !expr.contains('.')) {
+        return None;
+    }
+    Some(expr)
+}
+
+#[cfg(test)]
+mod hover_expression_tests {
+    use super::hover_expression;
+
+    #[test]
+    fn member_chains_up_to_the_hovered_name() {
+        let line = "    var n = order.Items.Count + total;";
+        assert_eq!(hover_expression(line, line.find("Items").unwrap() + 2).as_deref(), Some("order.Items"));
+        assert_eq!(hover_expression(line, line.find("Count").unwrap()).as_deref(), Some("order.Items.Count"));
+        assert_eq!(hover_expression(line, line.find("total").unwrap()).as_deref(), Some("total"));
+        assert_eq!(hover_expression(line, line.find("var").unwrap()), None);
+        assert_eq!(hover_expression(line, line.find('=').unwrap()), None);
+        assert_eq!(hover_expression("x = 1.5;", 4), None);
+        assert_eq!(hover_expression("this.name", 6).as_deref(), Some("this.name"));
+    }
 }

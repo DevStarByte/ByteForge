@@ -209,6 +209,9 @@ fn conditional_breakpoint_stops_only_when_true() {
     let top = recv(client.stack_trace(thread, 5), "stackTrace").remove(0);
     let i = recv(client.evaluate("i", Some(top.id), EvaluateContext::Watch), "evaluate i");
     assert_eq!(i.result, "2", "stopped with i = {}", i.result);
+    // What hovering `total` in the editor asks for.
+    let hovered = recv(client.evaluate("total", Some(top.id), EvaluateContext::Hover), "hover evaluate");
+    assert_eq!((hovered.result.as_str(), hovered.type_name.as_deref()), ("1", Some("int")));
     recv(client.continue_(thread), "continue");
     // No second stop: the program runs to its end.
     let code = wait_for(&events, &mut output, "exit", |e, _| match e {

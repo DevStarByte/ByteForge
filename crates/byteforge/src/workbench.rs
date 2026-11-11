@@ -156,6 +156,8 @@ enum PromptKind {
     SecretValue { file: PathBuf, key: String },
     /// A new user secret, typed as `Name = value`.
     SecretNew { file: PathBuf },
+    /// A new watch expression.
+    WatchExpression,
     /// A breakpoint's condition, hit count or log message.
     BreakpointOption { path: PathBuf, line: usize, option: debug::BreakpointOption },
 }
@@ -278,6 +280,8 @@ pub struct Workbench {
     debug_generation: u64,
     /// Breakpoints of all files (open or not), sorted by line.
     breakpoints: BTreeMap<PathBuf, Vec<crate::editor::Breakpoint>>,
+    /// Watch expressions of the opened folder (Debug view).
+    watches: Vec<String>,
     debug_console: Entity<EditorView>,
     debug_input: Entity<TextInput>,
     terminals: Vec<(Entity<TerminalView>, Subscription)>,
@@ -527,6 +531,7 @@ impl Workbench {
             debug: None,
             debug_generation: 0,
             breakpoints: BTreeMap::new(),
+            watches: Vec::new(),
             debug_console,
             debug_input,
             terminals: Vec::new(),
@@ -734,6 +739,7 @@ impl Workbench {
             });
         }
         self.load_breakpoints(cx);
+        self.load_watches();
         self.start_lsp(cx);
         for p in &self.plugins {
             p.event("folderOpened", Some(&path));

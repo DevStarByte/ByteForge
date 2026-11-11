@@ -95,6 +95,7 @@ impl Workbench {
             PromptKind::BreakpointOption { option: super::debug::BreakpointOption::Condition, .. } => "Break when this C# expression is true, e.g. order.Total > 100 (empty: always)",
             PromptKind::BreakpointOption { option: super::debug::BreakpointOption::HitCount, .. } => "Break on hit: 5 (the 5th), >= 5, % 5 (every 5th) (empty: every hit)",
             PromptKind::BreakpointOption { option: super::debug::BreakpointOption::LogMessage, .. } => "Log message instead of stopping, {expressions} filled in, e.g. total = {total} (empty: stop)",
+            PromptKind::WatchExpression => "Expression to watch, e.g. order.Items.Count (shown in the Debug view while paused)",
             PromptKind::SecretNew { .. } => "Name = value, e.g. ConnectionStrings:Default = Server=localhost;Database=Shop",
         };
         self.prompt = Some(kind);
@@ -207,6 +208,7 @@ impl Workbench {
                 }
                 PromptKind::Template(template) => self.create_from_template(template, text.clone(), window, cx)?,
                 PromptKind::EfMigrationName(cmd) => self.ef_migration_named(cmd, &text, window, cx),
+                PromptKind::WatchExpression => self.add_watch(text.trim().to_owned(), cx),
                 PromptKind::BreakpointOption { path, line, option } => self.set_breakpoint_option(path, line, option, &text, cx),
                 PromptKind::SecretValue { file, key } => self.update_secret(&file, &key, Some(&text), cx)?,
                 PromptKind::SecretNew { file } => {

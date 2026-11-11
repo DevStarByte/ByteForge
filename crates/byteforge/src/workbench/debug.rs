@@ -71,6 +71,8 @@ pub(super) struct DebugSession {
     stop_kind: String,
     /// How often each breakpoint with a hit count was hit (file, 0-based line).
     hits: HashMap<(PathBuf, usize), u64>,
+    /// Watch expression → its value in the selected frame (or why it has none).
+    watch_values: HashMap<String, String>,
     _tasks: Vec<Task<()>>,
 }
 
@@ -96,6 +98,7 @@ impl DebugSession {
             container: None,
             stop_kind: String::new(),
             hits: HashMap::new(),
+            watch_values: HashMap::new(),
             _tasks: Vec::new(),
         }
     }
@@ -905,6 +908,74 @@ impl Workbench {
                 tab.editor.update(cx, |e, cx| e.set_exec_line(None, cx));
             }
         }
+        self.set_hover_evaluator(None, cx);
+    }
+
+    /// While paused: hovering an expression in an editor shows its value in frame `frame` (`None`: running).
+    fn set_hover_evaluator(&self, target: Option<(DapClient, i64)>, cx: &mut Context<Self>) {
+        let evaluator: Option<crate::editor::DebugEvaluator> =
+            target.map(|(client, frame)| std::sync::Arc::new(move |expr: &str| client.evaluate(expr, Some(frame), EvaluateContext::Hover)) as crate::editor::DebugEvaluator);
+        for tab in &self.tabs {
+            tab.editor.update(cx, |e, _| e.debug_evaluator = evaluator.clone());
+        }
+    }
+
+    // ───────────── watch expressions ─────────────
+
+    fn watches_key(&self) -> Option<String> {
+        self.workspace.root().map(|root| format!("watches:{}", root.display()))
+    }
+
+    pub(super) fn load_watches(&mut self) {
+        self.watches = self.watches_key().and_then(|k| self.state.get(&k)).and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    }
+
+    fn save_watches(&self) {
+        let Some(key) = self.watches_key() else { return };
+        let text = serde_json::to_string(&self.watches).unwrap_or_default();
+        self.state.set(&key, (!self.watches.is_empty()).then_some(text.as_str()));
+    }
+
+    pub(super) fn add_watch(&mut self, expr: String, cx: &mut Context<Self>) {
+        if expr.is_empty() || self.watches.contains(&expr) {
+            return;
+        }
+        self.watches.push(expr);
+        self.save_watches();
+        self.refresh_watches(cx);
+    }
+
+    fn remove_watch(&mut self, expr: &str, cx: &mut Context<Self>) {
+        self.watches.retain(|w| w != expr);
+        self.save_watches();
+        cx.notify();
+    }
+
+    /// Evaluates every watch in the selected frame (after each stop and frame change).
+    fn refresh_watches(&mut self, cx: &mut Context<Self>) {
+        let Some(session) = self.debug.as_ref().filter(|s| s.phase == Phase::Stopped) else {
+            cx.notify();
+            return;
+        };
+        let (Some(client), Some(frame)) = (session.client.clone(), session.frames.get(session.frame).map(|f| f.id)) else { return };
+        let (generation, index) = (session.generation, session.frame);
+        for expr in self.watches.clone() {
+            let rx = client.evaluate(&expr, Some(frame), EvaluateContext::Watch);
+            cx.spawn(async move |this, cx| {
+                let value = match rx.recv_async().await {
+                    Ok(Ok(r)) => r.result,
+                    Ok(Err(e)) => format!("<{}>", short(&format!("{e:#}"), 80)),
+                    Err(_) => "<no answer>".into(),
+                };
+                let _ = this.update(cx, |wb, cx| {
+                    if let Some(s) = wb.debug.as_mut().filter(|s| s.generation == generation && s.frame == index) {
+                        s.watch_values.insert(expr, value);
+                        cx.notify();
+                    }
+                });
+            })
+            .detach();
+        }
     }
 
     fn debug_fetch_stack(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1059,6 +1130,11 @@ impl Workbench {
             }
         }
         let Some(client) = client else { return };
+        self.set_hover_evaluator(Some((client.clone(), frame.id)), cx);
+        if let Some(s) = self.debug.as_mut() {
+            s.watch_values.clear();
+        }
+        self.refresh_watches(cx);
         let rx = client.scopes(frame.id);
         cx.spawn(async move |this, cx| {
             let Ok(result) = rx.recv_async().await else { return };
@@ -1273,6 +1349,52 @@ impl Workbench {
                     }
                 }
             }
+        }
+
+        // Watch expressions, evaluated in the selected frame while paused.
+        col = col.child(
+            div()
+                .flex()
+                .items_center()
+                .child(div().flex_1().child(section("WATCH")))
+                .child(div().mt_2().mr_2().child(tool("watch-add", "add", "Add Watch Expression".into(), icon_fg).on_click(cx.listener(|wb, _, w, cx| wb.open_prompt(PromptKind::WatchExpression, "", w, cx))))),
+        );
+        if self.watches.is_empty() {
+            col = col.child(div().px_3().text_size(px(12.)).text_color(muted).child("Add expressions to see their values while paused."));
+        }
+        let paused = self.debug.as_ref().is_some_and(|s| s.phase == Phase::Stopped);
+        for (i, expr) in self.watches.iter().enumerate() {
+            let value = self.debug.as_ref().and_then(|s| s.watch_values.get(expr).cloned());
+            let shown = match (paused, value) {
+                (true, Some(v)) => v,
+                (true, None) => "…".into(),
+                (false, _) => "not paused".into(),
+            };
+            let remove = expr.clone();
+            col = col.child(
+                div()
+                    .id(SharedString::from(format!("watch-{i}")))
+                    .group("watch-row")
+                    .h(px(row_h))
+                    .px_3()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .text_size(t.m("list.fontSize", 13.0))
+                    .hover(|s| s.bg(hover))
+                    .child(div().flex_none().whitespace_nowrap().font_family(t.editor_font.clone()).child(expr.clone()))
+                    .child(div().flex_none().text_color(muted).child("="))
+                    .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().font_family(t.editor_font.clone()).text_color(if paused { t.c("editor.foreground") } else { muted }).child(shown))
+                    .child(
+                        div()
+                            .id(SharedString::from(format!("watch-x-{i}")))
+                            .invisible()
+                            .group_hover("watch-row", |s| s.visible())
+                            .cursor_pointer()
+                            .child(icon("close", px(14.), icon_fg))
+                            .on_click(cx.listener(move |wb, _, _, cx| wb.remove_watch(&remove, cx))),
+                    ),
+            );
         }
 
         // Breakpoints of every file.

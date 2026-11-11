@@ -33,6 +33,7 @@ use gpui::{
 use parking_lot::Mutex;
 
 pub use element::EditorElement;
+pub use lsp::DebugEvaluator;
 pub use refactor::{AfterApply, generated_name, invents_name};
 
 
@@ -232,6 +233,8 @@ pub struct EditorView {
     /// A second view of a file open in another group: it asks the server (completion, hover, …) but
     /// leaves the document's sync (open, changes, close) to the other view, which gets its edits.
     pub lsp_mirror: bool,
+    /// While the debugger is paused: evaluates the hovered expression in the selected frame.
+    pub debug_evaluator: Option<lsp::DebugEvaluator>,
     pub diagnostics: Vec<Diagnostic>,
     completion: Option<Completion>,
     completion_task: Option<Task<()>>,
@@ -365,6 +368,7 @@ impl EditorView {
             lsp: None,
             lsp_version: 0,
             lsp_mirror: false,
+            debug_evaluator: None,
             diagnostics: Vec::new(),
             completion: None,
             signature: None,
