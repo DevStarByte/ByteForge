@@ -92,6 +92,9 @@ impl Workbench {
             PromptKind::RenameSymbol { .. } => "New name (Enter to rename everywhere, Escape to cancel)",
             PromptKind::EfMigrationName(_) => "Migration name, e.g. AddOrders (EF Core: dotnet ef migrations add)",
             PromptKind::SecretValue { .. } => "New value (Enter to save, Escape to cancel)",
+            PromptKind::BreakpointOption { option: super::debug::BreakpointOption::Condition, .. } => "Break when this C# expression is true, e.g. order.Total > 100 (empty: always)",
+            PromptKind::BreakpointOption { option: super::debug::BreakpointOption::HitCount, .. } => "Break on hit: 5 (the 5th), >= 5, % 5 (every 5th) (empty: every hit)",
+            PromptKind::BreakpointOption { option: super::debug::BreakpointOption::LogMessage, .. } => "Log message instead of stopping, {expressions} filled in, e.g. total = {total} (empty: stop)",
             PromptKind::SecretNew { .. } => "Name = value, e.g. ConnectionStrings:Default = Server=localhost;Database=Shop",
         };
         self.prompt = Some(kind);
@@ -204,6 +207,7 @@ impl Workbench {
                 }
                 PromptKind::Template(template) => self.create_from_template(template, text.clone(), window, cx)?,
                 PromptKind::EfMigrationName(cmd) => self.ef_migration_named(cmd, &text, window, cx),
+                PromptKind::BreakpointOption { path, line, option } => self.set_breakpoint_option(path, line, option, &text, cx),
                 PromptKind::SecretValue { file, key } => self.update_secret(&file, &key, Some(&text), cx)?,
                 PromptKind::SecretNew { file } => {
                     let Some((key, value)) = text.split_once('=') else {

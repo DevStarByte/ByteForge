@@ -156,6 +156,8 @@ enum PromptKind {
     SecretValue { file: PathBuf, key: String },
     /// A new user secret, typed as `Name = value`.
     SecretNew { file: PathBuf },
+    /// A breakpoint's condition, hit count or log message.
+    BreakpointOption { path: PathBuf, line: usize, option: debug::BreakpointOption },
 }
 
 /// Runs when a dotnet process started by `start_dotnet` exits (argument: whether it succeeded).
@@ -203,7 +205,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
     ("Run", &[
         "debug.start", "dotnet.run", "dotnet.watch", "dotnet.restartWatch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
-        "debug.toggleBreakpoint", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
+        "debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
         "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.dropDatabase", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
         "csharp.reload",

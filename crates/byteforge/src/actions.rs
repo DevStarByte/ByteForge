@@ -63,7 +63,10 @@ actions!(terminal, [ToggleTerminal, NewTerminal, KillTerminal, TerminalCopy, Ter
 
 actions!(
     debug,
-    [StartDebugging, RestartDebugging, Pause, StepOver, StepInto, StepOut, RemoveAllBreakpoints, AttachToProcess, AttachToContainer]
+    [
+        StartDebugging, RestartDebugging, Pause, StepOver, StepInto, StepOut, RemoveAllBreakpoints, AttachToProcess, AttachToContainer,
+        AddConditionalBreakpoint, AddLogpoint, EditBreakpointHitCount
+    ]
 );
 
 actions!(
@@ -274,6 +277,9 @@ fn builtin() -> Vec<Builtin> {
         ("debug.stepInto", "Step Into", "Debug", Box::new(StepInto), Some("f11")),
         ("debug.stepOut", "Step Out", "Debug", Box::new(StepOut), Some("shift-f11")),
         ("debug.toggleBreakpoint", "Toggle Breakpoint", "Debug", Box::new(ToggleBreakpoint), Some("f9")),
+        ("debug.conditionalBreakpoint", "Add Conditional Breakpoint…", "Debug", Box::new(AddConditionalBreakpoint), None),
+        ("debug.logpoint", "Add Logpoint…", "Debug", Box::new(AddLogpoint), None),
+        ("debug.hitCount", "Edit Breakpoint Hit Count…", "Debug", Box::new(EditBreakpointHitCount), None),
         ("debug.removeAllBreakpoints", "Remove All Breakpoints", "Debug", Box::new(RemoveAllBreakpoints), None),
         ("debug.attach", "Attach to .NET Process…", "Debug", Box::new(AttachToProcess), None),
         ("debug.attachContainer", "Attach to .NET Process in Container…", "Debug", Box::new(AttachToContainer), None),

@@ -81,10 +81,27 @@ pub enum EditorEvent {
 }
 
 /// A breakpoint in the gutter (0-based line). `verified` is false while the debugger couldn't bind it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Breakpoint {
     pub line: usize,
     pub verified: bool,
+    /// Stops only when this expression is true (evaluated by the debugger).
+    pub condition: Option<String>,
+    /// Stops only on these hits: `5`, `>= 5`, `% 5` (counted by ByteForge).
+    pub hit_condition: Option<String>,
+    /// A logpoint: prints this message (with `{expression}`s filled in) instead of stopping.
+    pub log_message: Option<String>,
+}
+
+impl Breakpoint {
+    pub fn new(line: usize) -> Self {
+        Breakpoint { line, verified: true, condition: None, hit_condition: None, log_message: None }
+    }
+
+    /// Has a condition or a hit count (drawn with a mark).
+    pub fn is_conditional(&self) -> bool {
+        self.condition.is_some() || self.hit_condition.is_some()
+    }
 }
 
 struct SyntaxState {
@@ -582,7 +599,7 @@ impl EditorView {
             Ok(i) => {
                 self.breakpoints.remove(i);
             }
-            Err(i) => self.breakpoints.insert(i, Breakpoint { line, verified: true }),
+            Err(i) => self.breakpoints.insert(i, Breakpoint::new(line)),
         }
         cx.emit(EditorEvent::BreakpointsChanged);
         cx.notify();

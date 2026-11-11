@@ -271,6 +271,12 @@ impl EditorView {
             }
             entries.push(None);
         }
+        if self.glyph_margin && !self.read_only {
+            for id in ["debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount"] {
+                command(&mut entries, id);
+            }
+            entries.push(None);
+        }
         if self.blame.repo.is_some() && self.path.is_some() {
             command(&mut entries, "git.showLineCommit");
             command(&mut entries, "git.fileHistory");

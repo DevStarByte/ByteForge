@@ -67,6 +67,10 @@ pub(super) struct DebugSession {
     profile: Option<LaunchProfile>,
     browser_opened: bool,
     container: Option<ContainerPaths>,
+    /// The adapter's reason for the last stop ("breakpoint", "step", "exception", …).
+    stop_kind: String,
+    /// How often each breakpoint with a hit count was hit (file, 0-based line).
+    hits: HashMap<(PathBuf, usize), u64>,
     _tasks: Vec<Task<()>>,
 }
 
@@ -90,6 +94,8 @@ impl DebugSession {
             profile: None,
             browser_opened: false,
             container: None,
+            stop_kind: String::new(),
+            hits: HashMap::new(),
             _tasks: Vec::new(),
         }
     }
@@ -117,6 +123,63 @@ fn is_web_project(project: &Path) -> bool {
     std::fs::read_to_string(project).is_ok_and(|text| text.contains("Microsoft.NET.Sdk.Web") || text.contains("Microsoft.NET.Sdk.Razor"))
 }
 
+/// A breakpoint in the state file: a bare line number (older saves, plain breakpoints) or the line with
+/// its options.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
+enum SavedBreakpoint {
+    Line(usize),
+    WithOptions {
+        line: usize,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        condition: Option<String>,
+        #[serde(default, rename = "hitCondition", skip_serializing_if = "Option::is_none")]
+        hit_condition: Option<String>,
+        #[serde(default, rename = "logMessage", skip_serializing_if = "Option::is_none")]
+        log_message: Option<String>,
+    },
+}
+
+impl SavedBreakpoint {
+    fn from_breakpoint(b: &Breakpoint) -> Self {
+        if b.condition.is_none() && b.hit_condition.is_none() && b.log_message.is_none() {
+            SavedBreakpoint::Line(b.line)
+        } else {
+            SavedBreakpoint::WithOptions { line: b.line, condition: b.condition.clone(), hit_condition: b.hit_condition.clone(), log_message: b.log_message.clone() }
+        }
+    }
+
+    fn into_breakpoint(self) -> Breakpoint {
+        match self {
+            SavedBreakpoint::Line(line) => Breakpoint::new(line),
+            SavedBreakpoint::WithOptions { line, condition, hit_condition, log_message } => Breakpoint { condition, hit_condition, log_message, ..Breakpoint::new(line) },
+        }
+    }
+}
+
+/// What a breakpoint does besides stopping, for the Breakpoints list: "when x > 3", "hit >= 5", "log: …".
+fn breakpoint_detail(b: &Breakpoint) -> Option<String> {
+    let mut parts = Vec::new();
+    if let Some(c) = &b.condition {
+        parts.push(format!("when {c}"));
+    }
+    if let Some(h) = &b.hit_condition {
+        parts.push(format!("hit {h}"));
+    }
+    if let Some(m) = &b.log_message {
+        parts.push(format!("log: {m}"));
+    }
+    (!parts.is_empty()).then(|| parts.join(" \u{00b7} "))
+}
+
+/// Which option of a breakpoint a command edits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum BreakpointOption {
+    Condition,
+    HitCount,
+    LogMessage,
+}
+
 impl Workbench {
     fn debug_print(&self, text: impl Into<String>, cx: &mut Context<Self>) {
         let text = text.into();
@@ -137,12 +200,13 @@ impl Workbench {
     pub(super) fn load_breakpoints(&mut self, cx: &mut Context<Self>) {
         self.breakpoints.clear();
         let saved = self.breakpoints_key().and_then(|key| self.state.get(&key));
-        if let Some(map) = saved.and_then(|text| serde_json::from_str::<BTreeMap<String, Vec<usize>>>(&text).ok()) {
-            for (path, mut lines) in map {
-                lines.sort_unstable();
-                lines.dedup();
-                if !lines.is_empty() {
-                    self.breakpoints.insert(PathBuf::from(path), lines.into_iter().map(|line| Breakpoint { line, verified: true }).collect());
+        if let Some(map) = saved.and_then(|text| serde_json::from_str::<BTreeMap<String, Vec<SavedBreakpoint>>>(&text).ok()) {
+            for (path, saved) in map {
+                let mut list: Vec<Breakpoint> = saved.into_iter().map(SavedBreakpoint::into_breakpoint).collect();
+                list.sort_by_key(|b| b.line);
+                list.dedup_by_key(|b| b.line);
+                if !list.is_empty() {
+                    self.breakpoints.insert(PathBuf::from(path), list);
                 }
             }
         }
@@ -154,8 +218,8 @@ impl Workbench {
 
     fn save_breakpoints(&self) {
         let Some(key) = self.breakpoints_key() else { return };
-        let map: BTreeMap<String, Vec<usize>> =
-            self.breakpoints.iter().map(|(path, list)| (path.to_string_lossy().into_owned(), list.iter().map(|b| b.line).collect())).collect();
+        let map: BTreeMap<String, Vec<SavedBreakpoint>> =
+            self.breakpoints.iter().map(|(path, list)| (path.to_string_lossy().into_owned(), list.iter().map(SavedBreakpoint::from_breakpoint).collect())).collect();
         let text = serde_json::to_string(&map).unwrap_or_default();
         self.state.set(&key, (!map.is_empty()).then_some(text.as_str()));
     }
@@ -231,8 +295,10 @@ impl Workbench {
         let Some(session) = self.debug.as_ref().filter(|s| s.configured) else { return };
         let Some(client) = session.client.clone() else { return };
         let generation = session.generation;
-        let lines: Vec<usize> = self.breakpoints.get(path).map(|list| list.iter().map(|b| b.line).collect()).unwrap_or_default();
-        let request: Vec<SourceBreakpoint> = lines.iter().map(|line| SourceBreakpoint { line: *line as u32 + 1, condition: None }).collect();
+        let list: Vec<Breakpoint> = self.breakpoints.get(path).cloned().unwrap_or_default();
+        let lines: Vec<usize> = list.iter().map(|b| b.line).collect();
+        // The condition is the debugger's; hit counts and log messages are handled when it stops.
+        let request: Vec<SourceBreakpoint> = list.iter().map(|b| SourceBreakpoint { line: b.line as u32 + 1, condition: b.condition.clone() }).collect();
         // In a container the program was built elsewhere: netcoredbg matches a relative path by its end.
         let sent = match &session.container {
             Some(c) => PathBuf::from(bf_core::container::breakpoint_path(path, &c.root, &c.files)),
@@ -672,12 +738,13 @@ impl Workbench {
                 session.phase = Phase::Stopped;
                 session.thread_id = thread_id.or(session.thread_id);
                 session.stop_reason = description.unwrap_or_else(|| reason.clone());
+                session.stop_kind = reason.clone();
                 session.clear_stop();
                 if reason == "exception" {
                     self.debug_print(format!("Exception: {}\n", text.unwrap_or_default()), cx);
                 }
-                self.show_side(SideView::Debug, cx);
-                window.activate_window();
+                // The Debug view and the window come up once the stack shows it's a real stop (not a
+                // logpoint or a hit count still to reach).
                 self.debug_fetch_stack(window, cx);
             }
             DapEvent::Continued { .. } => {
@@ -862,7 +929,13 @@ impl Workbench {
                         }
                         // Start at the first frame with source on disk (user code).
                         let first = frames.iter().position(|f| f.path.as_ref().is_some_and(|p| p.is_file())).unwrap_or(0);
+                        let top = frames.first().cloned();
                         session.frames = frames;
+                        if wb.breakpoint_passes(top.as_ref(), cx) {
+                            return;
+                        }
+                        wb.show_side(SideView::Debug, cx);
+                        window.activate_window();
                         wb.debug_select_frame(first, window, cx);
                     }
                     Err(e) => wb.debug_print(format!("Could not read the call stack: {e:#}\n"), cx),
@@ -870,6 +943,102 @@ impl Workbench {
             });
         })
         .detach();
+    }
+
+    /// After a stop at a breakpoint with a hit count or a log message: counts the hit, prints the
+    /// logpoint's message and continues when the program shouldn't stay stopped. `true` when it continued.
+    fn breakpoint_passes(&mut self, top: Option<&StackFrame>, cx: &mut Context<Self>) -> bool {
+        let Some(session) = self.debug.as_mut().filter(|s| s.stop_kind == "breakpoint") else { return false };
+        let Some(frame) = top else { return false };
+        let Some(path) = frame.path.as_ref().map(|p| normalize_path(p)) else { return false };
+        let line = frame.line.saturating_sub(1) as usize;
+        let Some(bp) = self.breakpoints.iter().find(|(p, _)| bf_core::paths::same_path(p, &path)).and_then(|(_, list)| list.iter().find(|b| b.line == line)).cloned() else {
+            return false;
+        };
+        if let Some(condition) = &bp.hit_condition {
+            let hits = session.hits.entry((path.clone(), line)).or_insert(0);
+            *hits += 1;
+            if !bf_core::debug::hit_condition_met(condition, *hits) {
+                self.debug_continue(cx);
+                return true;
+            }
+        }
+        let Some(message) = bp.log_message.clone() else { return false };
+        let (Some(client), frame_id) = (session.client.clone(), frame.id) else { return false };
+        let generation = session.generation;
+        let parts = bf_core::debug::log_message_parts(&message);
+        cx.spawn(async move |this, cx| {
+            let mut text = String::new();
+            for part in parts {
+                match part {
+                    bf_core::debug::LogPart::Text(t) => text.push_str(&t),
+                    bf_core::debug::LogPart::Expr(e) => {
+                        let value = match client.evaluate(&e, Some(frame_id), EvaluateContext::Watch).recv_async().await {
+                            Ok(Ok(r)) => r.result,
+                            Ok(Err(err)) => format!("<{e}: {err}>"),
+                            Err(_) => format!("<{e}>"),
+                        };
+                        text.push_str(&value);
+                    }
+                }
+            }
+            let _ = this.update(cx, |wb, cx| {
+                if wb.same_session(generation) {
+                    wb.debug_print(format!("{text}\n"), cx);
+                    wb.debug_continue(cx);
+                }
+            });
+        })
+        .detach();
+        true
+    }
+
+    /// Debug: Add Conditional Breakpoint / Add Logpoint / Edit Hit Count on the caret's line: asks for the
+    /// value (empty removes it) with the current one filled in.
+    pub(super) fn edit_breakpoint_option(&mut self, option: BreakpointOption, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(editor) = self.active_editor() else { return };
+        let (path, line, glyphs) = {
+            let e = editor.read(cx);
+            (e.path.clone(), e.state.caret().line, e.glyph_margin)
+        };
+        let Some(path) = path.filter(|_| glyphs) else {
+            self.log("Breakpoints work in C# and Razor files.");
+            return;
+        };
+        let current = self.breakpoints.get(&path).and_then(|l| l.iter().find(|b| b.line == line)).and_then(|b| match option {
+            BreakpointOption::Condition => b.condition.clone(),
+            BreakpointOption::HitCount => b.hit_condition.clone(),
+            BreakpointOption::LogMessage => b.log_message.clone(),
+        });
+        self.open_prompt(PromptKind::BreakpointOption { path, line, option }, &current.unwrap_or_default(), window, cx);
+    }
+
+    /// Sets one option of the breakpoint on `line` (adding the breakpoint when there is none); an empty
+    /// value clears the option.
+    pub(super) fn set_breakpoint_option(&mut self, path: PathBuf, line: usize, option: BreakpointOption, value: &str, cx: &mut Context<Self>) {
+        let value = Some(value.trim().to_owned()).filter(|v| !v.is_empty());
+        let list = self.breakpoints.entry(path.clone()).or_default();
+        let at = match list.iter().position(|b| b.line == line) {
+            Some(i) => i,
+            None => {
+                list.push(Breakpoint::new(line));
+                list.sort_by_key(|b| b.line);
+                list.iter().position(|b| b.line == line).unwrap_or(0)
+            }
+        };
+        let bp = &mut list[at];
+        match option {
+            BreakpointOption::Condition => bp.condition = value,
+            BreakpointOption::HitCount => bp.hit_condition = value,
+            BreakpointOption::LogMessage => bp.log_message = value,
+        }
+        if let Some(session) = self.debug.as_mut() {
+            session.hits.remove(&(path.clone(), line));
+        }
+        self.sync_editor_breakpoints(&path, cx);
+        self.save_breakpoints();
+        self.debug_send_breakpoints(&path, cx);
+        cx.notify();
     }
 
     fn debug_select_frame(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
@@ -1132,7 +1301,7 @@ impl Workbench {
                         .hover(|s| s.bg(hover))
                         .child(icon("breakpoint", px(14.), color))
                         .child(div().whitespace_nowrap().child(name.clone()))
-                        .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_size(px(11.)).text_color(muted).child(dir.clone()))
+                        .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_size(px(11.)).text_color(muted).child(breakpoint_detail(b).unwrap_or_else(|| dir.clone())))
                         .child(div().flex_none().text_size(px(11.)).text_color(muted).child((line + 1).to_string()))
                         .child(
                             div()

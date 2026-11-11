@@ -877,11 +877,19 @@ impl Element for EditorElement {
                 }
                 for b in view.breakpoints.iter().filter(|b| !view.is_hidden(b.line)) {
                     let rect = Bounds::new(point(px(cx_ - d / 2.0), line_top(b.line) + px((lh - d) / 2.0)), size(px(d), px(d)));
+                    // A logpoint is a rounded square, the others a dot; a condition or hit count adds a bar.
+                    let radius = if b.log_message.is_some() { px(d * 0.22) } else { px(d / 2.0) };
                     if b.verified {
-                        window.paint_quad(quad(rect, Corners::all(px(d / 2.0)), theme.c_or("debugIcon.breakpointForeground", 0xe51400ff), 0.0, Hsla::default(), gpui::BorderStyle::Solid));
+                        let key = if b.log_message.is_some() { "debugIcon.breakpointLogForeground" } else { "debugIcon.breakpointForeground" };
+                        let color = if theme.has(key) { theme.c(key) } else { theme.c_or("debugIcon.breakpointForeground", 0xe51400ff) };
+                        window.paint_quad(quad(rect, Corners::all(radius), color, 0.0, Hsla::default(), gpui::BorderStyle::Solid));
                     } else {
                         let color = theme.c_or("debugIcon.breakpointUnverifiedForeground", 0x848484ff);
-                        window.paint_quad(quad(rect, Corners::all(px(d / 2.0)), Hsla::default(), 1.5, color, gpui::BorderStyle::Solid));
+                        window.paint_quad(quad(rect, Corners::all(radius), Hsla::default(), 1.5, color, gpui::BorderStyle::Solid));
+                    }
+                    if b.is_conditional() {
+                        let bar = Bounds::new(point(px(cx_ - d * 0.3), line_top(b.line) + px(lh / 2.0 - 0.75)), size(px(d * 0.6), px(1.5)));
+                        window.paint_quad(fill(bar, theme.c_or("editor.background", 0x1e1e1eff)));
                     }
                 }
                 if let Some((line, top)) = view.exec_line
@@ -1035,7 +1043,7 @@ impl Snap {
             git_marks: v.git_marks.iter().filter(|(l, _)| *l + 1 >= first && *l <= last + 1).copied().collect(),
             line_backgrounds: v.line_backgrounds.iter().filter(|(l, _)| *l >= first && *l <= last).copied().collect(),
             range_backgrounds: v.range_backgrounds.iter().filter(|(s, e, _)| e.line >= first && s.line <= last).copied().collect(),
-            breakpoints: v.breakpoints.iter().filter(|b| b.line >= first && b.line <= last).copied().collect(),
+            breakpoints: v.breakpoints.iter().filter(|b| b.line >= first && b.line <= last).cloned().collect(),
             test_marks: v.test_marks.iter().filter(|m| m.0 >= first && m.0 <= last).copied().collect(),
             exec_line: v.exec_line,
             word_highlights: v.word_highlights.iter().filter(|h| h.end.line >= first && h.start.line <= last).copied().collect(),

@@ -178,6 +178,48 @@ fn console_app_breakpoints_variables_and_exit() {
     let _ = client.disconnect(true).recv_timeout(Duration::from_secs(5));
 }
 
+/// A conditional breakpoint, as ByteForge sends it: netcoredbg evaluates the condition and stops only when it
+/// holds (here once, on the third pass through the loop).
+#[test]
+fn conditional_breakpoint_stops_only_when_true() {
+    let Some(adapter) = netcoredbg_command(None) else {
+        println!("SKIPPED: netcoredbg not found");
+        return;
+    };
+    let Some(tfm) = target_framework() else {
+        println!("SKIPPED: dotnet SDK not found");
+        return;
+    };
+    let project = temp_project("conditional", &[("Demo.csproj", CONSOLE_CSPROJ.replace("TFM", &tfm)), ("Program.cs", CONSOLE_PROGRAM.into())]);
+    let program = build(&project.0.join("Demo.csproj"));
+    let source = project.0.join("Program.cs");
+    let (client, events) = DapClient::start(AdapterConfig { command: adapter, args: vec!["--interpreter=vscode".into()], cwd: project.0.clone() }).expect("start netcoredbg");
+    recv(client.initialize(), "initialize");
+    let launched = client.launch(json!({ "program": program, "args": [], "cwd": project.0, "stopAtEntry": false, "justMyCode": true }));
+    let mut output = String::new();
+    wait_for(&events, &mut output, "initialized", |e, _| matches!(e, DapEvent::Initialized).then_some(()));
+    recv(client.set_breakpoints(&source, &[SourceBreakpoint { line: 4, condition: Some("i == 2".into()) }]), "setBreakpoints");
+    recv(client.configuration_done(), "configurationDone");
+    recv(launched, "launch");
+
+    let thread = wait_for(&events, &mut output, "conditional stop", |e, _| match e {
+        DapEvent::Stopped { reason, thread_id, .. } if reason == "breakpoint" => *thread_id,
+        _ => None,
+    });
+    let top = recv(client.stack_trace(thread, 5), "stackTrace").remove(0);
+    let i = recv(client.evaluate("i", Some(top.id), EvaluateContext::Watch), "evaluate i");
+    assert_eq!(i.result, "2", "stopped with i = {}", i.result);
+    recv(client.continue_(thread), "continue");
+    // No second stop: the program runs to its end.
+    let code = wait_for(&events, &mut output, "exit", |e, _| match e {
+        DapEvent::Stopped { .. } => panic!("stopped again; the condition held only once"),
+        DapEvent::Exited(code) => Some(*code),
+        _ => None,
+    });
+    assert_eq!(code, 0);
+    let _ = client.disconnect(true).recv_timeout(Duration::from_secs(5));
+}
+
 #[test]
 fn razor_page_breakpoint() {
     let Some(adapter) = netcoredbg_command(None) else {

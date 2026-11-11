@@ -808,6 +808,7 @@ dependencies = [
  "objc",
  "parking_lot",
  "pulldown-cmark",
+ "serde",
  "serde_json",
  "winresource",
 ]

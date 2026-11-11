@@ -377,3 +377,93 @@ mod tests {
         assert_eq!(listening_url("Application started."), None);
     }
 }
+
+/// Whether a breakpoint with hit condition `condition` stops on its `hits`-th hit (1-based): `5` or `= 5`
+/// (exactly the 5th), `>= 5`, `> 5`, `< 5`, `<= 5`, or `% 5` (every 5th). An unreadable condition stops.
+pub fn hit_condition_met(condition: &str, hits: u64) -> bool {
+    let c = condition.trim();
+    let (op, rest) = ["==", ">=", "<=", "=", ">", "<", "%"].iter().find_map(|op| c.strip_prefix(op).map(|r| (*op, r))).unwrap_or(("=", c));
+    let Ok(n) = rest.trim().parse::<u64>() else { return true };
+    match op {
+        ">=" => hits >= n,
+        "<=" => hits <= n,
+        ">" => hits > n,
+        "<" => hits < n,
+        "%" => n == 0 || hits % n == 0,
+        _ => hits == n,
+    }
+}
+
+/// A logpoint message split into text and `{expression}`s to evaluate (`{{` and `}}` are literal braces).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LogPart {
+    Text(String),
+    Expr(String),
+}
+
+pub fn log_message_parts(message: &str) -> Vec<LogPart> {
+    let mut parts = Vec::new();
+    let mut text = String::new();
+    let mut chars = message.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '{' if chars.peek() == Some(&'{') => {
+                chars.next();
+                text.push('{');
+            }
+            '}' if chars.peek() == Some(&'}') => {
+                chars.next();
+                text.push('}');
+            }
+            '{' => {
+                let mut expr = String::new();
+                let mut depth = 1;
+                for c in chars.by_ref() {
+                    match c {
+                        '{' => depth += 1,
+                        '}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    expr.push(c);
+                }
+                if !text.is_empty() {
+                    parts.push(LogPart::Text(std::mem::take(&mut text)));
+                }
+                parts.push(LogPart::Expr(expr.trim().to_owned()));
+            }
+            c => text.push(c),
+        }
+    }
+    if !text.is_empty() {
+        parts.push(LogPart::Text(text));
+    }
+    parts
+}
+
+#[cfg(test)]
+mod breakpoint_option_tests {
+    use super::*;
+
+    #[test]
+    fn hit_conditions() {
+        assert!(hit_condition_met("5", 5) && !hit_condition_met("5", 4) && !hit_condition_met("5", 6));
+        assert!(hit_condition_met("= 3", 3) && hit_condition_met("==3", 3));
+        assert!(hit_condition_met(">= 2", 2) && hit_condition_met(">=2", 9) && !hit_condition_met(">= 2", 1));
+        assert!(hit_condition_met("> 2", 3) && !hit_condition_met("> 2", 2));
+        assert!(hit_condition_met("% 3", 6) && !hit_condition_met("%3", 4));
+        assert!(hit_condition_met("nonsense", 1), "an unreadable condition stops");
+    }
+
+    #[test]
+    fn logpoint_messages() {
+        use LogPart::*;
+        assert_eq!(log_message_parts("total = {total}, items: {items.Count}"), [Text("total = ".into()), Expr("total".into()), Text(", items: ".into()), Expr("items.Count".into())]);
+        assert_eq!(log_message_parts("{{literal}} {new { A = 1 }.A}"), [Text("{literal} ".into()), Expr("new { A = 1 }.A".into())]);
+        assert_eq!(log_message_parts("plain"), [Text("plain".into())]);
+    }
+}

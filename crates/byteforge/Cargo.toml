@@ -10,6 +10,7 @@ name = "byteforge"
 path = "src/main.rs"
 
 [dependencies]
+serde.workspace = true
 gpui.workspace = true
 anyhow.workspace = true
 flume.workspace = true
