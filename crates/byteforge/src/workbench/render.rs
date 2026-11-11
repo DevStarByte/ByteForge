@@ -205,6 +205,7 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &Build, w, cx| wb.run_dotnet("build", w, cx)))
             .on_action(cx.listener(|wb, _: &Run, w, cx| wb.run_dotnet("run", w, cx)))
             .on_action(cx.listener(|wb, _: &RunWithWatch, w, cx| wb.run_dotnet("watch", w, cx)))
+            .on_action(cx.listener(|wb, _: &RestartWatch, w, cx| wb.restart_watch(w, cx)))
             .on_action(cx.listener(|wb, _: &SelectLaunchProfile, w, cx| wb.open_launch_profile_picker(w, cx)))
             .on_action(cx.listener(|wb, a: &UseLaunchProfile, _, cx| wb.use_launch_profile(Path::new(&a.project), &a.name, cx)))
             .on_action(cx.listener(|wb, _: &NewProject, w, cx| wb.open_template_picker(true, None, w, cx)))

@@ -9,7 +9,7 @@ actions!(
     [
         NewFile, OpenFile, OpenFolder, Save, SaveAs, SaveAll, CloseEditor, CloseAllEditors, Quit, CommandPalette, QuickOpen, GoToLine,
         ToggleSideBar, ResetActivityBarOrder, TogglePanel, ShowExplorer, ShowSearch, ShowProblems, ShowOutput, ShowModules, NextEditor, PreviousEditor,
-        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, About, CheckForUpdates, Build, Run, RunWithWatch, SelectLaunchProfile, NewProject, NewItem, ManageUserSecrets, Test, Clean, Restore, Stop,
+        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, About, CheckForUpdates, Build, Run, RunWithWatch, RestartWatch, SelectLaunchProfile, NewProject, NewItem, ManageUserSecrets, Test, Clean, Restore, Stop,
         ToggleLineEnding, ReloadCSharp, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
         GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
         FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup,
@@ -252,6 +252,7 @@ fn builtin() -> Vec<Builtin> {
         ("dotnet.build", "Build", "Run", Box::new(Build), Some("ctrl-shift-b")),
         ("dotnet.run", "Run Without Debugging", "Run", Box::new(Run), Some("ctrl-f5")),
         ("dotnet.watch", "Run with Watch (Hot Reload)", "Run", Box::new(RunWithWatch), Some("alt-f5")),
+        ("dotnet.restartWatch", "Restart Watch (Rebuild and Run Again)", "Run", Box::new(RestartWatch), Some("shift-alt-f5")),
         ("dotnet.selectLaunchProfile", "Select Launch Profile…", "Run", Box::new(SelectLaunchProfile), None),
         ("dotnet.newProject", "New Project…", "File", Box::new(NewProject), None),
         ("dotnet.newItem", "New Item from Template…", "File", Box::new(NewItem), None),

@@ -48,7 +48,7 @@ conventions: Ctrl+Space, Ctrl+Tab, Ctrl+G, Ctrl+F5 and Ctrl+\` stay on ⌃; Repl
 | Ctrl+B / Ctrl+J | Toggle side bar / panel | Ctrl+Shift+E / F | Explorer / Search |
 | Ctrl+Shift+B | Build | F5 | Start debugging / Continue |
 | Ctrl+F5 | Run without debugging | Shift+F5 | Stop |
-| Alt+F5 | Run with Watch (hot reload) | | |
+| Alt+F5 | Run with Watch (hot reload) | Shift+Alt+F5 | Restart Watch |
 | F9 | Toggle breakpoint | F10 / F11 / Shift+F11 | Step over / into / out |
 | F6 | Pause | Ctrl+Shift+F5 | Restart debugging |
 | Ctrl+Shift+D | Run and Debug | Ctrl+Shift+Y | Debug Console |

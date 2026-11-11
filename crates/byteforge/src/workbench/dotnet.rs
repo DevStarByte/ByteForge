@@ -37,6 +37,7 @@ impl Workbench {
                 if let Some(profile) = self.chosen_launch_profile(target) {
                     args.extend(["--launch-profile".into(), profile]);
                 }
+                self.watch_target = (verb == "watch").then(|| target.to_path_buf());
                 if verb == "watch" {
                     // No terminal to answer "restart?" prompts: restart by itself after edits hot reload can't apply.
                     env.push(("DOTNET_WATCH_RESTART_ON_RUDE_EDIT".to_owned(), "1".to_owned()));
@@ -60,6 +61,40 @@ impl Workbench {
             _ => vec![verb.to_owned(), target_arg],
         };
         self.start_dotnet_with(root, args, env, on_line, None, window, cx);
+    }
+
+    /// "Restart Watch": stops `dotnet watch` and starts it again (a full rebuild and a fresh process, what
+    /// Ctrl+R does in a terminal; the watch here has no terminal to read keys from).
+    pub(super) fn restart_watch(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let running = self.dotnet.as_ref().is_some_and(DotnetProcess::is_running);
+        let Some(target) = self.watch_target.clone().filter(|_| running) else {
+            if running {
+                self.log("Restart Watch: the running process isn't dotnet watch. Stop it first (Shift+F5).");
+                return;
+            }
+            return self.run_dotnet("watch", window, cx);
+        };
+        let Some(root) = self.workspace.root() else { return };
+        if let Some(process) = &self.dotnet {
+            process.kill();
+        }
+        self.log("Restarting dotnet watch…");
+        cx.spawn_in(window, async move |this, cx| {
+            // Wait for the old process to be gone (it gets a few seconds to stop).
+            for _ in 0..80 {
+                cx.background_executor().timer(std::time::Duration::from_millis(100)).await;
+                let gone = this.update(cx, |wb, _| wb.dotnet.as_ref().is_none_or(|d| !d.is_running())).unwrap_or(true);
+                if gone {
+                    break;
+                }
+            }
+            let _ = this.update_in(cx, |wb, window, cx| {
+                wb.dotnet = None;
+                wb.save_all(window, cx);
+                wb.start_dotnet_verb(root, "watch", &target, window, cx);
+            });
+        })
+        .detach();
     }
 
     // ───────────── launch profiles ─────────────

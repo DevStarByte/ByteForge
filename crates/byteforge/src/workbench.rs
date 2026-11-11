@@ -196,7 +196,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.fileHistory", "git.showLineCommit", "git.toggleBlame", "-",
         "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
     ("Run", &[
-        "debug.start", "dotnet.run", "dotnet.watch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
+        "debug.start", "dotnet.run", "dotnet.watch", "dotnet.restartWatch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
         "debug.toggleBreakpoint", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
         "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.dropDatabase", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
@@ -260,6 +260,8 @@ pub struct Workbench {
     lsp_task: Option<Task<()>>,
     dotnet: Option<DotnetProcess>,
     dotnet_task: Option<Task<()>>,
+    /// The project the running (or last) `dotnet watch` was started for, so it can be restarted.
+    watch_target: Option<PathBuf>,
     /// Compiler errors and warnings from the last build (Razor files only get diagnostics this way).
     build_problems: Vec<(PathBuf, crate::editor::Diagnostic)>,
     debug: Option<debug::DebugSession>,
@@ -508,6 +510,7 @@ impl Workbench {
             lsp_task: None,
             dotnet: None,
             dotnet_task: None,
+            watch_target: None,
             build_problems: Vec::new(),
             debug: None,
             debug_generation: 0,
@@ -984,6 +987,7 @@ pub(crate) fn default_key(id: &str) -> String {
         "dotnet.build" => "ctrl-shift-b",
         "dotnet.run" => "ctrl-f5",
         "dotnet.watch" => "alt-f5",
+        "dotnet.restartWatch" => "shift-alt-f5",
         "debug.start" => "f5",
         "debug.restart" => "ctrl-shift-f5",
         "debug.pause" => "f6",
