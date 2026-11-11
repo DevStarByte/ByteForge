@@ -29,9 +29,9 @@ The language server already supports all of these; the client needs the requests
 - [x] Solution view: projects from the `.sln`/`.slnx` in their solution folders (or every `.csproj` without a solution), with target framework and kind, NuGet packages (central versions from `Directory.Packages.props` included) and project references; build, run, test, reveal and open from each project.
 - [x] NuGet: search the feeds as you type ("NuGet: Add Package…" or + on a project's Packages), update and remove from the Solution view, and "Check for Package Updates" marks newer versions (`dotnet package search`, `dotnet add/remove package`, `dotnet list package --outdated`). Still open: prerelease versions and picking a version other than the latest.
 - [x] Hot reload: "Run with Watch" (Alt+F5, or the flame on an app in the Solution view) runs `dotnet watch run`; edits apply while the app runs, rude edits restart it by themselves, and compiler errors from each attempt go to Problems. Still open: a manual "restart now" (Ctrl+R in a terminal).
-- [x] Launch profile picker: "Select Launch Profile…" lists the startup project's `launchSettings.json` profiles; the pick is remembered per project and used by F5, Ctrl+F5 and Run with Watch (`--launch-profile`). Still open: showing the current profile in the status bar.
-- [ ] New Project / New Item from `dotnet new` templates.
-- [ ] User secrets editor (`dotnet user-secrets`).
+- [x] Launch profile picker: "Select Launch Profile…" lists the startup project's `launchSettings.json` profiles; the pick is remembered per project and used by F5, Ctrl+F5 and Run with Watch (`--launch-profile`). The current profile shows in the status bar; click it to switch.
+- [x] New Project / New Item: New Project lists the `dotnet new` project templates, creates the project in its own folder and adds it to the solution; New Item (File menu, palette, or right-click a folder in the Explorer) offers C# class, interface, record, enum and struct with the namespace from the project and folder, plus the SDK's item templates (controllers, Razor pages, `.gitignore`, `Directory.Build.props`, …).
+- [x] User secrets: "Manage User Secrets" opens `secrets.json` of the current file's project (or the startup project), running `dotnet user-secrets init` first when the project has none. Still open: a form view instead of the JSON.
 - [ ] EF Core migrations commands (`dotnet ef migrations add/remove`, `database update`).
 
 ## 4. Nice to have

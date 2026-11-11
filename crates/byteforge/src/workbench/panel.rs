@@ -272,6 +272,17 @@ impl Workbench {
                             }))
                             .into_any_element(),
                     ],
+                    "launchProfile" => self
+                        .status_profile
+                        .clone()
+                        .map(|profile| {
+                            item(name, id("lp"), Some("layers"), profile)
+                                .tooltip(tooltip("Launch profile for F5 and Run (click to change)"))
+                                .on_click(cx.listener(|wb, _, w, cx| wb.open_launch_profile_picker(w, cx)))
+                                .into_any_element()
+                        })
+                        .into_iter()
+                        .collect(),
                     "modules" => self
                         .plugin_status
                         .iter()

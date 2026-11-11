@@ -20,6 +20,8 @@ pub enum ExplorerEvent {
     Move { from: PathBuf, to_dir: PathBuf },
     NewFile(PathBuf),
     NewFolder(PathBuf),
+    /// New item from a template (class, interface, `dotnet new` item templates) in this folder.
+    NewItem(PathBuf),
     Rename(PathBuf),
     Delete(PathBuf),
     OpenFolderRequested,
@@ -438,7 +440,7 @@ impl Render for Explorer {
 
         let menu = self.menu.clone().map(|(path, pos)| {
             let item = |id: &'static str, label: &'static str| crate::menu::item(&t, id, label, None);
-            let (p1, p2, p3, p4, p5) = (path.clone(), path.clone(), path.clone(), path.clone(), path.clone());
+            let (p1, p2, p3, p4, p5, p6) = (path.clone(), path.clone(), path.clone(), path.clone(), path.clone(), path.clone());
             gpui::deferred(
                 gpui::anchored().position(pos).child(
                     crate::menu::panel(&t, 180.)
@@ -450,6 +452,11 @@ impl Render for Explorer {
                             e.menu = None;
                             let dir = if p1.is_dir() { p1.clone() } else { p1.parent().map(Path::to_path_buf).unwrap_or_default() };
                             cx.emit(ExplorerEvent::NewFile(dir));
+                        })))
+                        .child(item("m-newitem", "New Item from Template…").on_click(cx.listener(move |e, _, _, cx| {
+                            e.menu = None;
+                            let dir = if p6.is_dir() { p6.clone() } else { p6.parent().map(Path::to_path_buf).unwrap_or_default() };
+                            cx.emit(ExplorerEvent::NewItem(dir));
                         })))
                         .child(item("m-newfolder", "New Folder…").on_click(cx.listener(move |e, _, _, cx| {
                             e.menu = None;

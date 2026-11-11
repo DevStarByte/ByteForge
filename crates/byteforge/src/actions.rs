@@ -9,7 +9,7 @@ actions!(
     [
         NewFile, OpenFile, OpenFolder, Save, SaveAs, SaveAll, CloseEditor, CloseAllEditors, Quit, CommandPalette, QuickOpen, GoToLine,
         ToggleSideBar, TogglePanel, ShowExplorer, ShowSearch, ShowProblems, ShowOutput, ShowModules, NextEditor, PreviousEditor,
-        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, About, Build, Run, RunWithWatch, SelectLaunchProfile, Test, Clean, Restore, Stop,
+        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, About, Build, Run, RunWithWatch, SelectLaunchProfile, NewProject, NewItem, ManageUserSecrets, Test, Clean, Restore, Stop,
         ToggleLineEnding, ReloadCSharp, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
         GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
         FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup,
@@ -80,6 +80,17 @@ pub struct AttachToPid {
 pub struct UseLaunchProfile {
     pub project: String,
     pub name: String,
+}
+
+/// Creates something from a template (picked in New Project / New Item): `template` is a `dotnet new`
+/// short name, or `csharp:<keyword>` for ByteForge's own C# items; `dir` is the folder for an item.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = dotnet, no_json)]
+pub struct UseTemplate {
+    pub template: String,
+    pub title: String,
+    pub project: bool,
+    pub dir: String,
 }
 
 /// Makes `shell` the terminal's default (empty: the login shell, `$SHELL`) and opens a terminal with it.
@@ -171,6 +182,9 @@ fn builtin() -> Vec<Builtin> {
         ("dotnet.run", "Run Without Debugging", "Run", Box::new(Run), Some("ctrl-f5")),
         ("dotnet.watch", "Run with Watch (Hot Reload)", "Run", Box::new(RunWithWatch), Some("alt-f5")),
         ("dotnet.selectLaunchProfile", "Select Launch Profile…", "Run", Box::new(SelectLaunchProfile), None),
+        ("dotnet.newProject", "New Project…", "File", Box::new(NewProject), None),
+        ("dotnet.newItem", "New Item from Template…", "File", Box::new(NewItem), None),
+        ("dotnet.userSecrets", "Manage User Secrets", ".NET", Box::new(ManageUserSecrets), None),
         ("dotnet.test", "Test", "Run", Box::new(Test), None),
         ("dotnet.clean", "Clean", "Run", Box::new(Clean), None),
         ("dotnet.restore", "Restore", "Run", Box::new(Restore), None),

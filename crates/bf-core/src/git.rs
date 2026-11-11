@@ -240,16 +240,7 @@ impl Git {
 
     pub fn branches(&self) -> anyhow::Result<Vec<Branch>> {
         let text = run(&self.root, &["branch", "-a", "--format=%(HEAD)%00%(refname:short)%00%(refname)"])?;
-        Ok(text
-            .lines()
-            .filter_map(|line| {
-                let mut parts = line.split('\0');
-                let head = parts.next()?;
-                let name = parts.next()?.to_owned();
-                let full = parts.next().unwrap_or_default();
-                (!name.ends_with("/HEAD") && !name.is_empty()).then(|| Branch { name, current: head == "*", remote: full.starts_with("refs/remotes/") })
-            })
-            .collect())
+        Ok(parse_branches(&text))
     }
 
     pub fn checkout(&self, branch: &Branch) -> anyhow::Result<String> {
@@ -510,8 +501,29 @@ pub fn unified_diff(base: &str, current: &str, old_name: &str, new_name: &str) -
     similar::TextDiff::from_lines(base, current).unified_diff().context_radius(3).header(old_name, new_name).to_string()
 }
 
+/// Parses `git branch -a --format=%(HEAD)%00%(refname:short)%00%(refname)`. Remote HEAD pointers are left
+/// out by their full name: newer git shortens `refs/remotes/origin/HEAD` to just `origin`.
+fn parse_branches(text: &str) -> Vec<Branch> {
+    text.lines()
+        .filter_map(|line| {
+            let mut parts = line.split('\0');
+            let head = parts.next()?;
+            let name = parts.next()?.to_owned();
+            let full = parts.next().unwrap_or_default();
+            (!full.ends_with("/HEAD") && !name.is_empty()).then(|| Branch { name, current: head == "*", remote: full.starts_with("refs/remotes/") })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn remote_head_is_not_a_branch() {
+        let text = "*\0master\0refs/heads/master\n \0origin\0refs/remotes/origin/HEAD\n \0origin/master\0refs/remotes/origin/master\n";
+        let names: Vec<String> = super::parse_branches(text).into_iter().map(|b| b.name).collect();
+        assert_eq!(names, ["master", "origin/master"]);
+    }
+
     use super::*;
 
     #[test]

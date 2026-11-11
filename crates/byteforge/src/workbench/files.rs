@@ -52,6 +52,7 @@ impl Workbench {
             }
             ExplorerEvent::NewFile(dir) => self.open_prompt(PromptKind::NewFile(dir.clone()), "", window, cx),
             ExplorerEvent::NewFolder(dir) => self.open_prompt(PromptKind::NewFolder(dir.clone()), "", window, cx),
+            ExplorerEvent::NewItem(dir) => self.open_template_picker(false, Some(dir.clone()), window, cx),
             ExplorerEvent::Rename(path) => {
                 let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                 self.open_prompt(PromptKind::Rename(path.clone()), &name, window, cx);

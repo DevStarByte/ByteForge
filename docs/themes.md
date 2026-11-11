@@ -66,7 +66,7 @@ comma-separated strings:
   "titleBar.left": ["logo", "menu"], "titleBar.center": ["commandCenter"],
   "titleBar.right": ["layoutControls", "windowControls"],
   "activityBar.items": ["explorer", "search", "scm", "modules", "spacer", "settings"],
-  "statusBar.left": ["branch", "sync", "problems", "run", "modules"], "statusBar.center": [],
+  "statusBar.left": ["branch", "sync", "problems", "run", "launchProfile", "modules"], "statusBar.center": [],
   "statusBar.right": ["modules", "position", "indent", "encoding", "eol", "language", "lsp"],
   "panel.tabs": ["problems", "output"], "menuBar.menus": ["File", "Edit", "View", "Go", "Git", "Run", "Preferences", "Help"],
   "welcome.order": ["logo", "title", "shortcuts"], "welcome.title": "ByteForge",
@@ -77,7 +77,7 @@ comma-separated strings:
 
 - **Title bar parts:** logo, menu, title, commandCenter, branch, layoutControls (toggleSideBar, togglePanel,
   themePicker), windowControls, spacer.
-- **Status bar parts:** branch, sync, file, problems, errors, warnings, run, modules, position, indent, encoding,
+- **Status bar parts:** branch, sync, file, problems, errors, warnings, run, launchProfile, modules, position, indent, encoding,
   eol, language, lsp, spacer, and `text:<anything>` for fixed text. Each part can have its own colors and weight:
   `statusBarItem.<part>.background/foreground` (colors) and `statusBarItem.<part>.weight` (fonts).
   `statusBar.positionFormat` sets the cursor position text (`{line}`, `{col}`, `{lines}`).

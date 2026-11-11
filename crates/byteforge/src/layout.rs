@@ -112,7 +112,7 @@ impl LayoutConfig {
             title_left: list(s, "titleBar.left", &title_left),
             title_center: list(s, "titleBar.center", title_center),
             title_right: list(s, "titleBar.right", &title_right),
-            status_left: list(s, "statusBar.left", &["branch", "sync", "problems", "run", "modules"]),
+            status_left: list(s, "statusBar.left", &["branch", "sync", "problems", "run", "launchProfile", "modules"]),
             status_center: list(s, "statusBar.center", &[]),
             status_right: list(s, "statusBar.right", &["modules", "position", "indent", "encoding", "eol", "language", "lsp"]),
             activity_items: list(s, "activityBar.items", &["explorer", "search", "scm", "debug", "testing", "solution", "modules", "spacer", "settings"]),

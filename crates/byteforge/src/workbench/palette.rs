@@ -77,12 +77,18 @@ impl Workbench {
     }
 
     pub(super) fn open_prompt(&mut self, kind: PromptKind, initial: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let template_title;
         let placeholder = match &kind {
             PromptKind::NewFile(_) => "New file name",
             PromptKind::NewFolder(_) => "New folder name",
             PromptKind::Rename(_) => "New name",
             PromptKind::CustomizeTheme => "Name for your theme (inherits everything from the current theme)",
             PromptKind::CreateBranch => "New branch name (created from the current HEAD and checked out)",
+            PromptKind::Template(t) if t.project => "Project name (a folder with this name is created)",
+            PromptKind::Template(t) => {
+                template_title = format!("{} name", t.title);
+                template_title.as_str()
+            }
             PromptKind::RenameSymbol { .. } => "New name (Enter to rename everywhere, Escape to cancel)",
         };
         self.prompt = Some(kind);
@@ -193,6 +199,7 @@ impl Workbench {
                         editor.update(cx, |e, cx| e.rename_symbol(at, text.clone(), cx));
                     }
                 }
+                PromptKind::Template(template) => self.create_from_template(template, text.clone(), window, cx)?,
                 PromptKind::CreateBranch => {
                     let name = text.replace(' ', "-");
                     self.scm.update(cx, |s, cx| s.create_branch(name, cx));

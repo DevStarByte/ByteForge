@@ -144,7 +144,7 @@ impl Workbench {
 }
 
 /// The nearest `.csproj` in the file's folder or a parent folder (up to the workspace root).
-fn owning_project(file: &Path, root: &Path) -> Option<PathBuf> {
+pub(super) fn owning_project(file: &Path, root: &Path) -> Option<PathBuf> {
     if file.extension().is_some_and(|e| e == "csproj") {
         return Some(file.to_path_buf());
     }

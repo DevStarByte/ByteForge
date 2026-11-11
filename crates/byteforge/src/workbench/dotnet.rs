@@ -76,7 +76,7 @@ impl Workbench {
     }
 
     /// The project F5 and Ctrl+F5 start.
-    fn startup_project(&self) -> Option<PathBuf> {
+    pub(super) fn startup_project(&self) -> Option<PathBuf> {
         let root = self.workspace.root()?;
         let configured = self.settings.get_string("dotnet.project");
         find_target(&root, configured.as_deref(), true).filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("csproj")))
@@ -120,6 +120,7 @@ impl Workbench {
         self.state.set(&Self::launch_profile_key(project), Some(name));
         let project_name = project.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         self.log(format!("{project_name} now runs with launch profile \"{name}\"."));
+        self.refresh_status_profile();
         cx.notify();
     }
 

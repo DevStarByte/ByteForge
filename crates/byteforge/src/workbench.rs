@@ -19,6 +19,7 @@ mod render;
 mod solution;
 mod symbols;
 mod tabs;
+mod templates;
 mod terminals;
 mod testing;
 mod title_bar;
@@ -140,6 +141,8 @@ enum PromptKind {
     Rename(PathBuf),
     CustomizeTheme,
     CreateBranch,
+    /// Name for a new project or item from this template.
+    Template(crate::actions::UseTemplate),
     RenameSymbol { editor: gpui::WeakEntity<EditorView>, at: Point, old: String },
 }
 
@@ -175,13 +178,13 @@ struct StatusEntry {
 }
 
 pub(crate) const MENUS: &[(&str, &[&str])] = &[
-    ("File", &["file.newFile", "file.openFile", "file.openFolder", "-", "file.save", "file.saveAs", "file.saveAll", "-", "file.close", "file.closeAll", "-", "app.exit"]),
+    ("File", &["file.newFile", "dotnet.newItem", "dotnet.newProject", "-", "file.openFile", "file.openFolder", "-", "file.save", "file.saveAs", "file.saveAll", "-", "file.close", "file.closeAll", "-", "app.exit"]),
     ("Edit", &["edit.undo", "edit.redo", "-", "edit.find", "edit.replace", "-", "edit.toggleComment", "edit.duplicateLines", "edit.triggerSuggest", "edit.signatureHelp", "-", "edit.rename", "-", "edit.toggleLineEnding"]),
     ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.toggleSideBar", "view.togglePanel"]),
     ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.init"]),
     ("Run", &[
-        "debug.start", "dotnet.run", "dotnet.watch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
+        "debug.start", "dotnet.run", "dotnet.watch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
         "debug.toggleBreakpoint", "debug.removeAllBreakpoints", "debug.attach", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
         "csharp.reload",
@@ -219,6 +222,12 @@ pub struct Workbench {
     /// The project the NuGet search in the palette adds to.
     package_target: Option<PathBuf>,
     package_search: Option<Task<()>>,
+    /// `dotnet new list` results, loaded the first time New Project / New Item opens.
+    project_templates: Option<Vec<bf_core::templates::Template>>,
+    item_templates: Option<Vec<bf_core::templates::Template>>,
+    template_task: Option<Task<()>>,
+    /// The startup project's launch profile, shown in the status bar ("launchProfile").
+    status_profile: Option<String>,
     prompt: Option<PromptKind>,
     side: SideView,
     side_visible: bool,
@@ -417,6 +426,7 @@ impl Workbench {
                         AppEvent::SettingsChanged => wb.apply_settings(window, cx),
                         AppEvent::FilesChanged => {
                             wb.explorer.update(cx, |e, cx| e.refresh(cx));
+                            wb.refresh_status_profile();
                             for p in &wb.plugins {
                                 p.event("filesChanged", None);
                             }
@@ -459,6 +469,10 @@ impl Workbench {
             symbol_task: None,
             package_target: None,
             package_search: None,
+            project_templates: None,
+            item_templates: None,
+            template_task: None,
+            status_profile: None,
             prompt: None,
             side: SideView::Explorer,
             side_visible: true,
@@ -521,6 +535,7 @@ impl Workbench {
         let auto_reveal = wb.settings.get("explorer.autoReveal", true);
         wb.explorer.update(cx, |e, _| e.auto_reveal = auto_reveal);
         crate::explorer::set_native_icons(wb.settings.get("explorer.nativeIcons", true));
+        wb.refresh_status_profile();
         wb.apply_window_effects(window, cx);
         wb.start_plugins(event_tx, cx);
 
@@ -613,6 +628,7 @@ impl Workbench {
         let auto_reveal = self.settings.get("explorer.autoReveal", true);
         self.explorer.update(cx, |e, _| e.auto_reveal = auto_reveal);
         crate::explorer::set_native_icons(self.settings.get("explorer.nativeIcons", true));
+        self.refresh_status_profile();
         let overrides: HashMap<String, String> = self.settings.get("keybindings", HashMap::new());
         let mut bindings = Vec::new();
         let commands = cx.global::<Commands>();
