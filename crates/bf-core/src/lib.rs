@@ -4,6 +4,7 @@
 pub mod debug;
 pub mod diff;
 pub mod dotnet;
+pub mod ef;
 pub mod git;
 pub mod links;
 pub mod nuget;

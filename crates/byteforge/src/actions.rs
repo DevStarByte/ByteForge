@@ -35,6 +35,19 @@ pub struct AddPackageTo {
 
 actions!(nuget, [AddPackage, CheckPackageUpdates]);
 
+actions!(ef, [EfAddMigration, EfRemoveMigration, EfUpdateDatabase, EfUpdateDatabaseTo, EfGenerateScript, EfDropDatabase]);
+
+/// An EF Core migrations command, filled in step by step (context picked, name typed, …): `op` is add,
+/// remove, update, update-to, script or drop; empty fields are still to be asked.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = ef, no_json)]
+pub struct EfCommand {
+    pub op: String,
+    pub project: String,
+    pub context: String,
+    pub arg: String,
+}
+
 actions!(explorer, [RenameEntry]);
 
 actions!(terminal, [ToggleTerminal, NewTerminal, KillTerminal, TerminalCopy, TerminalPaste, SelectDefaultShell]);
@@ -198,6 +211,12 @@ fn builtin() -> Vec<Builtin> {
         ("dotnet.newProject", "New Project…", "File", Box::new(NewProject), None),
         ("dotnet.newItem", "New Item from Template…", "File", Box::new(NewItem), None),
         ("dotnet.userSecrets", "Manage User Secrets", ".NET", Box::new(ManageUserSecrets), None),
+        ("ef.addMigration", "Add Migration…", "EF Core", Box::new(EfAddMigration), None),
+        ("ef.removeMigration", "Remove Last Migration", "EF Core", Box::new(EfRemoveMigration), None),
+        ("ef.updateDatabase", "Update Database", "EF Core", Box::new(EfUpdateDatabase), None),
+        ("ef.updateDatabaseTo", "Update Database to Migration…", "EF Core", Box::new(EfUpdateDatabaseTo), None),
+        ("ef.script", "Generate SQL Script", "EF Core", Box::new(EfGenerateScript), None),
+        ("ef.dropDatabase", "Drop Database…", "EF Core", Box::new(EfDropDatabase), None),
         ("dotnet.test", "Test", "Run", Box::new(Test), None),
         ("dotnet.clean", "Clean", "Run", Box::new(Clean), None),
         ("dotnet.restore", "Restore", "Run", Box::new(Restore), None),

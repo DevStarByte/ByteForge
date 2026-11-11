@@ -99,7 +99,7 @@ pub fn discover(root: &Path) -> Vec<TestProject> {
     result
 }
 
-fn collect_sources(dir: &Path, skip: &[&Path], depth: usize, out: &mut Vec<PathBuf>) {
+pub(crate) fn collect_sources(dir: &Path, skip: &[&Path], depth: usize, out: &mut Vec<PathBuf>) {
     if depth > 8 {
         return;
     }

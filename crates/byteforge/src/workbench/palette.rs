@@ -90,6 +90,7 @@ impl Workbench {
                 template_title.as_str()
             }
             PromptKind::RenameSymbol { .. } => "New name (Enter to rename everywhere, Escape to cancel)",
+            PromptKind::EfMigrationName(_) => "Migration name, e.g. AddOrders (EF Core: dotnet ef migrations add)",
         };
         self.prompt = Some(kind);
         let palette = cx.new(|cx| Palette::new(Mode::Prompt, Vec::new(), placeholder, initial, window, cx));
@@ -200,6 +201,7 @@ impl Workbench {
                     }
                 }
                 PromptKind::Template(template) => self.create_from_template(template, text.clone(), window, cx)?,
+                PromptKind::EfMigrationName(cmd) => self.ef_migration_named(cmd, &text, window, cx),
                 PromptKind::CreateBranch => {
                     let name = text.replace(' ', "-");
                     self.scm.update(cx, |s, cx| s.create_branch(name, cx));

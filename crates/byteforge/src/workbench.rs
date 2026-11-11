@@ -4,6 +4,7 @@ mod bars;
 mod debug;
 mod dotnet;
 mod editor_area;
+mod ef;
 mod files;
 mod git;
 mod lsp;
@@ -147,6 +148,8 @@ enum PromptKind {
     /// Name for a new project or item from this template.
     Template(crate::actions::UseTemplate),
     RenameSymbol { editor: gpui::WeakEntity<EditorView>, at: Point, old: String },
+    /// Name of a new EF Core migration.
+    EfMigrationName(crate::actions::EfCommand),
 }
 
 /// Runs when a dotnet process started by `start_dotnet` exits (argument: whether it succeeded).
@@ -194,6 +197,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
     ("Run", &[
         "debug.start", "dotnet.run", "dotnet.watch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
         "debug.toggleBreakpoint", "debug.removeAllBreakpoints", "debug.attach", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
+        "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.dropDatabase", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
         "csharp.reload",
     ]),

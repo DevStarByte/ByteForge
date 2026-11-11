@@ -31,6 +31,8 @@ live, and modules written in any language can extend it.
 - **Razor and MSBuild:** highlighting for `.razor`, `.cshtml`, `.csproj` and other XML project files
 - **Debugger:** breakpoints, stepping, variables and a Debug Console through netcoredbg; F5 runs ASP.NET Core apps
   with their launch profile (shown in the status bar; click it or use "Select Launch Profile…" to switch)
+- **EF Core migrations:** add, remove, update the database (to any migration), generate SQL scripts and drop the
+  database from the Run menu, with the `DbContext` and migrations found in the source
 - **Hot reload:** "Run with Watch" (Alt+F5) runs the app under `dotnet watch`, applies edits while it runs and
   restarts by itself when an edit can't be applied
 - **Templates:** New Project from any `dotnet new` template (added to the solution), New Item with C# class,
