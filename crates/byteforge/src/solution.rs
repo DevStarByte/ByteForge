@@ -160,6 +160,9 @@ impl SolutionView {
                 }));
             }
             let refs = format!("refs:{}", project.path.display());
+            if project.references.is_empty() {
+                continue;
+            }
             out.push(Entry::Group { key: refs.clone(), label: "Projects", count: project.references.len(), depth: depth + 1, project: project.path.clone() });
             if self.expanded.contains(&refs) {
                 out.extend(project.references.iter().map(|r| Entry::Reference {
@@ -249,6 +252,11 @@ impl SolutionView {
     }
 }
 
+/// A row's name: keeps its width while there's room, then ends in "…" (before the muted detail gives way).
+fn name_cell(name: String) -> gpui::Div {
+    div().min_w_0().flex_shrink().overflow_hidden().whitespace_nowrap().text_ellipsis().child(name)
+}
+
 fn project_key(path: &Path) -> String {
     format!("project:{}", path.display())
 }
@@ -326,7 +334,7 @@ impl Render for SolutionView {
                             .cursor_pointer()
                             .hover(|s| s.bg(t.c("list.hoverBackground")))
                     };
-                    let detail = |text: String| div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_size(px(11.)).text_color(t.c("foreground.muted")).child(text);
+                    let detail = |text: String| div().flex_1().flex_basis(px(0.)).min_w_0().overflow_hidden().whitespace_nowrap().text_size(px(11.)).text_color(t.c("foreground.muted")).child(text);
                     let chevron = |open: bool| icon(if open { "chevronDown" } else { "chevronRight" }, px(14.), t.c("icon.foreground"));
                     let blank = || div().w(px(14.)).flex_none();
                     match view.entries[ix].clone() {
@@ -336,7 +344,7 @@ impl Render for SolutionView {
                             row(depth)
                                 .child(chevron(open))
                                 .child(icon(if open { "folderOpen" } else { "folder" }, px(14.), t.c_or("icon.folder", 0xdcb67aff)))
-                                .child(div().whitespace_nowrap().child(name))
+                                .child(name_cell(name))
                                 .child(detail(if count == 1 { "1 project".into() } else { format!("{count} projects") }))
                                 .on_click(move |_, _, cx| e.update(cx, |v, cx| v.toggle_collapsed(key.clone(), cx)))
                                 .into_any_element()
@@ -355,8 +363,9 @@ impl Render for SolutionView {
                             let buttons = div()
                                 .flex()
                                 .gap_1()
-                                .invisible()
-                                .group_hover("solution-row", |s| s.visible())
+                                .flex_none()
+                                .hidden()
+                                .group_hover("solution-row", |s| s.flex())
                                 .when(project.exists, |d| d.child(small("build", "build", "Build").on_click(emit(SolutionEvent::Build))))
                                 .when(project.is_app, |d| d.child(small("run", "play", "Run").on_click(emit(SolutionEvent::Run))))
                                 .when(project.is_app, |d| d.child(small("watch", "flame", "Run with Watch (Hot Reload)").on_click(emit(SolutionEvent::Watch))))
@@ -369,7 +378,7 @@ impl Render for SolutionView {
                                 .tooltip(tooltip(project.path.display().to_string()))
                                 .child(if project.exists { chevron(open).into_any_element() } else { blank().into_any_element() })
                                 .child(icon("fileProject", px(14.), color))
-                                .child(div().whitespace_nowrap().font_weight(gpui::FontWeight::SEMIBOLD).child(project.name.clone()))
+                                .child(name_cell(project.name.clone()).font_weight(gpui::FontWeight::SEMIBOLD))
                                 .child(detail(project.summary()))
                                 .child(buttons)
                                 .on_click(move |_, _, cx| e.update(cx, |v, cx| v.toggle_collapsed(key.clone(), cx)))
@@ -383,10 +392,10 @@ impl Render for SolutionView {
                                 .when(count > 0, |d| d.child(chevron(open)))
                                 .when(count == 0, |d| d.child(blank()))
                                 .child(icon(if label == "Packages" { "layers" } else { "fileProject" }, px(14.), t.c("icon.foreground")))
-                                .child(div().whitespace_nowrap().text_color(if count == 0 { t.c("foreground.muted") } else { t.c("foreground") }).child(label))
+                                .child(div().whitespace_nowrap().when(count == 0, |d| d.text_color(t.c("foreground.muted"))).child(label))
                                 .child(detail(count.to_string()))
                                 .when(is_packages, |d| {
-                                    d.child(div().invisible().group_hover("solution-row", |s| s.visible()).child(small("add", "add", "Add Package…").on_click(move |_, _, cx| {
+                                    d.child(div().flex_none().hidden().group_hover("solution-row", |s| s.flex()).child(small("add", "add", "Add Package…").on_click(move |_, _, cx| {
                                         cx.stop_propagation();
                                         add.update(cx, |_, cx| cx.emit(SolutionEvent::AddPackage(project.clone())))
                                     })))
@@ -403,7 +412,7 @@ impl Render for SolutionView {
                             row(depth)
                                 .child(blank())
                                 .child(icon("layers", px(12.), if latest.is_some() { update_color } else { t.c("foreground.muted") }))
-                                .child(div().whitespace_nowrap().child(name))
+                                .child(name_cell(name))
                                 .child(match &latest {
                                     Some(l) => div()
                                         .flex_1()
@@ -417,10 +426,10 @@ impl Render for SolutionView {
                                 })
                                 .child(
                                     div()
-                                        .flex()
+                                        .flex_none()
                                         .gap_1()
-                                        .invisible()
-                                        .group_hover("solution-row", |s| s.visible())
+                                        .hidden()
+                                        .group_hover("solution-row", |s| s.flex())
                                         .when_some(newer, |d, l| {
                                             let tip: gpui::SharedString = format!("Update to {l}").into();
                                             d.child(
@@ -451,7 +460,7 @@ impl Render for SolutionView {
                                 .tooltip(tooltip(path.display().to_string()))
                                 .child(blank())
                                 .child(icon("fileProject", px(12.), t.c("foreground.muted")))
-                                .child(div().whitespace_nowrap().child(name))
+                                .child(name_cell(name))
                                 .on_click(move |_, _, cx| e.update(cx, |_, cx| cx.emit(SolutionEvent::OpenFile(path.clone()))))
                                 .into_any_element()
                         }

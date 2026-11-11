@@ -2,7 +2,80 @@
 
 use super::*;
 
+/// State key of the activity bar order the user arranged by dragging (a JSON array of item names).
+const ORDER_KEY: &str = "activityBar.order";
+
+/// An activity bar item being dragged to a new place; draws its icon under the mouse.
+#[derive(Clone)]
+struct DraggedActivity {
+    index: usize,
+    icon: String,
+}
+
+impl Render for DraggedActivity {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let t = Theme::global(cx);
+        div()
+            .p(px(6.))
+            .rounded(px(6.))
+            .bg(t.bg("menu.background"))
+            .border_1()
+            .border_color(t.c("menu.border"))
+            .child(icon(&self.icon, px(20.), t.c("activityBar.foreground")))
+    }
+}
+
+/// The user's saved order applied to the theme's items: saved items come first in their saved order
+/// (ones that no longer exist are skipped), and items the save doesn't know yet (a new module view, a
+/// theme change) go right after the item that precedes them in `base`.
+fn merge_order(base: &[String], saved: &[String]) -> Vec<String> {
+    let mut left: Vec<Option<&String>> = base.iter().map(Some).collect();
+    let mut out: Vec<String> = Vec::new();
+    for name in saved {
+        if let Some(i) = left.iter().position(|l| *l == Some(name)) {
+            left[i] = None;
+            out.push(name.clone());
+        }
+    }
+    for (i, item) in base.iter().enumerate() {
+        if left[i].is_none() {
+            continue;
+        }
+        let at = base[..i].iter().rev().find_map(|prev| out.iter().rposition(|o| o == prev)).map_or(0, |p| p + 1);
+        out.insert(at, item.clone());
+    }
+    out
+}
+
 impl Workbench {
+    /// The activity bar's items in display order: the theme's `activityBar.items` with the module views
+    /// it doesn't name before the first spacer (or at the end), rearranged as the user dragged them.
+    fn activity_items(&self, t: &Theme) -> Vec<String> {
+        let mut base = t.layout.activity_items.clone();
+        let unplaced: Vec<String> = self.module_views.iter().map(|v| v.id.clone()).filter(|id| !base.contains(id)).collect();
+        let at = base.iter().position(|i| i == "spacer").unwrap_or(base.len());
+        base.splice(at..at, unplaced);
+        let saved: Vec<String> = self.state.get(ORDER_KEY).and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        merge_order(&base, &saved)
+    }
+
+    /// Moves the activity bar item at `from` to `to` and remembers the order.
+    fn move_activity_item(&mut self, from: usize, to: usize, cx: &mut Context<Self>) {
+        let mut items = self.activity_items(&Theme::global(cx));
+        if from == to || from >= items.len() || to >= items.len() {
+            return;
+        }
+        let item = items.remove(from);
+        items.insert(to, item);
+        self.state.set(ORDER_KEY, Some(&serde_json::to_string(&items).unwrap_or_default()));
+        cx.notify();
+    }
+
+    pub(super) fn reset_activity_order(&mut self, cx: &mut Context<Self>) {
+        self.state.set(ORDER_KEY, None);
+        cx.notify();
+    }
+
     /// The activity bar: vertical in the main row, or horizontal when placed in `sideBar.order`.
     /// Items: explorer, search, scm, modules, settings, spacer, or any command (`command:<id>[:<icon>]`).
     pub(super) fn render_activity_bar(&mut self, right: bool, horizontal: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -52,7 +125,8 @@ impl Workbench {
         let label_size = if horizontal { 0.0 } else { t.n("activityBar.labelSize", 0.0) };
         let inset = if horizontal { px(0.) } else { t.m("activityBar.itemInset", 0.0) };
         let active_icon = if t.has("activityBar.activeIconForeground") { t.c("activityBar.activeIconForeground") } else { t.c("activityBar.foreground") };
-        let item = |id: SharedString, name: &str, tip: String, label: &str, active: bool| {
+        let drop_color = t.c("activityBar.foreground");
+        let item = |id: SharedString, index: usize, name: &str, tip: String, label: &str, active: bool| {
             let color = if active { t.c("activityBar.foreground") } else { t.c("activityBar.inactiveForeground") };
             let icon_color = if active { active_icon } else { color };
             let hover_fg = t.c("activityBar.foreground");
@@ -81,6 +155,16 @@ impl Workbench {
                         .border_b(indicator.bottom)
                 })
                 .tooltip(tooltip(tip))
+                .on_drag(DraggedActivity { index, icon: name.to_owned() }, |d, _, _, cx| cx.new(|_| d.clone()))
+                .drag_over::<DraggedActivity>(move |s, d, _, _| {
+                    let s = s.border_color(drop_color);
+                    match (d.index < index, horizontal) {
+                        (true, false) => s.border_b_2(),
+                        (false, false) => s.border_t_2(),
+                        (true, true) => s.border_r_2(),
+                        (false, true) => s.border_l_2(),
+                    }
+                })
                 .child(icon(name, icon_size, icon_color))
                 .when(label_size > 0.0 && !label.is_empty(), |d| {
                     d.child(div().text_size(px(label_size)).line_height(px(label_size * 1.2)).font_weight(gpui::FontWeight::MEDIUM).child(label.to_owned()))
@@ -102,26 +186,27 @@ impl Workbench {
                     d.w(item_w).h_full().flex_col().when(right, |d| d.border_l_1()).when(!right, |d| d.border_r_1())
                 }
             });
-        // Module views: where the layout names them, else before the first spacer (or at the end).
         let module_views: Vec<(String, String, String, u64)> = self.module_views.iter().map(|v| (v.id.clone(), v.title.clone(), v.icon.clone(), v.badge)).collect();
-        let module_item = |n: String, (view_id, title, icon_name, count): &(String, String, String, u64), cx: &mut Context<Self>| {
-            let active = self.module_view_active(view_id);
-            let view_id = view_id.clone();
-            item(SharedString::from(format!("act-m-{n}-{}", if horizontal { "h" } else { "v" })), icon_name, title.clone(), title, active)
-                .children(badge(*count as usize))
-                .on_click(cx.listener(move |wb, _, _, cx| wb.toggle_module_view(&view_id, cx)))
-        };
-        let mut unplaced: Vec<&(String, String, String, u64)> = module_views.iter().filter(|v| !t.layout.activity_items.iter().any(|i| i == &v.0)).collect();
-        for (n, name) in t.layout.activity_items.iter().enumerate() {
-            let id = SharedString::from(format!("act-{n}-{}", if horizontal { "h" } else { "v" }));
-            if let Some(v) = module_views.iter().find(|v| &v.0 == name) {
-                bar = bar.child(module_item(n.to_string(), v, cx));
-                continue;
+        // Dropping an item on another takes its place; the rest shift over.
+        let me = cx.entity().downgrade();
+        let drop = |to: usize, _: &mut Context<Self>| {
+            let me = me.clone();
+            move |d: &DraggedActivity, _: &mut Window, cx: &mut gpui::App| {
+                let _ = me.update(cx, |wb, cx| wb.move_activity_item(d.index, to, cx));
             }
-            if name == "spacer" {
-                for (k, v) in std::mem::take(&mut unplaced).into_iter().enumerate() {
-                    bar = bar.child(module_item(format!("{n}-{k}"), v, cx));
-                }
+        };
+        for (n, name) in self.activity_items(&t).iter().enumerate() {
+            let id = SharedString::from(format!("act-{n}-{}", if horizontal { "h" } else { "v" }));
+            if let Some((view_id, title, icon_name, count)) = module_views.iter().find(|v| &v.0 == name) {
+                let active = self.module_view_active(view_id);
+                let view_id = view_id.clone();
+                bar = bar.child(
+                    item(id, n, icon_name, title.clone(), title, active)
+                        .children(badge(*count as usize))
+                        .on_click(cx.listener(move |wb, _, _, cx| wb.toggle_module_view(&view_id, cx)))
+                        .on_drop(drop(n, cx)),
+                );
+                continue;
             }
             let view = match name.as_str() {
                 "explorer" => Some((SideView::Explorer, "files", format!("Explorer ({})", crate::actions::key_label("ctrl-shift-e")), "Files")),
@@ -134,7 +219,7 @@ impl Workbench {
                 _ => None,
             };
             if let Some((view, icon_name, tip, label)) = view {
-                let mut el = item(id, icon_name, tip, label, side_visible && side == view);
+                let mut el = item(id, n, icon_name, tip, label, side_visible && side == view).on_drop(drop(n, cx));
                 if view == SideView::SourceControl {
                     el = el.children(badge(scm_count));
                 }
@@ -144,17 +229,18 @@ impl Workbench {
             match name.as_str() {
                 "spacer" => bar = bar.child(div().flex_1()),
                 "settings" => {
-                    bar = bar.child(item(id, "settings", format!("Settings ({})", crate::actions::key_label("ctrl-,")), "", false).on_click(cx.listener(|_, _, w, cx| w.dispatch_action(Box::new(OpenSettings), cx))));
+                    bar = bar.child(
+                        item(id, n, "settings", format!("Settings ({})", crate::actions::key_label("ctrl-,")), "", false)
+                            .on_click(cx.listener(|_, _, w, cx| w.dispatch_action(Box::new(OpenSettings), cx)))
+                            .on_drop(drop(n, cx)),
+                    );
                 }
                 other => {
                     if let Some((action, title, icon_name)) = command_button(other, cx) {
-                        bar = bar.child(item(id, &icon_name, title, "", false).on_click(move |_, w, cx| w.dispatch_action(action.boxed_clone(), cx)));
+                        bar = bar.child(item(id, n, &icon_name, title, "", false).on_click(move |_, w, cx| w.dispatch_action(action.boxed_clone(), cx)).on_drop(drop(n, cx)));
                     }
                 }
             }
-        }
-        for (k, v) in unplaced.into_iter().enumerate() {
-            bar = bar.child(module_item(format!("end-{k}"), v, cx));
         }
         bar
     }
@@ -240,5 +326,39 @@ impl Workbench {
             col = col.child(div().flex_1().min_h_0().child(c));
         }
         col.child(sash)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_order;
+
+    fn v(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    #[test]
+    fn saved_order_wins() {
+        let base = v(&["explorer", "search", "scm", "spacer", "settings"]);
+        assert_eq!(merge_order(&base, &[]), base);
+        assert_eq!(merge_order(&base, &v(&["scm", "explorer", "search", "spacer", "settings"])), v(&["scm", "explorer", "search", "spacer", "settings"]));
+    }
+
+    #[test]
+    fn new_items_follow_their_theme_neighbour_and_gone_ones_drop_out() {
+        // A module view appeared after "scm"; "testing" was saved but no longer exists.
+        let base = v(&["explorer", "search", "scm", "docker", "spacer", "settings"]);
+        let saved = v(&["search", "scm", "testing", "explorer", "spacer", "settings"]);
+        assert_eq!(merge_order(&base, &saved), v(&["search", "scm", "docker", "explorer", "spacer", "settings"]));
+        // An unknown first item goes to the front.
+        let base = v(&["new", "explorer", "spacer"]);
+        assert_eq!(merge_order(&base, &v(&["explorer", "spacer"])), v(&["new", "explorer", "spacer"]));
+    }
+
+    #[test]
+    fn repeated_spacers_are_kept() {
+        let base = v(&["explorer", "spacer", "search", "spacer", "settings"]);
+        let saved = v(&["search", "spacer", "explorer", "spacer", "settings"]);
+        assert_eq!(merge_order(&base, &saved), saved);
     }
 }

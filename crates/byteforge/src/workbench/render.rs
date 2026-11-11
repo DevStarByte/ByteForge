@@ -133,6 +133,7 @@ impl Render for Workbench {
                 wb.side_visible = !wb.side_visible;
                 cx.notify();
             }))
+            .on_action(cx.listener(|wb, _: &ResetActivityBarOrder, _, cx| wb.reset_activity_order(cx)))
             .on_action(cx.listener(|wb, _: &TogglePanel, _, cx| {
                 wb.panel_visible = !wb.panel_visible;
                 cx.notify();
