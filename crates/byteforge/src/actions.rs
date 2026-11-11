@@ -62,6 +62,15 @@ actions!(
     ]
 );
 
+// Refactorings (handled by the editor; most go through the language server's code actions).
+actions!(
+    refactor,
+    [
+        Refactor, ExtractMethod, ExtractLocalFunction, IntroduceVariable, IntroduceConstant, IntroduceField, IntroduceParameter, InlineSymbol,
+        ExtractInterface, ExtractBaseClass, MoveTypeToFile, RemoveAndSortUsings, SortUsings
+    ]
+);
+
 actions!(input, [Confirm, InputBackspace, InputDelete, InputLeft, InputRight, InputSelectLeft, InputSelectRight, InputHome, InputEnd, InputSelectAll, InputCopy, InputCut, InputPaste, InputUp, InputDown, InputCancel, InputPageUp, InputPageDown]);
 
 // The macOS application and Window menus.
@@ -236,6 +245,19 @@ fn builtin() -> Vec<Builtin> {
         ("view.goToSymbol", "Go to Symbol in Editor…", "Go", Box::new(GoToSymbolInEditor), None),
         ("view.goToWorkspaceSymbol", "Go to Symbol in Workspace…", "Go", Box::new(GoToSymbolInWorkspace), Some("ctrl-t")),
         ("edit.rename", "Rename Symbol", "Edit", Box::new(RenameSymbol), None),
+        ("refactor.menu", "Refactor…", "Refactor", Box::new(Refactor), Some("ctrl-shift-r")),
+        ("refactor.extractMethod", "Extract Method", "Refactor", Box::new(ExtractMethod), Some("ctrl-r ctrl-m")),
+        ("refactor.extractLocalFunction", "Extract Local Function", "Refactor", Box::new(ExtractLocalFunction), None),
+        ("refactor.introduceVariable", "Introduce Local Variable", "Refactor", Box::new(IntroduceVariable), None),
+        ("refactor.introduceConstant", "Introduce Constant", "Refactor", Box::new(IntroduceConstant), None),
+        ("refactor.introduceField", "Introduce Field", "Refactor", Box::new(IntroduceField), None),
+        ("refactor.introduceParameter", "Introduce Parameter", "Refactor", Box::new(IntroduceParameter), None),
+        ("refactor.inline", "Inline", "Refactor", Box::new(InlineSymbol), None),
+        ("refactor.extractInterface", "Extract Interface", "Refactor", Box::new(ExtractInterface), Some("ctrl-r ctrl-i")),
+        ("refactor.extractBaseClass", "Extract Base Class", "Refactor", Box::new(ExtractBaseClass), None),
+        ("refactor.moveTypeToFile", "Move Type to Matching File", "Refactor", Box::new(MoveTypeToFile), None),
+        ("refactor.removeAndSortUsings", "Remove and Sort Usings", "Refactor", Box::new(RemoveAndSortUsings), Some("ctrl-r ctrl-g")),
+        ("refactor.sortUsings", "Sort Usings", "Refactor", Box::new(SortUsings), None),
         ("edit.fold", "Fold", "View", Box::new(Fold), None),
         ("edit.unfold", "Unfold", "View", Box::new(Unfold), None),
         ("edit.foldAll", "Fold All", "View", Box::new(FoldAll), None),
@@ -360,6 +382,7 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         kb("ctrl-shift-[", Fold, e),
         kb("ctrl-shift-]", Unfold, e),
         kb("f2", RenameSymbol, e),
+        kb("ctrl-r ctrl-r", RenameSymbol, e),
         kb("ctrl-shift-space", ShowSignatureHelp, e),
         kb("escape", Cancel, e),
     ]);

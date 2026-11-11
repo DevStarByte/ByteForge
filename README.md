@@ -25,6 +25,9 @@ live, and modules written in any language can extend it.
   runs in the background
 - **C#:** completion, hover, go to definition, find references, rename, quick fixes and inlay hints, powered by
   `csharp-ls` (Roslyn)
+- **Refactoring:** a Refactor menu (Ctrl+Shift+R, the menu bar or right-click) with Extract Method, Extract Local
+  Function, Extract Interface / Base Class, Introduce Variable / Constant / Field / Parameter, Inline, Move Type to
+  File and Remove and Sort Usings; what a refactoring names (`NewMethod`, `value`) goes straight to Rename
 - **Razor and MSBuild:** highlighting for `.razor`, `.cshtml`, `.csproj` and other XML project files
 - **Debugger:** breakpoints, stepping, variables and a Debug Console through netcoredbg; F5 runs ASP.NET Core apps
   with their launch profile (shown in the status bar; click it or use "Select Launch Profile…" to switch)

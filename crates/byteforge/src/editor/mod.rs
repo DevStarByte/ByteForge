@@ -12,6 +12,7 @@ mod lsp;
 mod minimap;
 mod mouse;
 mod popups;
+mod refactor;
 mod snippet;
 mod viewport;
 
@@ -31,6 +32,7 @@ use gpui::{
 use parking_lot::Mutex;
 
 pub use element::EditorElement;
+pub use refactor::{AfterApply, generated_name, invents_name};
 
 use crate::actions::*;
 use crate::assets::icon;
@@ -54,8 +56,9 @@ pub enum EditorEvent {
     Navigate(PathBuf, Point),
     /// Breakpoints were toggled, or edits moved them.
     BreakpointsChanged,
-    /// A code action (quick fix, refactoring) was picked; the workbench resolves and applies it.
-    ApplyCodeAction(Box<bf_lsp::CodeAction>),
+    /// A code action (quick fix, refactoring) was picked; the workbench resolves and applies it, then does
+    /// the follow-up.
+    ApplyCodeAction(Box<bf_lsp::CodeAction>, AfterApply),
     /// Several results to list in the References panel (Find All References, implementations, …), e.g.
     /// `title` = "references to 'Count'".
     Locations { title: String, locations: Vec<bf_lsp::Location> },
@@ -112,12 +115,20 @@ struct SignatureState {
     selected: usize,
 }
 
-/// The Quick Fix menu (Ctrl+.).
+/// The Quick Fix menu (Ctrl+.), the Refactor menu (Ctrl+Shift+R), or the variants of one refactoring.
 struct ActionMenu {
     at: Point,
     /// `None` while the server is asked.
     items: Option<Vec<bf_lsp::CodeAction>>,
     selected: usize,
+    mode: refactor::MenuMode,
+    /// Shown instead of the default when there is nothing to list.
+    empty: Option<String>,
+}
+
+/// The editor's right-click menu, at a window position.
+struct ContextMenu {
+    position: gpui::Point<gpui::Pixels>,
 }
 
 struct FindState {
@@ -217,6 +228,7 @@ pub struct EditorView {
     inlay_task: Option<Task<()>>,
     action_menu: Option<ActionMenu>,
     action_task: Option<Task<()>>,
+    context_menu: Option<ContextMenu>,
     /// The word a hover request is waiting for.
     hover_pending: Option<(Point, Point)>,
     hover_task: Option<Task<()>>,
@@ -325,6 +337,7 @@ impl EditorView {
             hover: None,
             action_menu: None,
             action_task: None,
+            context_menu: None,
             hover_pending: None,
             hover_task: None,
             hover_bounds: Default::default(),
@@ -907,6 +920,7 @@ impl Render for EditorView {
             .overflow_hidden()
             .cursor(gpui::CursorStyle::IBeam)
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
@@ -933,6 +947,9 @@ impl Render for EditorView {
         }
         if let Some(popup) = self.render_action_menu(cx) {
             root = root.child(popup);
+        }
+        if let Some(menu) = self.render_context_menu(cx) {
+            root = root.child(menu);
         }
         root
     }

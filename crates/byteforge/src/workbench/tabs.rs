@@ -54,7 +54,7 @@ impl Workbench {
         match event {
             EditorEvent::Navigate(path, point) => self.open_file(path.clone(), Some(*point), window, cx),
             EditorEvent::BreakpointsChanged => self.on_editor_breakpoints_changed(editor, cx),
-            EditorEvent::ApplyCodeAction(action) => self.apply_code_action((**action).clone(), window, cx),
+            EditorEvent::ApplyCodeAction(action, then) => self.apply_code_action((**action).clone(), *then, editor.downgrade(), window, cx),
             EditorEvent::Locations { title, locations } => self.show_references(title.clone(), locations, cx),
             EditorEvent::RenameRequested { symbol, at } => {
                 let kind = PromptKind::RenameSymbol { editor: editor.downgrade(), at: *at, old: symbol.clone() };

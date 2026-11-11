@@ -491,6 +491,19 @@ mod code_action_tests {
         assert!(!parse_code_action(&json!({ "title": "Extract local function" })).unwrap().is_quick_fix());
         assert!(parse_code_action(&json!({ "title": "System.Collections.Generic.List" })).unwrap().is_quick_fix());
 
+        let group = |title: &str| parse_code_action(&json!({ "title": title })).unwrap().group();
+        assert_eq!(group("Extract method"), "Extract");
+        assert_eq!(group("Introduce local for 'a + b'"), "Introduce");
+        assert_eq!(group("Inline temporary variable"), "Inline");
+        assert_eq!(group("Move type to Foo.cs"), "Move");
+        assert_eq!(group("Generate constructor 'Foo(int)'"), "Generate");
+        assert_eq!(group("Use expression body for method"), "Rewrite");
+        assert_eq!(group("Generate variable 'x' - Generate local 'x'"), "Fix");
+        let title = |title: &str| parse_code_action(&json!({ "title": title })).unwrap().display_title();
+        assert_eq!(title("Wrap every parameter - Align wrapped parameters"), "Wrap every parameter \u{203a} Align wrapped parameters");
+        assert_eq!(title("Inline 'Add(int a)' - Inline and keep 'Add(int a)'"), "Inline and keep 'Add(int a)'");
+        assert_eq!(title("Extract method"), "Extract method");
+
         let command = parse_code_action(&json!({ "title": "Run", "command": "dotnet.run", "arguments": [1] })).unwrap();
         assert_eq!(command.command.unwrap()["command"], "dotnet.run");
 

@@ -10,23 +10,24 @@ impl EditorView {
         let lh = self.layout.line_height;
         let row_h = t.n("list.itemHeight", 22.0).max(lh * 0.9);
         let muted = t.c("foreground.muted");
+        let quick_fix = menu.mode == refactor::MenuMode::QuickFix;
+        let message = |text: String| div().px_2().h(px(row_h)).flex().items_center().text_color(muted).child(text).into_any_element();
         let rows: Vec<gpui::AnyElement> = match &menu.items {
-            None => vec![div().px_2().h(px(row_h)).flex().items_center().text_color(muted).child("Looking for fixes…").into_any_element()],
-            Some(items) if items.is_empty() => vec![div().px_2().h(px(row_h)).flex().items_center().text_color(muted).child("No fixes or refactorings available here").into_any_element()],
+            None if quick_fix => vec![message("Looking for fixes…".into())],
+            None => vec![message("Looking for refactorings…".into())],
+            Some(items) if items.is_empty() => {
+                let default = if quick_fix { "No fixes or refactorings available here" } else { "No refactorings available here" };
+                vec![message(menu.empty.clone().unwrap_or_else(|| default.into()))]
+            }
             Some(items) => items
                 .iter()
                 .enumerate()
                 .map(|(i, action)| {
-                    let (glyph, color) = if action.is_quick_fix() {
-                        ("build", t.c_or("editorLightBulb.foreground", 0xffcc00ff))
-                    } else {
-                        ("puzzle", t.c_or("editorLightBulbAutoFix.foreground", 0x75beffff))
-                    };
-                    let group = match action.kind.as_deref() {
-                        Some(k) if k.starts_with("refactor") => "Refactor",
-                        Some(k) if k.starts_with("source") => "Source",
-                        _ if action.is_quick_fix() => "Fix",
-                        _ => "Refactor",
+                    let group = refactor::group_of(action);
+                    let (glyph, color) = match group {
+                        "Fix" => ("build", t.c_or("editorLightBulb.foreground", 0xffcc00ff)),
+                        "Rename" => ("pencil", t.c_or("editorLightBulbAutoFix.foreground", 0x75beffff)),
+                        _ => ("puzzle", t.c_or("editorLightBulbAutoFix.foreground", 0x75beffff)),
                     };
                     let selected = i == menu.selected;
                     let disabled = action.disabled.is_some();
@@ -43,7 +44,7 @@ impl EditorView {
                         .when(!selected, |d| d.hover(|s| s.bg(t.c("list.hoverBackground"))))
                         .when(disabled, |d| d.text_color(muted))
                         .child(icon(glyph, px(14.), color))
-                        .child(div().flex_1().overflow_hidden().whitespace_nowrap().child(action.title.clone()))
+                        .child(div().flex_1().overflow_hidden().whitespace_nowrap().child(action.display_title()))
                         .when(action.preferred, |d| d.child(div().text_size(px(11.)).text_color(muted).child("preferred")))
                         .child(div().text_size(px(11.)).text_color(muted).child(group))
                         .when_some(action.disabled.clone(), |d, reason| d.tooltip(crate::workbench::tooltip(reason)))
@@ -229,5 +230,71 @@ impl EditorView {
                 })
                 .child(body),
         )
+    }
+}
+
+/// A context menu entry: label, action and key hint (`None` in the list is a separator).
+type MenuEntry = (String, Box<dyn gpui::Action>, String);
+
+impl EditorView {
+    /// The right-click menu: navigation and refactoring for C# (with the language server), then the
+    /// clipboard and formatting.
+    pub(super) fn render_context_menu(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
+        let menu = self.context_menu.as_ref()?;
+        let t = Theme::global(cx);
+        let commands = cx.global::<Commands>();
+        let mut entries: Vec<Option<MenuEntry>> = Vec::new();
+        let command = |entries: &mut Vec<_>, id: &str| {
+            if let Some(cmd) = commands.get(id) {
+                entries.push(Some((cmd.title.clone(), cmd.action.boxed_clone(), crate::workbench::default_key(id))));
+            }
+        };
+        let code = self.lsp.is_some() && !self.read_only;
+        if code {
+            for id in ["edit.goToDefinition", "edit.goToImplementation", "edit.findReferences"] {
+                command(&mut entries, id);
+            }
+            entries.push(None);
+            for id in ["edit.rename", "refactor.menu", "edit.quickFix"] {
+                command(&mut entries, id);
+            }
+            entries.push(None);
+            for id in ["refactor.extractMethod", "refactor.introduceVariable", "refactor.inline", "refactor.removeAndSortUsings"] {
+                command(&mut entries, id);
+            }
+            entries.push(None);
+        }
+        let key = crate::actions::key_label;
+        if !self.read_only {
+            entries.push(Some(("Cut".into(), Box::new(Cut), key("ctrl-x"))));
+        }
+        entries.push(Some(("Copy".into(), Box::new(Copy), key("ctrl-c"))));
+        if !self.read_only {
+            entries.push(Some(("Paste".into(), Box::new(Paste), key("ctrl-v"))));
+            entries.push(None);
+            command(&mut entries, "edit.toggleComment");
+            command(&mut entries, "edit.formatDocument");
+        }
+        let mut panel = crate::menu::panel(&t, 240.).on_mouse_down_out(cx.listener(|v, _, _, cx| {
+            v.context_menu = None;
+            cx.notify();
+        }));
+        for (ix, entry) in entries.into_iter().enumerate() {
+            panel = match entry {
+                None => panel.child(crate::menu::separator(&t)),
+                Some((label, action, hint)) => panel.child(
+                    crate::menu::item(&t, gpui::SharedString::from(format!("editor-menu-{ix}")), label, Some(hint.into()))
+                        // Keep the press from reaching the editor below (it would move the caret).
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(cx.listener(move |v, _, window, cx| {
+                            v.context_menu = None;
+                            window.focus(&v.focus);
+                            window.dispatch_action(action.boxed_clone(), cx);
+                            cx.notify();
+                        })),
+                ),
+            };
+        }
+        Some(gpui::deferred(gpui::anchored().position(menu.position).snap_to_window().child(panel)).with_priority(1))
     }
 }

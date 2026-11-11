@@ -239,10 +239,56 @@ impl CodeAction {
     }
 }
 
+impl CodeAction {
+    /// Where the action belongs in the Refactor menu: Fix, Extract, Introduce, Inline, Move, Generate, Source or
+    /// Rewrite. The kind decides when the server sends one; otherwise the title's verb.
+    pub fn group(&self) -> &'static str {
+        match self.kind.as_deref() {
+            Some(k) if k.starts_with("quickfix") => return "Fix",
+            Some(k) if k.starts_with("source") => return "Source",
+            Some(k) if k.starts_with("refactor.extract") && !self.title.starts_with("Introduce") => return "Extract",
+            Some(k) if k.starts_with("refactor.inline") => return "Inline",
+            Some(k) if k.starts_with("refactor") => {}
+            Some(_) => return "Rewrite",
+            None if self.is_quick_fix() => return "Fix",
+            None => {}
+        }
+        let t = self.title.as_str();
+        let verb = |v: &[&str]| v.iter().any(|p| t.starts_with(p));
+        if verb(&["Extract"]) {
+            "Extract"
+        } else if verb(&["Introduce"]) {
+            "Introduce"
+        } else if verb(&["Inline"]) {
+            "Inline"
+        } else if verb(&["Move", "Pull", "Rename file", "Rename type"]) {
+            "Move"
+        } else if verb(&["Generate", "Add null check", "Encapsulate"]) {
+            "Generate"
+        } else if verb(&["Sort", "Remove unnecessary"]) {
+            "Source"
+        } else {
+            "Rewrite"
+        }
+    }
+
+    /// The title as the menus show it. Roslyn flattens nested actions to "Parent - Child"; that becomes
+    /// "Parent › Child", or just the child when it starts with the parent's verb ("Inline 'F' - Inline and keep 'F'").
+    pub fn display_title(&self) -> String {
+        let verb = |s: &str| s.split(' ').next().unwrap_or_default().to_owned();
+        match self.title.split_once(" - ") {
+            Some((parent, child)) if verb(parent) == verb(child) => child.to_owned(),
+            Some((parent, child)) => format!("{parent} \u{203a} {child}"),
+            None => self.title.clone(),
+        }
+    }
+}
+
 /// Title prefixes of Roslyn refactorings that come without a code action kind.
 const REFACTORING_VERBS: &[&str] = &[
     "Extract", "Inline", "Introduce", "Convert", "Invert", "Wrap", "Unwrap", "Encapsulate", "Pull", "Move", "Sort", "Split",
-    "Merge", "Reverse", "Make ", "Use ", "Add parameter", "Change signature", "Rename",
+    "Merge", "Reverse", "Make ", "Use ", "Add parameter", "Change signature", "Rename", "Generate constructor", "Generate Equals",
+    "Generate overrides", "Add null check",
 ];
 
 /// Asynchronous events emitted by the client.

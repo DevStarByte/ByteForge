@@ -261,23 +261,38 @@ impl EditorView {
 
     // ───────────── code actions ─────────────
 
-    /// Ctrl+.: asks the language server for fixes and refactorings at the caret. On a line with a problem,
-    /// the problem's range is used, so the cursor only has to be on that line.
-    pub(super) fn request_code_actions(&mut self, cx: &mut Context<Self>) {
+    /// Asks the language server for the code actions at the caret (or selection) and lists them as `mode`
+    /// says. For Ctrl+. on a line with a problem the problem's range is used, so the cursor only has to be
+    /// on that line.
+    pub(super) fn request_code_actions(&mut self, mode: refactor::MenuMode, cx: &mut Context<Self>) {
         let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else { return };
         let caret = self.state.caret();
         let (mut start, mut end) = if self.state.has_selection() { self.state.selection() } else { (caret, caret) };
-        let on_caret: Vec<&Diagnostic> = self.diagnostics.iter().filter(|d| d.start <= end && d.end >= start).collect();
-        let context: Vec<&Diagnostic> = if on_caret.is_empty() && !self.state.has_selection() {
-            self.diagnostics.iter().filter(|d| d.start.line <= caret.line && d.end.line >= caret.line).collect()
-        } else {
-            on_caret
+        let context: Vec<&Diagnostic> = match mode {
+            refactor::MenuMode::QuickFix => {
+                let on_caret: Vec<&Diagnostic> = self.diagnostics.iter().filter(|d| d.start <= end && d.end >= start).collect();
+                let context = if on_caret.is_empty() && !self.state.has_selection() {
+                    self.diagnostics.iter().filter(|d| d.start.line <= caret.line && d.end.line >= caret.line).collect()
+                } else {
+                    on_caret
+                };
+                if !self.state.has_selection()
+                    && let Some(first) = context.first()
+                {
+                    (start, end) = (first.start, first.end);
+                }
+                context
+            }
+            // The unused usings are reported as CS8019; their fix is "Remove unnecessary usings".
+            refactor::MenuMode::Only(refactor::Refactoring::RemoveAndSortUsings) => {
+                let unused: Vec<&Diagnostic> = self.diagnostics.iter().filter(|d| matches!(d.code.as_deref(), Some("CS8019" | "IDE0005"))).collect();
+                if let (Some(first), Some(last)) = (unused.first(), unused.last()) {
+                    (start, end) = (first.start, last.end);
+                }
+                unused
+            }
+            _ => Vec::new(),
         };
-        if !self.state.has_selection()
-            && let Some(first) = context.first()
-        {
-            (start, end) = (first.start, first.end);
-        }
         let range = bf_lsp::Range { start: self.lsp_position(start), end: self.lsp_position(end) };
         let diagnostics: Vec<bf_lsp::Diagnostic> = context
             .iter()
@@ -289,20 +304,26 @@ impl EditorView {
             })
             .collect();
         self.completion = None;
+        self.context_menu = None;
         self.clear_hover(cx);
-        self.action_menu = Some(ActionMenu { at: start, items: None, selected: 0 });
+        self.action_menu = Some(ActionMenu { at: start, items: None, selected: 0, mode, empty: None });
         let rx = lsp.code_actions(&path, range, &diagnostics);
         self.action_task = Some(cx.spawn(async move |this, cx| {
             let result = rx.recv_async().await;
             let _ = this.update(cx, |view, cx| {
-                let Some(menu) = view.action_menu.as_mut() else { return };
-                let mut items = match result {
+                if view.action_menu.as_ref().is_none_or(|m| m.mode != mode) {
+                    return;
+                }
+                let items = match result {
                     Ok(Ok(items)) => items,
                     _ => Vec::new(),
                 };
-                // Preferred fixes first, then other fixes, then refactorings and source actions.
-                items.sort_by_key(|a| (!a.preferred, !a.is_quick_fix(), a.disabled.is_some()));
-                menu.items = Some(items);
+                if let Some((items, empty)) = view.filter_actions(mode, items, cx)
+                    && let Some(menu) = view.action_menu.as_mut()
+                {
+                    menu.items = Some(items);
+                    menu.empty = empty;
+                }
                 cx.notify();
             });
         }));
@@ -323,8 +344,11 @@ impl EditorView {
         let Some(menu) = self.action_menu.take() else { return false };
         self.action_task = None;
         let ix = ix.unwrap_or(menu.selected);
-        if let Some(action) = menu.items.and_then(|items| items.into_iter().nth(ix)).filter(|a| a.disabled.is_none()) {
-            cx.emit(EditorEvent::ApplyCodeAction(Box::new(action)));
+        if let Some(action) = menu.items.and_then(|items| items.into_iter().nth(ix)).filter(|a| a.disabled.is_none())
+            && !self.run_builtin_entry(&action, cx)
+        {
+            let then = if menu.mode == refactor::MenuMode::Only(refactor::Refactoring::RemoveAndSortUsings) { AfterApply::SortUsings } else { AfterApply::Nothing };
+            cx.emit(EditorEvent::ApplyCodeAction(Box::new(action), then));
         }
         cx.notify();
         true

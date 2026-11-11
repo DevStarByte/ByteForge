@@ -28,6 +28,7 @@ impl EditorView {
         window.focus(&self.focus);
         self.completion = None;
         self.action_menu = None;
+        self.context_menu = None;
         self.clear_hover(cx);
         let (x, y) = (f32::from(e.position.x), f32::from(e.position.y));
         if self.in_minimap(x, y) {
@@ -195,4 +196,26 @@ impl EditorView {
     }
 
     // ───────────── actions ─────────────
+}
+
+impl EditorView {
+    /// Right click: moves the caret there (unless it hit the selection) and opens the context menu.
+    pub(super) fn on_right_mouse_down(&mut self, e: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        window.focus(&self.focus);
+        cx.stop_propagation();
+        self.completion = None;
+        self.action_menu = None;
+        self.clear_hover(cx);
+        let (x, y) = (f32::from(e.position.x), f32::from(e.position.y));
+        if x >= self.layout.text_left && self.scrollbar_zone(x, y).is_none() && !self.in_minimap(x, y) {
+            let p = self.point_at(x, y);
+            let (start, end) = self.state.selection();
+            if !(self.state.has_selection() && start <= p && p <= end) {
+                self.state.set_caret(p, false);
+                self.after_move(cx);
+            }
+        }
+        self.context_menu = Some(ContextMenu { position: e.position });
+        cx.notify();
+    }
 }

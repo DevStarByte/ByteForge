@@ -45,7 +45,7 @@ use crate::actions::*;
 use crate::assets::{self, icon};
 use crate::solution::SolutionView;
 use crate::testing::TestView;
-use crate::editor::{EditorEvent, EditorView};
+use crate::editor::{AfterApply, EditorEvent, EditorView};
 use crate::terminal::{TerminalEvent, TerminalView};
 use crate::text_input::{InputEvent, TextInput};
 use crate::explorer::{Explorer, ExplorerEvent};
@@ -180,7 +180,12 @@ struct StatusEntry {
 
 pub(crate) const MENUS: &[(&str, &[&str])] = &[
     ("File", &["file.newFile", "dotnet.newItem", "dotnet.newProject", "-", "file.openFile", "file.openFolder", "-", "file.save", "file.saveAs", "file.saveAll", "-", "file.close", "file.closeAll", "-", "app.exit"]),
-    ("Edit", &["edit.undo", "edit.redo", "-", "edit.find", "edit.replace", "-", "edit.toggleComment", "edit.duplicateLines", "edit.triggerSuggest", "edit.signatureHelp", "-", "edit.rename", "-", "edit.toggleLineEnding"]),
+    ("Edit", &["edit.undo", "edit.redo", "-", "edit.find", "edit.replace", "-", "edit.toggleComment", "edit.duplicateLines", "edit.triggerSuggest", "edit.signatureHelp", "-", "edit.formatDocument", "edit.toggleLineEnding"]),
+    ("Refactor", &[
+        "refactor.menu", "edit.quickFix", "-", "edit.rename", "-", "refactor.extractMethod", "refactor.extractLocalFunction", "refactor.extractInterface",
+        "refactor.extractBaseClass", "-", "refactor.introduceVariable", "refactor.introduceConstant", "refactor.introduceField", "refactor.introduceParameter",
+        "-", "refactor.inline", "refactor.moveTypeToFile", "-", "refactor.removeAndSortUsings", "refactor.sortUsings",
+    ]),
     ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.toggleSideBar", "view.togglePanel"]),
     ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.init"]),
@@ -920,7 +925,7 @@ fn side_view_named(name: &str) -> Option<SideView> {
     }
 }
 
-fn default_key(id: &str) -> String {
+pub(crate) fn default_key(id: &str) -> String {
     let keys = match id {
         "file.newFile" => "ctrl-n",
         "file.openFile" => "ctrl-o",
@@ -952,6 +957,12 @@ fn default_key(id: &str) -> String {
         "edit.unfold" => "ctrl-shift-]",
         "view.goToWorkspaceSymbol" => "ctrl-t",
         "edit.rename" => "f2",
+        "edit.quickFix" => "ctrl-.",
+        "edit.formatDocument" => "shift-alt-f",
+        "refactor.menu" => "ctrl-shift-r",
+        "refactor.extractMethod" => "ctrl-r ctrl-m",
+        "refactor.extractInterface" => "ctrl-r ctrl-i",
+        "refactor.removeAndSortUsings" => "ctrl-r ctrl-g",
         "edit.signatureHelp" => "ctrl-shift-space",
         "view.explorer" => "ctrl-shift-e",
         "view.scm" => "ctrl-shift-g",

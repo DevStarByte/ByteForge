@@ -16,6 +16,7 @@
   "terminal.shell": "/usr/bin/fish", "terminal.args": [],  // default: your login shell ($SHELL); also set by
                                                      // "Terminal: Select Default Shell…" (palette or the panel button)
   "editor.formatOnSave": false, "editor.defaultFormatter": "csharpier",   // or "csharp-ls"
+  "refactor.renameGenerated": true,                    // after Extract Method / Introduce Local / Extract Interface, rename what it made up
   "explorer.autoReveal": true,                         // expand and scroll the tree to the file you switch to
   "update.checkAutomatically": true,                   // daily update check (default: on for Windows and macOS)
   "update.includePrereleases": false,                  // also offer betas
@@ -51,5 +52,8 @@ conventions: Ctrl+Space, Ctrl+Tab, Ctrl+G, Ctrl+F5 and Ctrl+\` stay on ⌃; Repl
 | Ctrl+Shift+D | Run and Debug | Ctrl+Shift+Y | Debug Console |
 | Ctrl+\` | Toggle terminal | Ctrl+Shift+\` | New terminal |
 | Ctrl+. | Quick fix / refactor at the cursor | Shift+Alt+F | Format document |
+| Ctrl+Shift+R | Refactor… (refactorings only) | F2, Ctrl+R Ctrl+R | Rename symbol |
+| Ctrl+R Ctrl+M | Extract method | Ctrl+R Ctrl+I | Extract interface |
+| Ctrl+R Ctrl+G | Remove and sort usings | | |
 | Ctrl+K | Color theme | Ctrl+Tab | Next editor |
 | Ctrl+Shift+G | Source Control | | |

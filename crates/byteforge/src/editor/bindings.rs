@@ -1,6 +1,11 @@
 //! Binds editor actions to the view.
 
+use super::refactor::{self, Refactoring};
 use super::*;
+
+fn only(r: Refactoring) -> refactor::MenuMode {
+    refactor::MenuMode::Only(r)
+}
 
 impl EditorView {
     pub(super) fn register_actions(&self, d: gpui::Stateful<gpui::Div>, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
@@ -120,7 +125,20 @@ impl EditorView {
                 let caret = v.state.caret();
                 v.go_to_definition_at(caret, cx);
             }))
-            .on_action(cx.listener(|v, _: &QuickFix, _, cx| v.request_code_actions(cx)))
+            .on_action(cx.listener(|v, _: &QuickFix, _, cx| v.request_code_actions(refactor::MenuMode::QuickFix, cx)))
+            .on_action(cx.listener(|v, _: &Refactor, _, cx| v.refactor(refactor::MenuMode::Refactor, cx)))
+            .on_action(cx.listener(|v, _: &ExtractMethod, _, cx| v.refactor(only(Refactoring::ExtractMethod), cx)))
+            .on_action(cx.listener(|v, _: &ExtractLocalFunction, _, cx| v.refactor(only(Refactoring::ExtractLocalFunction), cx)))
+            .on_action(cx.listener(|v, _: &IntroduceVariable, _, cx| v.refactor(only(Refactoring::IntroduceVariable), cx)))
+            .on_action(cx.listener(|v, _: &IntroduceConstant, _, cx| v.refactor(only(Refactoring::IntroduceConstant), cx)))
+            .on_action(cx.listener(|v, _: &IntroduceField, _, cx| v.refactor(only(Refactoring::IntroduceField), cx)))
+            .on_action(cx.listener(|v, _: &IntroduceParameter, _, cx| v.refactor(only(Refactoring::IntroduceParameter), cx)))
+            .on_action(cx.listener(|v, _: &InlineSymbol, _, cx| v.refactor(only(Refactoring::Inline), cx)))
+            .on_action(cx.listener(|v, _: &ExtractInterface, _, cx| v.refactor(only(Refactoring::ExtractInterface), cx)))
+            .on_action(cx.listener(|v, _: &ExtractBaseClass, _, cx| v.refactor(only(Refactoring::ExtractBaseClass), cx)))
+            .on_action(cx.listener(|v, _: &MoveTypeToFile, _, cx| v.refactor(only(Refactoring::MoveTypeToFile), cx)))
+            .on_action(cx.listener(|v, _: &RemoveAndSortUsings, _, cx| v.refactor(only(Refactoring::RemoveAndSortUsings), cx)))
+            .on_action(cx.listener(|v, _: &SortUsings, _, cx| v.sort_usings(cx)))
             .on_action(cx.listener(|v, _: &FindReferences, _, cx| v.find_references(cx)))
             .on_action(cx.listener(|v, _: &Fold, _, cx| v.fold_at_caret(cx)))
             .on_action(cx.listener(|v, _: &Unfold, _, cx| v.unfold_at_caret(cx)))
@@ -140,6 +158,7 @@ impl EditorView {
             }))
             .on_action(cx.listener(|v, _: &Cancel, w, cx| {
                 if v.action_menu.take().is_some()
+                    || v.context_menu.take().is_some()
                     || v.completion.take().is_some()
                     || v.hover.take().is_some()
                     || v.signature.take().is_some()

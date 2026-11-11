@@ -14,6 +14,7 @@ The language server already supports all of these; the client needs the requests
 - [x] **Workspace Symbols** (Ctrl+T): find any type or member by name ("#").
 - [x] **Document Highlight**: highlight the other uses of the symbol under the caret.
 - [x] **Inlay Hints**: inferred `var` types and parameter names (setting `editor.inlayHints`).
+- [x] **Refactoring**: Refactor… (Ctrl+Shift+R) lists only refactorings, grouped (Rename, Extract, Introduce, Inline, Move, Generate, Rewrite), plus a Refactor menu, an editor right-click menu and one command per refactoring with Visual Studio's chords (Extract Method Ctrl+R Ctrl+M, Extract Interface Ctrl+R Ctrl+I, Remove and Sort Usings Ctrl+R Ctrl+G, Rename Ctrl+R Ctrl+R). A single match applies at once; the name a refactoring makes up opens Rename (`refactor.renameGenerated`). Edits that write to a new file (Extract Interface) create it. Still open: a preview of multi-file changes before applying, and Change Signature (Roslyn's needs a dialog csharp-ls doesn't have).
 
 ## 2. Editor
 

@@ -79,20 +79,20 @@ impl Workbench {
     // ───────────── code actions ─────────────
 
     /// Applies a quick fix or refactoring: resolves its edit if the server computes it lazily, applies the
-    /// edit, then runs its command.
-    pub(super) fn apply_code_action(&mut self, action: bf_lsp::CodeAction, window: &mut Window, cx: &mut Context<Self>) {
+    /// edit, runs its command, then does the follow-up in `editor` (the one it was picked in).
+    pub(super) fn apply_code_action(&mut self, action: bf_lsp::CodeAction, then: AfterApply, editor: gpui::WeakEntity<EditorView>, window: &mut Window, cx: &mut Context<Self>) {
         let Some(lsp) = self.lsp.clone() else { return };
         // Lazily computed actions carry `data` instead of an edit.
         let resolve = action.edit.is_none() && (action.needs_resolve() || action.raw.get("data").is_some_and(|d| !d.is_null()));
         if !resolve {
-            self.finish_code_action(action, window, cx);
+            self.finish_code_action(action, then, editor, window, cx);
             return;
         }
         let rx = lsp.resolve_code_action(&action);
         cx.spawn_in(window, async move |this, cx| {
             let result = rx.recv_async().await;
             let _ = this.update_in(cx, |wb, window, cx| match result {
-                Ok(Ok(resolved)) => wb.finish_code_action(resolved, window, cx),
+                Ok(Ok(resolved)) => wb.finish_code_action(resolved, then, editor, window, cx),
                 Ok(Err(e)) => wb.log(format!("Could not apply \"{}\": {e:#}", action.title)),
                 Err(_) => {}
             });
@@ -100,7 +100,13 @@ impl Workbench {
         .detach();
     }
 
-    pub(super) fn finish_code_action(&mut self, action: bf_lsp::CodeAction, window: &mut Window, cx: &mut Context<Self>) {
+    fn finish_code_action(&mut self, action: bf_lsp::CodeAction, then: AfterApply, editor: gpui::WeakEntity<EditorView>, window: &mut Window, cx: &mut Context<Self>) {
+        let editor = editor.upgrade();
+        // The file as it was, to tell the names a refactoring made up from the ones already there.
+        let before = editor.as_ref().and_then(|e| {
+            let e = e.read(cx);
+            Some((e.path.clone()?, e.state.buffer.text()))
+        });
         if let Some(edit) = &action.edit {
             self.apply_workspace_edit(edit, Some(window), cx);
         }
@@ -109,6 +115,20 @@ impl Workbench {
         }
         if action.edit.is_none() && action.command.is_none() {
             self.log(format!("\"{}\" made no changes.", action.title));
+            return;
+        }
+        let Some(editor) = editor else { return };
+        if then == AfterApply::SortUsings {
+            editor.update(cx, |e, cx| e.sort_usings(cx));
+        }
+        // Like Visual Studio: after Extract Method (Introduce Local, Extract Interface, …) rename what it made up.
+        if crate::editor::invents_name(&action.title)
+            && self.settings.get("refactor.renameGenerated", true)
+            && let (Some(edit), Some((path, old))) = (&action.edit, before)
+            && let Some((_, edits)) = edit.changes.iter().find(|(p, _)| bf_core::paths::same_path(p, &path))
+            && let Some((name, line, col)) = crate::editor::generated_name(&old, edits)
+        {
+            editor.update(cx, |e, cx| e.rename_generated(&name, line, col, cx));
         }
     }
 
@@ -129,6 +149,16 @@ impl Workbench {
         let active = self.active;
         for (path, edits) in &edit.changes {
             let path = normalize_path(path);
+            // Refactorings like Extract Interface write to a new file without asking for it to be created.
+            if !path.exists() && !edits.is_empty() && !self.tabs.iter().any(|t| t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))) {
+                if let Some(dir) = path.parent() {
+                    let _ = std::fs::create_dir_all(dir);
+                }
+                if let Err(e) = std::fs::write(&path, "") {
+                    self.log(format!("Could not create {}: {e}", path.display()));
+                    continue;
+                }
+            }
             let find = |wb: &Self| wb.tabs.iter().find(|t| t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))).map(|t| t.editor.clone());
             let mut editor = find(self);
             if editor.is_none()

@@ -177,6 +177,27 @@ fn csharp_ls_end_to_end() {
     assert!(ready);
     println!("[{:>6.1?}] got error diagnostics", t0.elapsed());
 
+    // Refactorings, as the Refactor commands find them (csharp-ls sends them without a kind, edits resolved lazily).
+    let t = Instant::now();
+    let start = find(PROGRAM, "Console.WriteLine(greeting);", 0);
+    let statement = bf_lsp::Range { start, end: Position { line: start.line, character: start.character + "Console.WriteLine(greeting);".len() as u32 } };
+    let refactorings = recv(client.code_actions(&program, statement, &[]), "refactorings");
+    println!("[{:>6.1?}] refactorings on a statement: {:?} (took {:?})", t0.elapsed(), refactorings.iter().map(|a| (&a.title, a.group())).collect::<Vec<_>>(), t.elapsed());
+    let extract = refactorings.iter().find(|a| a.title == "Extract method").expect("no Extract method on a statement");
+    assert_eq!(extract.group(), "Extract");
+    let extract = if extract.edit.is_some() { extract.clone() } else { recv(client.resolve_code_action(extract), "resolve Extract method") };
+    let inserted: String = extract.edit.expect("Extract method has no edit").changes.iter().flat_map(|(_, e)| e.iter().map(|e| e.new_text.clone())).collect();
+    assert!(inserted.contains("NewMethod"), "unexpected Extract method edit: {inserted}");
+    let local = find(PROGRAM, "greeting = ", 0);
+    let inline = recv(client.code_actions(&program, bf_lsp::Range { start: local, end: local }, &[]), "inline");
+    assert!(inline.iter().any(|a| a.title.starts_with("Inline") && a.group() == "Inline"), "no Inline on a local: {:?}", inline.iter().map(|a| &a.title).collect::<Vec<_>>());
+    let unused: Vec<_> = last_diagnostics.iter().filter(|d| d.code.as_deref() == Some("CS8019")).cloned().collect();
+    if let Some(first) = unused.first() {
+        let usings = recv(client.code_actions(&program, first.range, &unused), "remove usings");
+        println!("           on unused usings: {:?}", usings.iter().map(|a| &a.title).collect::<Vec<_>>());
+        assert!(usings.iter().any(|a| a.title.starts_with("Remove unnecessary usings")), "no Remove unnecessary usings");
+    }
+
     let t = Instant::now();
     let completion = recv(
         client.completion(&program, find(PROGRAM, "Console.Wri", 8)),
