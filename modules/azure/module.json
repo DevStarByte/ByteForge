@@ -1,0 +1,56 @@
+{
+  // Azure for ByteForge: Bicep highlighting (.bicep, .bicepparam) and a Bicep file icon. Declares things only,
+  // so there's no process to run.
+  "id": "byteforge.azure",
+  "name": "Azure",
+  "version": "0.1.0",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
+  "category": "Languages",
+  "description": "Azure Bicep support: highlighting for .bicep and .bicepparam files (keywords, decorators, declarations, types, functions, strings with ${} interpolation, comments) and a Bicep file icon.",
+  "fileIcons": [
+    {
+      "icon": "M6,2H14L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2Z M14,3.5V8H18.5Z M11.1,10.5H13.3L10.1,19.5H6.9Z M14.1,12.8L17.1,19.5H11.2L14.2,17.6L12.9,16.2Z",
+      "color": "#3f9ade",
+      "extensions": ["bicep", "bicepparam"]
+    }
+  ],
+  "languages": [
+    {
+      "id": "bicep",
+      "name": "Bicep",
+      "extensions": ["bicep", "bicepparam"],
+      "lineComment": "//",
+      // Applied per line; where matches overlap, the earlier rule wins. Comments and strings come first so
+      // nothing inside them is highlighted as code.
+      "rules": [
+        {"match": "^(?:[^'/]|'(?:[^'\\\\]|\\\\.)*'|/[^/*])*(//.*)$", "group": 1, "token": "comment"},
+        {"match": "^(?:[^'/]|'(?:[^'\\\\]|\\\\.)*'|/[^/*])*?(/\\*.*?(?:\\*/|$))", "group": 1, "token": "comment"},
+        {"match": "^\\s*\\*.*$", "token": "comment"},
+        {"match": "'''.*?(?:'''|$)", "token": "string"},
+        {"match": "\\\\(?:u\\{[0-9A-Fa-f]+\\}|.)", "token": "string - escape character"},
+        {"match": "(\\$\\{)[^}]*\\}", "group": 1, "token": "string - escape character"},
+        {"match": "\\$\\{[^}]*(\\})", "group": 1, "token": "string - escape character"},
+        {"match": "\\$\\{([^}]*)\\}", "group": 1, "token": "identifier"},
+        {"match": "'(?:[^'\\\\]|\\\\.)*'?", "token": "string"},
+        {"match": "@[A-Za-z_][\\w.]*", "token": "label name"},
+        {"match": "^\\s*([A-Za-z_]\\w*)\\s*:", "group": 1, "token": "property name"},
+        {"match": "\\b(if|for|in)\\b", "group": 1, "token": "keyword - control"},
+        {"match": "\\b(targetScope|metadata|param|var|resource|module|output|existing|import|using|extends|type|func|as|with|from|assert|provider|extension|true|false|null)\\b", "group": 1, "token": "keyword"},
+        {"match": "^\\s*(?:@\\S+\\s+)*param\\s+([A-Za-z_]\\w*)", "group": 1, "token": "parameter name"},
+        {"match": "^\\s*(?:@\\S+\\s+)*(?:var|resource|module|output|metadata)\\s+([A-Za-z_]\\w*)", "group": 1, "token": "local name"},
+        {"match": "^\\s*(?:@\\S+\\s+)*type\\s+([A-Za-z_]\\w*)", "group": 1, "token": "type"},
+        {"match": "^\\s*(?:@\\S+\\s+)*func\\s+([A-Za-z_]\\w*)", "group": 1, "token": "method name"},
+        {"match": "^\\s*(?:@\\S+\\s+)*(?:param|output)\\s+[A-Za-z_]\\w*\\s+([A-Za-z_][\\w.]*)", "group": 1, "token": "type"},
+        {"match": "\\b(sys|az)\\.", "group": 1, "token": "namespace name"},
+        {"match": "\\b([A-Za-z_]\\w*)\\s*\\(", "group": 1, "token": "method name"},
+        {"match": "\\b(string|int|bool|object|array|any)\\b", "group": 1, "token": "type"},
+        {"match": "\\.([A-Za-z_]\\w*)", "group": 1, "token": "property name"},
+        {"match": "\\b\\d+(?:\\.\\d+)?\\b", "token": "number"},
+        {"match": "=>|\\?\\?|\\.\\.\\.|[=!<>]=|&&|\\|\\||=~|!~|[=<>!?:+\\-*/%]", "token": "operator"},
+        {"match": "[{}()\\[\\],.]", "token": "punctuation"}
+
+      ]
+    }
+  ]
+}

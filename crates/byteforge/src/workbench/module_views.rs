@@ -468,4 +468,64 @@ mod tests {
         assert_eq!(kind(">", 0), Some("operator"));
         bf_syntax::module_lang::set_module_languages(Vec::new());
     }
+
+    /// The bundled Azure module highlights Bicep: declarations, decorators, types, functions, strings with
+    /// interpolation, and comments (also `//` inside strings isn't a comment).
+    #[test]
+    fn azure_module_highlights_bicep() {
+        let _turn = LANGUAGES.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
+        let module = bf_core::plugins::discover(&dir).into_iter().find(|m| m.id == "byteforge.azure").expect("modules/azure");
+        assert!(module.command.is_empty(), "declares things only");
+        let lang = module.languages.iter().find(|l| l.id == "bicep").expect("bicep language");
+        let compiled = super::module_language(lang);
+        assert_eq!(compiled.rules.len(), lang.rules.len(), "every rule compiles");
+        bf_syntax::module_lang::set_module_languages(vec![compiled]);
+        assert!(module.file_icons.iter().any(|r| r.matches("main.bicep")) && module.file_icons.iter().any(|r| r.matches("main.bicepparam")));
+        assert!(matches!(Language::from_path(Path::new("infra/main.bicepparam")), Some(Language::Module(_))));
+        let language = Language::from_path(Path::new("infra/main.bicep")).expect("bicep files");
+        assert_eq!(language.line_comment(), Some("//"));
+
+        let text = "targetScope = 'resourceGroup' // scope\n@description('The site, see https://example.com')\nparam location string = resourceGroup().location\nvar name = 'st${uniqueString(location)}\\n'\nresource sa 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {\n  kind: 'StorageV2'\n  sku: { name: sys.toLower('Standard_LRS') }\n}\nmodule app './app.bicep' = [for i in range(0, 3): if (i > 1) {}]\noutput id string = sa.id\ntype Size = int\n/* note */ func double(n int) int => n * 2\n";
+        let spans = Highlighter::new(language).highlight(text, 0..text.len());
+        let kind = |needle: &str, nth: usize| {
+            let start = text.match_indices(needle).nth(nth).map(|(i, _)| i).unwrap();
+            spans.iter().find(|s| s.start <= start && start < s.end).map(|s| s.kind)
+        };
+        assert_eq!(kind("targetScope", 0), Some("keyword"));
+        assert_eq!(kind("'resourceGroup'", 0), Some("string"));
+        assert_eq!(kind("// scope", 0), Some("comment"));
+        assert_eq!(kind("@description", 0), Some("label name"));
+        assert_eq!(kind("https://", 0), Some("string"));
+        assert_eq!(kind("param", 0), Some("keyword"));
+        assert_eq!(kind("location", 0), Some("parameter name"));
+        assert_eq!(kind("string", 0), Some("type"));
+        assert_eq!(kind("resourceGroup()", 0), Some("method name"));
+        assert_eq!(kind(".location", 0), Some("punctuation"));
+        assert_eq!(kind("location", 1), Some("property name"));
+        assert_eq!(kind("location", 2), Some("identifier"));
+        assert_eq!(kind("name", 0), Some("local name"));
+        assert_eq!(kind("'st", 0), Some("string"));
+        assert_eq!(kind("${", 0), Some("string - escape character"));
+        assert_eq!(kind("uniqueString", 0), Some("identifier"));
+        assert_eq!(kind("\\n", 0), Some("string - escape character"));
+        assert_eq!(kind("sa", 0), Some("local name"));
+        assert_eq!(kind("@2023", 0), Some("string"));
+        assert_eq!(kind("existing", 0), Some("keyword"));
+        assert_eq!(kind("kind", 0), Some("property name"));
+        assert_eq!(kind("sys", 0), Some("namespace name"));
+        assert_eq!(kind("toLower", 0), Some("method name"));
+        assert_eq!(kind("module", 0), Some("keyword"));
+        assert_eq!(kind("for", 0), Some("keyword - control"));
+        assert_eq!(kind("if", 0), Some("keyword - control"));
+        assert_eq!(kind("3)", 0), Some("number"));
+        assert_eq!(kind(">", 0), Some("operator"));
+        assert_eq!(kind("id", 0), Some("local name"));
+        assert_eq!(kind("Size", 0), Some("type"));
+        assert_eq!(kind("int", 1), Some("type"));
+        assert_eq!(kind("/* note */", 0), Some("comment"));
+        assert_eq!(kind("double", 0), Some("method name"));
+        assert_eq!(kind("=>", 0), Some("operator"));
+        bf_syntax::module_lang::set_module_languages(Vec::new());
+    }
 }
