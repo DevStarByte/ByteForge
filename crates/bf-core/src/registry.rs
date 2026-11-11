@@ -106,9 +106,12 @@ pub fn uninstall(modules_dir: &Path, module_dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Copies the modules bundled with ByteForge (`<install dir>/modules`) into the user's modules folder,
-/// once per module: ids in `done` were preinstalled before (and may have been uninstalled since).
-/// Returns the ids preinstalled now.
+/// The bundled modules that are preinstalled; the others are installed from the Modules view.
+pub const PREINSTALLED: &[&str] = &["byteforge.csharpier"];
+
+/// Copies the [`PREINSTALLED`] modules bundled with ByteForge (`<install dir>/modules`) into the user's
+/// modules folder, once per module: ids in `done` were preinstalled before (and may have been uninstalled
+/// since). Returns the ids preinstalled now.
 pub fn preinstall(bundled: &Path, modules_dir: &Path, done: &[String]) -> Vec<String> {
     let mut installed = Vec::new();
     let Ok(entries) = std::fs::read_dir(bundled) else { return installed };
@@ -121,7 +124,7 @@ pub fn preinstall(bundled: &Path, modules_dir: &Path, done: &[String]) -> Vec<St
         else {
             continue;
         };
-        if done.contains(&id) {
+        if !PREINSTALLED.contains(&id.as_str()) || done.contains(&id) {
             continue;
         }
         let dest = modules_dir.join(entry.file_name());
