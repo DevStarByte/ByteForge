@@ -255,7 +255,7 @@ pub struct RuntimeProcess {
 
 /// Running .NET processes of the current user (they load the CoreCLR runtime).
 pub fn dotnet_processes() -> Vec<RuntimeProcess> {
-    let mut out = Vec::new();
+    let mut out: Vec<RuntimeProcess> = Vec::new();
     #[cfg(target_os = "linux")]
     {
         let own = std::process::id();
@@ -275,6 +275,31 @@ pub fn dotnet_processes() -> Vec<RuntimeProcess> {
             let command_line = cmdline.split(|b| *b == 0).filter(|a| !a.is_empty()).map(|a| String::from_utf8_lossy(a).into_owned()).collect::<Vec<_>>().join(" ");
             let name = std::fs::read_to_string(dir.join("comm")).map(|c| c.trim().to_owned()).unwrap_or_default();
             out.push(RuntimeProcess { pid, name, command_line });
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // No /proc on macOS: the user's processes from ps, kept when they are `dotnet` itself or an app
+        // host (an executable next to its `<name>.runtimeconfig.json`, which is what `dotnet build` makes).
+        let own = std::process::id();
+        if let Ok(output) = Command::new("ps").args(["-x", "-o", "pid=,comm="]).output() {
+            for line in String::from_utf8_lossy(&output.stdout).lines() {
+                let line = line.trim();
+                let Some((pid, exe)) = line.split_once(char::is_whitespace) else { continue };
+                let Ok(pid) = pid.parse::<u32>() else { continue };
+                let exe = Path::new(exe.trim());
+                let name = exe.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let app_host = exe.with_file_name(format!("{name}.runtimeconfig.json")).is_file();
+                if pid == own || !(name == "dotnet" || app_host) {
+                    continue;
+                }
+                let command_line = Command::new("ps")
+                    .args(["-o", "args=", "-p", &pid.to_string()])
+                    .output()
+                    .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+                    .unwrap_or_default();
+                out.push(RuntimeProcess { pid, name, command_line });
+            }
         }
     }
     #[cfg(windows)]
