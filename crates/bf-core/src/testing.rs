@@ -393,15 +393,9 @@ pub fn parse_trx(xml: &str) -> anyhow::Result<Vec<TestResult>> {
 /// ("  Passed Calc.MathTests.Positive(x: 2) [< 1 ms]"): its outcome and display name.
 pub fn parse_progress_line(line: &str) -> Option<(Outcome, String)> {
     let t = line.trim();
-    let (outcome, rest) = if let Some(r) = t.strip_prefix("Passed ") {
-        (Outcome::Passed, r)
-    } else if let Some(r) = t.strip_prefix("Failed ") {
-        (Outcome::Failed, r)
-    } else if let Some(r) = t.strip_prefix("Skipped ") {
-        (Outcome::Skipped, r)
-    } else {
-        return None;
-    };
+    let (outcome, rest) = [("Passed ", Outcome::Passed), ("Failed ", Outcome::Failed), ("Skipped ", Outcome::Skipped)]
+        .into_iter()
+        .find_map(|(prefix, outcome)| t.strip_prefix(prefix).map(|r| (outcome, r)))?;
     // The time in brackets ends the line; a name never does that.
     let at = rest.rfind(" [")?;
     rest.ends_with(']').then(|| (outcome, rest[..at].trim().to_owned()))
