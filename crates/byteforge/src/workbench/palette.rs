@@ -152,7 +152,7 @@ impl Workbench {
                     PaletteAction::GoTo(path, at) => self.open_file(path, Some(at), window, cx),
                     PaletteAction::Package(id, _latest) => {
                         if let Some(project) = self.package_target.take() {
-                            self.open_version_picker(project, id, window, cx);
+                            self.open_version_picker(project, id, None, window, cx);
                         }
                     }
                     PaletteAction::Prompt(text) => {

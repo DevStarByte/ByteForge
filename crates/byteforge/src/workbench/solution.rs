@@ -18,6 +18,7 @@ impl Workbench {
             SolutionEvent::AddPackage(project) => self.open_package_search(project.clone(), window, cx),
             SolutionEvent::UpdatePackage(project, id, version) => self.add_package(project.clone(), id.clone(), Some(version.clone()), window, cx),
             SolutionEvent::RemovePackage(project, id) => self.remove_package(project.clone(), id.clone(), window, cx),
+            SolutionEvent::ChangePackageVersion(project, id, installed) => self.open_version_picker(project.clone(), id.clone(), Some(installed.clone()), window, cx),
             SolutionEvent::Reveal(path) => {
                 self.show_side(SideView::Explorer, cx);
                 self.explorer.update(cx, |e, cx| e.reveal(path, cx));

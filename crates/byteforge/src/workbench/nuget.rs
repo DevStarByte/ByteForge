@@ -103,7 +103,7 @@ impl Workbench {
 
     /// After a search pick: the package's versions (latest stable first, so Enter takes it; prereleases
     /// marked). Picking one adds it.
-    pub(super) fn open_version_picker(&mut self, project: PathBuf, id: String, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn open_version_picker(&mut self, project: PathBuf, id: String, installed: Option<String>, window: &mut Window, cx: &mut Context<Self>) {
         let Some(root) = self.workspace.root() else { return };
         let package = id.clone();
         let task = cx.background_spawn(async move { bf_core::nuget::versions(&root, &package) });
@@ -124,15 +124,20 @@ impl Workbench {
                     .enumerate()
                     .map(|(i, v)| {
                         let mut item = PaletteItem::new(v.clone(), PaletteAction::Command(Box::new(AddPackageVersion { project: project_arg.clone(), id: id.clone(), version: v.clone() })));
-                        item.hint = Some(match (i, bf_core::nuget::is_prerelease(v)) {
-                            (0, false) => "latest stable".into(),
-                            (_, true) => "prerelease".into(),
+                        let mut hint = match (i, bf_core::nuget::is_prerelease(v)) {
+                            (0, false) => "latest stable".to_owned(),
+                            (_, true) => "prerelease".to_owned(),
                             _ => String::new(),
-                        });
+                        };
+                        if installed.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(v)) {
+                            hint = if hint.is_empty() { "installed".into() } else { format!("{hint}, installed") };
+                        }
+                        item.hint = Some(hint);
                         item
                     })
                     .collect();
-                wb.open_pick_palette(items, &format!("Version of {id} to add to {}", project_name(&project)), window, cx);
+                let verb = if installed.is_some() { "use in" } else { "add to" };
+                wb.open_pick_palette(items, &format!("Version of {id} to {verb} {}", project_name(&project)), window, cx);
             });
         })
         .detach();

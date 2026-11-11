@@ -30,6 +30,8 @@ pub enum SolutionEvent {
     /// Change a package reference to this version.
     UpdatePackage(PathBuf, String, String),
     RemovePackage(PathBuf, String),
+    /// Pick another version of an installed package (project, package id, installed version).
+    ChangePackageVersion(PathBuf, String, String),
 }
 
 #[derive(Clone)]
@@ -548,7 +550,8 @@ impl Render for SolutionView {
                         }
                         Entry::Package { project, name, version, latest, depth } => {
                             let current = version.clone().unwrap_or_default();
-                            let (e1, e2) = (entity.clone(), entity.clone());
+                            let (e1, e2, e3) = (entity.clone(), entity.clone(), entity.clone());
+                            let (p3, n3, v3) = (project.clone(), name.clone(), version.clone().unwrap_or_default());
                             let (p1, p2, n1, n2) = (project.clone(), project, name.clone(), name.clone());
                             let newer = latest.clone();
                             let update_color = t.c_or("solution.updateForeground", 0x3794ffff);
@@ -590,6 +593,10 @@ impl Render for SolutionView {
                                                     }),
                                             )
                                         })
+                                        .child(small("version", "layers", "Change Version…").on_click(move |_, _, cx| {
+                                            cx.stop_propagation();
+                                            e3.update(cx, |_, cx| cx.emit(SolutionEvent::ChangePackageVersion(p3.clone(), n3.clone(), v3.clone())))
+                                        }))
                                         .child(small("remove", "trash", "Remove Package").on_click(move |_, _, cx| {
                                             cx.stop_propagation();
                                             e2.update(cx, |_, cx| cx.emit(SolutionEvent::RemovePackage(p2.clone(), n2.clone())))
