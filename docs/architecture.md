@@ -9,7 +9,7 @@ crates/
   bf-core     paths, settings, themes (inheritance, hot reload), workspace index/watcher, search, dotnet runner,
               debug helpers (launch profiles, target assembly, build diagnostics), module host
   byteforge   the GPUI app: workbench, editor element, palette, explorer, search, theme → GPUI mapping, icons
-modules/      preinstalled modules (CSharpier, Docker)
+modules/      preinstalled modules (CSharpier, Aspire, SQL)
 themes/       built-in themes (byteforge-dark.json documents every key)
 packaging/    Linux install script, desktop entry, Arch PKGBUILD for local builds
               (the repo's PKGBUILD and build workflow live on the `packages` branch)

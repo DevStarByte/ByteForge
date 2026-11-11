@@ -496,25 +496,6 @@ mod tests {
     }
 
     #[test]
-    fn the_bundled_docker_module_declares_its_view_language_and_icons() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
-        let m = super::discover(&dir).into_iter().find(|m| m.id == "byteforge.docker").expect("modules/docker");
-        assert_eq!(m.command, "python3");
-        assert!(m.views.iter().any(|v| v.id == "docker" && !v.icon.is_empty()));
-        let language = m.languages.iter().find(|l| l.id == "dockerfile").expect("dockerfile language");
-        let icon_for = |name: &str| m.file_icons.iter().position(|r| r.matches(name));
-        for name in ["Dockerfile", "Containerfile", "Dockerfile.dev", "api.Dockerfile", "app.containerfile"] {
-            assert!(language.matches(name), "{name}");
-            assert!(icon_for(name).is_some(), "{name}");
-        }
-        for name in ["compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.override.yml", "compose.prod.yaml"] {
-            assert!(icon_for(name).is_some() && !language.matches(name), "{name}");
-        }
-        assert!(icon_for(".dockerignore").is_some());
-        assert_eq!(icon_for("compose.json"), None);
-    }
-
-    #[test]
     fn parses_view_and_dialog_messages() {
         let tree = super::parse(
             "m",

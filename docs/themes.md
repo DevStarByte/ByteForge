@@ -50,7 +50,7 @@ from the base theme.
 - **icons**: replace any built-in icon (logo, files, search, window buttons, …) with SVG path data. Every file
   type has its own icon (a page with the type's symbol: `#` for C#, `{ }` for JSON, `< >` for markup, …), colored
   by `icon.csharp`, `icon.json`, `icon.razor`, `icon.yaml`, `icon.script` and the other `icon.*` keys. Modules can
-  add icons for more file types (the preinstalled Docker module does this for Docker files).
+  add icons for more file types (the Docker module does this for Docker files).
 
 ## Layout
 

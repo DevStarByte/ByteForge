@@ -434,43 +434,6 @@ mod tests {
     /// Module languages are global: tests that install some take turns.
     static LANGUAGES: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-    /// The bundled Docker module highlights Dockerfiles the way the old built-in grammar did.
-    #[test]
-    fn docker_module_highlights_dockerfiles() {
-        let _turn = LANGUAGES.lock().unwrap_or_else(|e| e.into_inner());
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
-        let docker = bf_core::plugins::discover(&dir).into_iter().find(|m| m.id == "byteforge.docker").expect("modules/docker");
-        let lang = docker.languages.iter().find(|l| l.id == "dockerfile").expect("dockerfile language");
-        let compiled = super::module_language(lang);
-        assert_eq!(compiled.rules.len(), lang.rules.len(), "every rule compiles");
-        bf_syntax::module_lang::set_module_languages(vec![compiled]);
-        for name in ["Dockerfile", "src/Api/Dockerfile", "Dockerfile.dev", "api.dockerfile", "Containerfile"] {
-            assert!(matches!(Language::from_path(Path::new(name)), Some(Language::Module(_))), "{name}");
-        }
-        let language = Language::from_path(Path::new("Dockerfile")).unwrap();
-        assert_eq!(language.line_comment(), Some("#"));
-
-        let text = "# syntax=docker/dockerfile:1\nFROM mcr.microsoft.com/dotnet/sdk:9.0 AS build\nARG BUILD_CONFIGURATION=Release\nENV ASPNETCORE_HTTP_PORTS=8080\nWORKDIR /src\nCOPY [\"Api/Api.csproj\", \"Api/\"]\nRUN dotnet restore \"Api/Api.csproj\"\nCOPY --from=build /app/publish .\nEXPOSE 8080\nENTRYPOINT [\"dotnet\", \"Api.dll\"]\n";
-        let spans = Highlighter::new(language).highlight(text, 0..text.len());
-        let kind = |needle: &str, nth: usize| {
-            let start = text.match_indices(needle).nth(nth).map(|(i, _)| i).unwrap();
-            spans.iter().find(|s| s.start <= start && start < s.end).map(|s| s.kind)
-        };
-        assert_eq!(kind("# syntax", 0), Some("comment"));
-        assert_eq!(kind("FROM", 0), Some("keyword"));
-        assert_eq!(kind("AS", 0), Some("keyword"));
-        assert_eq!(kind("mcr.microsoft.com", 0), Some("class name"));
-        assert_eq!(kind("9.0", 0), Some("number"));
-        assert_eq!(kind("build", 0), Some("label name"));
-        assert_eq!(kind("BUILD_CONFIGURATION", 0), Some("property name"));
-        assert_eq!(kind("ASPNETCORE_HTTP_PORTS", 0), Some("property name"));
-        assert_eq!(kind("\"Api/Api.csproj\"", 0), Some("string"));
-        assert_eq!(kind("--from", 0), Some("parameter name"));
-        assert_eq!(kind("8080", 1), Some("number"));
-        assert_eq!(kind("ENTRYPOINT", 0), Some("keyword"));
-        bf_syntax::module_lang::set_module_languages(Vec::new());
-    }
-
     /// The bundled SQL module's rules all compile (Rust regex syntax) and highlight a query.
     #[test]
     fn sql_module_highlights_queries() {
