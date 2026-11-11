@@ -369,7 +369,8 @@ mod tests {
     fn replace_preview_and_events(cx: &mut gpui::TestAppContext) {
         cx.update(|cx| crate::theme::Theme::build(std::sync::Arc::new(bf_core::theme::ThemeData::default()), 0, cx).install(cx));
         let (view, cx) = cx.add_window_view(|window, cx| SearchView::new(Workspace::new(Vec::new()), window, cx));
-        let events: Rc<RefCell<Vec<(Vec<PathBuf>, Option<usize>, String, usize)>>> = Default::default();
+        type Sent = (Vec<PathBuf>, Option<usize>, String, usize);
+        let events: Rc<RefCell<Vec<Sent>>> = Default::default();
         let sink = events.clone();
         let _sub = cx.update(|_, cx| {
             cx.subscribe(&view, move |_, e: &SearchEvent, _| {

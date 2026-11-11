@@ -108,6 +108,7 @@ impl Workbench {
 
     /// Replace in the Search view: open files change in their editor (one undo step each, unsaved, so the
     /// change can be reviewed), the others on disk. Replace All asks first.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn replace_in_files(&mut self, files: Vec<PathBuf>, line: Option<usize>, matcher: bf_text::Matcher, template: String, count: usize, window: &mut Window, cx: &mut Context<Self>) {
         let files_n = files.len();
         let apply = move |wb: &mut Self, cx: &mut Context<Self>| {
