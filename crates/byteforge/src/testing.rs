@@ -715,7 +715,6 @@ mod tests {
 mod view_tests {
     use super::*;
     use bf_core::testing::{TestCase, TestClass};
-    use gpui::AppContext as _;
 
     fn project() -> TestProject {
         let file = PathBuf::from("/w/T/MathTests.cs");
