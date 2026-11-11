@@ -328,3 +328,11 @@ impl Render for Palette {
             .when(count > 0, |d| d.child(list))
     }
 }
+
+#[cfg(test)]
+impl Palette {
+    /// The actions of the listed items (tests pick one and accept it).
+    pub(crate) fn items_for_test(&self) -> Vec<PaletteAction> {
+        self.items.iter().map(|i| i.action.clone()).collect()
+    }
+}

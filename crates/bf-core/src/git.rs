@@ -310,6 +310,11 @@ impl Git {
         }
     }
 
+    /// Puts the uncommitted changes (untracked files included) on the stash.
+    pub fn stash_push(&self, message: &str) -> anyhow::Result<String> {
+        run_verbose(&self.root, &["stash", "push", "--include-untracked", "-m", message])
+    }
+
     pub fn create_branch(&self, name: &str) -> anyhow::Result<String> {
         run_verbose(&self.root, &["switch", "-c", name])
     }

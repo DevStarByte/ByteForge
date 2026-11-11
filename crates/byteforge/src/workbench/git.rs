@@ -9,6 +9,7 @@ impl Workbench {
             ScmEvent::OpenDiff(change, staged) => self.open_diff(change.clone(), *staged, window, cx),
             ScmEvent::OpenCommitDiff(commit, file) => self.open_commit_diff(commit.clone(), file.clone(), window, cx),
             ScmEvent::Log(text) => self.log(text),
+            ScmEvent::CheckoutFailed(branch, message) => self.checkout_failed(branch.clone(), message.clone(), window, cx),
             ScmEvent::StatusChanged => {
                 let s = scm.read(cx);
                 let decorations = match s.git() {
@@ -144,6 +145,22 @@ impl Workbench {
         .detach();
     }
 
+    /// A branch switch failed: says why, and when local changes are in the way, offers to stash them.
+    fn checkout_failed(&mut self, branch: bf_core::git::Branch, message: String, window: &mut Window, cx: &mut Context<Self>) {
+        self.log(format!("Could not switch to {}: {message}", branch.name));
+        let in_the_way = message.contains("would be overwritten") || message.contains("Please commit your changes or stash them");
+        let detail: String = message.lines().filter(|l| !l.trim().is_empty()).take(12).collect::<Vec<_>>().join("\n");
+        let buttons: &[&str] = if in_the_way { &["Stash Changes and Switch", "Cancel"] } else { &["OK"] };
+        let question = if in_the_way { format!("Your changes would be overwritten by switching to {}.", branch.name) } else { format!("Could not switch to {}.", branch.name) };
+        let rx = window.prompt(PromptLevel::Warning, &question, Some(&detail), buttons, cx);
+        cx.spawn_in(window, async move |this, cx| {
+            if let (Ok(0), true) = (rx.await, in_the_way) {
+                let _ = this.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.checkout(branch, true, cx)));
+            }
+        })
+        .detach();
+    }
+
     // ───────────── history and blame ─────────────
 
     /// "Git: File History": the commits that changed the current file; picking one opens its diff.
@@ -265,5 +282,106 @@ impl Workbench {
             });
         })
         .detach();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::workbench::settings_page::view_tests::workbench;
+
+    fn git(dir: &Path, args: &[&str]) -> String {
+        let out = std::process::Command::new("git").args(args).current_dir(dir).output().expect("git");
+        assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+        String::from_utf8_lossy(&out.stdout).trim().to_owned()
+    }
+
+    /// Picking a branch in the branch picker (what a click on its row does) switches to it.
+    #[gpui::test]
+    fn picking_a_branch_switches_to_it(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "branches");
+        let repo = guard.dir.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q", "-b", "main"]);
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+            git(&repo, &["config", k, v]);
+        }
+        std::fs::write(repo.join("a.txt"), "a\n").unwrap();
+        git(&repo, &["add", "."]);
+        git(&repo, &["commit", "-qm", "first"]);
+        git(&repo, &["branch", "feature"]);
+
+        wb.update_in(cx, |wb, window, cx| wb.open_folder(repo.clone(), window, cx));
+        cx.run_until_parked();
+        wb.update_in(cx, |wb, window, cx| wb.open_branch_picker(window, cx));
+        cx.run_until_parked();
+        let (palette, branch) = wb.update(cx, |wb, cx| {
+            let palette = wb.palette.as_ref().map(|(p, _)| p.clone()).expect("the branch picker is open");
+            let branch = palette.read(cx).items_for_test().into_iter().find_map(|a| match a {
+                PaletteAction::Branch(b) if b.name == "feature" => Some(b),
+                _ => None,
+            });
+            (palette, branch.expect("feature is listed"))
+        });
+        palette.update(cx, |_, cx| cx.emit(crate::palette::PaletteEvent::Accept(PaletteAction::Branch(branch))));
+        cx.run_until_parked();
+        // The switch runs on a background thread; give it a moment.
+        for _ in 0..50 {
+            if git(&repo, &["branch", "--show-current"]) == "feature" {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            cx.run_until_parked();
+        }
+        assert_eq!(git(&repo, &["branch", "--show-current"]), "feature");
+        drop(guard);
+    }
+
+    /// Local changes in the way: the switch fails with a question instead of silently, and "Stash Changes
+    /// and Switch" puts them on the stash and switches.
+    #[gpui::test]
+    fn a_blocked_switch_asks_and_can_stash(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "blocked-switch");
+        let repo = guard.dir.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q", "-b", "main"]);
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+            git(&repo, &["config", k, v]);
+        }
+        std::fs::write(repo.join("a.txt"), "a\n").unwrap();
+        git(&repo, &["add", "."]);
+        git(&repo, &["commit", "-qm", "first"]);
+        git(&repo, &["switch", "-qc", "feature"]);
+        std::fs::write(repo.join("a.txt"), "feature\n").unwrap();
+        git(&repo, &["commit", "-qam", "feature"]);
+        git(&repo, &["switch", "-q", "main"]);
+        std::fs::write(repo.join("a.txt"), "local edit\n").unwrap();
+
+        wb.update_in(cx, |wb, window, cx| wb.open_folder(repo.clone(), window, cx));
+        cx.run_until_parked();
+        let feature = bf_core::git::Branch { name: "feature".into(), current: false, remote: false };
+        wb.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.checkout(feature, false, cx)));
+        let mut asked = false;
+        for _ in 0..50 {
+            cx.run_until_parked();
+            if cx.has_pending_prompt() {
+                asked = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        assert!(asked, "the failed switch shows a dialog");
+        assert_eq!(git(&repo, &["branch", "--show-current"]), "main");
+        cx.simulate_prompt_answer("Stash Changes and Switch");
+        for _ in 0..50 {
+            cx.run_until_parked();
+            if git(&repo, &["branch", "--show-current"]) == "feature" {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        assert_eq!(git(&repo, &["branch", "--show-current"]), "feature");
+        assert!(git(&repo, &["stash", "list"]).contains("ByteForge: before switching to feature"));
+        drop(guard);
     }
 }

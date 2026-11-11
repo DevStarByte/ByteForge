@@ -24,6 +24,9 @@ pub enum ScmEvent {
     /// The repository status changed (files, branch or HEAD).
     StatusChanged,
     Log(String),
+    /// Switching to the branch failed (git's message): the workbench shows it, and offers to stash local
+    /// changes that are in the way.
+    CheckoutFailed(bf_core::git::Branch, String),
 }
 
 #[derive(Clone)]
@@ -494,8 +497,41 @@ impl ScmView {
         }, cx);
     }
 
-    pub fn checkout(&mut self, branch: bf_core::git::Branch, cx: &mut Context<Self>) {
-        self.run_op("switch", false, move |g| g.checkout(&branch), cx);
+    /// Switches to `branch`; with `stash`, local changes go on the stash first. A failure is reported as
+    /// [`ScmEvent::CheckoutFailed`] (not only to the log, where it's easy to miss).
+    pub fn checkout(&mut self, branch: bf_core::git::Branch, stash: bool, cx: &mut Context<Self>) {
+        let Some(git) = self.git.clone() else { return };
+        if self.busy.is_some() {
+            cx.emit(ScmEvent::Log(format!("git is busy ({}); try switching again in a moment.", self.busy.clone().unwrap_or_default())));
+            return;
+        }
+        self.busy = Some("switch".into());
+        self.error = None;
+        cx.notify();
+        let target = branch.clone();
+        self.op_task = Some(cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    if stash {
+                        git.stash_push(&format!("ByteForge: before switching to {}", target.name))?;
+                    }
+                    git.checkout(&target)
+                })
+                .await;
+            let _ = this.update(cx, |v, cx| {
+                v.busy = None;
+                match result {
+                    Ok(out) => cx.emit(ScmEvent::Log(format!("Switched to {}{}{}", branch.name, if stash { " (local changes are on the stash)" } else { "" }, if out.trim().is_empty() { String::new() } else { format!(": {}", out.trim()) }))),
+                    Err(e) => {
+                        v.error = Some(e.to_string());
+                        cx.emit(ScmEvent::CheckoutFailed(branch, e.to_string()));
+                    }
+                }
+                v.refresh(cx);
+                cx.notify();
+            });
+        }));
     }
 
     pub fn create_branch(&mut self, name: String, cx: &mut Context<Self>) {

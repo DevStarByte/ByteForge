@@ -155,7 +155,7 @@ impl Workbench {
                             editor.update(cx, |e, cx| e.go_to(Point::new(line, 0), cx));
                         }
                     }
-                    PaletteAction::Branch(branch) => self.scm.update(cx, |s, cx| s.checkout(branch, cx)),
+                    PaletteAction::Branch(branch) => self.scm.update(cx, |s, cx| s.checkout(branch, false, cx)),
                     PaletteAction::GoTo(path, at) => self.open_file(path, Some(at), window, cx),
                     PaletteAction::Package(id, _latest) => {
                         if let Some(project) = self.package_target.take() {

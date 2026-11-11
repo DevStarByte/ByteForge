@@ -8,7 +8,7 @@ the git history.
 - [ ] Dogfooding: use ByteForge for real work and fix what turns up. Built but never clicked through: the
       Refactor menu, diff editor, blame, merge conflicts, breadcrumbs, tab dragging, one file in both groups,
       the User Secrets page, live test progress.
-- [ ] Branch picker: clicking a branch doesn't switch to it (needs a repro in the app).
+- [ ] Branch picker: clicking a branch doesn't switch to it. Tests now show picking a branch switches it, and a switch that git refuses (local changes in the way) used to fail silently into the Output log; it now asks, with "Stash Changes and Switch". Still to confirm in the app that this was the cause (the mouse click on the row itself isn't covered by a test).
 - [ ] Use the Roslyn language server (the one VS Code's C# extension uses) instead of, or next to,
       csharp-ls: more refactorings (Change Signature), Razor IntelliSense.
 

@@ -398,7 +398,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod view_tests {
+pub(crate) mod view_tests {
     use super::*;
 
     /// A workbench in a test window with its own config folder (removed on drop) and no folder open.
