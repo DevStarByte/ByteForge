@@ -44,8 +44,9 @@ impl Workbench {
                                         wb.lsp_status = if text.contains("Finished") { "C#: ready".into() } else { format!("C#: {}", short(&text, 48)) };
                                     }
                                     LspEvent::Diagnostics { path, diagnostics, .. } => {
-                                        if let Some(tab) = wb.tabs.iter().find(|t| t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))) {
-                                            tab.editor.update(cx, |e, cx| e.set_lsp_diagnostics(diagnostics, cx));
+                                        // Every view of the file (it can be open in both groups).
+                                        for tab in wb.tabs.iter().filter(|t| t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))) {
+                                            tab.editor.update(cx, |e, cx| e.set_lsp_diagnostics(diagnostics.clone(), cx));
                                         }
                                     }
                                     LspEvent::Log(text) => {

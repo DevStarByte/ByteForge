@@ -13,7 +13,7 @@ actions!(
         ToggleLineEnding, ReloadCSharp, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
         GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
         FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup,
-        MarkdownOpenPreview, MarkdownOpenPreviewToSide
+        MarkdownOpenPreview, MarkdownOpenPreviewToSide, OpenInOtherGroup
     ]
 );
 
@@ -237,6 +237,7 @@ fn builtin() -> Vec<Builtin> {
         ("view.nextEditor", "Next Editor", "View", Box::new(NextEditor), Some("ctrl-tab")),
         ("view.previousEditor", "Previous Editor", "View", Box::new(PreviousEditor), Some("ctrl-shift-tab")),
         ("view.splitEditor", "Split Editor (Move to Other Group)", "View", Box::new(SplitEditor), Some("ctrl-\\")),
+        ("view.openInOtherGroup", "Open Current File in Other Group", "View", Box::new(OpenInOtherGroup), None),
         ("view.focusFirstGroup", "Focus First Editor Group", "View", Box::new(FocusFirstGroup), Some("ctrl-1")),
         ("view.focusSecondGroup", "Focus Second Editor Group", "View", Box::new(FocusSecondGroup), Some("ctrl-2")),
         ("markdown.openPreview", "Open Preview", "Markdown", Box::new(MarkdownOpenPreview), Some("ctrl-shift-v")),

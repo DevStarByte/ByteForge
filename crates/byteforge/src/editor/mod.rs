@@ -208,6 +208,9 @@ pub struct EditorView {
 
     lsp: Option<LspClient>,
     lsp_version: i32,
+    /// A second view of a file open in another group: it asks the server (completion, hover, …) but
+    /// leaves the document's sync (open, changes, close) to the other view, which gets its edits.
+    pub lsp_mirror: bool,
     pub diagnostics: Vec<Diagnostic>,
     completion: Option<Completion>,
     completion_task: Option<Task<()>>,
@@ -340,6 +343,7 @@ impl EditorView {
             semantic_task: None,
             lsp: None,
             lsp_version: 0,
+            lsp_mirror: false,
             diagnostics: Vec::new(),
             completion: None,
             signature: None,
@@ -525,7 +529,9 @@ impl EditorView {
                 });
             }
         }
-        if let (Some(lsp), Some(path)) = (&self.lsp, &self.path) {
+        if let (Some(lsp), Some(path)) = (&self.lsp, &self.path)
+            && !self.lsp_mirror
+        {
             self.lsp_version += 1;
             let lsp_changes = changes
                 .iter()

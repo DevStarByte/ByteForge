@@ -44,6 +44,67 @@ impl Workbench {
         }
     }
 
+    /// Edits in a file open in both groups go to its other view (as minimal edits, so that view's caret and
+    /// scroll stay; the echo back is a no-op).
+    pub(super) fn sync_file_views(&mut self, editor: &Entity<EditorView>, cx: &mut Context<Self>) {
+        let Some(path) = self.tabs.iter().find(|t| t.editor == *editor).and_then(|t| t.path.clone()) else { return };
+        let others: Vec<Entity<EditorView>> = self.tabs.iter().filter(|t| t.editor != *editor && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))).map(|t| t.editor.clone()).collect();
+        if others.is_empty() {
+            return;
+        }
+        let text = editor.read(cx).state.buffer.text();
+        for other in others {
+            other.update(cx, |e, cx| e.replace_text_minimal(&text, cx));
+        }
+    }
+
+    /// "Open in Other Group": a second view of the current file in the other group (opening it on the
+    /// right when there is one group); edits in either show in both.
+    pub(super) fn open_in_other_group(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(ix) = self.active else { return };
+        let Some(path) = self.tabs[ix].path.clone().filter(|_| self.tabs[ix].page.is_none()) else {
+            self.log("Open in Other Group works on files.");
+            return;
+        };
+        let to = 1 - self.tabs[ix].group;
+        if let Some(existing) = self.tabs.iter().position(|t| t.group == to && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))) {
+            return self.activate(existing, window, cx);
+        }
+        let source = self.tabs[ix].editor.clone();
+        let (text, bom, caret) = {
+            let e = source.read(cx);
+            (e.state.buffer.text(), self.tabs[ix].bom, e.state.caret())
+        };
+        // Start from the file on disk, then take the unsaved edits, so the new view is dirty when the first is.
+        let saved = std::fs::read(&path).map(|b| String::from_utf8_lossy(b.strip_prefix(&[0xEF, 0xBB, 0xBF][..]).unwrap_or(&b)).into_owned()).unwrap_or_else(|_| text.clone());
+        let editor = cx.new(|cx| EditorView::new(&saved, Some(path.clone()), cx));
+        editor.update(cx, |e, cx| {
+            self.configure_editor(e);
+            e.replace_text_minimal(&text, cx);
+            if !e.is_modified() || saved == text {
+                e.state.buffer.mark_saved();
+            }
+            e.lsp_mirror = true;
+            if e.language == Some(bf_syntax::Language::CSharp)
+                && let Some(lsp) = &self.lsp
+            {
+                e.attach_lsp(lsp.clone(), cx);
+            }
+        });
+        self.prepare_debuggable_editor(&editor, &path, cx);
+        let title = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        self.focus_group = to;
+        self.add_tab(editor.clone(), Some(path.clone()), title, bom, window, cx);
+        let marks = self.tests.read(cx).marks_for(&path);
+        editor.update(cx, |e, cx| {
+            e.set_test_marks(marks, cx);
+            e.go_to(caret, cx);
+        });
+        self.load_git_base(editor, path, cx);
+        self.normalize_groups();
+        cx.notify();
+    }
+
     pub(super) fn on_output_event(&mut self, _: &Entity<EditorView>, event: &EditorEvent, window: &mut Window, cx: &mut Context<Self>) {
         if let EditorEvent::Navigate(path, at) = event {
             self.open_file(path.clone(), Some(*at), window, cx);
@@ -53,6 +114,10 @@ impl Workbench {
     pub(super) fn on_editor_event(&mut self, editor: &Entity<EditorView>, event: &EditorEvent, window: &mut Window, cx: &mut Context<Self>) {
         match event {
             EditorEvent::Navigate(path, point) => self.open_file(path.clone(), Some(*point), window, cx),
+            EditorEvent::Edited => {
+                self.sync_file_views(editor, cx);
+                cx.notify();
+            }
             EditorEvent::BreakpointsChanged => self.on_editor_breakpoints_changed(editor, cx),
             EditorEvent::ApplyCodeAction(action, then) => self.apply_code_action((**action).clone(), *then, editor.downgrade(), window, cx),
             EditorEvent::Locations { title, locations } => self.show_references(title.clone(), locations, cx),
@@ -128,6 +193,15 @@ impl Workbench {
                     e.did_save();
                     cx.notify();
                 });
+                // The same file open in the other group is saved too.
+                for other in self.tabs.iter().filter(|t| t.editor != tab.editor && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))) {
+                    other.editor.update(cx, |e, cx| {
+                        if e.save_path_text() == text {
+                            e.state.buffer.mark_saved();
+                            cx.notify();
+                        }
+                    });
+                }
                 for p in &self.plugins {
                     p.event("fileSaved", Some(&path));
                 }
@@ -220,6 +294,12 @@ impl Workbench {
         }
         let tab = self.tabs.remove(ix);
         tab.editor.update(cx, |e, _| e.detach_lsp());
+        // The file stays open in the other group: that view keeps the server's document now.
+        if let Some(path) = &tab.path
+            && let Some(other) = self.tabs.iter().find(|t| t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, path)))
+        {
+            other.editor.update(cx, |e, cx| e.take_over_lsp(cx));
+        }
         for slot in &mut self.visible {
             *slot = match *slot {
                 Some(j) if j == ix => None,

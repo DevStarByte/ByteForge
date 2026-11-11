@@ -6,7 +6,9 @@ impl EditorView {
     pub fn attach_lsp(&mut self, lsp: LspClient, cx: &mut Context<Self>) {
         if let Some(path) = &self.path {
             self.lsp_version = 1;
-            lsp.did_open(path, self.lsp_version, &self.state.buffer.text());
+            if !self.lsp_mirror {
+                lsp.did_open(path, self.lsp_version, &self.state.buffer.text());
+            }
             self.lsp = Some(lsp);
             self.schedule_semantic(Duration::from_millis(100), cx);
             self.schedule_inlay_hints(Duration::from_millis(300), cx);
@@ -56,8 +58,21 @@ impl EditorView {
     }
 
     pub fn detach_lsp(&mut self) {
-        if let (Some(lsp), Some(path)) = (self.lsp.take(), &self.path) {
+        if let (Some(lsp), Some(path)) = (self.lsp.take(), &self.path)
+            && !self.lsp_mirror
+        {
             lsp.did_close(path);
+        }
+    }
+
+    /// The view that kept the document in sync with the server closed: this one takes over.
+    pub fn take_over_lsp(&mut self, cx: &mut Context<Self>) {
+        if !self.lsp_mirror {
+            return;
+        }
+        self.lsp_mirror = false;
+        if let Some(lsp) = self.lsp.take() {
+            self.attach_lsp(lsp, cx);
         }
     }
 
@@ -100,7 +115,9 @@ impl EditorView {
     }
 
         pub fn did_save(&self) {
-        if let (Some(lsp), Some(path)) = (&self.lsp, &self.path) {
+        if let (Some(lsp), Some(path)) = (&self.lsp, &self.path)
+            && !self.lsp_mirror
+        {
             lsp.did_save(path, Some(&self.state.buffer.text()));
         }
     }

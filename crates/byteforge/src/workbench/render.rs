@@ -211,6 +211,7 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &NewItem, w, cx| wb.open_template_picker(false, None, w, cx)))
             .on_action(cx.listener(|wb, a: &UseTemplate, w, cx| wb.use_template(a.clone(), w, cx)))
             .on_action(cx.listener(|wb, _: &ManageUserSecrets, w, cx| wb.open_user_secrets(w, cx)))
+            .on_action(cx.listener(|wb, _: &OpenInOtherGroup, w, cx| wb.open_in_other_group(w, cx)))
             .on_action(cx.listener(|wb, a: &AddPackageVersion, w, cx| wb.add_package(PathBuf::from(&a.project), a.id.clone(), Some(a.version.clone()), w, cx)))
             .on_action(cx.listener(|wb, _: &EfAddMigration, w, cx| wb.start_ef("add", w, cx)))
             .on_action(cx.listener(|wb, _: &EfRemoveMigration, w, cx| wb.start_ef("remove", w, cx)))
