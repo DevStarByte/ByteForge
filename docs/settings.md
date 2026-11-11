@@ -9,6 +9,7 @@ comments when the settings screen changes a value:
   "workbench.theme": "ByteForge Dark",
   "editor.tabSize": 4, "editor.insertSpaces": true, "editor.smoothScrolling": true, "editor.minimap": true,
   "files.exclude": ["bin", "obj", ".git", "node_modules", "target"],
+  "csharp.server": "csharp-ls",                        // or "roslyn": Microsoft's server (C#: Install or Update Roslyn Language Server)
   "csharp.languageServer": "",                         // custom path to csharp-ls (optional)
   "dotnet.project": "src/MyApp/MyApp.csproj",          // build/run/debug target (optional)
   "dotnet.launchProfile": "https",                     // launchSettings.json profile (default: first "Project" one; "Select Launch Profile…" overrides it per project)

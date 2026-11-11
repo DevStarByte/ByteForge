@@ -77,6 +77,10 @@ struct Shared {
     workspace_folder: Value,
     /// URIs whose diagnostics should be pulled (debounced by the puller thread).
     pull_tx: flume::Sender<String>,
+    /// See [`ServerConfig::after_initialized`] and [`ServerConfig::pull_diagnostics`].
+    after_initialized: Vec<(String, Value)>,
+    force_pull: bool,
+    configuration: Option<serde_json::Map<String, Value>>,
 }
 
 /// Owns the client; dropping the last clone shuts the server down.
@@ -139,6 +143,9 @@ impl LspClient {
             shutdown_started: AtomicBool::new(false),
             language_id: config.language_id.clone(),
             workspace_folder: json!({ "uri": root_uri, "name": root_name }),
+            after_initialized: config.after_initialized.clone(),
+            force_pull: config.pull_diagnostics,
+            configuration: config.configuration.clone(),
             pull_tx,
         });
 
@@ -504,12 +511,16 @@ impl Shared {
                 return;
             }
             state.semantic_tokens_supported = Some(legend.is_some());
-            state.pull_diagnostics = capabilities
-                .get("diagnosticProvider")
-                .is_some_and(|p| p.is_object() || p == true);
+            state.pull_diagnostics = self.force_pull
+                || capabilities
+                    .get("diagnosticProvider")
+                    .is_some_and(|p| p.is_object() || p == true);
             state.capabilities = capabilities;
             state.legend = legend.unwrap_or_default();
             self.send_now(json!({ "jsonrpc": "2.0", "method": "initialized", "params": {} }));
+            for (method, params) in &self.after_initialized {
+                self.send_now(json!({ "jsonrpc": "2.0", "method": method, "params": params }));
+            }
             for message in state.queue.drain(..) {
                 let _ = self.writer.send(message);
             }
@@ -653,6 +664,11 @@ impl Shared {
                     self.schedule_pull_all();
                 }
             }
+            // Roslyn: the solution or projects are loaded (the diagnostics until now were incomplete).
+            "workspace/projectInitializationComplete" => {
+                self.emit(LspEvent::Progress("Finished loading projects".into()));
+                self.schedule_pull_all();
+            }
             "window/logMessage" | "window/showMessage" | "$/logTrace" => {
                 if let Some(message) = params.get("message").and_then(Value::as_str) {
                     self.emit(LspEvent::Log(message.to_owned()));
@@ -666,12 +682,19 @@ impl Shared {
     fn handle_server_request(&self, method: &str, id: Value, params: &Value) {
         let result = match method {
             "workspace/configuration" => {
-                // An empty object per requested section: csharp-ls throws on `null`.
                 let items = params
                     .get("items")
                     .and_then(Value::as_array)
                     .map_or(&[][..], Vec::as_slice);
-                items.iter().map(|_| json!({})).collect()
+                match &self.configuration {
+                    // The configured answer for each section, `null` (the server's default) for the rest.
+                    Some(config) => items
+                        .iter()
+                        .map(|i| i.get("section").and_then(Value::as_str).and_then(|s| config.get(s)).cloned().unwrap_or(Value::Null))
+                        .collect(),
+                    // An empty object per requested section: csharp-ls throws on `null`.
+                    None => items.iter().map(|_| json!({})).collect(),
+                }
             }
             "workspace/workspaceFolders" => json!([self.workspace_folder]),
             "client/registerCapability" => {
@@ -1025,12 +1048,7 @@ mod tests {
 
     #[test]
     fn start_failure_is_an_error() {
-        let config = ServerConfig {
-            command: "bf-lsp-definitely-not-a-real-binary".into(),
-            args: vec![],
-            root: std::env::temp_dir(),
-            language_id: "csharp".into(),
-        };
+        let config = ServerConfig::new("bf-lsp-definitely-not-a-real-binary", vec![], std::env::temp_dir(), "csharp");
         assert!(LspClient::start(config).is_err());
     }
 }

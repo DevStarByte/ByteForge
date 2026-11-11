@@ -58,7 +58,8 @@ pub(super) fn all_settings() -> Vec<SettingInfo> {
         s!("Files", "files.exclude", "Excluded folders", List, ["bin", "obj", ".git", "node_modules", "target"], "Folder and file names left out of the Explorer, search and Go to File."),
         s!("Files", "explorer.autoReveal", "Reveal the current file", Bool, true, "The Explorer expands and scrolls to the file you switch to."),
         s!("Files", "explorer.nativeIcons", "Finder icons", Bool, true, "macOS: the Explorer uses Finder's file and folder icons."),
-        s!("C# and .NET", "csharp.languageServer", "C# language server", Text, "", "Path to csharp-ls (empty: found on PATH or in ~/.dotnet/tools)."),
+        s!("C# and .NET", "csharp.server", "C# language server", Choice(&["csharp-ls", "roslyn"]), "csharp-ls", "csharp-ls, or Microsoft's Roslyn server (the one VS Code uses: more fixes and analyzers; \"C#: Install or Update Roslyn Language Server\" installs it)."),
+        s!("C# and .NET", "csharp.languageServer", "csharp-ls path", Text, "", "Path to csharp-ls (empty: found on PATH or in ~/.dotnet/tools)."),
         s!("C# and .NET", "dotnet.project", "Startup project", Text, "", "The project F5 and Run start, relative to the folder (empty: found by itself)."),
         s!("C# and .NET", "dotnet.launchProfile", "Launch profile", Text, "", "The launchSettings.json profile Run and F5 use (Select Launch Profile… sets it per project)."),
         s!("Refactoring", "refactor.previewMultiFileChanges", "Ask before changing several files", Bool, true, "A rename or refactoring that changes several files lists them first."),
@@ -416,7 +417,7 @@ pub(crate) mod view_tests {
         let dir = std::env::temp_dir().join(format!("bf-wb-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let paths = AppPaths { config_dir: dir.join("config"), install_dir: dir.join("install") };
+        let paths = AppPaths { config_dir: dir.join("config"), install_dir: dir.join("install"), cache_override: Some(dir.join("cache")) };
         paths.ensure_created();
         let settings = Settings::load(paths.settings_file(), || {});
         let themes = ThemeService::new(paths.builtin_themes(), paths.user_themes(), || {});

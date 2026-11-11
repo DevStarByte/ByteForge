@@ -14,5 +14,6 @@ notify.workspace = true
 dirs.workspace = true
 log.workspace = true
 similar = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 bf-text.workspace = true
 roxmltree = "0.20"

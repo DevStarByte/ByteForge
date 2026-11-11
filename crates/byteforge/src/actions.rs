@@ -10,7 +10,7 @@ actions!(
         NewFile, OpenFile, OpenFolder, Save, SaveAs, SaveAll, CloseEditor, CloseAllEditors, Quit, CommandPalette, QuickOpen, GoToLine,
         ToggleSideBar, ResetActivityBarOrder, TogglePanel, ShowExplorer, ShowSearch, ShowProblems, ShowOutput, ShowModules, NextEditor, PreviousEditor,
         SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, OpenSettingsJson, About, CheckForUpdates, Build, Run, RunWithWatch, RestartWatch, SelectLaunchProfile, NewProject, NewItem, ManageUserSecrets, Test, Clean, Restore, Stop,
-        ToggleLineEnding, ReloadCSharp, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
+        ToggleLineEnding, ReloadCSharp, InstallRoslyn, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
         GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
         FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup,
         MarkdownOpenPreview, MarkdownOpenPreviewToSide, OpenInOtherGroup
@@ -302,6 +302,7 @@ fn builtin() -> Vec<Builtin> {
         ("view.toggleWordWrap", "Toggle Word Wrap", "View", Box::new(ToggleWordWrap), Some("alt-z")),
         ("edit.toggleLineEnding", "Toggle Line Ending (LF/CRLF)", "Edit", Box::new(ToggleLineEnding), None),
         ("csharp.reload", "Restart C# Language Server", "C#", Box::new(ReloadCSharp), None),
+        ("csharp.installRoslyn", "Install or Update Roslyn Language Server", "C#", Box::new(InstallRoslyn), None),
         ("edit.undo", "Undo", "Edit", Box::new(Undo), None),
         ("edit.redo", "Redo", "Edit", Box::new(Redo), None),
         ("edit.find", "Find", "Edit", Box::new(Find), None),

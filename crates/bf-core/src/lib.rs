@@ -12,6 +12,7 @@ pub mod links;
 pub mod nuget;
 pub mod paths;
 pub mod plugins;
+pub mod roslyn;
 pub mod registry;
 pub mod search;
 pub mod settings;

@@ -314,6 +314,7 @@ impl Render for Workbench {
                 cx.notify();
             }))
             .on_action(cx.listener(|wb, _: &ReloadCSharp, _, cx| wb.start_lsp(cx)))
+            .on_action(cx.listener(|wb, _: &InstallRoslyn, w, cx| wb.install_roslyn(w, cx)))
             .on_action(cx.listener(|wb, action: &RunModuleCommand, _, cx| {
                 if let Some(module) = wb.plugin_commands.get(&action.id)
                     && let Some(p) = wb.plugins.iter().find(|p| &p.manifest.id == module)

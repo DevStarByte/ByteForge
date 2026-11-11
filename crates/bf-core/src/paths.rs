@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 pub struct AppPaths {
     pub config_dir: PathBuf,
     pub install_dir: PathBuf,
+    /// Where downloads are kept instead of the OS cache folder (tests).
+    pub cache_override: Option<PathBuf>,
 }
 
 impl AppPaths {
@@ -15,7 +17,7 @@ impl AppPaths {
             .ok()
             .and_then(|exe| exe.parent().map(Path::to_path_buf))
             .unwrap_or_else(|| PathBuf::from("."));
-        Self { config_dir, install_dir }
+        Self { config_dir, install_dir, cache_override: None }
     }
 
     pub fn ensure_created(&self) {
@@ -26,6 +28,9 @@ impl AppPaths {
 
     /// Downloads ByteForge keeps (e.g. netcoredbg for containers): the OS cache folder, else the config folder.
     pub fn cache_dir(&self) -> PathBuf {
+        if let Some(dir) = &self.cache_override {
+            return dir.clone();
+        }
         dirs::cache_dir().map(|d| d.join("byteforge")).unwrap_or_else(|| self.config_dir.join("cache"))
     }
 

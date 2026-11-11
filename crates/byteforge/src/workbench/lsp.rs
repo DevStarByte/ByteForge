@@ -16,13 +16,22 @@ impl Workbench {
             self.lsp_status = String::new();
             return;
         }
-        let command = self.settings.get_string("csharp.languageServer").or_else(bf_lsp::csharp_ls_command);
-        let Some(command) = command else {
-            self.lsp_status = "C#: no server".into();
-            self.log("csharp-ls not found. Install it with: dotnet tool install -g csharp-ls (or set \"csharp.languageServer\").");
-            return;
+        let config = match self.settings.get_string("csharp.server").as_deref() {
+            Some("roslyn") => match self.roslyn_server_config(&root, cx) {
+                Some(config) => config,
+                None => return,
+            },
+            _ => {
+                let command = self.settings.get_string("csharp.languageServer").or_else(bf_lsp::csharp_ls_command);
+                let Some(command) = command else {
+                    self.lsp_status = "C#: no server".into();
+                    self.log("csharp-ls not found. Install it with: dotnet tool install -g csharp-ls (or set \"csharp.languageServer\"), or use the Roslyn server (\"csharp.server\": \"roslyn\").");
+                    return;
+                };
+                ServerConfig::new(command, Vec::new(), root, "csharp")
+            }
         };
-        match LspClient::start(ServerConfig { command, args: Vec::new(), root, language_id: "csharp".into() }) {
+        match LspClient::start(config) {
             Ok((client, events)) => {
                 self.lsp_status = "C#: starting…".into();
                 for tab in &self.tabs {
@@ -75,6 +84,80 @@ impl Workbench {
             }
         }
         cx.notify();
+    }
+
+    // ───────────── the Roslyn language server ─────────────
+
+    /// How to start the installed Roslyn server for `root` (its solution, else its projects). Offers to
+    /// install it when it isn't, and says what's missing.
+    fn roslyn_server_config(&mut self, root: &Path, cx: &mut Context<Self>) -> Option<ServerConfig> {
+        let cache = self.paths.cache_dir();
+        let Some((version, dll)) = bf_core::roslyn::installed(&cache).into_iter().next() else {
+            self.lsp_status = "C#: Roslyn not installed".into();
+            self.log("The Roslyn language server isn't installed. Run \"C#: Install or Update Roslyn Language Server\" (it downloads it from Microsoft's NuGet feed), or set \"csharp.server\" back to \"csharp-ls\".");
+            self.show_panel(PanelView::Output, cx);
+            return None;
+        };
+        if !bf_core::roslyn::runtime_available() {
+            self.lsp_status = "C#: needs .NET 10".into();
+            self.log("The Roslyn language server needs the .NET 10 runtime or newer (dotnet --list-runtimes).");
+            self.show_panel(PanelView::Output, cx);
+            return None;
+        }
+        let logs = cache.join("roslyn-logs");
+        let _ = std::fs::create_dir_all(&logs);
+        let target = bf_core::dotnet::find_target(root, None, false);
+        let solution = target.as_deref().filter(|t| matches!(t.extension().and_then(|e| e.to_str()), Some("sln" | "slnx")));
+        let projects = if solution.is_some() { Vec::new() } else { bf_core::dotnet::projects(root) };
+        self.log(format!("C#: Roslyn language server {version}"));
+        Some(bf_lsp::roslyn_config(&dll, root.to_path_buf(), &logs, solution, &projects))
+    }
+
+    /// "C#: Install or Update Roslyn Language Server": the newest version from Microsoft's feed, checked
+    /// against Microsoft's signature; then switches to it (setting csharp.server) and restarts.
+    pub(super) fn install_roslyn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let cache = self.paths.cache_dir();
+        self.lsp_status = "C#: getting Roslyn…".into();
+        self.log("Looking for the newest Roslyn language server on Microsoft's NuGet feed…");
+        self.show_panel(PanelView::Output, cx);
+        let task = cx.background_spawn(async move {
+            let (base, version) = bf_core::roslyn::latest()?;
+            let installed = bf_core::roslyn::installed(&cache);
+            if installed.first().is_some_and(|(v, _)| *v == version) {
+                return Ok((version, false));
+            }
+            bf_core::roslyn::install(&cache, &base, &version)?;
+            // Older versions aren't needed anymore.
+            for (old, dll) in installed {
+                if old != version
+                    && let Some(dir) = dll.parent()
+                {
+                    let _ = std::fs::remove_dir_all(dir);
+                }
+            }
+            anyhow::Ok((version, true))
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = task.await;
+            let _ = this.update(cx, |wb, cx| {
+                match result {
+                    Ok((version, fresh)) => {
+                        wb.log(if fresh { format!("Installed the Roslyn language server {version} (signed by Microsoft).") } else { format!("The Roslyn language server {version} is the newest.") });
+                        if wb.settings.get_string("csharp.server").as_deref() != Some("roslyn") {
+                            wb.settings.set("csharp.server", json!("roslyn"));
+                            wb.log("C# now uses the Roslyn language server (\"csharp.server\": \"roslyn\"; \"csharp-ls\" switches back).");
+                        }
+                        wb.start_lsp(cx);
+                    }
+                    Err(e) => {
+                        wb.lsp_status = "C#: Roslyn install failed".into();
+                        wb.log(format!("Could not install the Roslyn language server: {e:#}"));
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     // ───────────── code actions ─────────────
@@ -250,4 +333,57 @@ impl Workbench {
     }
 
     // ───────────── dotnet ─────────────
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::workbench::settings_page::view_tests::workbench;
+
+    /// With "csharp.server": "roslyn", opening a C# folder starts the installed Roslyn server on its
+    /// project, and an open file gets its diagnostics. Needs the server installed in a cache folder: set
+    /// BF_ROSLYN_CACHE (as `cargo test -p bf-core --test roslyn_install -- --ignored` leaves it); skips
+    /// otherwise.
+    #[gpui::test]
+    fn the_roslyn_server_serves_a_folder(cx: &mut gpui::TestAppContext) {
+        let Ok(cache) = std::env::var("BF_ROSLYN_CACHE") else {
+            println!("SKIPPED: set BF_ROSLYN_CACHE to a cache with the Roslyn server installed");
+            return;
+        };
+        let (guard, wb, cx) = workbench(cx, "roslyn");
+        let dir = guard.dir.join("app");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>").unwrap();
+        let program = dir.join("Program.cs");
+        std::fs::write(&program, "int x = \"s\";\nConsole.WriteLine(x);\n").unwrap();
+        assert!(std::process::Command::new("dotnet").args(["restore", "-v", "q"]).current_dir(&dir).status().unwrap().success());
+
+        wb.update_in(cx, |wb, window, cx| {
+            wb.paths.cache_override = Some(PathBuf::from(&cache));
+            wb.settings.set("csharp.server", json!("roslyn"));
+            wb.open_folder(dir.clone(), window, cx);
+            wb.open_file(program.clone(), None, window, cx);
+        });
+        // The server loads the project and the editor gets the error on line 1.
+        let mut found = false;
+        for _ in 0..240 {
+            cx.run_until_parked();
+            found = wb.update(cx, |wb, cx| {
+                wb.active_editor().is_some_and(|e| e.read(cx).diagnostics.iter().any(|d| d.code.as_deref() == Some("CS0029")))
+            });
+            if found {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+        let status = wb.update(cx, |wb, _| wb.lsp_status.clone());
+        assert!(found, "no CS0029 in the editor (status: {status})");
+        assert_eq!(status, "C#: ready");
+        wb.update(cx, |wb, _| {
+            if let Some(lsp) = wb.lsp.take() {
+                lsp.shutdown();
+            }
+        });
+        drop(guard);
+    }
 }

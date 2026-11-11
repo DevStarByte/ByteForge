@@ -113,12 +113,7 @@ fn csharp_ls_end_to_end() {
     println!("[{:>6.1?}] dotnet restore done", t0.elapsed());
 
     let t0 = Instant::now();
-    let (client, events) = LspClient::start(ServerConfig {
-        command,
-        args: vec![],
-        root: dir.clone(),
-        language_id: "csharp".into(),
-    })
+    let (client, events) = LspClient::start(ServerConfig::new(command, vec![], dir.clone(), "csharp"))
     .expect("start csharp-ls");
     // Issued before Ready: must be queued and delivered after the handshake.
     client.did_open(&program, 1, PROGRAM);

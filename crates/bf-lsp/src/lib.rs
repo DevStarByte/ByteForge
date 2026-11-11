@@ -27,6 +27,22 @@ pub struct ServerConfig {
     pub root: PathBuf,
     /// Language id used in `textDocument/didOpen` (e.g. `"csharp"`).
     pub language_id: String,
+    /// Notifications sent right after `initialized` (`method`, `params`): the Roslyn server only loads
+    /// a solution or projects once told to (`solution/open`, `project/open`).
+    pub after_initialized: Vec<(String, serde_json::Value)>,
+    /// Ask for diagnostics (`textDocument/diagnostic`) even when the server doesn't announce it; the
+    /// Roslyn server answers them but never publishes.
+    pub pull_diagnostics: bool,
+    /// Answers to `workspace/configuration` by section name (missing sections get `null`, the server's
+    /// default). `None`: an empty object for every section (csharp-ls).
+    pub configuration: Option<serde_json::Map<String, serde_json::Value>>,
+}
+
+impl ServerConfig {
+    /// A server started with `command args`, for `language_id` files under `root`.
+    pub fn new(command: impl Into<String>, args: Vec<String>, root: PathBuf, language_id: impl Into<String>) -> Self {
+        ServerConfig { command: command.into(), args, root, language_id: language_id.into(), after_initialized: Vec::new(), pull_diagnostics: false, configuration: None }
+    }
 }
 
 /// Zero-based position; `character` counts UTF-16 code units (LSP default).
@@ -312,6 +328,44 @@ pub enum LspEvent {
     Exited(String),
     /// `workspace/applyEdit`: the server asks the editor to change files (e.g. while running a command).
     ApplyEdit(WorkspaceEdit),
+}
+
+/// How to start Microsoft's Roslyn language server (the one VS Code's C# extension uses), from its
+/// `Microsoft.CodeAnalysis.LanguageServer.dll`, for the folder `root`: it opens `solution` when there is
+/// one, else `projects`. Diagnostics are pulled (it doesn't publish them) and its log goes to `log_dir`.
+pub fn roslyn_config(dll: &std::path::Path, root: PathBuf, log_dir: &std::path::Path, solution: Option<&std::path::Path>, projects: &[PathBuf]) -> ServerConfig {
+    let args = vec![
+        dll.to_string_lossy().into_owned(),
+        "--logLevel".into(),
+        "Information".into(),
+        "--extensionLogDirectory".into(),
+        log_dir.to_string_lossy().into_owned(),
+        "--stdio".into(),
+    ];
+    let open = match solution {
+        Some(sln) => ("solution/open".to_owned(), serde_json::json!({ "solution": uri::path_to_uri(sln) })),
+        None => ("project/open".to_owned(), serde_json::json!({ "projects": projects.iter().map(|p| uri::path_to_uri(p)).collect::<Vec<_>>() })),
+    };
+    let mut config = ServerConfig::new("dotnet", args, root, "csharp");
+    config.after_initialized = vec![open];
+    config.pull_diagnostics = true;
+    // Inlay hints (types and parameter names, as with csharp-ls) and completion from namespaces that
+    // aren't imported yet; everything else as the server has it.
+    let on = [
+        "csharp|inlay_hints.csharp_enable_inlay_hints_for_types",
+        "csharp|inlay_hints.csharp_enable_inlay_hints_for_implicit_variable_types",
+        "csharp|inlay_hints.csharp_enable_inlay_hints_for_lambda_parameter_types",
+        "csharp|inlay_hints.dotnet_enable_inlay_hints_for_parameters",
+        "csharp|inlay_hints.dotnet_enable_inlay_hints_for_literal_parameters",
+        "csharp|inlay_hints.dotnet_enable_inlay_hints_for_object_creation_parameters",
+        "csharp|inlay_hints.dotnet_suppress_inlay_hints_for_parameters_that_differ_only_by_suffix",
+        "csharp|inlay_hints.dotnet_suppress_inlay_hints_for_parameters_that_match_argument_name",
+        "csharp|inlay_hints.dotnet_suppress_inlay_hints_for_parameters_that_match_method_intent",
+        "csharp|completion.dotnet_show_completion_items_from_unimported_namespaces",
+        "projects.dotnet_enable_automatic_restore",
+    ];
+    config.configuration = Some(on.iter().map(|k| ((*k).to_owned(), serde_json::Value::Bool(true))).collect());
+    config
 }
 
 /// Locates `csharp-ls`: first on `PATH`, then in `~/.dotnet/tools`.
