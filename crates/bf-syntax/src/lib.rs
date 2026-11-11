@@ -73,16 +73,22 @@ pub enum Language {
     Yaml,
     /// A language from a module (index into the registered module languages).
     Module(u16),
+    /// A small built-in regex language: ignore files, `.gitattributes`, INI-style config, `.env` ([`builtin_lang`]).
+    Builtin(u8),
 }
 
 impl Language {
-    /// Detects the language from a file name or extension: a module language that claims the file, else
+    /// Detects the language from a file name or extension: a module language that claims the file, a
+    /// built-in one (`.gitignore`, `.gitattributes`, `.editorconfig`/`.ini`, `.env`, …), else
     /// `.cs`/`.csx` → C#, `.json`/`.jsonc` → JSON, `.razor`/`.cshtml` → Razor, `.csproj`/`.props`/`.xml`/… → XML,
     /// `.yml`/`.yaml` → YAML.
     pub fn from_path(path: &Path) -> Option<Language> {
         let name = path.file_name()?.to_str()?;
         if let Some(index) = module_lang::find(name) {
             return Some(Language::Module(index));
+        }
+        if let Some(index) = builtin_lang::find(name) {
+            return Some(Language::Builtin(index));
         }
         let ext = path.extension()?.to_str()?.to_ascii_lowercase();
         match ext.as_str() {
@@ -106,7 +112,7 @@ impl Language {
             "json" | "jsonc" => Some(Language::Json),
             "xml" | "csproj" | "msbuild" => Some(Language::Xml),
             "yaml" | "yml" | "compose" => Some(Language::Yaml),
-            other => module_lang::find_id(other).map(Language::Module),
+            other => module_lang::find_id(other).map(Language::Module).or_else(|| builtin_lang::find_id(other).map(Language::Builtin)),
         }
     }
 
@@ -119,6 +125,7 @@ impl Language {
             Language::Xml => "xml",
             Language::Yaml => "yaml",
             Language::Module(i) => module_lang::get(i).map_or("plaintext", |l| l.id),
+            Language::Builtin(i) => builtin_lang::get(i).map_or("plaintext", |l| l.id),
         }
     }
 
@@ -129,6 +136,7 @@ impl Language {
             Language::Yaml => Some("#"),
             Language::Razor | Language::Xml => None,
             Language::Module(i) => module_lang::get(i).and_then(|l| l.line_comment),
+            Language::Builtin(i) => builtin_lang::get(i).and_then(|l| l.line_comment),
         }
     }
 
@@ -141,10 +149,11 @@ impl Language {
             Language::Xml => "XML",
             Language::Yaml => "YAML",
             Language::Module(i) => module_lang::get(i).map_or("Plain Text", |l| l.name),
+            Language::Builtin(i) => builtin_lang::get(i).map_or("Plain Text", |l| l.name),
         }
     }
 
-    /// The tree-sitter grammar (`None` for module languages, which are highlighted with regexes).
+    /// The tree-sitter grammar (`None` for module and built-in regex languages).
     fn ts_language(self) -> Option<tree_sitter::Language> {
         match self {
             Language::CSharp => Some(tree_sitter_c_sharp::LANGUAGE.into()),
@@ -152,7 +161,7 @@ impl Language {
             Language::Razor => Some(tree_sitter_razor_modern::LANGUAGE.into()),
             Language::Xml => Some(tree_sitter_xml::LANGUAGE_XML.into()),
             Language::Yaml => Some(tree_sitter_yaml::LANGUAGE.into()),
-            Language::Module(_) => None,
+            Language::Module(_) | Language::Builtin(_) => None,
         }
     }
 
@@ -163,7 +172,7 @@ impl Language {
             Language::Razor => RAZOR_QUERY,
             Language::Xml => XML_QUERY,
             Language::Yaml => YAML_QUERY,
-            Language::Module(_) => "",
+            Language::Module(_) | Language::Builtin(_) => "",
         }
     }
 }
@@ -274,6 +283,9 @@ impl Highlighter {
         if let Language::Module(index) = self.language {
             return module_lang::get(index).map(|l| module_lang::highlight(&l, text, byte_range)).unwrap_or_default();
         }
+        if let Language::Builtin(index) = self.language {
+            return builtin_lang::get(index).map(|l| module_lang::highlight(l, text, byte_range)).unwrap_or_default();
+        }
         let (Some(tree), Some(query)) = (&self.tree, &self.query) else {
             return Vec::new();
         };
@@ -381,6 +393,7 @@ fn paint_msbuild_references(text: &[u8], start: usize, paint: &mut [u8]) {
     }
 }
 
+mod builtin_lang;
 mod markup;
 pub mod module_lang;
 

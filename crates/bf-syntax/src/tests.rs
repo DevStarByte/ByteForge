@@ -531,3 +531,68 @@ fn yaml_kinds() {
     assert_eq!(k("true"), Some("keyword"));
     assert_eq!(k("2"), Some("number"));
 }
+
+#[test]
+fn builtin_languages_from_path() {
+    let id = |name: &str| Language::from_path(Path::new(name)).map(Language::id);
+    for name in [".gitignore", "src/.dockerignore", ".npmignore", ".prettierignore", "VisualStudio.gitignore"] {
+        assert_eq!(id(name), Some("ignore"), "{name}");
+    }
+    assert_eq!(id(".gitattributes"), Some("gitattributes"));
+    for name in [".editorconfig", ".gitconfig", ".gitmodules", "setup.cfg", "php.ini", "app.desktop", "sshd.service"] {
+        assert_eq!(id(name), Some("ini"), "{name}");
+    }
+    for name in [".env", ".env.local", ".env.production", "prod.env"] {
+        assert_eq!(id(name), Some("dotenv"), "{name}");
+    }
+    // Not taken over: XML configs, files that merely contain "ignore".
+    assert_eq!(Language::from_path(Path::new("web.config")), Some(Language::Xml));
+    assert_eq!(Language::from_path(Path::new("ignore.txt")), None);
+    assert_eq!(Language::from_path(Path::new(".gitignore")).and_then(Language::line_comment), Some("#"));
+    assert_eq!(Language::from_id("gitignore").map(Language::id), Some("ignore"));
+    assert_eq!(Language::from_id("env").map(Language::id), Some("dotenv"));
+    assert_eq!(Language::from_id("editorconfig").map(Language::id), Some("ini"));
+}
+
+#[test]
+fn builtin_language_kinds() {
+    let lang = |name: &str| Language::from_path(Path::new(name)).unwrap();
+
+    let text = "# build output\nbin/\n!keep.txt\n**/*.user\n[Dd]ebug/\n\\#literal\n";
+    let spans = highlight_all(lang(".gitignore"), text);
+    assert_well_formed(&spans, 0..text.len());
+    assert_eq!(kind_of(&spans, text, "# build output", 0), Some("comment"));
+    assert_eq!(kind_of(&spans, text, "!", 0), Some("operator"));
+    assert_eq!(kind_of(&spans, text, "**", 0), Some("operator"));
+    assert_eq!(kind_of(&spans, text, "[Dd]", 0), Some("string"));
+    assert_eq!(kind_of(&spans, text, "\\#", 0), Some("string - escape character"));
+    assert_eq!(kind_of(&spans, text, "keep.txt", 0), None);
+
+    let text = "* text=auto\n*.png binary -diff\n[attr]bin -text\n";
+    let spans = highlight_all(lang(".gitattributes"), text);
+    assert_well_formed(&spans, 0..text.len());
+    assert_eq!(kind_of(&spans, text, "*.png", 0), Some("string"));
+    assert_eq!(kind_of(&spans, text, "binary", 0), Some("property name"));
+    assert_eq!(kind_of(&spans, text, "-", 0), Some("operator"));
+    assert_eq!(kind_of(&spans, text, "auto", 0), Some("constant name"));
+    assert_eq!(kind_of(&spans, text, "[attr]", 0), Some("keyword"));
+
+    let text = "root = true\n[*.cs]\nindent_size = 4 ; four\ncharset=utf-8\n";
+    let spans = highlight_all(lang(".editorconfig"), text);
+    assert_well_formed(&spans, 0..text.len());
+    assert_eq!(kind_of(&spans, text, "root", 0), Some("property name"));
+    assert_eq!(kind_of(&spans, text, "true", 0), Some("keyword"));
+    assert_eq!(kind_of(&spans, text, "*.cs", 0), Some("class name"));
+    assert_eq!(kind_of(&spans, text, "[", 0), Some("punctuation"));
+    assert_eq!(kind_of(&spans, text, "; four", 0), Some("comment"));
+    assert_eq!(kind_of(&spans, text, "=", 2), Some("operator"));
+
+    let text = "# secrets\nexport API_KEY=abc # note\nURL=\"http://${HOST}:80\"\nRAW='$NOPE'\n";
+    let spans = highlight_all(lang(".env.local"), text);
+    assert_well_formed(&spans, 0..text.len());
+    assert_eq!(kind_of(&spans, text, "export", 0), Some("keyword"));
+    assert_eq!(kind_of(&spans, text, "API_KEY", 0), Some("property name"));
+    assert_eq!(kind_of(&spans, text, "# note", 0), Some("comment"));
+    assert_eq!(kind_of(&spans, text, "${HOST}", 0), Some("local name"));
+    assert_eq!(kind_of(&spans, text, "'$NOPE'", 0), Some("string"));
+}
