@@ -36,7 +36,6 @@ pub struct DraggedEntry {
 impl Render for DraggedEntry {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = Theme::global(cx);
-        let (icon_name, color_key) = file_icon(&self.name, self.is_dir, false);
         div()
             .flex()
             .items_center()
@@ -49,7 +48,7 @@ impl Render for DraggedEntry {
             .border_1()
             .border_color(t.c("menu.border"))
             .text_size(t.m("list.fontSize", 13.0))
-            .child(icon(&icon_name, px(14.), file_icon_color(&t, &color_key)))
+            .child(file_icon_view(&self.name, self.is_dir, false, px(14.), &t))
             .child(self.name.clone())
     }
 }
@@ -216,6 +215,28 @@ pub(crate) fn set_module_file_icons(modules: &[bf_core::plugins::ModuleManifest]
     crate::assets::set_module_icons(paths);
 }
 
+/// Whether file icons come from macOS ("explorer.nativeIcons", on by default; macOS only).
+static NATIVE_ICONS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(cfg!(target_os = "macos"));
+
+pub(crate) fn set_native_icons(on: bool) {
+    NATIVE_ICONS.store(on && cfg!(target_os = "macos"), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The icon for a file or folder: on macOS the one Finder shows (unless a module styles that file),
+/// otherwise the theme's icon in its color.
+pub(crate) fn file_icon_view(name: &str, is_dir: bool, expanded: bool, size: Pixels, t: &Theme) -> gpui::AnyElement {
+    #[cfg(target_os = "macos")]
+    if NATIVE_ICONS.load(std::sync::atomic::Ordering::Relaxed) && (is_dir || !MODULE_FILE_ICONS.read().iter().any(|(r, _)| r.matches(name))) {
+        // Rendered at 2× so it stays sharp on Retina displays.
+        let pixels = (f32::from(size) * 2.0).ceil() as u32;
+        if let Some(image) = crate::native_icons::icon(&crate::native_icons::Kind::of(name, is_dir), pixels) {
+            return gpui::img(image).size(size).flex_none().into_any_element();
+        }
+    }
+    let (icon_name, color_key) = file_icon(name, is_dir, expanded);
+    icon(&icon_name, size, file_icon_color(t, &color_key)).into_any_element()
+}
+
 /// The icon and its color for a file or folder name: (icon name, theme color key or color).
 pub(crate) fn file_icon(name: &str, is_dir: bool, expanded: bool) -> (std::borrow::Cow<'static, str>, std::borrow::Cow<'static, str>) {
     if is_dir {
@@ -376,10 +397,7 @@ impl Render for Explorer {
                             .child(div().w(px(12.)).when(row.is_dir, |d| {
                                 d.child(icon(if expanded { "chevronDown" } else { "chevronRight" }, px(12.), t.c("icon.foreground")))
                             }))
-                            .child({
-                                let (icon_name, color_key) = file_icon(&row.name, row.is_dir, expanded);
-                                icon(&icon_name, icon_size, file_icon_color(&t, &color_key))
-                            })
+                            .child(file_icon_view(&row.name, row.is_dir, expanded, icon_size, &t))
                             .child(
                                 div()
                                     .flex_1()

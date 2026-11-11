@@ -520,6 +520,7 @@ impl Workbench {
         }
         let auto_reveal = wb.settings.get("explorer.autoReveal", true);
         wb.explorer.update(cx, |e, _| e.auto_reveal = auto_reveal);
+        crate::explorer::set_native_icons(wb.settings.get("explorer.nativeIcons", true));
         wb.apply_window_effects(window, cx);
         wb.start_plugins(event_tx, cx);
 
@@ -611,6 +612,7 @@ impl Workbench {
         }
         let auto_reveal = self.settings.get("explorer.autoReveal", true);
         self.explorer.update(cx, |e, _| e.auto_reveal = auto_reveal);
+        crate::explorer::set_native_icons(self.settings.get("explorer.nativeIcons", true));
         let overrides: HashMap<String, String> = self.settings.get("keybindings", HashMap::new());
         let mut bindings = Vec::new();
         let commands = cx.global::<Commands>();

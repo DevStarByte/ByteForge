@@ -110,10 +110,7 @@ impl Workbench {
                         .flex()
                         .items_center()
                         .gap_2()
-                        .child({
-                                    let (icon_name, color_key) = crate::explorer::file_icon(&name, false, false);
-                                    icon(&icon_name, t.m("explorer.iconSize", 15.0), crate::explorer::file_icon_color(&t, &color_key))
-                                })
+                        .child(crate::explorer::file_icon_view(&name, false, false, t.m("explorer.iconSize", 15.0), &t))
                         .child(div().whitespace_nowrap().font_weight(gpui::FontWeight::SEMIBOLD).child(name))
                         .child(div().whitespace_nowrap().text_size(px(11.)).text_color(muted).child(dir))
                         .child(div().px(px(6.)).rounded(px(9.)).text_size(px(11.)).bg(t.bg("badge.background")).text_color(t.c("badge.foreground")).child(count.to_string()))

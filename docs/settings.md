@@ -17,6 +17,7 @@
                                                      // "Terminal: Select Default Shell…" (palette or the panel button)
   "editor.formatOnSave": false, "editor.defaultFormatter": "csharpier",   // or "csharp-ls"
   "explorer.autoReveal": true,                         // expand and scroll the tree to the file you switch to
+  "explorer.nativeIcons": true,                        // macOS: Finder's file and folder icons (false: the theme's)
   "keybindings": { "view.quickOpen": "ctrl-e", "theme.select": "" },   // "" unbinds
   "modules.disabled": ["me.hello"]
 }

@@ -90,7 +90,8 @@ dotnet tool install -g csharp-ls
 ```
 
 Shortcuts use ⌘ where Windows and Linux use Ctrl (⌘⇧P for the command palette, ⌘S to save, …), the menus
-live in the macOS menu bar, and ⌘+Click goes to a definition. ByteForge picks up the `PATH` of your login
+live in the macOS menu bar, ⌘+Click goes to a definition, and the Explorer shows Finder's file and folder
+icons (`"explorer.nativeIcons": false` brings back the theme's). ByteForge picks up the `PATH` of your login
 shell, so tools installed through Homebrew or `~/.dotnet/tools` are found even when it's started from Finder.
 
 Pre-releases (betas) are marked as such on the Releases page; each release also carries the Arch package

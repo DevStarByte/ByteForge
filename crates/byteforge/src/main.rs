@@ -12,6 +12,8 @@ mod layout;
 mod markdown;
 mod markdown_preview;
 mod menu;
+#[cfg(target_os = "macos")]
+mod native_icons;
 mod palette;
 mod prompt;
 mod scm;
