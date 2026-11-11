@@ -146,7 +146,7 @@ fn builtin() -> Vec<Builtin> {
         ("view.quickOpen", "Go to File…", "Go", Box::new(QuickOpen), Some("ctrl-p")),
         ("edit.goToLine", "Go to Line…", "Go", Box::new(GoToLine), Some("ctrl-g")),
         ("view.toggleSideBar", "Toggle Side Bar", "View", Box::new(ToggleSideBar), Some("ctrl-b")),
-        ("view.resetActivityBarOrder", "Reset Activity Bar Order", "View", Box::new(ResetActivityBarOrder), None),
+        ("view.resetActivityBar", "Reset Activity Bar (Order and Hidden Items)", "View", Box::new(ResetActivityBarOrder), None),
         ("view.togglePanel", "Toggle Panel", "View", Box::new(TogglePanel), Some("ctrl-j")),
         ("view.explorer", "Explorer", "View", Box::new(ShowExplorer), Some("ctrl-shift-e")),
         ("view.search", "Search", "View", Box::new(ShowSearch), Some("ctrl-shift-f")),

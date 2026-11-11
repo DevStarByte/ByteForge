@@ -280,6 +280,7 @@ pub struct Workbench {
     module_views: Vec<module_views::ModuleView>,
     /// The open context menu of a module view's row.
     module_menu: Option<module_views::ModuleMenu>,
+    activity_menu: Option<bars::ActivityMenu>,
     module_view: Option<String>,
     module_view_shown: Option<(String, String)>,
     output_tx: flume::Sender<String>,
@@ -518,6 +519,7 @@ impl Workbench {
             plugin_status: Vec::new(),
             module_views: Vec::new(),
             module_menu: None,
+            activity_menu: None,
             module_view: None,
             module_view_shown: None,
             output_tx,

@@ -36,6 +36,23 @@ pub fn item(t: &Theme, id: impl Into<ElementId>, label: impl Into<SharedString>,
         .when_some(hint.filter(|h| !h.is_empty()), |d, h| d.child(div().text_color(t.c("foreground.muted")).text_size(px(12.)).child(h)))
 }
 
+/// An entry with a check mark in front when `checked` (the label lines up either way). Attach `.on_click`.
+pub fn check_item(t: &Theme, id: impl Into<ElementId>, label: impl Into<SharedString>, checked: bool) -> Stateful<Div> {
+    let hover: Hsla = t.c("menu.selectionBackground");
+    div()
+        .id(id)
+        .flex()
+        .items_center()
+        .gap_2()
+        .px_3()
+        .py_1()
+        .rounded(px(4.))
+        .cursor_pointer()
+        .hover(move |s| s.bg(hover))
+        .child(div().w(px(14.)).flex_none().when(checked, |d| d.child(crate::assets::icon("check", px(14.), t.c("menu.foreground")))))
+        .child(div().flex_1().whitespace_nowrap().child(label.into()))
+}
+
 /// A line between groups of entries.
 pub fn separator(t: &Theme) -> Div {
     div().h(px(1.)).my_1().bg(t.c("menu.border"))

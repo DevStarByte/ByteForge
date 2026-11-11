@@ -4,6 +4,14 @@ use super::*;
 
 /// State key of the activity bar order the user arranged by dragging (a JSON array of item names).
 const ORDER_KEY: &str = "activityBar.order";
+/// State key of the activity bar items the user hid (a JSON array of item names).
+const HIDDEN_KEY: &str = "activityBar.hidden";
+
+/// The activity bar's right-click menu: hide the item it was opened on, or show/hide any item.
+pub(super) struct ActivityMenu {
+    item: Option<String>,
+    position: gpui::Point<gpui::Pixels>,
+}
 
 /// An activity bar item being dragged to a new place; draws its icon under the mouse.
 #[derive(Clone)]
@@ -71,9 +79,75 @@ impl Workbench {
         cx.notify();
     }
 
+    /// Puts the activity bar back the way the theme has it: its order, nothing hidden.
     pub(super) fn reset_activity_order(&mut self, cx: &mut Context<Self>) {
         self.state.set(ORDER_KEY, None);
+        self.state.set(HIDDEN_KEY, None);
         cx.notify();
+    }
+
+    fn hidden_activity_items(&self) -> Vec<String> {
+        self.state.get(HIDDEN_KEY).and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default()
+    }
+
+    fn set_activity_item_hidden(&mut self, name: &str, hide: bool, cx: &mut Context<Self>) {
+        let mut hidden = self.hidden_activity_items();
+        hidden.retain(|h| h != name);
+        if hide {
+            hidden.push(name.to_owned());
+        }
+        let value = (!hidden.is_empty()).then(|| serde_json::to_string(&hidden).unwrap_or_default());
+        self.state.set(HIDDEN_KEY, value.as_deref());
+        cx.notify();
+    }
+
+    /// The name an activity bar item has in its right-click menu (`None` for spacers and unknown items).
+    fn activity_label(&self, name: &str, cx: &App) -> Option<String> {
+        if let Some(v) = self.module_views.iter().find(|v| v.id == name) {
+            return Some(v.title.clone());
+        }
+        let label = match name {
+            "explorer" => "Explorer",
+            "search" => "Search",
+            "scm" => "Source Control",
+            "debug" => "Run and Debug",
+            "testing" | "tests" => "Testing",
+            "solution" => "Solution",
+            "modules" => "Modules",
+            "settings" => "Settings",
+            "spacer" => return None,
+            other => return command_button(other, cx).map(|(_, title, _)| title),
+        };
+        Some(label.to_owned())
+    }
+
+    fn render_activity_menu(&self, menu: &ActivityMenu, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let t = Theme::global(cx);
+        let hidden = self.hidden_activity_items();
+        let mut panel = crate::menu::panel(&t, 200.).on_mouse_down_out(cx.listener(|wb, _, _, cx| {
+            wb.activity_menu = None;
+            cx.notify();
+        }));
+        if let Some((name, label)) = menu.item.as_ref().and_then(|n| Some((n.clone(), self.activity_label(n, cx)?))) {
+            panel = panel
+                .child(crate::menu::item(&t, "act-menu-hide", format!("Hide \"{label}\""), None).on_click(cx.listener(move |wb, _, _, cx| {
+                    wb.activity_menu = None;
+                    wb.set_activity_item_hidden(&name, true, cx);
+                })))
+                .child(crate::menu::separator(&t));
+        }
+        for (ix, name) in self.activity_items(&t).into_iter().enumerate() {
+            let Some(label) = self.activity_label(&name, cx) else { continue };
+            let shown = !hidden.contains(&name);
+            panel = panel.child(crate::menu::check_item(&t, SharedString::from(format!("act-menu-{ix}")), label, shown).on_click(cx.listener(move |wb, _, _, cx| {
+                wb.set_activity_item_hidden(&name, shown, cx);
+            })));
+        }
+        panel = panel.child(crate::menu::separator(&t)).child(crate::menu::item(&t, "act-menu-reset", "Reset Activity Bar", None).on_click(cx.listener(|wb, _, _, cx| {
+            wb.activity_menu = None;
+            wb.reset_activity_order(cx);
+        })));
+        gpui::deferred(gpui::anchored().position(menu.position).snap_to_window().child(panel)).with_priority(1)
     }
 
     /// The activity bar: vertical in the main row, or horizontal when placed in `sideBar.order`.
@@ -195,20 +269,62 @@ impl Workbench {
                 let _ = me.update(cx, |wb, cx| wb.move_activity_item(d.index, to, cx));
             }
         };
+        let open_menu = |name: Option<String>, _: &mut Context<Self>| {
+            let me = me.clone();
+            move |ev: &gpui::MouseDownEvent, _: &mut Window, cx: &mut gpui::App| {
+                cx.stop_propagation();
+                let _ = me.update(cx, |wb, cx| {
+                    wb.activity_menu = Some(ActivityMenu { item: name.clone(), position: ev.position });
+                    cx.notify();
+                });
+            }
+        };
+        let hidden = self.hidden_activity_items();
         for (n, name) in self.activity_items(&t).iter().enumerate() {
-            let id = SharedString::from(format!("act-{n}-{}", if horizontal { "h" } else { "v" }));
-            if let Some((view_id, title, icon_name, count)) = module_views.iter().find(|v| &v.0 == name) {
-                let active = self.module_view_active(view_id);
-                let view_id = view_id.clone();
-                bar = bar.child(
-                    item(id, n, icon_name, title.clone(), title, active)
-                        .children(badge(*count as usize))
-                        .on_click(cx.listener(move |wb, _, _, cx| wb.toggle_module_view(&view_id, cx)))
-                        .on_drop(drop(n, cx)),
-                );
+            if hidden.contains(name) {
                 continue;
             }
-            let view = match name.as_str() {
+            let id = SharedString::from(format!("act-{n}-{}", if horizontal { "h" } else { "v" }));
+            let el = if let Some((view_id, title, icon_name, count)) = module_views.iter().find(|v| &v.0 == name) {
+                let active = self.module_view_active(view_id);
+                let view_id = view_id.clone();
+                item(id, n, icon_name, title.clone(), title, active)
+                    .children(badge(*count as usize))
+                    .on_click(cx.listener(move |wb, _, _, cx| wb.toggle_module_view(&view_id, cx)))
+            } else {
+                match self.builtin_activity_item(name, id, n, &item, side_visible, side, scm_count, &badge, cx) {
+                    Some(el) => el,
+                    None => {
+                        if name == "spacer" {
+                            bar = bar.child(div().flex_1());
+                        }
+                        continue;
+                    }
+                }
+            };
+            bar = bar.child(el.on_drop(drop(n, cx)).on_mouse_down(MouseButton::Right, open_menu(Some(name.clone()), cx)));
+        }
+        let menu = self.activity_menu.as_ref().map(|m| self.render_activity_menu(m, cx));
+        bar.on_mouse_down(MouseButton::Right, open_menu(None, cx)).children(menu)
+    }
+}
+
+impl Workbench {
+    #[allow(clippy::too_many_arguments)]
+    fn builtin_activity_item(
+        &self,
+        name: &str,
+        id: SharedString,
+        n: usize,
+        item: &impl Fn(SharedString, usize, &str, String, &str, bool) -> gpui::Stateful<gpui::Div>,
+        side_visible: bool,
+        side: SideView,
+        scm_count: usize,
+        badge: &impl Fn(usize) -> Option<gpui::Div>,
+        cx: &mut Context<Self>,
+    ) -> Option<gpui::Stateful<gpui::Div>> {
+        {
+            let view = match name {
                 "explorer" => Some((SideView::Explorer, "files", format!("Explorer ({})", crate::actions::key_label("ctrl-shift-e")), "Files")),
                 "search" => Some((SideView::Search, "search", format!("Search ({})", crate::actions::key_label("ctrl-shift-f")), "Search")),
                 "scm" => Some((SideView::SourceControl, "sourceControl", format!("Source Control ({})", crate::actions::key_label("ctrl-shift-g")), "Git")),
@@ -219,30 +335,24 @@ impl Workbench {
                 _ => None,
             };
             if let Some((view, icon_name, tip, label)) = view {
-                let mut el = item(id, n, icon_name, tip, label, side_visible && side == view).on_drop(drop(n, cx));
+                let mut el = item(id, n, icon_name, tip, label, side_visible && side == view);
                 if view == SideView::SourceControl {
                     el = el.children(badge(scm_count));
                 }
-                bar = bar.child(el.on_click(cx.listener(move |wb, _, w, cx| wb.toggle_side(view, w, cx))));
-                continue;
+                return Some(el.on_click(cx.listener(move |wb, _, w, cx| wb.toggle_side(view, w, cx))));
             }
-            match name.as_str() {
-                "spacer" => bar = bar.child(div().flex_1()),
-                "settings" => {
-                    bar = bar.child(
-                        item(id, n, "settings", format!("Settings ({})", crate::actions::key_label("ctrl-,")), "", false)
-                            .on_click(cx.listener(|_, _, w, cx| w.dispatch_action(Box::new(OpenSettings), cx)))
-                            .on_drop(drop(n, cx)),
-                    );
-                }
+            match name {
+                "spacer" => None,
+                "settings" => Some(
+                    item(id, n, "settings", format!("Settings ({})", crate::actions::key_label("ctrl-,")), "", false)
+                        .on_click(cx.listener(|_, _, w, cx| w.dispatch_action(Box::new(OpenSettings), cx))),
+                ),
                 other => {
-                    if let Some((action, title, icon_name)) = command_button(other, cx) {
-                        bar = bar.child(item(id, n, &icon_name, title, "", false).on_click(move |_, w, cx| w.dispatch_action(action.boxed_clone(), cx)).on_drop(drop(n, cx)));
-                    }
+                    let (action, title, icon_name) = command_button(other, cx)?;
+                    Some(item(id, n, &icon_name, title, "", false).on_click(move |_, w, cx| w.dispatch_action(action.boxed_clone(), cx)))
                 }
             }
         }
-        bar
     }
 
     /// The side bar; `sideBar.order` arranges header, content and (optionally) a horizontal activity bar.
