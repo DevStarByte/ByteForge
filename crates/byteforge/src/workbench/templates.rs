@@ -214,38 +214,158 @@ impl Workbench {
             return;
         };
         if let Some(id) = templates::user_secrets_id(&project) {
-            return self.open_secrets_file(&id, window, cx);
+            return self.open_secrets_page(project, &id, window, cx);
         }
         if self.dotnet_busy(cx) {
             return;
         }
         let args = vec!["user-secrets".into(), "init".into(), "--project".into(), project.to_string_lossy().into_owned()];
         let then: DotnetDone = Box::new(move |wb, ok, window, cx| match templates::user_secrets_id(&project) {
-            Some(id) if ok => wb.open_secrets_file(&id, window, cx),
+            Some(id) if ok => wb.open_secrets_page(project.clone(), &id, window, cx),
             _ => wb.show_panel(PanelView::Output, cx),
         });
         self.start_dotnet(root, args, Some(then), window, cx);
     }
 
-    fn open_secrets_file(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(path) = templates::user_secrets_file(id) else {
+    /// The secrets as a form in a tab (reused when it is open).
+    fn open_secrets_page(&mut self, project: PathBuf, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(file) = templates::user_secrets_file(id) else {
             self.log("Could not find the user secrets folder (HOME / APPDATA is not set).");
             return;
         };
-        let created = (|| -> std::io::Result<()> {
-            if !path.exists() {
-                std::fs::create_dir_all(path.parent().unwrap_or(&path))?;
-                std::fs::write(&path, "{\n}\n")?;
-            }
-            Ok(())
-        })();
-        match created {
-            Ok(()) => self.open_file(path, None, window, cx),
-            Err(e) => {
-                self.log(format!("Could not create {}: {e}", path.display()));
-                self.show_panel(PanelView::Output, cx);
-            }
+        if let Some(ix) = self.tabs.iter().position(|t| matches!(&t.page, Some(Page::Secrets { file: f, .. }) if *f == file)) {
+            return self.activate(ix, window, cx);
         }
+        let name = project.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let editor = cx.new(|cx| {
+            let mut e = EditorView::new("", None, cx);
+            e.read_only = true;
+            e
+        });
+        self.add_tab(editor, None, format!("User Secrets: {name}"), false, window, cx);
+        if let Some(tab) = self.tabs.last_mut() {
+            tab.page = Some(Page::Secrets { project, file });
+        }
+        cx.notify();
+    }
+
+    /// Sets (or, with `None`, removes) one secret in `file`.
+    pub(super) fn update_secret(&mut self, file: &Path, key: &str, value: Option<&str>, cx: &mut Context<Self>) -> anyhow::Result<()> {
+        let mut secrets = templates::read_secrets(file)?;
+        templates::set_secret(&mut secrets, key, value);
+        templates::write_secrets(file, &secrets)?;
+        self.reload_changed_tabs(cx);
+        cx.notify();
+        Ok(())
+    }
+
+    pub(super) fn render_secrets_page(&mut self, project: &Path, file: &Path, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let t = Theme::global(cx);
+        let (fg, muted, rule) = (t.c("editor.foreground"), t.c("foreground.muted"), t.c("editorWidget.border"));
+        let hover = t.c("toolbar.hoverBackground");
+        let shown = self.secrets_shown.contains(file);
+        let name = project.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let secrets = templates::read_secrets(file);
+        let button = |id: &'static str, label: &'static str| {
+            div().id(id).px(px(10.)).py(px(4.)).rounded(px(5.)).border_1().border_color(rule).cursor_pointer().hover(move |s| s.bg(hover)).text_size(px(12.)).child(label)
+        };
+        let (add_file, show_file, json_file) = (file.to_path_buf(), file.to_path_buf(), file.to_path_buf());
+        let header = div()
+            .flex()
+            .flex_col()
+            .gap_1()
+            .child(div().text_size(px(20.)).font_weight(gpui::FontWeight::SEMIBOLD).child(format!("User secrets of {name}")))
+            .child(div().text_size(px(12.)).text_color(muted).child(format!("Kept outside the project in {}; read in Development as configuration (Section:Key).", file.display())))
+            .child(
+                div()
+                    .flex()
+                    .gap_2()
+                    .mt_2()
+                    .child(button("secret-add", "Add Secret").on_click(cx.listener(move |wb, _, w, cx| wb.open_prompt(PromptKind::SecretNew { file: add_file.clone() }, "", w, cx))))
+                    .child(button("secret-show", if shown { "Hide Values" } else { "Show Values" }).on_click(cx.listener(move |wb, _, _, cx| {
+                        if !wb.secrets_shown.remove(&show_file) {
+                            wb.secrets_shown.insert(show_file.clone());
+                        }
+                        cx.notify();
+                    })))
+                    .child(button("secret-json", "Open secrets.json").on_click(cx.listener(move |wb, _, w, cx| {
+                        if !json_file.exists() {
+                            let _ = templates::write_secrets(&json_file, &[]);
+                        }
+                        wb.open_file(json_file.clone(), None, w, cx);
+                    }))),
+            );
+        let body: gpui::AnyElement = match secrets {
+            Err(e) => div().text_color(t.c("errorForeground")).child(format!("{e:#}. Fix it in secrets.json.")).into_any_element(),
+            Ok(list) if list.is_empty() => div().text_color(muted).child("No secrets yet. Add one, e.g. ConnectionStrings:Default.").into_any_element(),
+            Ok(list) => div()
+                .flex()
+                .flex_col()
+                .border_1()
+                .border_color(rule)
+                .rounded(px(6.))
+                .children(list.into_iter().enumerate().map(|(i, (key, value))| {
+                    let (edit_file, edit_key, edit_value) = (file.to_path_buf(), key.clone(), value.clone());
+                    let (del_file, del_key) = (file.to_path_buf(), key.clone());
+                    let masked = if shown { value.clone() } else if value.is_empty() { String::new() } else { "\u{2022}".repeat(value.chars().count().clamp(6, 12)) };
+                    div()
+                        .id(SharedString::from(format!("secret-{i}")))
+                        .group("secret-row")
+                        .flex()
+                        .items_center()
+                        .gap_3()
+                        .px_3()
+                        .py(px(6.))
+                        .when(i > 0, |d| d.border_t_1().border_color(rule))
+                        .hover(move |s| s.bg(hover))
+                        .child(div().w(px(280.)).flex_none().overflow_hidden().whitespace_nowrap().font_family(t.editor_font.clone()).child(key.clone()))
+                        .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().font_family(t.editor_font.clone()).text_color(if shown { fg } else { muted }).child(masked))
+                        .child(
+                            div()
+                                .id(SharedString::from(format!("secret-edit-{i}")))
+                                .p(px(3.))
+                                .rounded(px(4.))
+                                .cursor_pointer()
+                                .hover(move |s| s.bg(hover))
+                                .child(icon("pencil", px(14.), muted))
+                                .tooltip(tooltip("Change the value"))
+                                .on_click(cx.listener(move |wb, _, w, cx| wb.open_prompt(PromptKind::SecretValue { file: edit_file.clone(), key: edit_key.clone() }, &edit_value, w, cx))),
+                        )
+                        .child(
+                            div()
+                                .id(SharedString::from(format!("secret-delete-{i}")))
+                                .p(px(3.))
+                                .rounded(px(4.))
+                                .cursor_pointer()
+                                .hover(move |s| s.bg(hover))
+                                .child(icon("trash", px(14.), muted))
+                                .tooltip(tooltip("Delete this secret"))
+                                .on_click(cx.listener(move |_, _, w, cx| {
+                                    let rx = w.prompt(PromptLevel::Warning, &format!("Delete the secret {del_key}?"), None, &["Delete", "Cancel"], cx);
+                                    let (file, key) = (del_file.clone(), del_key.clone());
+                                    cx.spawn_in(w, async move |this, cx| {
+                                        if let Ok(0) = rx.await {
+                                            let _ = this.update(cx, |wb, cx| {
+                                                if let Err(e) = wb.update_secret(&file, &key, None, cx) {
+                                                    wb.log(format!("Could not delete the secret: {e:#}"));
+                                                }
+                                            });
+                                        }
+                                    })
+                                    .detach();
+                                })),
+                        )
+                }))
+                .into_any_element(),
+        };
+        div()
+            .id("secrets-page")
+            .size_full()
+            .overflow_y_scroll()
+            .bg(t.c("editor.background"))
+            .text_color(fg)
+            .text_size(px(13.))
+            .child(div().max_w(px(900.)).p_8().flex().flex_col().gap_4().child(header).child(body))
     }
 
     // ───────────── launch profile in the status bar ─────────────

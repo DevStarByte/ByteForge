@@ -82,6 +82,8 @@ enum Page {
     Markdown(PathBuf),
     /// A diff editor (the tab's editor is its new side).
     Diff(Entity<crate::diff_view::DiffView>),
+    /// The user secrets of a project, as a form (`file` is its secrets.json).
+    Secrets { project: PathBuf, file: PathBuf },
 }
 
 impl Tab {
@@ -150,6 +152,10 @@ enum PromptKind {
     RenameSymbol { editor: gpui::WeakEntity<EditorView>, at: Point, old: String },
     /// Name of a new EF Core migration.
     EfMigrationName(crate::actions::EfCommand),
+    /// New value of a user secret.
+    SecretValue { file: PathBuf, key: String },
+    /// A new user secret, typed as `Name = value`.
+    SecretNew { file: PathBuf },
 }
 
 /// Runs when a dotnet process started by `start_dotnet` exits (argument: whether it succeeded).
@@ -260,6 +266,8 @@ pub struct Workbench {
     lsp_task: Option<Task<()>>,
     dotnet: Option<DotnetProcess>,
     dotnet_task: Option<Task<()>>,
+    /// User-secrets pages showing their values (hidden by default).
+    secrets_shown: std::collections::HashSet<PathBuf>,
     /// The project the running (or last) `dotnet watch` was started for, so it can be restarted.
     watch_target: Option<PathBuf>,
     /// Compiler errors and warnings from the last build (Razor files only get diagnostics this way).
@@ -511,6 +519,7 @@ impl Workbench {
             dotnet: None,
             dotnet_task: None,
             watch_target: None,
+            secrets_shown: Default::default(),
             build_problems: Vec::new(),
             debug: None,
             debug_generation: 0,

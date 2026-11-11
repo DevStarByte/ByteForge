@@ -91,6 +91,8 @@ impl Workbench {
             }
             PromptKind::RenameSymbol { .. } => "New name (Enter to rename everywhere, Escape to cancel)",
             PromptKind::EfMigrationName(_) => "Migration name, e.g. AddOrders (EF Core: dotnet ef migrations add)",
+            PromptKind::SecretValue { .. } => "New value (Enter to save, Escape to cancel)",
+            PromptKind::SecretNew { .. } => "Name = value, e.g. ConnectionStrings:Default = Server=localhost;Database=Shop",
         };
         self.prompt = Some(kind);
         let palette = cx.new(|cx| Palette::new(Mode::Prompt, Vec::new(), placeholder, initial, window, cx));
@@ -202,6 +204,17 @@ impl Workbench {
                 }
                 PromptKind::Template(template) => self.create_from_template(template, text.clone(), window, cx)?,
                 PromptKind::EfMigrationName(cmd) => self.ef_migration_named(cmd, &text, window, cx),
+                PromptKind::SecretValue { file, key } => self.update_secret(&file, &key, Some(&text), cx)?,
+                PromptKind::SecretNew { file } => {
+                    let Some((key, value)) = text.split_once('=') else {
+                        anyhow::bail!("type the secret as Name = value");
+                    };
+                    let key = key.trim();
+                    if key.is_empty() {
+                        anyhow::bail!("the secret needs a name");
+                    }
+                    self.update_secret(&file, key, Some(value.trim()), cx)?;
+                }
                 PromptKind::CreateBranch => {
                     let name = text.replace(' ', "-");
                     self.scm.update(cx, |s, cx| s.create_branch(name, cx));

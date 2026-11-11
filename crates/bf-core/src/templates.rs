@@ -220,6 +220,97 @@ pub fn user_secrets_id(project: &Path) -> Option<String> {
     tag_value(&std::fs::read_to_string(project).ok()?, "UserSecretsId")
 }
 
+/// The secrets in a `secrets.json`, as configuration keys: nested objects are flattened with `:`
+/// (`{"Db": {"Password": "x"}}` → `Db:Password`), arrays by index, and every value read as text. In the
+/// file's order. A missing or empty file has none.
+pub fn read_secrets(path: &Path) -> anyhow::Result<Vec<(String, String)>> {
+    let text = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(e.into()),
+    };
+    let text = text.trim_start_matches('\u{feff}');
+    if text.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    // secrets.json may have comments and trailing commas, like other configuration files.
+    let value: serde_json::Value = json5::from_str(text).map_err(|e| anyhow::anyhow!("secrets.json isn't valid JSON: {e}"))?;
+    let mut out = Vec::new();
+    flatten("", &value, &mut out);
+    Ok(out)
+}
+
+fn flatten(prefix: &str, value: &serde_json::Value, out: &mut Vec<(String, String)>) {
+    let key = |k: &str| if prefix.is_empty() { k.to_owned() } else { format!("{prefix}:{k}") };
+    match value {
+        serde_json::Value::Object(map) => {
+            for (k, v) in map {
+                flatten(&key(k), v, out);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for (i, v) in items.iter().enumerate() {
+                flatten(&key(&i.to_string()), v, out);
+            }
+        }
+        serde_json::Value::String(s) => out.push((prefix.to_owned(), s.clone())),
+        serde_json::Value::Null => out.push((prefix.to_owned(), String::new())),
+        other => out.push((prefix.to_owned(), other.to_string())),
+    }
+}
+
+/// Writes the secrets as one flat object (what `dotnet user-secrets set` writes too).
+pub fn write_secrets(path: &Path, secrets: &[(String, String)]) -> anyhow::Result<()> {
+    let mut map = serde_json::Map::new();
+    for (k, v) in secrets {
+        map.insert(k.clone(), serde_json::Value::String(v.clone()));
+    }
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(path, serde_json::to_string_pretty(&serde_json::Value::Object(map))? + "\n")?;
+    Ok(())
+}
+
+/// Sets `key` (replacing its value, or adding it at the end) or, with `None`, removes it.
+pub fn set_secret(secrets: &mut Vec<(String, String)>, key: &str, value: Option<&str>) {
+    let at = secrets.iter().position(|(k, _)| k.eq_ignore_ascii_case(key));
+    match (at, value) {
+        (Some(i), Some(v)) => secrets[i].1 = v.to_owned(),
+        (None, Some(v)) => secrets.push((key.to_owned(), v.to_owned())),
+        (Some(i), None) => {
+            secrets.remove(i);
+        }
+        (None, None) => {}
+    }
+}
+
+#[cfg(test)]
+mod secrets_tests {
+    use super::*;
+
+    #[test]
+    fn reads_nested_and_flat_secrets_and_writes_them_flat() {
+        let dir = std::env::temp_dir().join(format!("bf-secrets-{}", std::process::id()));
+        let file = dir.join("secrets.json");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(&file, "{\n  // dev only\n  \"ConnectionStrings\": { \"Db\": \"Server=.\" },\n  \"Api:Key\": \"abc\",\n  \"Retries\": 3,\n  \"Hosts\": [\"a\", \"b\"],\n}\n").unwrap();
+        let mut secrets = read_secrets(&file).unwrap();
+        assert_eq!(
+            secrets,
+            [("ConnectionStrings:Db", "Server=."), ("Api:Key", "abc"), ("Retries", "3"), ("Hosts:0", "a"), ("Hosts:1", "b")].map(|(k, v)| (k.to_owned(), v.to_owned()))
+        );
+        set_secret(&mut secrets, "api:key", Some("xyz"));
+        set_secret(&mut secrets, "Hosts:1", None);
+        set_secret(&mut secrets, "New", Some("1"));
+        write_secrets(&file, &secrets).unwrap();
+        let again = read_secrets(&file).unwrap();
+        assert_eq!(again.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>(), ["ConnectionStrings:Db=Server=.", "Api:Key=xyz", "Retries=3", "Hosts:0=a", "New=1"]);
+        assert!(read_secrets(&dir.join("missing.json")).unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
