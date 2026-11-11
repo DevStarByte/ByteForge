@@ -173,7 +173,11 @@ impl Element for EditorElement {
 
         self.view.update(cx, |view, cx| {
             let theme = Theme::global(cx);
-            let digits = (view.state.buffer.line_count().max(1) as f32).log10().floor() as usize + 1;
+            let largest = match &view.line_numbers {
+                Some(numbers) => numbers.iter().flatten().copied().max().unwrap_or(1),
+                None => view.state.buffer.line_count(),
+            };
+            let digits = (largest.max(1) as f32).log10().floor() as usize + 1;
             let glyph = if view.glyph_margin { theme.n("editorGutter.glyphMarginWidth", line_height).round() } else { 0.0 };
             let fold_width = if view.folding_enabled && view.show_line_numbers { (char_width * 1.6).round().max(12.0) } else { 0.0 };
             let gutter = glyph
@@ -203,6 +207,9 @@ impl Element for EditorElement {
                 view.fold_regions();
             }
             view.take_pending_reveal();
+            if view.follow_scroll_link() {
+                window.request_animation_frame();
+            }
             view.scroll = view.clamp_scroll(view.scroll);
             view.scroll_target = view.clamp_scroll(view.scroll_target);
             view.refresh_minimap(&theme);
@@ -417,9 +424,9 @@ impl Element for EditorElement {
         });
 
         // Line numbers.
-        let (show_numbers, caret_line, hidden) = {
+        let (show_numbers, caret_line, hidden, labels) = {
             let v = self.view.read(cx);
-            (v.show_line_numbers, v.state.caret().line, v.folds.hidden_ranges().to_vec())
+            (v.show_line_numbers, v.state.caret().line, v.folds.hidden_ranges().to_vec(), v.line_numbers.clone())
         };
         if show_numbers {
             let number_font = editor_font.clone();
@@ -428,7 +435,13 @@ impl Element for EditorElement {
                     continue;
                 }
                 let active = line_ix == caret_line;
-                let label = (line_ix + 1).to_string();
+                let label = match &labels {
+                    Some(labels) => match labels.get(line_ix).copied().flatten() {
+                        Some(n) => n.to_string(),
+                        None => continue,
+                    },
+                    None => (line_ix + 1).to_string(),
+                };
                 let run = TextRun {
                     len: label.len(),
                     font: number_font.clone(),
@@ -510,7 +523,7 @@ impl Element for EditorElement {
 
             // Whole-line backgrounds (diff view).
             for &(line, key) in &view.line_backgrounds {
-                window.paint_quad(fill(Bounds::new(point(px(gutter_right), line_top(line)), size(width - px(l.gutter), px(lh))), theme.bg(key)));
+                window.paint_quad(fill(Bounds::new(point(px(gutter_right), line_top(line)), size(width - px(l.gutter), px(lh))), diff_background(&theme, key)));
             }
 
             // Rulers.
@@ -540,6 +553,10 @@ impl Element for EditorElement {
                     window.paint_quad(quad(b, Corners::all(r), bg, if border.is_some() { 1.0 } else { 0.0 }, border.unwrap_or_default(), gpui::BorderStyle::Solid));
                 }
             };
+            // Changed words (diff view).
+            for &(s, e, key) in &view.range_backgrounds {
+                paint_range(window, s, e, diff_background(&theme, key), None, false);
+            }
             // Other uses of the symbol under the caret (assignments stronger).
             for h in &view.word_highlights {
                 let key = if h.write { "editor.wordHighlightStrongBackground" } else { "editor.wordHighlightBackground" };
@@ -956,6 +973,7 @@ struct Snap {
     focus: gpui::FocusHandle,
     git_marks: Vec<(usize, bf_core::git::LineChangeKind)>,
     line_backgrounds: Vec<(usize, &'static str)>,
+    range_backgrounds: Vec<(TPoint, TPoint, &'static str)>,
     breakpoints: Vec<super::Breakpoint>,
     test_marks: Vec<(usize, crate::testing::TestState)>,
     exec_line: Option<(usize, bool)>,
@@ -1006,6 +1024,7 @@ impl Snap {
             focus: v.focus.clone(),
             git_marks: v.git_marks.iter().filter(|(l, _)| *l + 1 >= first && *l <= last + 1).copied().collect(),
             line_backgrounds: v.line_backgrounds.iter().filter(|(l, _)| *l >= first && *l <= last).copied().collect(),
+            range_backgrounds: v.range_backgrounds.iter().filter(|(s, e, _)| e.line >= first && s.line <= last).copied().collect(),
             breakpoints: v.breakpoints.iter().filter(|b| b.line >= first && b.line <= last).copied().collect(),
             test_marks: v.test_marks.iter().filter(|m| m.0 >= first && m.0 <= last).copied().collect(),
             exec_line: v.exec_line,
@@ -1096,4 +1115,21 @@ impl gpui::EntityInputHandler for EditorView {
     fn character_index_for_point(&mut self, _: gpui::Point<Pixels>, _: &mut Window, _: &mut gpui::Context<Self>) -> Option<usize> {
         None
     }
+}
+
+/// A diff color from the theme, or a fallback for themes that don't define it.
+fn diff_background(theme: &Theme, key: &str) -> gpui::Background {
+    if theme.has(key) {
+        return theme.bg(key);
+    }
+    let fallback = match key {
+        "diffEditor.insertedLineBackground" => 0x2ea04326,
+        "diffEditor.removedLineBackground" => 0xf8514926,
+        "diffEditor.insertedTextBackground" => 0x2ea04366,
+        "diffEditor.removedTextBackground" => 0xf8514966,
+        "diffEditor.diagonalFill" => 0x8080801a,
+        "diffEditor.hunkHeaderBackground" => 0x0078d422,
+        _ => 0x00000000,
+    };
+    theme.c_or(key, fallback).into()
 }

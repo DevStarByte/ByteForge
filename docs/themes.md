@@ -42,7 +42,7 @@ from the base theme.
   `minimapSlider.background` / `hoverBackground` and `editorGroup.border` (in `colors`), `minimap.width` (in
   `metrics`).
 - **git colors** (in `colors`): `gitDecoration.*ResourceForeground`, `editorGutter.added/modified/deletedBackground`,
-  `diffEditor.inserted/removedLineBackground`, `activityBarBadge.*`, `badge.*`; sizes in `metrics`:
+  `diffEditor.inserted/removedLineBackground`, `diffEditor.inserted/removedTextBackground` (changed words), `diffEditor.diagonalFill` (filler rows), `activityBarBadge.*`, `badge.*`; sizes in `metrics`:
   `editorGutter.changeWidth/changeOffset/changeRadius`, `scm.iconSize`, `activityBarBadge.size`.
 - **effects**: window backdrop (`blur`, `transparent` or `none`) and shadows for the palette and other widgets.
 - **layout**: where every part of the window goes. Each container is an ordered list of parts: reorder

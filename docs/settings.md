@@ -54,6 +54,6 @@ conventions: Ctrl+Space, Ctrl+Tab, Ctrl+G, Ctrl+F5 and Ctrl+\` stay on ⌃; Repl
 | Ctrl+. | Quick fix / refactor at the cursor | Shift+Alt+F | Format document |
 | Ctrl+Shift+R | Refactor… (refactorings only) | F2, Ctrl+R Ctrl+R | Rename symbol |
 | Ctrl+R Ctrl+M | Extract method | Ctrl+R Ctrl+I | Extract interface |
-| Ctrl+R Ctrl+G | Remove and sort usings | | |
+| Ctrl+R Ctrl+G | Remove and sort usings | F7 / Shift+F7 | Next / previous change (diff editor) |
 | Ctrl+K | Color theme | Ctrl+Tab | Next editor |
 | Ctrl+Shift+G | Source Control | | |

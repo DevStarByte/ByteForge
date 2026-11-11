@@ -66,6 +66,25 @@ impl EditorView {
         if !animate {
             self.scroll = self.scroll_target;
         }
+        if let Some(link) = &self.scroll_link {
+            let generation = link.get().2 + 1;
+            link.set((self.scroll_target.1, animate, generation));
+            self.scroll_link_seen = generation;
+        }
+    }
+
+    /// Follows a linked editor's scrolling (called every frame).
+    pub(crate) fn follow_scroll_link(&mut self) -> bool {
+        let Some((y, animate, generation)) = self.scroll_link.as_ref().map(|l| l.get()) else { return false };
+        if generation == self.scroll_link_seen {
+            return false;
+        }
+        self.scroll_link_seen = generation;
+        self.scroll_target.1 = y;
+        if !animate {
+            self.scroll.1 = y;
+        }
+        true
     }
 
     // ───────────── hit testing ─────────────

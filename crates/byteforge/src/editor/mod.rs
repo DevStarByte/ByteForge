@@ -34,6 +34,7 @@ use parking_lot::Mutex;
 pub use element::EditorElement;
 pub use refactor::{AfterApply, generated_name, invents_name};
 
+
 use crate::actions::*;
 use crate::assets::icon;
 use crate::text_input::{InputEvent, TextInput};
@@ -179,6 +180,9 @@ impl Layout {
     }
 }
 
+/// A shared vertical scroll target: `(y, animate, generation)`. Each editor adopts a generation it hasn't seen.
+pub type ScrollLink = std::rc::Rc<std::cell::Cell<(f32, bool, u64)>>;
+
 pub struct EditorView {
     pub state: EditorState,
     pub path: Option<PathBuf>,
@@ -257,6 +261,14 @@ pub struct EditorView {
     git_task: Option<Task<()>>,
     /// Whole-line backgrounds as theme color keys (used by the diff view).
     pub line_backgrounds: Vec<(usize, &'static str)>,
+    /// Character-range backgrounds as theme color keys (the diff view's changed words).
+    pub range_backgrounds: Vec<(Point, Point, &'static str)>,
+    /// The number shown in the gutter for each line instead of its own (`None`: no number). The diff view
+    /// shows the file's line numbers, with none on the filler lines that keep both sides aligned.
+    pub line_numbers: Option<Arc<Vec<Option<usize>>>>,
+    /// Editors sharing one of these scroll together vertically (the two sides of a diff).
+    pub(crate) scroll_link: Option<ScrollLink>,
+    scroll_link_seen: u64,
     /// Shows the breakpoint margin at the left of the gutter; clicking it toggles breakpoints.
     pub glyph_margin: bool,
     /// Sorted by line, one per line.
@@ -360,6 +372,10 @@ impl EditorView {
             git_marks: Vec::new(),
             git_task: None,
             line_backgrounds: Vec::new(),
+            range_backgrounds: Vec::new(),
+            line_numbers: None,
+            scroll_link: None,
+            scroll_link_seen: 0,
             glyph_margin: false,
             breakpoints: Vec::new(),
             exec_line: None,
@@ -614,6 +630,11 @@ impl EditorView {
     /// re-highlights when it changed.
     pub fn redetect_language(&mut self, cx: &mut Context<Self>) {
         let language = self.path.as_deref().and_then(Language::from_path);
+        self.set_language(language, cx);
+    }
+
+    /// Highlights the text as `language` (for views without a file, like the sides of a diff).
+    pub fn set_language(&mut self, language: Option<Language>, cx: &mut Context<Self>) {
         if language == self.language {
             return;
         }

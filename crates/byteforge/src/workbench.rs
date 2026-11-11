@@ -79,6 +79,8 @@ enum Page {
     Module(String),
     /// A live preview of this Markdown file.
     Markdown(PathBuf),
+    /// A diff editor (the tab's editor is its new side).
+    Diff(Entity<crate::diff_view::DiffView>),
 }
 
 impl Tab {

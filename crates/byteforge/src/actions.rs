@@ -62,6 +62,8 @@ actions!(
     ]
 );
 
+actions!(diff, [DiffNextChange, DiffPreviousChange, DiffToggleInline]);
+
 // Refactorings (handled by the editor; most go through the language server's code actions).
 actions!(
     refactor,
@@ -263,6 +265,9 @@ fn builtin() -> Vec<Builtin> {
         ("edit.foldAll", "Fold All", "View", Box::new(FoldAll), None),
         ("edit.unfoldAll", "Unfold All", "View", Box::new(UnfoldAll), None),
         ("edit.signatureHelp", "Trigger Parameter Hints", "Edit", Box::new(ShowSignatureHelp), None),
+        ("diff.nextChange", "Next Change", "Diff", Box::new(DiffNextChange), None),
+        ("diff.previousChange", "Previous Change", "Diff", Box::new(DiffPreviousChange), None),
+        ("diff.toggleInline", "Toggle Inline / Side by Side", "Diff", Box::new(DiffToggleInline), None),
         ("edit.formatDocument", "Format Document", "Edit", Box::new(FormatDocument), Some("shift-alt-f")),
         ("edit.formatDocumentWith", "Format Document With…", "Edit", Box::new(FormatDocumentWith), None),
     ]
@@ -399,6 +404,7 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
     }
 
     cx.bind_keys([kb("f2", RenameEntry, Some(EXPLORER))]);
+    cx.bind_keys([kb("f7", DiffNextChange, Some("DiffView")), kb("shift-f7", DiffPreviousChange, Some("DiffView"))]);
 
     let term = Some(TERMINAL);
     let mut terminal_bindings = if cfg!(target_os = "macos") {

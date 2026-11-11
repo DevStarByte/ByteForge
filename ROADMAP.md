@@ -37,6 +37,7 @@ The language server already supports all of these; the client needs the requests
 
 ## 4. Nice to have
 
+- [x] Diff editor: side by side (rows aligned, scrolling together) or inline, syntax highlighted, the files' line numbers, changed words marked inside changed lines, +/− counts, Next/Previous Change (F7 / Shift+F7) and Open File at the change. Diff colors fall back to defaults in themes without `diffEditor.*` keys. Still open: staging or reverting single hunks from the diff, collapsing unchanged regions, and editing the working-tree side.
 - [ ] Git blame and file history; merge-conflict actions (accept current/incoming/both).
 - [ ] Debugging inside containers (netcoredbg in the container, attach through `docker exec`).
 

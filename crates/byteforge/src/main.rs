@@ -6,6 +6,7 @@ mod actions;
 #[cfg(target_os = "macos")]
 mod app_menu;
 mod assets;
+mod diff_view;
 mod editor;
 mod explorer;
 mod layout;

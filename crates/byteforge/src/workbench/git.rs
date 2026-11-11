@@ -73,79 +73,70 @@ impl Workbench {
         }
     }
 
-    /// Opens a read-only unified diff of a change in a tab (reused when it is already open).
+    /// Opens a change in the diff editor (reusing its tab when it is already open).
     pub(super) fn open_diff(&mut self, change: bf_core::git::FileChange, staged: bool, window: &mut Window, cx: &mut Context<Self>) {
         let Some(git) = self.scm.read(cx).git().cloned() else { return };
         let name = change.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let title = format!("{name} ({})", if staged { "Staged" } else if change.untracked { "Untracked" } else { "Working Tree" });
-        let rel = change.path.strip_prefix(git.root()).unwrap_or(&change.path).display().to_string().replace('\\', "/");
-        let task = cx.background_spawn(async move {
-            let (old, new) = git.diff_texts(&change, staged);
-            let (a, b) = if staged { (format!("HEAD:{rel}"), format!("index:{rel}")) } else { (format!("index:{rel}"), rel.clone()) };
-            bf_core::git::unified_diff(&old, &new, &a, &b)
-        });
-        self.show_diff_tab(title, task, window, cx);
+        let labels = if staged {
+            ("HEAD".to_owned(), "Index (staged)".to_owned())
+        } else if change.untracked {
+            ("(new file)".to_owned(), "Working Tree".to_owned())
+        } else {
+            ("Index".to_owned(), "Working Tree".to_owned())
+        };
+        let path = change.path.clone();
+        let task = cx.background_spawn(async move { git.diff_texts(&change, staged) });
+        self.show_diff_tab(title, path, labels, task, window, cx);
     }
 
-    /// Opens what a commit changed in a file (first parent ↔ commit) as a read-only diff tab.
+    /// Opens what a commit changed in a file (first parent ↔ commit) in the diff editor.
     pub(super) fn open_commit_diff(&mut self, commit: bf_core::git::Commit, file: bf_core::git::CommitFile, window: &mut Window, cx: &mut Context<Self>) {
         let Some(git) = self.scm.read(cx).git().cloned() else { return };
         let name = file.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let title = format!("{name} ({})", commit.short());
-        let task = cx.background_spawn(async move {
-            let (old, new) = git.commit_diff_texts(&commit, &file);
-            let rel = git.relative(&file.path);
-            let orig = file.orig.as_deref().map_or_else(|| rel.clone(), |o| git.relative(o));
-            let a = match commit.parents.first() {
-                Some(p) if file.status != 'A' => format!("{}:{orig}", &p[..p.len().min(7)]),
-                _ => "/dev/null".to_owned(),
-            };
-            let b = if file.status == 'D' { "/dev/null".to_owned() } else { format!("{}:{rel}", commit.short()) };
-            bf_core::git::unified_diff(&old, &new, &a, &b)
-        });
-        self.show_diff_tab(title, task, window, cx);
+        let old = match commit.parents.first() {
+            Some(p) if file.status != 'A' => p[..p.len().min(7)].to_owned(),
+            _ => "(new file)".to_owned(),
+        };
+        let new = if file.status == 'D' { "(deleted)".to_owned() } else { commit.short().to_owned() };
+        let path = file.path.clone();
+        let task = cx.background_spawn(async move { git.commit_diff_texts(&commit, &file) });
+        self.show_diff_tab(title, path, (old, new), task, window, cx);
     }
 
-    /// Shows a unified diff in a read-only tab titled `title`, reusing an open tab of the same title.
-    pub(super) fn show_diff_tab(&mut self, title: String, task: Task<String>, window: &mut Window, cx: &mut Context<Self>) {
+    /// Shows `(old, new)` from `task` in a diff editor tab titled `title`, reusing an open one of the same
+    /// title. `path` is the file compared: its language highlights both sides, and "Open File" opens it.
+    pub(super) fn show_diff_tab(&mut self, title: String, path: PathBuf, labels: (String, String), task: Task<(String, String)>, window: &mut Window, cx: &mut Context<Self>) {
         cx.spawn_in(window, async move |this, cx| {
-            let diff = task.await;
+            let (old, new) = task.await;
             let _ = this.update_in(cx, |wb, window, cx| {
-                let text = if diff.is_empty() { "No textual changes (binary file or only mode changes).".to_owned() } else { diff };
-                let backgrounds: Vec<(usize, &'static str)> = text
-                    .lines()
-                    .enumerate()
-                    .filter_map(|(i, line)| {
-                        let key = if line.starts_with("+++") || line.starts_with("---") {
-                            return None;
-                        } else if line.starts_with('+') {
-                            "diffEditor.insertedLineBackground"
-                        } else if line.starts_with('-') {
-                            "diffEditor.removedLineBackground"
-                        } else if line.starts_with("@@") {
-                            "diffEditor.hunkHeaderBackground"
-                        } else {
-                            return None;
-                        };
-                        Some((i, key))
-                    })
-                    .collect();
-                if let Some(ix) = wb.tabs.iter().position(|t| t.path.is_none() && t.title == title && t.editor.read(cx).read_only) {
-                    wb.tabs[ix].editor.update(cx, |e, cx| {
-                        e.reload_text(&text, cx);
-                        e.line_backgrounds = backgrounds;
+                let file = path.exists().then(|| path.clone());
+                let language = bf_syntax::Language::from_path(&path);
+                let existing = wb.tabs.iter().position(|t| t.title == title && matches!(t.page, Some(Page::Diff(_))));
+                if let Some(ix) = existing
+                    && let Some(Page::Diff(diff)) = wb.tabs[ix].page.clone()
+                {
+                    diff.update(cx, |d, cx| {
+                        d.set_language(language, cx);
+                        d.set_texts(&old, &new, labels, file, cx);
                     });
                     wb.activate(ix, window, cx);
                     return;
                 }
-                let editor = cx.new(|cx| {
-                    let mut e = EditorView::new(&text, None, cx);
-                    e.read_only = true;
-                    e.show_indent_guides = false;
-                    e.line_backgrounds = backgrounds;
-                    e
+                let editor = cx.new(|cx| EditorView::new("", None, cx));
+                let diff = cx.new(|cx| crate::diff_view::DiffView::new(editor.clone(), language, cx));
+                let sub = cx.subscribe_in(&diff, window, |wb: &mut Self, _, event: &crate::diff_view::DiffEvent, window, cx| match event {
+                    crate::diff_view::DiffEvent::OpenFile(path, at) => wb.open_file(path.clone(), Some(*at), window, cx),
                 });
                 wb.add_tab(editor, None, title, false, window, cx);
+                if let Some(tab) = wb.tabs.last_mut() {
+                    tab.page = Some(Page::Diff(diff.clone()));
+                    tab._subs.push(sub);
+                }
+                // After the tab is showing, so the editors know their size when they scroll to the first change.
+                diff.update(cx, |d, cx| d.set_texts(&old, &new, labels, file, cx));
+                cx.notify();
             });
         })
         .detach();

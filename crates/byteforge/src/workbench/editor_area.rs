@@ -74,6 +74,7 @@ impl Workbench {
         match page {
             Some(Page::Module(id)) => self.render_module_page(&id, cx).into_any_element(),
             Some(Page::Markdown(path)) => self.render_markdown_page(&path, cx).into_any_element(),
+            Some(Page::Diff(diff)) => diff.into_any_element(),
             None => editor.into_any_element(),
         }
     }
