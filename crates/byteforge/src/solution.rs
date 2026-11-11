@@ -57,6 +57,9 @@ pub struct SolutionView {
     checking: bool,
     check_error: Option<String>,
     check_task: Option<Task<()>>,
+    /// The row under the mouse, which shows its action buttons. Kept here rather than as a hover style:
+    /// a hover style that changes `display` makes gpui paint elements it never laid out.
+    hovered: Option<usize>,
 }
 
 impl EventEmitter<SolutionEvent> for SolutionView {}
@@ -77,6 +80,7 @@ impl SolutionView {
             checking: false,
             check_error: None,
             check_task: None,
+            hovered: None,
         }
     }
 
@@ -306,6 +310,7 @@ impl Render for SolutionView {
         let row_h = t.n("list.itemHeight", 22.0);
         let list = uniform_list("solution-entries", self.entries.len(), move |range, _, cx| {
             let view = entity.read(cx);
+            let hovered = view.hovered;
             let t = Theme::global(cx);
             range
                 .map(|ix| {
@@ -322,7 +327,19 @@ impl Render for SolutionView {
                     let row = |depth: usize| {
                         div()
                             .id(ix)
-                            .group("solution-row")
+                            .on_hover({
+                                let e = entity.clone();
+                                move |&over: &bool, _, cx| {
+                                    e.update(cx, |v, cx| {
+                                        if over {
+                                            v.hovered = Some(ix);
+                                        } else if v.hovered == Some(ix) {
+                                            v.hovered = None;
+                                        }
+                                        cx.notify();
+                                    })
+                                }
+                            })
                             .w_full()
                             .h(px(row_h))
                             .pl(px(6. + depth as f32 * 14.))
@@ -364,8 +381,7 @@ impl Render for SolutionView {
                                 .flex()
                                 .gap_1()
                                 .flex_none()
-                                .hidden()
-                                .group_hover("solution-row", |s| s.flex())
+                                .when(hovered != Some(ix), |d| d.hidden())
                                 .when(project.exists, |d| d.child(small("build", "build", "Build").on_click(emit(SolutionEvent::Build))))
                                 .when(project.is_app, |d| d.child(small("run", "play", "Run").on_click(emit(SolutionEvent::Run))))
                                 .when(project.is_app, |d| d.child(small("watch", "flame", "Run with Watch (Hot Reload)").on_click(emit(SolutionEvent::Watch))))
@@ -395,7 +411,7 @@ impl Render for SolutionView {
                                 .child(div().whitespace_nowrap().when(count == 0, |d| d.text_color(t.c("foreground.muted"))).child(label))
                                 .child(detail(count.to_string()))
                                 .when(is_packages, |d| {
-                                    d.child(div().flex_none().hidden().group_hover("solution-row", |s| s.flex()).child(small("add", "add", "Add Package…").on_click(move |_, _, cx| {
+                                    d.child(div().flex_none().when(hovered != Some(ix), |d| d.hidden()).child(small("add", "add", "Add Package…").on_click(move |_, _, cx| {
                                         cx.stop_propagation();
                                         add.update(cx, |_, cx| cx.emit(SolutionEvent::AddPackage(project.clone())))
                                     })))
@@ -426,10 +442,10 @@ impl Render for SolutionView {
                                 })
                                 .child(
                                     div()
+                                        .flex()
                                         .flex_none()
                                         .gap_1()
-                                        .hidden()
-                                        .group_hover("solution-row", |s| s.flex())
+                                        .when(hovered != Some(ix), |d| d.hidden())
                                         .when_some(newer, |d, l| {
                                             let tip: gpui::SharedString = format!("Update to {l}").into();
                                             d.child(
