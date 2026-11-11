@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
+  <!-- Background of the macOS .dmg window: a ByteForge editor in the ByteForge Dark theme. Finder puts the
+       app icon at (170,196) and the Applications link at (470,196) on top of it (see dmg-settings.py), and
+       their labels fall on line 9, the current line. Rendered to dmg-background.png / @2x.png by
+       render-dmg-background.sh; the PNGs are committed so the macOS build needs no SVG tools. -->
+  <style>
+    .ui { font-family: Figtree, sans-serif; }
+    .mono { font-family: "JetBrainsMono Nerd Font Mono", "JetBrains Mono", monospace; font-size: 13px; }
+    .ln { font-family: "JetBrainsMono Nerd Font Mono", "JetBrains Mono", monospace; font-size: 12px; fill: #6e7681; text-anchor: end; }
+  </style>
+
+  <!-- editor -->
+  <rect width="640" height="400" fill="#1f1f1f"/>
+
+  <!-- current line (9): highlight behind the Finder labels, caret, bright number -->
+  <rect x="0" y="247" width="640" height="22" fill="#2a2a2a"/>
+  <rect x="0" y="247.5" width="640" height="21" fill="none" stroke="#ffffff" stroke-opacity="0.06"/>
+  <rect x="56" y="249" width="2" height="18" fill="#aeafad"/>
+
+  <!-- line numbers: line n spans y = 71 + 22(n-1) .. +22 -->
+  <g class="ln">
+    <text x="36" y="86">1</text>
+    <text x="36" y="108">2</text>
+    <text x="36" y="130">3</text>
+    <text x="36" y="152">4</text>
+    <text x="36" y="174">5</text>
+    <text x="36" y="196">6</text>
+    <text x="36" y="218">7</text>
+    <text x="36" y="240">8</text>
+    <text x="36" y="262" fill="#cccccc">9</text>
+    <text x="36" y="284">10</text>
+    <text x="36" y="306">11</text>
+    <text x="36" y="328">12</text>
+    <text x="36" y="350">13</text>
+  </g>
+
+  <text class="mono" x="56" y="86" fill="#6a9955" font-style="italic">// Drag ByteForge onto Applications to install it.</text>
+
+  <!-- arrow from the app to Applications -->
+  <g stroke="#0078d4" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M236 196 H402" stroke-dasharray="1 7"/>
+    <path d="M396 189 L404 196 L396 203"/>
+  </g>
+
+  <!-- tab strip -->
+  <rect width="640" height="35" fill="#181818"/>
+  <rect y="34" width="640" height="1" fill="#2b2b2b"/>
+  <rect width="150" height="35" fill="#1f1f1f"/>
+  <rect width="150" height="2" fill="#0078d4"/>
+  <rect x="150" width="1" height="35" fill="#2b2b2b"/>
+  <text class="ui" x="14" y="22" font-size="10" font-weight="800" fill="#9b4f96">C#</text>
+  <text class="ui" x="34" y="22.5" font-size="13" fill="#ffffff">Install.cs</text>
+  <g stroke="#9d9d9d" stroke-width="1.2" stroke-linecap="round">
+    <path d="M126 14 L134 22 M134 14 L126 22"/>
+  </g>
+
+  <!-- breadcrumb -->
+  <text class="ui" x="14" y="52" font-size="12" fill="#a9a9a9">ByteForge<tspan dx="6">›</tspan><tspan dx="6">Install.cs</tspan></text>
+
+  <!-- status bar -->
+  <rect y="376" width="640" height="24" fill="#181818"/>
+  <rect y="376" width="640" height="1" fill="#2b2b2b"/>
+  <g transform="translate(12 382) scale(0.5)">
+    <path fill="#0078d4" fill-rule="evenodd" d="M12,1.5L21.5,7V17L12,22.5L2.5,17V7L12,1.5M8.5,7V17H13C15.2,17 16.5,15.9 16.5,14.2C16.5,13 15.8,12.1 14.7,11.8C15.5,11.4 16,10.6 16,9.6C16,8.1 14.8,7 12.8,7H8.5M10.5,8.7H12.6C13.5,8.7 14,9.2 14,9.9C14,10.6 13.5,11.1 12.6,11.1H10.5V8.7M10.5,12.7H12.8C13.8,12.7 14.4,13.2 14.4,14C14.4,14.8 13.8,15.3 12.8,15.3H10.5V12.7Z"/>
+  </g>
+  <text class="ui" x="30" y="392" font-size="12" fill="#cccccc">ByteForge</text>
+  <text class="ui" x="628" y="392" font-size="12" fill="#cccccc" text-anchor="end">Ln 9, Col 1<tspan dx="18">UTF-8</tspan><tspan dx="18">LF</tspan><tspan dx="18">C#</tspan></text>
+</svg>

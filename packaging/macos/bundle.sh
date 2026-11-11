@@ -59,13 +59,15 @@ cp README.md LICENSE "$APP/Contents/Resources/"
 codesign --force --deep --sign - "$APP"
 
 DMG="dist/ByteForge-$VERSION-macos-$ARCH.dmg"
-STAGE="$(mktemp -d)"
-cp -R "$APP" "$STAGE/"
-ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
-# hdiutil's own size estimate for -srcfolder is often too small on CI runners
-# ("No space left on device"), so size the image from the staged folder plus headroom.
-SIZE_MB=$(( $(du -sm "$STAGE" | cut -f1) * 12 / 10 + 50 ))
-hdiutil create -volname ByteForge -srcfolder "$STAGE" -fs HFS+ -size "${SIZE_MB}m" -ov -format UDZO "$DMG"
-rm -rf "$STAGE"
+# dmgbuild lays out the window (background, icon positions) without scripting Finder, which is unreliable on
+# CI runners, and sizes the image itself. The background is a 1x + @2x TIFF so Retina screens get it sharp.
+WORK="$(mktemp -d)"
+python3 -m venv "$WORK/venv"
+"$WORK/venv/bin/pip" install --quiet "dmgbuild>=1.6,<2"
+tiffutil -cathidpicheck packaging/macos/dmg-background.png packaging/macos/dmg-background@2x.png -out "$WORK/background.tiff"
+"$WORK/venv/bin/dmgbuild" -s packaging/macos/dmg-settings.py \
+    -D app="$APP" -D background="$WORK/background.tiff" -D icon=packaging/macos/ByteForge.icns \
+    ByteForge "$DMG"
+rm -rf "$WORK"
 echo "Built $APP and $DMG"
