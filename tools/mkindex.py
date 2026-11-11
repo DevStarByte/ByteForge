@@ -30,7 +30,8 @@ for name in sorted(os.listdir(root)):
     if not os.path.isfile(manifest_path):
         continue
     m = load_json5(manifest_path)
-    for key in ("id", "name", "version", "command"):
+    # "command" may be empty: such a module only declares things (languages, file icons).
+    for key in ("id", "name", "version"):
         if not m.get(key):
             sys.exit(f"{manifest_path}: missing {key}")
     files = []
@@ -40,7 +41,7 @@ for name in sorted(os.listdir(root)):
             if n.endswith((".pyc", ".pyo")) or n.startswith("."):
                 continue
             files.append(os.path.relpath(os.path.join(directory, n), folder).replace(os.sep, "/"))
-    requires = [REQUIRES[m["command"]]] if m["command"] in REQUIRES else []
+    requires = [REQUIRES[m["command"]]] if m.get("command") in REQUIRES else []
     requires += [r for r in m.get("requires", []) if r not in requires]
     modules.append({
         "id": m["id"],

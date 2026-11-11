@@ -18,6 +18,20 @@
       ]
     },
     {
+      "id": "byteforge.azure",
+      "name": "Azure",
+      "version": "0.1.0",
+      "description": "Azure Bicep support: highlighting for .bicep and .bicepparam files (keywords, decorators, declarations, types, functions, strings with ${} interpolation, comments) and a Bicep file icon.",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
+      "category": "Languages",
+      "dir": "azure",
+      "files": [
+        "module.json"
+      ],
+      "requires": []
+    },
+    {
       "id": "byteforge.caelestia-theme",
       "name": "Caelestia Theme",
       "version": "1.0.1",
