@@ -50,12 +50,51 @@ fn install_crash_log(paths: &AppPaths) {
     }));
 }
 
+/// Started from a terminal (`byteforge .`): starts the IDE again as its own process in a new session, with no
+/// terminal, and returns, so the shell gets its prompt back and closing the terminal leaves the IDE running.
+/// `--foreground` (or `BYTEFORGE_FOREGROUND=1`) stays attached, e.g. to read the log output.
+#[cfg(unix)]
+fn detach_from_terminal() {
+    use std::io::IsTerminal;
+    use std::os::unix::process::CommandExt;
+    let foreground = std::env::var_os("BYTEFORGE_FOREGROUND").is_some();
+    // The detached copy must not hand the variable to the terminals and tools it starts.
+    // SAFETY: nothing else runs yet (no threads), which is what set_var/remove_var need.
+    unsafe { std::env::remove_var("BYTEFORGE_FOREGROUND") };
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if foreground || args.iter().any(|a| a == "--foreground") {
+        return;
+    }
+    let from_terminal = std::io::stdin().is_terminal() || std::io::stdout().is_terminal() || std::io::stderr().is_terminal();
+    if !from_terminal {
+        return; // a launcher or desktop entry: nothing to detach from
+    }
+    let Ok(exe) = std::env::current_exe() else { return };
+    unsafe extern "C" {
+        fn setsid() -> i32;
+    }
+    let mut command = std::process::Command::new(exe);
+    command.args(&args).env("BYTEFORGE_FOREGROUND", "1").stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    // SAFETY: setsid is async-signal-safe, so it may run between fork and exec.
+    unsafe {
+        command.pre_exec(|| {
+            setsid();
+            Ok(())
+        });
+    }
+    if command.spawn().is_ok() {
+        std::process::exit(0);
+    }
+}
+
 fn main() {
+    #[cfg(unix)]
+    detach_from_terminal();
     bf_core::paths::import_login_shell_path();
     let paths = AppPaths::detect();
     paths.ensure_created();
     install_crash_log(&paths);
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let args: Vec<String> = std::env::args().skip(1).filter(|a| a != "--foreground").collect();
 
     Application::new().with_assets(assets::Assets).run(move |cx: &mut App| {
         let (tx, rx) = flume::unbounded::<AppEvent>();

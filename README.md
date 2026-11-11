@@ -137,6 +137,10 @@ cargo run --release -p byteforge -- ~/code/my-project
 > On Linux, GPUI renders through Vulkan, so you need the Vulkan driver for your GPU (`vulkan-radeon`,
 > `vulkan-intel` or `nvidia-utils`).
 
+Start it from a terminal with `byteforge .` (or a folder or file path). On Linux and macOS it detaches: the
+prompt comes back right away, and closing the terminal leaves ByteForge running. `byteforge --foreground`
+stays attached and shows the log output.
+
 ## Customize
 
 - **Themes:** 11 built-in themes. Use **Preferences → Customize Current Theme** to make your own; it reloads
