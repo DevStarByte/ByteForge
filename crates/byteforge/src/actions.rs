@@ -77,6 +77,18 @@ actions!(
 
 actions!(diff, [DiffNextChange, DiffPreviousChange, DiffToggleInline]);
 
+// Git in the editor: merge conflicts and blame (handled by the editor), file history (the workbench).
+actions!(merge, [AcceptCurrentChange, AcceptIncomingChange, AcceptBothChanges, NextConflict, PreviousConflict]);
+actions!(git, [ShowLineCommit, GitFileHistory, GitToggleBlame]);
+
+/// Opens what `commit` changed in `file` (picked in File History).
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = git, no_json)]
+pub struct GitShowFileAtCommit {
+    pub commit: bf_core::git::Commit,
+    pub file: bf_core::git::CommitFile,
+}
+
 // Refactorings (handled by the editor; most go through the language server's code actions).
 actions!(
     refactor,
@@ -190,6 +202,14 @@ fn builtin() -> Vec<Builtin> {
         ("git.createBranch", "Create Branch…", "Git", Box::new(GitCreateBranch), None),
         ("git.init", "Initialize Repository", "Git", Box::new(GitInit), None),
         ("git.openChanges", "Open Changes (Diff of Current File)", "Git", Box::new(GitOpenChanges), None),
+        ("git.fileHistory", "File History", "Git", Box::new(GitFileHistory), None),
+        ("git.showLineCommit", "Show Commit of Line", "Git", Box::new(ShowLineCommit), None),
+        ("git.toggleBlame", "Toggle Line Blame", "Git", Box::new(GitToggleBlame), None),
+        ("merge.acceptCurrent", "Accept Current Change", "Merge Conflict", Box::new(AcceptCurrentChange), None),
+        ("merge.acceptIncoming", "Accept Incoming Change", "Merge Conflict", Box::new(AcceptIncomingChange), None),
+        ("merge.acceptBoth", "Accept Both Changes", "Merge Conflict", Box::new(AcceptBothChanges), None),
+        ("merge.next", "Next Conflict", "Merge Conflict", Box::new(NextConflict), None),
+        ("merge.previous", "Previous Conflict", "Merge Conflict", Box::new(PreviousConflict), None),
         ("view.nextEditor", "Next Editor", "View", Box::new(NextEditor), Some("ctrl-tab")),
         ("view.previousEditor", "Previous Editor", "View", Box::new(PreviousEditor), Some("ctrl-shift-tab")),
         ("view.splitEditor", "Split Editor (Move to Other Group)", "View", Box::new(SplitEditor), Some("ctrl-\\")),

@@ -9,6 +9,7 @@ mod find;
 mod folding;
 mod inlays;
 mod lsp;
+mod merge;
 mod minimap;
 mod mouse;
 mod popups;
@@ -68,6 +69,9 @@ pub enum EditorEvent {
     RenameRequested { symbol: String, at: Point },
     /// The language server's edits for a rename, to apply across files.
     ApplyWorkspaceEdit(Box<bf_lsp::WorkspaceEdit>),
+    /// "Show Commit of Line": open what `commit` changed in the file (`filename`: its path then, relative to
+    /// the repository).
+    ShowCommit { commit: String, filename: String },
     /// A status message for the Output panel (e.g. "nothing to rename here").
     Log(String),
     /// The test marker in the gutter on this line was clicked: run that test.
@@ -233,6 +237,10 @@ pub struct EditorView {
     action_menu: Option<ActionMenu>,
     action_task: Option<Task<()>>,
     context_menu: Option<ContextMenu>,
+    /// Blame of the file (the caret line's annotation).
+    blame: merge::BlameState,
+    /// Merge conflicts in the text.
+    conflicts: Vec<bf_core::conflicts::Conflict>,
     /// The word a hover request is waiting for.
     hover_pending: Option<(Point, Point)>,
     hover_task: Option<Task<()>>,
@@ -350,6 +358,8 @@ impl EditorView {
             action_menu: None,
             action_task: None,
             context_menu: None,
+            blame: Default::default(),
+            conflicts: Vec::new(),
             hover_pending: None,
             hover_task: None,
             hover_bounds: Default::default(),
@@ -383,6 +393,7 @@ impl EditorView {
             link_root: None,
             link_cache: Default::default(),
         };
+        view.refresh_conflicts();
         view.state.buffer.take_changes();
         view.schedule_highlight(cx);
         view.start_blink(cx);
@@ -525,6 +536,7 @@ impl EditorView {
         self.schedule_semantic(Duration::from_millis(350), cx);
         self.schedule_inlay_hints(Duration::from_millis(600), cx);
         self.schedule_git_diff(Duration::from_millis(120), cx);
+        self.after_edit_merge(cx);
         if let Some(find) = &self.find {
             let (q, mc) = (find.query.read(cx).text().to_owned(), find.match_case);
             if let Some(find) = &mut self.find {

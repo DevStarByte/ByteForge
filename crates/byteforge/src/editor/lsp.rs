@@ -265,7 +265,19 @@ impl EditorView {
     /// says. For Ctrl+. on a line with a problem the problem's range is used, so the cursor only has to be
     /// on that line.
     pub(super) fn request_code_actions(&mut self, mode: refactor::MenuMode, cx: &mut Context<Self>) {
-        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else { return };
+        // In a merge conflict, Ctrl+. offers its resolutions first (in any file, server or not).
+        let conflict = if mode == refactor::MenuMode::QuickFix { self.conflict_entries() } else { Vec::new() };
+        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else {
+            if !conflict.is_empty() {
+                self.completion = None;
+                self.context_menu = None;
+                self.clear_hover(cx);
+                let at = self.state.caret();
+                self.action_menu = Some(ActionMenu { at, items: Some(conflict), selected: 0, mode, empty: None });
+                cx.notify();
+            }
+            return;
+        };
         let caret = self.state.caret();
         let (mut start, mut end) = if self.state.has_selection() { self.state.selection() } else { (caret, caret) };
         let context: Vec<&Diagnostic> = match mode {
@@ -318,9 +330,10 @@ impl EditorView {
                     Ok(Ok(items)) => items,
                     _ => Vec::new(),
                 };
-                if let Some((items, empty)) = view.filter_actions(mode, items, cx)
+                if let Some((mut items, empty)) = view.filter_actions(mode, items, cx)
                     && let Some(menu) = view.action_menu.as_mut()
                 {
+                    items.splice(0..0, conflict);
                     menu.items = Some(items);
                     menu.empty = empty;
                 }

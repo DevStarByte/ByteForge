@@ -38,7 +38,7 @@ The language server already supports all of these; the client needs the requests
 ## 4. Nice to have
 
 - [x] Diff editor: side by side (rows aligned, scrolling together) or inline, syntax highlighted, the files' line numbers, changed words marked inside changed lines, +/− counts, Next/Previous Change (F7 / Shift+F7) and Open File at the change. Diff colors fall back to defaults in themes without `diffEditor.*` keys. Still open: staging or reverting single hunks from the diff, collapsing unchanged regions, and editing the working-tree side.
-- [ ] Git blame and file history; merge-conflict actions (accept current/incoming/both).
+- [x] Git blame and file history; merge-conflict actions. Blame of the caret's line after its end ("Ann, 3 days ago • message", unsaved edits count as uncommitted; `git.blame.currentLine`, "Git: Toggle Line Blame"), "Show Commit of Line" (opens that commit's diff of the file), "File History" (commits that changed the file, following renames; opens each in the diff editor). Merge conflicts: current/incoming sides colored, a hint on each `<<<<<<<` line, Accept Current / Incoming / Both in Ctrl+., the right-click menu and the Git menu (any file type), Next/Previous Conflict. Still open: blame for every line in the gutter, and a three-way merge editor.
 - [ ] Debugging inside containers (netcoredbg in the container, attach through `docker exec`).
 
 ## Done

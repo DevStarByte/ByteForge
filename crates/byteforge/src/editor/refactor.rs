@@ -114,7 +114,11 @@ pub(super) fn group_rank(action: &bf_lsp::CodeAction) -> usize {
 }
 
 pub(super) fn group_of(action: &bf_lsp::CodeAction) -> &'static str {
-    if action.kind.as_deref() == Some(RENAME_KIND) { "Rename" } else { action.group() }
+    match action.kind.as_deref() {
+        Some(RENAME_KIND) => "Rename",
+        Some(k) if k.starts_with("byteforge.merge.") => "Merge",
+        _ => action.group(),
+    }
 }
 
 /// Whether the action makes up a name (`NewMethod`, `value`, `IFoo`) that the user should get to pick.
@@ -220,7 +224,7 @@ impl EditorView {
             self.request_rename(cx);
             return true;
         }
-        false
+        action.kind.as_deref().is_some_and(|kind| self.run_conflict_entry(kind, cx))
     }
 
     /// After a refactoring made up `name`: puts the caret on it (on `line`, near `col`) and asks for the

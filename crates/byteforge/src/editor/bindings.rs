@@ -1,5 +1,7 @@
 //! Binds editor actions to the view.
 
+use bf_core::conflicts::Resolution;
+
 use super::refactor::{self, Refactoring};
 use super::*;
 
@@ -139,6 +141,12 @@ impl EditorView {
             .on_action(cx.listener(|v, _: &MoveTypeToFile, _, cx| v.refactor(only(Refactoring::MoveTypeToFile), cx)))
             .on_action(cx.listener(|v, _: &RemoveAndSortUsings, _, cx| v.refactor(only(Refactoring::RemoveAndSortUsings), cx)))
             .on_action(cx.listener(|v, _: &SortUsings, _, cx| v.sort_usings(cx)))
+            .on_action(cx.listener(|v, _: &AcceptCurrentChange, _, cx| v.accept_conflict(Resolution::Current, cx)))
+            .on_action(cx.listener(|v, _: &AcceptIncomingChange, _, cx| v.accept_conflict(Resolution::Incoming, cx)))
+            .on_action(cx.listener(|v, _: &AcceptBothChanges, _, cx| v.accept_conflict(Resolution::Both, cx)))
+            .on_action(cx.listener(|v, _: &NextConflict, _, cx| v.go_to_conflict(true, cx)))
+            .on_action(cx.listener(|v, _: &PreviousConflict, _, cx| v.go_to_conflict(false, cx)))
+            .on_action(cx.listener(|v, _: &ShowLineCommit, _, cx| v.show_line_commit(cx)))
             .on_action(cx.listener(|v, _: &FindReferences, _, cx| v.find_references(cx)))
             .on_action(cx.listener(|v, _: &Fold, _, cx| v.fold_at_caret(cx)))
             .on_action(cx.listener(|v, _: &Unfold, _, cx| v.unfold_at_caret(cx)))

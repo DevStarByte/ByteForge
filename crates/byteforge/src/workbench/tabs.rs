@@ -61,6 +61,7 @@ impl Workbench {
                 self.open_prompt(kind, symbol, window, cx);
             }
             EditorEvent::ApplyWorkspaceEdit(edit) => self.apply_rename(edit, window, cx),
+            EditorEvent::ShowCommit { commit, filename } => self.show_commit_of_file(commit.clone(), filename.clone(), window, cx),
             EditorEvent::Log(text) => {
                 self.log(text);
                 self.show_panel(PanelView::Output, cx);

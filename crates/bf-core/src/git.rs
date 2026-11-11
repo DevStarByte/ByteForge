@@ -99,6 +99,45 @@ impl Commit {
     }
 }
 
+/// Who last changed a line, from `git blame`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BlameLine {
+    pub commit: String,
+    pub author: String,
+    /// Author time (Unix seconds).
+    pub time: i64,
+    pub summary: String,
+    /// The file's path in that commit (relative, forward slashes).
+    pub filename: String,
+    /// Not committed yet (the line is new or changed in the working tree or the editor).
+    pub uncommitted: bool,
+}
+
+impl BlameLine {
+    /// "Ann, 3 days ago • Fix the parser" (or "You • Uncommitted changes").
+    pub fn label(&self, now: i64) -> String {
+        if self.uncommitted {
+            return "You \u{2022} Uncommitted changes".to_owned();
+        }
+        format!("{}, {} \u{2022} {}", self.author, relative_time(now - self.time), self.summary)
+    }
+}
+
+/// "just now", "5 minutes ago", "3 days ago", "2 years ago".
+pub fn relative_time(seconds: i64) -> String {
+    let s = seconds.max(0);
+    let (n, unit) = match s {
+        0..60 => return "just now".to_owned(),
+        60..3600 => (s / 60, "minute"),
+        3600..86_400 => (s / 3600, "hour"),
+        86_400..604_800 => (s / 86_400, "day"),
+        604_800..2_629_746 => (s / 604_800, "week"),
+        2_629_746..31_556_952 => (s / 2_629_746, "month"),
+        _ => (s / 31_556_952, "year"),
+    };
+    format!("{n} {unit}{} ago", if n == 1 { "" } else { "s" })
+}
+
 /// A file changed by a commit (compared with its first parent).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommitFile {
@@ -142,6 +181,23 @@ fn run(dir: &Path, args: &[&str]) -> anyhow::Result<String> {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let message = if stderr.trim().is_empty() { stdout.trim().to_owned() } else { stderr.trim().to_owned() };
         anyhow::bail!("git {}: {message}", args.first().copied().unwrap_or_default())
+    }
+}
+
+/// Like [`run`], with `input` on stdin.
+fn run_with_input(dir: &Path, args: &[&str], input: &str) -> anyhow::Result<String> {
+    use std::io::Write;
+    let mut child = git(dir).args(args).stdin(Stdio::piped()).spawn().map_err(|e| anyhow::anyhow!("could not run git (is it installed?): {e}"))?;
+    let mut stdin = child.stdin.take().expect("piped stdin");
+    let input = input.to_owned();
+    // Written from another thread: git may fill stdout before it has read all of stdin.
+    let writer = std::thread::spawn(move || stdin.write_all(input.as_bytes()));
+    let output = child.wait_with_output()?;
+    let _ = writer.join();
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    } else {
+        anyhow::bail!("git {}: {}", args.first().copied().unwrap_or_default(), String::from_utf8_lossy(&output.stderr).trim())
     }
 }
 
@@ -340,6 +396,35 @@ impl Git {
         self.rel(path)
     }
 
+    /// Who last changed each line of `text` (the file's current content, unsaved edits included), by
+    /// line. Lines not committed yet are marked `uncommitted`.
+    pub fn blame(&self, path: &Path, text: &str) -> anyhow::Result<Vec<BlameLine>> {
+        let rel = self.rel(path);
+        let out = run_with_input(&self.root, &["blame", "--porcelain", "--contents", "-", "--", &rel], text)?;
+        Ok(parse_blame(&out))
+    }
+
+    /// The commits that changed a file, newest first, following renames; each with the file as that commit
+    /// changed it (its path then, and the status letter).
+    pub fn file_history(&self, path: &Path, limit: usize) -> anyhow::Result<Vec<(Commit, CommitFile)>> {
+        if !self.has_commits() {
+            return Ok(Vec::new());
+        }
+        let rel = self.rel(path);
+        let limit = format!("-n{limit}");
+        let text = run(
+            &self.root,
+            &["log", "--follow", "-M", &limit, "--date=format:%Y-%m-%d %H:%M", "--name-status", "--format=%x1e%H%x1f%P%x1f%an%x1f%ae%x1f%ar%x1f%ad%x1f%D%x1f%s%x1f", "--", &rel],
+        )?;
+        Ok(parse_file_history(&text, &self.root))
+    }
+
+    /// One commit's details.
+    pub fn commit_info(&self, id: &str) -> Option<Commit> {
+        let text = run(&self.root, &["log", "-z", "-n1", "--date=format:%Y-%m-%d %H:%M", "--format=%H%x1f%P%x1f%an%x1f%ae%x1f%ar%x1f%ad%x1f%D%x1f%s", id]).ok()?;
+        parse_log(&text).into_iter().next()
+    }
+
     /// Staged (index) content of a file.
     pub fn index_content(&self, path: &Path) -> Option<String> {
         let spec = format!(":{}", self.rel(path));
@@ -444,6 +529,90 @@ fn parse_log(text: &str) -> Vec<Commit> {
                 refs: f.next()?.to_owned(),
                 subject: f.next().unwrap_or_default().to_owned(),
             })
+        })
+        .collect()
+}
+
+/// Parses `git blame --porcelain`: a header per line (`<sha> <orig> <final> [<count>]`), the commit's
+/// fields the first time it appears, then the line itself after a tab.
+fn parse_blame(text: &str) -> Vec<BlameLine> {
+    use std::collections::HashMap;
+    let mut commits: HashMap<String, BlameLine> = HashMap::new();
+    let mut out: Vec<(usize, BlameLine)> = Vec::new();
+    let mut current: Option<(String, usize)> = None;
+    for line in text.lines() {
+        if line.starts_with('\t') {
+            if let Some((sha, final_line)) = current.take() {
+                let entry = commits.get(&sha).cloned().unwrap_or_else(|| BlameLine {
+                    commit: sha.clone(),
+                    author: String::new(),
+                    time: 0,
+                    summary: String::new(),
+                    filename: String::new(),
+                    uncommitted: sha.bytes().all(|b| b == b'0'),
+                });
+                out.push((final_line, entry));
+            }
+            continue;
+        }
+        let mut parts = line.split(' ');
+        let first = parts.next().unwrap_or_default();
+        if first.len() == 40 && first.bytes().all(|b| b.is_ascii_hexdigit()) {
+            let final_line = parts.nth(1).and_then(|n| n.parse::<usize>().ok()).unwrap_or(1);
+            commits.entry(first.to_owned()).or_insert_with(|| BlameLine {
+                commit: first.to_owned(),
+                author: String::new(),
+                time: 0,
+                summary: String::new(),
+                filename: String::new(),
+                uncommitted: first.bytes().all(|b| b == b'0'),
+            });
+            current = Some((first.to_owned(), final_line));
+            continue;
+        }
+        let Some((sha, _)) = &current else { continue };
+        let Some(entry) = commits.get_mut(sha) else { continue };
+        let value = line.split_once(' ').map_or("", |(_, v)| v);
+        match first {
+            "author" => entry.author = value.to_owned(),
+            "author-time" => entry.time = value.parse().unwrap_or(0),
+            "summary" => entry.summary = value.to_owned(),
+            "filename" => entry.filename = value.to_owned(),
+            _ => {}
+        }
+    }
+    out.sort_by_key(|(l, _)| *l);
+    out.into_iter().map(|(_, b)| b).collect()
+}
+
+/// Parses `git log --name-status` with a `\x1e`-started, `\x1f`-separated header per commit.
+fn parse_file_history(text: &str, root: &Path) -> Vec<(Commit, CommitFile)> {
+    let abs = |rel: &str| root.join(rel.replace('/', std::path::MAIN_SEPARATOR_STR));
+    text.split('\x1e')
+        .filter_map(|record| {
+            let fields: Vec<&str> = record.splitn(9, '\x1f').collect();
+            if fields.len() < 9 {
+                return None;
+            }
+            let commit = Commit {
+                id: fields[0].trim().to_owned(),
+                parents: fields[1].split_whitespace().map(str::to_owned).collect(),
+                author: fields[2].to_owned(),
+                email: fields[3].to_owned(),
+                when: fields[4].to_owned(),
+                date: fields[5].to_owned(),
+                refs: fields[6].to_owned(),
+                subject: fields[7].to_owned(),
+            };
+            let change = fields[8].lines().find(|l| !l.trim().is_empty())?;
+            let parts: Vec<&str> = change.split('\t').collect();
+            let status = parts.first()?.chars().next()?;
+            let file = match parts.as_slice() {
+                [_, old, new] => CommitFile { path: abs(new), orig: Some(abs(old)), status },
+                [_, path] => CommitFile { path: abs(path), orig: None, status },
+                _ => return None,
+            };
+            Some((commit, file))
         })
         .collect()
 }
@@ -563,6 +732,43 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
     }
 
     #[test]
+    fn parses_blame_porcelain() {
+        let a = "a".repeat(40);
+        let z = "0".repeat(40);
+        let text = format!(
+            "{a} 1 1 2\nauthor Ann\nauthor-time 1700000000\nsummary Initial\nfilename src/a.cs\n\tline one\n{a} 2 2\n\tline two\n\
+             {z} 3 3 1\nauthor Not Committed Yet\nauthor-time 1800000000\nsummary Version of a.cs from a.cs\nfilename src/a.cs\n\tnew line\n"
+        );
+        let blame = parse_blame(&text);
+        assert_eq!(blame.len(), 3);
+        assert_eq!((blame[0].author.as_str(), blame[0].summary.as_str(), blame[0].time), ("Ann", "Initial", 1_700_000_000));
+        assert_eq!(blame[1].commit, a);
+        assert!(blame[2].uncommitted && !blame[0].uncommitted);
+        assert_eq!(blame[0].label(1_700_000_000 + 3 * 86_400), "Ann, 3 days ago \u{2022} Initial");
+        assert_eq!(blame[2].label(0), "You \u{2022} Uncommitted changes");
+    }
+
+    #[test]
+    fn relative_times() {
+        assert_eq!(relative_time(5), "just now");
+        assert_eq!(relative_time(60), "1 minute ago");
+        assert_eq!(relative_time(7200), "2 hours ago");
+        assert_eq!(relative_time(40 * 86_400), "1 month ago");
+        assert_eq!(relative_time(800 * 86_400), "2 years ago");
+    }
+
+    #[test]
+    fn parses_file_history() {
+        let text = "\x1eh2\x1fh1\x1fAnn\x1fa@x\x1f2 days ago\x1f2026-11-09 10:00\x1f\x1fRename it\x1f\n\nR100\tsrc/old.cs\tsrc/new.cs\n                    \x1eh1\x1f\x1fBob\x1fb@x\x1f3 weeks ago\x1f2026-10-01 09:00\x1f\x1fAdd it\x1f\n\nA\tsrc/old.cs\n";
+        let history = parse_file_history(text, Path::new("/repo"));
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].0.subject, "Rename it");
+        assert_eq!(history[0].1.status, 'R');
+        assert!(history[0].1.path.ends_with("new.cs") && history[0].1.orig.as_ref().unwrap().ends_with("old.cs"));
+        assert_eq!((history[1].1.status, history[1].0.author.as_str()), ('A', "Bob"));
+    }
+
+    #[test]
     fn gutter_line_changes() {
         let base = "a\nb\nc\nd\n";
         let current = "a\nB\nc\nnew\nd\n";
@@ -615,6 +821,12 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         let log = repo.log(50, 0).unwrap();
         assert_eq!(log.iter().map(|c| c.subject.as_str()).collect::<Vec<_>>(), ["second", "initial"]);
         assert_eq!(repo.log(50, 1).unwrap().len(), 1);
+        let blame = repo.blame(&file, "class A { int y; }\nnew line\n").unwrap();
+        assert_eq!(blame.len(), 2);
+        assert_eq!((blame[0].summary.as_str(), blame[0].uncommitted, blame[1].uncommitted), ("second", false, true));
+        let history = repo.file_history(&file, 50).unwrap();
+        assert_eq!(history.iter().map(|(c, f)| (c.subject.as_str(), f.status)).collect::<Vec<_>>(), [("second", 'M'), ("initial", 'A')]);
+        assert_eq!(repo.commit_info(&log[0].id).map(|c| c.subject), Some("second".to_owned()));
         let files = repo.commit_files(&log[0]).unwrap();
         assert_eq!(files.len(), 1);
         assert_eq!(repo.commit_diff_texts(&log[0], &files[0]), ("class A {}\n".to_owned(), "class A { int y; }\n".to_owned()));
@@ -629,6 +841,23 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         repo.create_branch("feature/x").unwrap();
         let branches = repo.branches().unwrap();
         assert!(branches.iter().any(|b| b.name == "feature/x" && b.current));
+
+        // A real merge conflict, as git writes it: found and resolved.
+        std::fs::write(&file, "class A { int incoming; }\n").unwrap();
+        repo.stage_all().unwrap();
+        repo.commit("incoming", false).unwrap();
+        run(repo.root(), &["checkout", "-q", "-"]).unwrap();
+        std::fs::write(&file, "class A { int current; }\n").unwrap();
+        repo.stage_all().unwrap();
+        repo.commit("current", false).unwrap();
+        assert!(run(repo.root(), &["merge", "feature/x"]).is_err());
+        let text = std::fs::read_to_string(&file).unwrap();
+        let conflicts = crate::conflicts::find(&text);
+        assert_eq!(conflicts.len(), 1, "{text}");
+        assert_eq!((conflicts[0].current_label.as_str(), conflicts[0].incoming_label.as_str()), ("HEAD", "feature/x"));
+        assert!(repo.status().unwrap().change_for(&file).unwrap().conflict);
+        let both = crate::conflicts::apply(&text, &conflicts[0], crate::conflicts::Resolution::Both);
+        assert_eq!(both, "class A { int current; }\nclass A { int incoming; }\n");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

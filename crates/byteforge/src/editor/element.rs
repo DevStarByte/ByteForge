@@ -278,6 +278,9 @@ impl Element for EditorElement {
         let inlay_color = theme.c_or("editorInlayHint.foreground", 0x969696ff);
         let inlay_font = gpui::Font { style: FontStyle::Italic, ..editor_font.clone() };
         let inlay_run = |len: usize| TextRun { len, font: inlay_font.clone(), color: inlay_color, background_color: None, underline: None, strikethrough: None };
+        // Blame and conflict notes after the end of a line.
+        let note_color = theme.c_or("editorCodeLens.foreground", 0x99999999);
+        let note_run = |len: usize| TextRun { len, font: inlay_font.clone(), color: note_color, background_color: None, underline: None, strikethrough: None };
 
         let mut shaped_inputs: Vec<(usize, String, Vec<TextRun>, u64)> = Vec::new();
         {
@@ -288,7 +291,8 @@ impl Element for EditorElement {
                     continue;
                 }
                 let text = view.state.buffer.line(line_ix);
-                if text.is_empty() {
+                let note = view.end_of_line_note(line_ix);
+                if text.is_empty() && note.is_none() {
                     continue;
                 }
                 let kinds = view.line_kinds(line_ix, text.len());
@@ -345,9 +349,15 @@ impl Element for EditorElement {
                     display.push_str(&hint.text);
                     runs.push(inlay_run(hint.text.len()));
                 }
+                if let Some(note) = &note {
+                    let note = format!("      {note}");
+                    display.push_str(&note);
+                    runs.push(note_run(note.len()));
+                }
                 text.hash(&mut hasher);
                 kinds.hash(&mut hasher);
                 inlays.hash(&mut hasher);
+                note.hash(&mut hasher);
                 shaped_inputs.push((line_ix, display, runs, hasher.finish()));
             }
         }
@@ -1129,6 +1139,11 @@ fn diff_background(theme: &Theme, key: &str) -> gpui::Background {
         "diffEditor.removedTextBackground" => 0xf8514966,
         "diffEditor.diagonalFill" => 0x8080801a,
         "diffEditor.hunkHeaderBackground" => 0x0078d422,
+        "merge.currentHeaderBackground" => 0x2ea04366,
+        "merge.currentContentBackground" => 0x2ea04326,
+        "merge.incomingHeaderBackground" => 0x0078d466,
+        "merge.incomingContentBackground" => 0x0078d426,
+        "merge.commonContentBackground" => 0x80808026,
         _ => 0x00000000,
     };
     theme.c_or(key, fallback).into()

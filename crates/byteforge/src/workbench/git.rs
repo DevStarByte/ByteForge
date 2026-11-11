@@ -38,6 +38,8 @@ impl Workbench {
             return;
         }
         let new_file = scm.status().change_for(&path).is_some_and(|c| c.untracked || c.index == 'A');
+        let blame = self.settings.get("git.blame.currentLine", true);
+        editor.update(cx, |e, cx| e.set_git_repo(Some(git.clone()), blame && !new_file, cx));
         let editor = editor.downgrade();
         cx.spawn(async move |_, cx| {
             let base = cx.background_executor().spawn(async move { if new_file { Some(String::new()) } else { git.head_content(&path) } }).await;
@@ -140,6 +142,92 @@ impl Workbench {
             });
         })
         .detach();
+    }
+
+    // ───────────── history and blame ─────────────
+
+    /// "Git: File History": the commits that changed the current file; picking one opens its diff.
+    pub(super) fn open_file_history(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(git) = self.scm.read(cx).git().cloned() else {
+            self.log("The opened folder is not a git repository.");
+            return;
+        };
+        let Some(path) = self.active.and_then(|i| self.tabs.get(i)).and_then(|t| t.path.clone()) else {
+            self.log("File History: open a file first.");
+            return;
+        };
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let task = cx.background_spawn(async move { git.file_history(&path, 500) });
+        cx.spawn_in(window, async move |this, cx| {
+            let history = task.await;
+            let _ = this.update_in(cx, |wb, window, cx| {
+                let history = match history {
+                    Ok(h) if !h.is_empty() => h,
+                    Ok(_) => {
+                        wb.log(format!("{name} has no commits yet."));
+                        return;
+                    }
+                    Err(e) => {
+                        wb.log(format!("Could not read the history of {name}: {e}"));
+                        return;
+                    }
+                };
+                let items = history
+                    .into_iter()
+                    .map(|(commit, file)| {
+                        let what = match file.status {
+                            'A' => " (added)",
+                            'D' => " (deleted)",
+                            'R' => " (renamed)",
+                            _ => "",
+                        };
+                        let mut item = PaletteItem::new(commit.subject.clone(), PaletteAction::Command(Box::new(GitShowFileAtCommit { commit: commit.clone(), file })));
+                        item.detail = Some(format!("{} \u{2022} {}, {}{what}", commit.short(), commit.author, commit.when));
+                        item.search = Some(format!("{} {} {}", commit.subject, commit.author, commit.short()));
+                        item
+                    })
+                    .collect();
+                wb.menu_open = None;
+                let palette = cx.new(|cx| Palette::new(Mode::Pick, items, &format!("History of {name} (newest first)"), "", window, cx));
+                let sub = cx.subscribe_in(&palette, window, Self::on_palette_event);
+                palette.update(cx, |p, cx| p.focus_input(window, cx));
+                wb.palette = Some((palette, sub));
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Opens what `commit` changed in the file that was `filename` (relative) then: "Show Commit of Line".
+    pub(super) fn show_commit_of_file(&mut self, commit: String, filename: String, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(git) = self.scm.read(cx).git().cloned() else { return };
+        let task = cx.background_spawn(async move {
+            let info = git.commit_info(&commit)?;
+            let files = git.commit_files(&info).ok()?;
+            let file = files.into_iter().find(|f| git.relative(&f.path) == filename)?;
+            Some((info, file))
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let found = task.await;
+            let _ = this.update_in(cx, |wb, window, cx| match found {
+                Some((commit, file)) => {
+                    wb.log(format!("{} {} \u{2022} {}, {} ({})", commit.short(), commit.subject, commit.author, commit.when, commit.date));
+                    wb.open_commit_diff(commit, file, window, cx);
+                }
+                None => wb.log("Could not find that commit's change to this file."),
+            });
+        })
+        .detach();
+    }
+
+    /// "Git: Toggle Line Blame": the annotation after the caret's line, on or off (setting git.blame.currentLine).
+    pub(super) fn toggle_blame(&mut self, cx: &mut Context<Self>) {
+        let on = !self.settings.get("git.blame.currentLine", true);
+        self.settings.set("git.blame.currentLine", json!(on));
+        for tab in &self.tabs {
+            tab.editor.update(cx, |e, cx| e.set_blame_enabled(on, cx));
+        }
+        self.log(if on { "Line blame is on." } else { "Line blame is off." });
     }
 
     pub(super) fn open_branch_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {

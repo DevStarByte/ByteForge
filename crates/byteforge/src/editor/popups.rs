@@ -27,6 +27,7 @@ impl EditorView {
                     let (glyph, color) = match group {
                         "Fix" => ("build", t.c_or("editorLightBulb.foreground", 0xffcc00ff)),
                         "Rename" => ("pencil", t.c_or("editorLightBulbAutoFix.foreground", 0x75beffff)),
+                        "Merge" => ("diff", t.c_or("editorLightBulb.foreground", 0xffcc00ff)),
                         _ => ("puzzle", t.c_or("editorLightBulbAutoFix.foreground", 0x75beffff)),
                     };
                     let selected = i == menu.selected;
@@ -249,6 +250,12 @@ impl EditorView {
                 entries.push(Some((cmd.title.clone(), cmd.action.boxed_clone(), crate::workbench::default_key(id))));
             }
         };
+        if !self.read_only && !self.conflict_entries().is_empty() {
+            for id in ["merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth"] {
+                command(&mut entries, id);
+            }
+            entries.push(None);
+        }
         let code = self.lsp.is_some() && !self.read_only;
         if code {
             for id in ["edit.goToDefinition", "edit.goToImplementation", "edit.findReferences"] {
@@ -262,6 +269,11 @@ impl EditorView {
             for id in ["refactor.extractMethod", "refactor.introduceVariable", "refactor.inline", "refactor.removeAndSortUsings"] {
                 command(&mut entries, id);
             }
+            entries.push(None);
+        }
+        if self.blame.repo.is_some() && self.path.is_some() {
+            command(&mut entries, "git.showLineCommit");
+            command(&mut entries, "git.fileHistory");
             entries.push(None);
         }
         let key = crate::actions::key_label;
