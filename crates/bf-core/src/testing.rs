@@ -389,9 +389,41 @@ pub fn parse_trx(xml: &str) -> anyhow::Result<Vec<TestResult>> {
     Ok(results)
 }
 
+/// A test that just finished, from `dotnet test --logger "console;verbosity=normal"` output
+/// ("  Passed Calc.MathTests.Positive(x: 2) [< 1 ms]"): its outcome and display name.
+pub fn parse_progress_line(line: &str) -> Option<(Outcome, String)> {
+    let t = line.trim();
+    let (outcome, rest) = if let Some(r) = t.strip_prefix("Passed ") {
+        (Outcome::Passed, r)
+    } else if let Some(r) = t.strip_prefix("Failed ") {
+        (Outcome::Failed, r)
+    } else if let Some(r) = t.strip_prefix("Skipped ") {
+        (Outcome::Skipped, r)
+    } else {
+        return None;
+    };
+    // The time in brackets ends the line; a name never does that.
+    let at = rest.rfind(" [")?;
+    rest.ends_with(']').then(|| (outcome, rest[..at].trim().to_owned()))
+}
+
 /// `00:00:01.2345678` → 1.2345678.
 fn parse_duration(text: &str) -> f64 {
     text.split(':').fold(0.0, |acc, part| acc * 60.0 + part.parse::<f64>().unwrap_or(0.0))
+}
+
+#[cfg(test)]
+mod progress_tests {
+    use super::*;
+
+    #[test]
+    fn reads_live_progress_lines() {
+        assert_eq!(parse_progress_line("  Passed Calc.Tests.MathTests.Positive(x: 2) [< 1 ms]"), Some((Outcome::Passed, "Calc.Tests.MathTests.Positive(x: 2)".into())));
+        assert_eq!(parse_progress_line("  Failed Calc.Tests.MathTests.Fails [3 ms]"), Some((Outcome::Failed, "Calc.Tests.MathTests.Fails".into())));
+        assert_eq!(parse_progress_line("  Skipped Slow [1 s]").map(|p| p.0), Some(Outcome::Skipped));
+        assert_eq!(parse_progress_line("     Passed: 3"), None);
+        assert_eq!(parse_progress_line("Test Run Failed."), None);
+    }
 }
 
 /// The testhost's process id from `dotnet test` output with `VSTEST_HOST_DEBUG=1`

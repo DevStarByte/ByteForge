@@ -59,6 +59,13 @@ fn runs_filtered_tests_and_reads_trx() {
     assert_eq!(outcome("Calc.Tests.MathTests.Positive"), [Outcome::Passed, Outcome::Passed]);
     assert!(results.iter().find(|r| r.outcome == Outcome::Failed).and_then(|r| r.message.clone()).is_some_and(|m| m.contains("Assert.Equal")));
 
+    // Live progress: the console logger reports each test as it finishes.
+    let out = dotnet(&root.0, &["test", &project, "--no-build", "--logger", "console;verbosity=normal", "--filter", &class_filter], &[]).unwrap();
+    let live: Vec<(Outcome, String)> = out.lines().filter_map(bf_core::testing::parse_progress_line).collect();
+    assert_eq!(live.len(), 4, "{out}");
+    assert!(live.iter().any(|(o, n)| *o == Outcome::Failed && n == "Calc.Tests.MathTests.Fails"), "{live:?}");
+    assert_eq!(live.iter().filter(|(_, n)| n.starts_with("Calc.Tests.MathTests.Positive(")).count(), 2, "{live:?}");
+
     // One test of the class.
     let out = dotnet(&root.0, &["test", &project, "--no-build", "--filter", &filter("Calc.Tests.MathTests.Positive", false)], &[]).unwrap();
     assert!(out.contains("Passed:     2") && out.contains("Total:     2"), "{out}");

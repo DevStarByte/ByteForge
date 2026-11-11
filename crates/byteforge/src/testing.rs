@@ -62,6 +62,42 @@ struct Summary {
     failed_cases: usize,
     /// The first failure: display name, message and stack trace.
     failure: Option<(String, String, String)>,
+    /// Each case of a theory (`[InlineData]`, `[MemberData]`, …), in the order they ran.
+    case_list: Vec<CaseResult>,
+}
+
+/// One case of a test with several (its display name carries the arguments).
+#[derive(Clone, Debug)]
+struct CaseResult {
+    display: String,
+    outcome: Outcome,
+    seconds: f64,
+    message: Option<String>,
+}
+
+impl Summary {
+    fn new() -> Self {
+        Summary { outcome: Outcome::Passed, seconds: 0.0, cases: 0, failed_cases: 0, failure: None, case_list: Vec::new() }
+    }
+
+    /// Counts one result (a case) into the summary.
+    fn add(&mut self, r: &TestResult) {
+        self.cases += 1;
+        self.seconds += r.seconds;
+        self.case_list.push(CaseResult { display: r.display_name.clone(), outcome: r.outcome, seconds: r.seconds, message: r.message.clone() });
+        match r.outcome {
+            Outcome::Failed => {
+                self.failed_cases += 1;
+                self.outcome = Outcome::Failed;
+                if self.failure.is_none() {
+                    self.failure = Some((r.display_name.clone(), r.message.clone().unwrap_or_default(), r.stack_trace.clone().unwrap_or_default()));
+                }
+            }
+            Outcome::Skipped if self.cases == 1 => self.outcome = Outcome::Skipped,
+            Outcome::Passed if self.outcome == Outcome::Skipped => self.outcome = Outcome::Passed,
+            _ => {}
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -69,12 +105,18 @@ enum Entry {
     Project(usize),
     Class(usize, usize),
     Test(usize, usize, usize),
+    /// Case `k` of a test with several.
+    Case(usize, usize, usize, usize),
 }
 
 pub struct TestView {
     workspace: Workspace,
     projects: Vec<TestProject>,
     results: HashMap<String, Summary>,
+    /// Results of the run in progress, as the tests report them (replaced by the TRX results at the end).
+    live: HashMap<String, Summary>,
+    /// Tests whose cases are listed.
+    expanded: HashSet<String>,
     /// Full names (tests) currently running; a project or class run marks all its tests.
     running: HashSet<String>,
     collapsed: HashSet<String>,
@@ -92,6 +134,8 @@ impl TestView {
             workspace,
             projects: Vec::new(),
             results: HashMap::new(),
+            live: HashMap::new(),
+            expanded: HashSet::new(),
             running: HashSet::new(),
             collapsed: HashSet::new(),
             entries: Vec::new(),
@@ -165,7 +209,15 @@ impl TestView {
                 if self.collapsed.contains(&class.full_name) {
                     continue;
                 }
-                entries.extend((0..class.tests.len()).map(|ti| Entry::Test(pi, ci, ti)));
+                for (ti, test) in class.tests.iter().enumerate() {
+                    entries.push(Entry::Test(pi, ci, ti));
+                    let name = test.full_name();
+                    if self.expanded.contains(&name)
+                        && let Some(summary) = self.summary(&name).filter(|s| s.case_list.len() > 1)
+                    {
+                        entries.extend((0..summary.case_list.len()).map(|k| Entry::Case(pi, ci, ti, k)));
+                    }
+                }
             }
         }
         self.entries = entries;
@@ -179,13 +231,26 @@ impl TestView {
         cx.notify();
     }
 
+    fn toggle_cases(&mut self, name: String, cx: &mut Context<Self>) {
+        if !self.expanded.remove(&name) {
+            self.expanded.insert(name);
+        }
+        self.rebuild();
+        cx.notify();
+    }
+
     // ───────────── state ─────────────
+
+    /// The latest result of a test: from the run in progress, else the last run.
+    fn summary(&self, full_name: &str) -> Option<&Summary> {
+        self.live.get(full_name).or_else(|| self.results.get(full_name))
+    }
 
     fn test_state(&self, full_name: &str) -> TestState {
         if self.running.contains(full_name) {
             return TestState::Running;
         }
-        match self.results.get(full_name).map(|s| s.outcome) {
+        match self.summary(full_name).map(|s| s.outcome) {
             None => TestState::NotRun,
             Some(Outcome::Passed) => TestState::Passed,
             Some(Outcome::Failed) => TestState::Failed,
@@ -301,28 +366,38 @@ impl TestView {
         cx.notify();
     }
 
+    /// A test (or one of its cases) just finished, while the run goes on: `display` as the console logger
+    /// printed it. Matched to a running test by its full name, or (NUnit's short names) by its method name.
+    pub fn live_result(&mut self, outcome: Outcome, display: &str, cx: &mut Context<Self>) {
+        let base = display.split('(').next().unwrap_or(display).trim();
+        let name = if self.running.contains(base) || self.live.contains_key(base) {
+            base.to_owned()
+        } else {
+            let suffix = format!(".{base}");
+            let mut candidates = self.running.iter().chain(self.live.keys()).filter(|n| n.ends_with(&suffix));
+            match (candidates.next(), candidates.next()) {
+                (Some(only), None) => only.clone(),
+                _ => return,
+            }
+        };
+        let result = TestResult { full_name: name.clone(), display_name: display.to_owned(), outcome, seconds: 0.0, message: None, stack_trace: None };
+        self.live.entry(name.clone()).or_insert_with(Summary::new).add(&result);
+        self.running.remove(&name);
+        self.rebuild();
+        cx.emit(TestEvent::Changed);
+        cx.notify();
+    }
+
     /// Applies a run's results; tests the run covered but didn't report keep their old result.
     pub fn finish_run(&mut self, results: Vec<TestResult>, cx: &mut Context<Self>) {
         let mut fresh: HashMap<String, Summary> = HashMap::new();
         for r in results {
-            let s = fresh.entry(r.full_name.clone()).or_insert(Summary { outcome: Outcome::Passed, seconds: 0.0, cases: 0, failed_cases: 0, failure: None });
-            s.cases += 1;
-            s.seconds += r.seconds;
-            match r.outcome {
-                Outcome::Failed => {
-                    s.failed_cases += 1;
-                    s.outcome = Outcome::Failed;
-                    if s.failure.is_none() {
-                        s.failure = Some((r.display_name.clone(), r.message.clone().unwrap_or_default(), r.stack_trace.clone().unwrap_or_default()));
-                    }
-                }
-                Outcome::Skipped if s.cases == 1 => s.outcome = Outcome::Skipped,
-                Outcome::Passed if s.outcome == Outcome::Skipped => s.outcome = Outcome::Passed,
-                _ => {}
-            }
+            fresh.entry(r.full_name.clone()).or_insert_with(Summary::new).add(&r);
         }
         self.results.extend(fresh);
+        self.live.clear();
         self.running.clear();
+        self.rebuild();
         cx.emit(TestEvent::Changed);
         cx.notify();
     }
@@ -330,6 +405,8 @@ impl TestView {
     /// The run ended without results (build failed, cancelled): forget the running marks.
     pub fn cancel_run(&mut self, cx: &mut Context<Self>) {
         self.running.clear();
+        self.live.clear();
+        self.rebuild();
         cx.emit(TestEvent::Changed);
         cx.notify();
     }
@@ -512,7 +589,7 @@ impl Render for TestView {
                             let test = &project.classes[ci].tests[ti];
                             let name = test.full_name();
                             let state = view.test_state(&name);
-                            let summary = view.results.get(&name);
+                            let summary = view.summary(&name);
                             let detail_text = match summary {
                                 Some(s) if s.cases > 1 && s.failed_cases > 0 => format!("{}/{} cases failed", s.failed_cases, s.cases),
                                 Some(s) if s.cases > 1 => format!("{} cases · {}", s.cases, duration(s.seconds)),
@@ -527,12 +604,44 @@ impl Render for TestView {
                                 }
                             }
                             let (e, file, line) = (entity.clone(), test.file.clone(), test.line);
-                            row(38.)
+                            // A theory's cases fold out under it.
+                            let has_cases = summary.is_some_and(|s| s.case_list.len() > 1);
+                            let (toggle, toggle_name) = (entity.clone(), name.clone());
+                            row(if has_cases { 22. } else { 38. })
                                 .tooltip(tooltip(tip))
+                                .when(has_cases, |d| {
+                                    d.child(div().id(gpui::SharedString::from(format!("cases-{ix}"))).child(chevron(!view.expanded.contains(&name))).on_click(move |_, _, cx| {
+                                        cx.stop_propagation();
+                                        toggle.update(cx, |v, cx| v.toggle_cases(toggle_name.clone(), cx));
+                                    }))
+                                })
                                 .child(icon(state_icon(state), px(12.), state_color(state, &t)))
                                 .child(div().whitespace_nowrap().child(test.name.clone()))
                                 .child(detail(detail_text))
                                 .child(buttons(test_run(&project.path, &name, false, short(&test.class, &test.name))))
+                                .on_click(move |_, _, cx| e.update(cx, |_, cx| cx.emit(TestEvent::OpenFile(file.clone(), line))))
+                                .into_any_element()
+                        }
+                        Entry::Case(pi, ci, ti, k) => {
+                            let test = &view.projects[pi].classes[ci].tests[ti];
+                            let Some(case) = view.summary(&test.full_name()).and_then(|s| s.case_list.get(k)) else { return div().id(ix).into_any_element() };
+                            let state = match case.outcome {
+                                Outcome::Passed => TestState::Passed,
+                                Outcome::Failed => TestState::Failed,
+                                Outcome::Skipped => TestState::Skipped,
+                            };
+                            // The arguments are what tells cases apart: show them after the method name.
+                            let args = case.display.find('(').map_or(case.display.as_str(), |at| &case.display[at..]).to_owned();
+                            let tip = match &case.message {
+                                Some(m) => format!("{}\n\n{m}", case.display),
+                                None => case.display.clone(),
+                            };
+                            let (e, file, line) = (entity.clone(), test.file.clone(), test.line);
+                            row(56.)
+                                .tooltip(tooltip(tip))
+                                .child(icon(state_icon(state), px(12.), state_color(state, &t)))
+                                .child(div().whitespace_nowrap().child(format!("{}{args}", test.name)))
+                                .child(detail(if case.seconds > 0.0 { duration(case.seconds) } else { String::new() }))
                                 .on_click(move |_, _, cx| e.update(cx, |_, cx| cx.emit(TestEvent::OpenFile(file.clone(), line))))
                                 .into_any_element()
                         }
@@ -599,5 +708,59 @@ mod tests {
         assert!(covers(Some(&both), "A.T.Y"));
         assert!(covers(None, "anything"));
         assert_eq!(short("Ns.Outer+Inner", "M"), "Outer+Inner.M");
+    }
+}
+
+#[cfg(test)]
+mod view_tests {
+    use super::*;
+    use bf_core::testing::{TestCase, TestClass};
+    use gpui::AppContext as _;
+
+    fn project() -> TestProject {
+        let file = PathBuf::from("/w/T/MathTests.cs");
+        let test = |name: &str, line| TestCase { name: name.into(), class: "Calc.MathTests".into(), file: file.clone(), line };
+        TestProject {
+            path: PathBuf::from("/w/T/T.csproj"),
+            name: "T".into(),
+            classes: vec![TestClass { full_name: "Calc.MathTests".into(), file: file.clone(), line: 2, tests: vec![test("Adds", 5), test("Positive", 9)] }],
+        }
+    }
+
+    fn result(name: &str, display: &str, outcome: Outcome) -> TestResult {
+        TestResult { full_name: name.into(), display_name: display.into(), outcome, seconds: 0.01, message: None, stack_trace: None }
+    }
+
+    #[gpui::test]
+    fn live_progress_then_theory_cases(cx: &mut gpui::TestAppContext) {
+        let view = cx.new(|cx| TestView::new(Workspace::new(Vec::new()), cx));
+        view.update(cx, |v, cx| {
+            v.set_projects(vec![project()], cx);
+            v.start_run(&TestRun { project: PathBuf::from("/w/T/T.csproj"), filter: None, label: "T".into() }, cx);
+            assert_eq!(v.test_state("Calc.MathTests.Adds"), TestState::Running);
+            // The console logger reports a test: it shows at once, the other still runs.
+            v.live_result(Outcome::Failed, "Calc.MathTests.Adds", cx);
+            assert_eq!(v.test_state("Calc.MathTests.Adds"), TestState::Failed);
+            assert_eq!(v.test_state("Calc.MathTests.Positive"), TestState::Running);
+            // NUnit-style short names are matched by method name.
+            v.live_result(Outcome::Passed, "Positive(1)", cx);
+            assert_eq!(v.test_state("Calc.MathTests.Positive"), TestState::Passed);
+
+            v.finish_run(
+                vec![
+                    result("Calc.MathTests.Adds", "Calc.MathTests.Adds", Outcome::Passed),
+                    result("Calc.MathTests.Positive", "Calc.MathTests.Positive(x: 1)", Outcome::Passed),
+                    result("Calc.MathTests.Positive", "Calc.MathTests.Positive(x: -1)", Outcome::Failed),
+                ],
+                cx,
+            );
+            // The TRX results replace the live ones.
+            assert_eq!(v.test_state("Calc.MathTests.Adds"), TestState::Passed);
+            assert_eq!(v.test_state("Calc.MathTests.Positive"), TestState::Failed);
+            let cases = |v: &TestView| v.entries.iter().filter(|e| matches!(e, Entry::Case(..))).count();
+            assert_eq!(cases(v), 0, "cases start folded");
+            v.toggle_cases("Calc.MathTests.Positive".into(), cx);
+            assert_eq!(cases(v), 2);
+        });
     }
 }

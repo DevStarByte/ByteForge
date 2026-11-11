@@ -36,6 +36,9 @@ impl Workbench {
             run.project.to_string_lossy().into_owned(),
             "--logger".into(),
             "trx".into(),
+            // Each test as it finishes, for live progress in the Test Explorer.
+            "--logger".into(),
+            "console;verbosity=normal".into(),
             "--results-directory".into(),
             results_dir.to_string_lossy().into_owned(),
         ];
@@ -48,14 +51,15 @@ impl Workbench {
 
         let env: Vec<(String, String)> = if debug { vec![("VSTEST_HOST_DEBUG".into(), "1".into())] } else { Vec::new() };
         let mut attached = false;
-        let on_line: Option<LineHook> = debug.then(|| {
-            Box::new(move |wb: &mut Workbench, line: &str, window: &mut Window, cx: &mut Context<Workbench>| {
-                if !attached && let Some(pid) = tst::host_debug_pid(line) {
-                    attached = true;
-                    wb.debug_attach(pid, window, cx);
-                }
-            }) as LineHook
-        });
+        let on_line: Option<LineHook> = Some(Box::new(move |wb: &mut Workbench, line: &str, window: &mut Window, cx: &mut Context<Workbench>| {
+            if let Some((outcome, name)) = tst::parse_progress_line(line) {
+                wb.tests.update(cx, |v, cx| v.live_result(outcome, &name, cx));
+            }
+            if debug && !attached && let Some(pid) = tst::host_debug_pid(line) {
+                attached = true;
+                wb.debug_attach(pid, window, cx);
+            }
+        }));
         let label = run.label.clone();
         let then: DotnetDone = Box::new(move |wb, _, window, cx| {
             let results = read_results(&results_dir);
