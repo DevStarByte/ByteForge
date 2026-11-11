@@ -91,6 +91,7 @@ impl Workbench {
             editor.update(cx, |e, _| e.focus(window));
             let path = self.tabs[ix].path.clone();
             self.explorer.update(cx, |e, cx| e.set_active(path.as_deref(), cx));
+            self.solution.update(cx, |s, cx| s.set_active(path.as_deref(), cx));
             self.notify_editor_changed();
             cx.notify();
         }
@@ -237,6 +238,7 @@ impl Workbench {
         } else {
             window.focus(&self.focus);
             self.explorer.update(cx, |e, cx| e.set_active(None, cx));
+            self.solution.update(cx, |s, cx| s.set_active(None, cx));
             self.notify_editor_changed();
         }
         cx.notify();

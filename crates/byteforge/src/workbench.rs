@@ -722,6 +722,7 @@ impl Workbench {
                 let alive = this.update(cx, |wb, cx| {
                     wb.explorer.update(cx, |e, cx| e.refresh(cx));
                     wb.scm.update(cx, |s, cx| s.refresh(cx));
+                    wb.solution.update(cx, |s, cx| s.files_changed(cx));
                     wb.reload_changed_tabs(cx);
                 });
                 if alive.is_err() {

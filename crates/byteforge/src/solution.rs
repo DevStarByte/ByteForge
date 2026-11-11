@@ -1,5 +1,7 @@
 //! Solution view: the projects of the workspace's `.sln`/`.slnx` in their solution folders, each with
-//! its NuGet packages and project references. Building, running, testing and changing packages go
+//! its dependencies (NuGet packages and project references) and its folders and files, like Visual
+//! Studio's Solution Explorer: what an SDK-style project includes (no `bin`/`obj`, hidden folders or
+//! other projects' folders), with generated and per-environment files nested under the file they belong to. Building, running, testing and changing packages go
 //! through the workbench; checking for package updates (`dotnet list package --outdated`) runs here.
 
 use std::collections::{HashMap, HashSet};
@@ -11,6 +13,7 @@ use bf_core::solution::{self, Folder, Project, Solution};
 use gpui::{Context, EventEmitter, Task, Window, div, prelude::*, px, uniform_list};
 
 use crate::assets::icon;
+use crate::explorer::file_icon_view;
 use crate::theme::Theme;
 use crate::workbench::tooltip;
 
@@ -36,6 +39,10 @@ enum Entry {
     Group { key: String, label: &'static str, count: usize, depth: usize, project: PathBuf },
     Package { project: PathBuf, name: String, version: Option<String>, latest: Option<String>, depth: usize },
     Reference { name: String, path: PathBuf, depth: usize },
+    /// The project's Dependencies node (packages and project references).
+    Dependencies { key: String, count: usize, depth: usize },
+    /// A folder or file of a project. `key` toggles it (folders, and files with nested files).
+    Item { path: PathBuf, name: String, is_dir: bool, key: Option<String>, open: bool, depth: usize },
 }
 
 pub struct SolutionView {
@@ -60,6 +67,8 @@ pub struct SolutionView {
     /// The row under the mouse, which shows its action buttons. Kept here rather than as a hover style:
     /// a hover style that changes `display` makes gpui paint elements it never laid out.
     hovered: Option<usize>,
+    /// The file in the active editor tab.
+    active: Option<PathBuf>,
 }
 
 impl EventEmitter<SolutionEvent> for SolutionView {}
@@ -81,6 +90,7 @@ impl SolutionView {
             check_error: None,
             check_task: None,
             hovered: None,
+            active: None,
         }
     }
 
@@ -151,8 +161,21 @@ impl SolutionView {
             if self.collapsed.contains(&key) || !project.exists {
                 continue;
             }
+            let deps = format!("deps:{}", project.path.display());
+            out.push(Entry::Dependencies { key: deps.clone(), count: project.packages.len() + project.references.len(), depth: depth + 1 });
+            if self.expanded.contains(&deps) {
+                self.push_dependencies(project, depth + 2, out);
+            }
+            if let Some(dir) = project.path.parent() {
+                self.push_files(dir, true, depth + 1, out);
+            }
+        }
+    }
+
+    fn push_dependencies(&self, project: &Project, depth: usize, out: &mut Vec<Entry>) {
+        {
             let packages = format!("packages:{}", project.path.display());
-            out.push(Entry::Group { key: packages.clone(), label: "Packages", count: project.packages.len(), depth: depth + 1, project: project.path.clone() });
+            out.push(Entry::Group { key: packages.clone(), label: "Packages", count: project.packages.len(), depth, project: project.path.clone() });
             if self.expanded.contains(&packages) {
                 let newer = self.outdated.get(&project.path);
                 out.extend(project.packages.iter().map(|p| Entry::Package {
@@ -160,21 +183,81 @@ impl SolutionView {
                     name: p.name.clone(),
                     version: p.version.clone(),
                     latest: newer.and_then(|n| n.get(&p.name.to_lowercase())).filter(|l| p.version.as_ref() != Some(*l)).cloned(),
-                    depth: depth + 2,
+                    depth: depth + 1,
                 }));
             }
             let refs = format!("refs:{}", project.path.display());
             if project.references.is_empty() {
-                continue;
+                return;
             }
-            out.push(Entry::Group { key: refs.clone(), label: "Projects", count: project.references.len(), depth: depth + 1, project: project.path.clone() });
+            out.push(Entry::Group { key: refs.clone(), label: "Projects", count: project.references.len(), depth, project: project.path.clone() });
             if self.expanded.contains(&refs) {
                 out.extend(project.references.iter().map(|r| Entry::Reference {
                     name: r.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(),
                     path: r.clone(),
-                    depth: depth + 2,
+                    depth: depth + 1,
                 }));
             }
+        }
+    }
+
+    /// The folders and files of `dir` that belong to the project, folders first, with nested files
+    /// (`Index.cshtml.cs`, `appsettings.Development.json`) under their parent file.
+    fn push_files(&self, dir: &Path, project_root: bool, depth: usize, out: &mut Vec<Entry>) {
+        let items: Vec<(PathBuf, String, bool)> = self
+            .workspace
+            .list_dir(dir)
+            .into_iter()
+            .filter_map(|(path, is_dir)| {
+                let name = path.file_name()?.to_string_lossy().into_owned();
+                project_item(&path, &name, is_dir, project_root).then_some((path, name, is_dir))
+            })
+            .collect();
+        let files: HashSet<&str> = items.iter().filter(|i| !i.2).map(|i| i.1.as_str()).collect();
+        let mut nested: HashMap<&str, Vec<&(PathBuf, String, bool)>> = HashMap::new();
+        for item in items.iter().filter(|i| !i.2) {
+            if let Some(parent) = nest_parent(&item.1, &files) {
+                nested.entry(parent).or_default().push(item);
+            }
+        }
+        for item in &items {
+            if !item.2 && nest_parent(&item.1, &files).is_some() {
+                continue;
+            }
+            self.push_item(item, &nested, depth, out);
+        }
+    }
+
+    fn push_item(&self, (path, name, is_dir): &(PathBuf, String, bool), nested: &HashMap<&str, Vec<&(PathBuf, String, bool)>>, depth: usize, out: &mut Vec<Entry>) {
+        let children = if *is_dir { None } else { nested.get(name.as_str()) };
+        let key = (*is_dir || children.is_some()).then(|| format!("item:{}", path.display()));
+        let open = key.as_ref().is_some_and(|k| self.expanded.contains(k));
+        out.push(Entry::Item { path: path.clone(), name: name.clone(), is_dir: *is_dir, key, open, depth });
+        if !open {
+            return;
+        }
+        if *is_dir {
+            self.push_files(path, false, depth + 1, out);
+        } else if let Some(children) = children {
+            for child in children {
+                self.push_item(child, nested, depth + 1, out);
+            }
+        }
+    }
+
+    /// The editor's active file changed: it's highlighted when it's in the tree.
+    pub fn set_active(&mut self, path: Option<&Path>, cx: &mut Context<Self>) {
+        if self.active.as_deref() != path {
+            self.active = path.map(Path::to_path_buf);
+            cx.notify();
+        }
+    }
+
+    /// Files were added, removed or renamed: re-read the open folders.
+    pub fn files_changed(&mut self, cx: &mut Context<Self>) {
+        if self.loaded {
+            self.rebuild();
+            cx.notify();
         }
     }
 
@@ -214,6 +297,7 @@ impl SolutionView {
                         for (project, packages) in &outdated {
                             if !packages.is_empty() {
                                 v.collapsed.remove(&project_key(project));
+                                v.expanded.insert(format!("deps:{}", project.display()));
                                 v.expanded.insert(format!("packages:{}", project.display()));
                             }
                         }
@@ -259,6 +343,48 @@ impl SolutionView {
 /// A row's name: keeps its width while there's room, then ends in "…" (before the muted detail gives way).
 fn name_cell(name: String) -> gpui::Div {
     div().min_w_0().flex_shrink().overflow_hidden().whitespace_nowrap().text_ellipsis().child(name)
+}
+
+/// Whether a folder entry is part of the project, as SDK-style projects include files by default:
+/// not `bin`/`obj` (at the project root), hidden folders, `node_modules`, folders of other projects,
+/// the project file itself, solution files or `*.user` files.
+fn project_item(path: &Path, name: &str, is_dir: bool, project_root: bool) -> bool {
+    let lower = name.to_ascii_lowercase();
+    if is_dir {
+        if name.starts_with('.') || lower == "node_modules" || (project_root && (lower == "bin" || lower == "obj")) {
+            return false;
+        }
+        return !std::fs::read_dir(path).map(|entries| entries.flatten().any(|e| is_project_file(&e.file_name().to_string_lossy()))).unwrap_or(false);
+    }
+    !(is_project_file(&lower) || lower.ends_with(".sln") || lower.ends_with(".slnx") || lower.ends_with(".user"))
+}
+
+fn is_project_file(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    [".csproj", ".fsproj", ".vbproj", ".esproj", ".sqlproj"].iter().any(|ext| lower.ends_with(ext))
+}
+
+/// The file `name` is nested under, Visual Studio style: another file's name plus more extensions
+/// (`Index.cshtml.cs` and `Counter.razor.css` under `Index.cshtml` and `Counter.razor`), and
+/// per-environment settings (`appsettings.Development.json`, `web.Release.config`) under the base file.
+fn nest_parent<'a>(name: &str, files: &HashSet<&'a str>) -> Option<&'a str> {
+    // An existing file with an extension, plus more extensions: the longest such file wins.
+    for (i, _) in name.match_indices('.').collect::<Vec<_>>().into_iter().rev() {
+        let candidate = &name[..i];
+        if i > 0 && candidate.contains('.')
+            && !candidate.starts_with('.')
+            && let Some(parent) = files.get(candidate)
+        {
+            return Some(parent);
+        }
+    }
+    // base.Environment.json → base.json (also .config).
+    let (first, last) = (name.find('.')?, name.rfind('.')?);
+    let ext = &name[last..];
+    if first > 0 && first < last && (ext.eq_ignore_ascii_case(".json") || ext.eq_ignore_ascii_case(".config")) {
+        return files.get(format!("{}{ext}", &name[..first]).as_str()).copied();
+    }
+    None
 }
 
 fn project_key(path: &Path) -> String {
@@ -311,6 +437,7 @@ impl Render for SolutionView {
         let list = uniform_list("solution-entries", self.entries.len(), move |range, _, cx| {
             let view = entity.read(cx);
             let hovered = view.hovered;
+            let active = view.active.clone();
             let t = Theme::global(cx);
             range
                 .map(|ix| {
@@ -470,6 +597,46 @@ impl Render for SolutionView {
                                 )
                                 .into_any_element()
                         }
+                        Entry::Dependencies { key, count, depth } => {
+                            let open = view.expanded.contains(&key);
+                            let e = entity.clone();
+                            row(depth)
+                                .child(chevron(open))
+                                .child(icon("layers", px(14.), t.c("icon.foreground")))
+                                .child(name_cell("Dependencies".into()))
+                                .child(detail(count.to_string()))
+                                .on_click(move |_, _, cx| e.update(cx, |v, cx| v.toggle_expanded(key.clone(), cx)))
+                                .into_any_element()
+                        }
+                        Entry::Item { path, name, is_dir, key, open, depth } => {
+                            let is_active = active.as_ref() == Some(&path);
+                            let toggle = key.clone().map(|key| {
+                                let e = entity.clone();
+                                move |_: &gpui::ClickEvent, _: &mut Window, cx: &mut gpui::App| {
+                                    cx.stop_propagation();
+                                    e.update(cx, |v, cx| v.toggle_expanded(key.clone(), cx))
+                                }
+                            });
+                            let e = entity.clone();
+                            row(depth)
+                                .tooltip(tooltip(path.display().to_string()))
+                                .child(match toggle.clone() {
+                                    Some(toggle) => div().id("toggle").flex_none().child(chevron(open)).on_click(toggle).into_any_element(),
+                                    None => blank().into_any_element(),
+                                })
+                                .child(div().flex_none().child(file_icon_view(&name, is_dir, open, px(14.), &t)))
+                                .child(name_cell(name))
+                                .when(is_active, |d| {
+                                    let bg = if t.has("list.activeFileBackground") { t.bg("list.activeFileBackground") } else { t.bg("list.activeSelectionBackground") };
+                                    let fg = if t.has("list.activeFileForeground") { t.c("list.activeFileForeground") } else { t.c("list.activeSelectionForeground") };
+                                    d.bg(bg).text_color(fg)
+                                })
+                                .on_click(move |ev, w, cx| match (&toggle, is_dir) {
+                                    (Some(toggle), true) => toggle(ev, w, cx),
+                                    _ => e.update(cx, |_, cx| cx.emit(SolutionEvent::OpenFile(path.clone()))),
+                                })
+                                .into_any_element()
+                        }
                         Entry::Reference { name, path, depth } => {
                             let e = entity.clone();
                             row(depth)
@@ -521,5 +688,49 @@ impl Render for SolutionView {
             )
             .child(list)
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::path::Path;
+
+    use super::{nest_parent, project_item};
+
+    #[test]
+    fn nests_like_visual_studio() {
+        let names = ["Index.cshtml", "Index.cshtml.cs", "Counter.razor", "Counter.razor.css", "appsettings.json", "appsettings.Development.json", "web.config", "web.Release.config", "Program.cs", "Program.Tests.cs", "Dockerfile", "Dockerfile.dev", ".env", ".env.local"];
+        let files: HashSet<&str> = names.into_iter().collect();
+        assert_eq!(nest_parent("Index.cshtml.cs", &files), Some("Index.cshtml"));
+        assert_eq!(nest_parent("Counter.razor.css", &files), Some("Counter.razor"));
+        assert_eq!(nest_parent("appsettings.Development.json", &files), Some("appsettings.json"));
+        assert_eq!(nest_parent("web.Release.config", &files), Some("web.config"));
+        // Not nested: unrelated .cs files, names without an extension, dotfiles.
+        for name in ["Program.Tests.cs", "Program.cs", "Dockerfile.dev", ".env.local", "appsettings.json"] {
+            assert_eq!(nest_parent(name, &files), None, "{name}");
+        }
+    }
+
+    #[test]
+    fn includes_what_an_sdk_project_includes() {
+        let root = std::env::temp_dir().join(format!("bf-solution-items-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for dir in ["bin", "obj", ".vs", "node_modules", "Pages", "Other"] {
+            std::fs::create_dir_all(root.join(dir)).unwrap();
+        }
+        std::fs::write(root.join("Other/Other.csproj"), "<Project />").unwrap();
+        let item = |name: &str, is_dir: bool| project_item(&root.join(name), name, is_dir, true);
+        assert!(item("Pages", true));
+        assert!(item("Program.cs", false) && item(".editorconfig", false));
+        for dir in ["bin", "obj", ".vs", "node_modules", "Other"] {
+            assert!(!item(dir, true), "{dir}");
+        }
+        for file in ["App.csproj", "App.sln", "App.csproj.user"] {
+            assert!(!item(file, false), "{file}");
+        }
+        // bin/obj are only special at the project root.
+        assert!(project_item(Path::new("/nonexistent/Pages/bin"), "bin", true, false));
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
