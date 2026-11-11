@@ -1,7 +1,7 @@
-# ByteForge tasks: an IDE you can work in every day
+# ByteForge roadmap: an IDE you can work in every day
 
-Worked through top to bottom. Tick items off as they land. (This replaces ROADMAP.md; everything that was
-done there is in the README and the git history.)
+Worked through top to bottom. Tick items off as they land. What the first roadmap built is in the README and
+the git history.
 
 ## 1. Make what's there trustworthy
 

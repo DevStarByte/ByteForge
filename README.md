@@ -157,7 +157,7 @@ stays attached and shows the log output.
 | [Settings](docs/settings.md) | settings reference and default shortcuts |
 | [Modules](docs/modules.md) | the module registry, writing a module, the protocol |
 | [Architecture](docs/architecture.md) | crate layout and performance notes |
-| [Tasks](task.md) | what's planned |
+| [Roadmap](ROADMAP.md) | what's planned |
 
 ## Known limitations
 
