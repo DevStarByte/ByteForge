@@ -116,6 +116,7 @@ impl Workbench {
             EditorEvent::Navigate(path, point) => self.open_file(path.clone(), Some(*point), window, cx),
             EditorEvent::Edited => {
                 self.sync_file_views(editor, cx);
+                self.schedule_autosave(editor, window, cx);
                 cx.notify();
             }
             EditorEvent::BreakpointsChanged => self.on_editor_breakpoints_changed(editor, cx),
@@ -148,6 +149,14 @@ impl Workbench {
     }
 
     pub(super) fn activate(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
+        // files.autoSave "onFocusChange" (and "onWindowChange"): switching away saves the file left.
+        if let Some(previous) = self.active.filter(|&p| p != ix && p < self.tabs.len())
+            && matches!(self.autosave_mode(), AutoSave::OnFocusChange | AutoSave::OnWindowChange)
+            && self.tabs[previous].path.is_some()
+            && self.tabs[previous].editor.read(cx).is_modified()
+        {
+            self.save_tab(previous, window, cx);
+        }
         if ix < self.tabs.len() {
             self.active = Some(ix);
             let group = self.tabs[ix].group;
@@ -254,6 +263,41 @@ impl Workbench {
             }
         })
         .detach();
+    }
+
+    /// The "files.autoSave" setting.
+    pub(super) fn autosave_mode(&self) -> AutoSave {
+        match self.settings.get_string("files.autoSave").as_deref() {
+            Some("afterDelay") => AutoSave::AfterDelay,
+            Some("onFocusChange") => AutoSave::OnFocusChange,
+            Some("onWindowChange") => AutoSave::OnWindowChange,
+            _ => AutoSave::Off,
+        }
+    }
+
+    /// files.autoSave "afterDelay": saves the file once typing pauses for "files.autoSaveDelay" ms
+    /// (without formatting, so the text doesn't change under the caret).
+    fn schedule_autosave(&mut self, editor: &Entity<EditorView>, window: &mut Window, cx: &mut Context<Self>) {
+        if self.autosave_mode() != AutoSave::AfterDelay {
+            return;
+        }
+        let delay: u64 = self.settings.get("files.autoSaveDelay", 1000u64).max(100);
+        let target = editor.downgrade();
+        let task = cx.spawn_in(window, async move |this, cx| {
+            cx.background_executor().timer(std::time::Duration::from_millis(delay)).await;
+            let _ = this.update_in(cx, |wb, window, cx| {
+                let Some(editor) = target.upgrade() else { return };
+                wb.autosave.remove(&editor.entity_id());
+                if let Some(ix) = wb.tabs.iter().position(|t| t.editor == editor && t.path.is_some())
+                    && !editor.read(cx).read_only
+                    && editor.read(cx).is_modified()
+                {
+                    wb.save_tab(ix, window, cx);
+                }
+            });
+        });
+        // A newer edit replaces (and so cancels) the pending save.
+        self.autosave.insert(editor.entity_id(), task);
     }
 
     pub(super) fn save_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -449,4 +493,13 @@ impl Workbench {
     }
 
     // ───────────── palette & prompts ─────────────
+}
+
+/// When files save by themselves ("files.autoSave").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum AutoSave {
+    Off,
+    AfterDelay,
+    OnFocusChange,
+    OnWindowChange,
 }

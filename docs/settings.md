@@ -15,6 +15,8 @@
   "debug.breakOnExceptions": ["user-unhandled"],       // or ["all"], or []
   "terminal.shell": "/usr/bin/fish", "terminal.args": [],  // default: your login shell ($SHELL); also set by
                                                      // "Terminal: Select Default Shell…" (palette or the panel button)
+  "files.autoSave": "off",                             // or "afterDelay", "onFocusChange", "onWindowChange"
+  "files.autoSaveDelay": 1000,                         // ms of quiet before "afterDelay" saves (no formatting)
   "editor.formatOnSave": false, "editor.defaultFormatter": "csharpier",   // or "csharp-ls"
   "refactor.previewMultiFileChanges": true,            // ask (listing the files) before a rename or refactoring changes several files
   "refactor.renameGenerated": true,                    // after Extract Method / Introduce Local / Extract Interface, rename what it made up

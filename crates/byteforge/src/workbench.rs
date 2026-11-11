@@ -47,6 +47,7 @@ use crate::assets::{self, icon};
 use crate::solution::SolutionView;
 use crate::testing::TestView;
 use crate::editor::{AfterApply, EditorEvent, EditorView};
+use tabs::AutoSave;
 use crate::terminal::{TerminalEvent, TerminalView};
 use crate::text_input::{InputEvent, TextInput};
 use crate::explorer::{Explorer, ExplorerEvent};
@@ -280,6 +281,8 @@ pub struct Workbench {
     debug_generation: u64,
     /// Breakpoints of all files (open or not), sorted by line.
     breakpoints: BTreeMap<PathBuf, Vec<crate::editor::Breakpoint>>,
+    /// Pending "afterDelay" auto saves, by editor.
+    autosave: HashMap<gpui::EntityId, Task<()>>,
     /// Watch expressions of the opened folder (Debug view).
     watches: Vec<String>,
     debug_console: Entity<EditorView>,
@@ -413,6 +416,12 @@ impl Workbench {
                 SearchEvent::Replace { files, line, matcher, template, count } => wb.replace_in_files(files.clone(), *line, matcher.clone(), template.clone(), *count, window, cx),
             }),
             cx.subscribe_in(&scm, window, Self::on_scm_event),
+            // files.autoSave "onWindowChange": leaving the window saves everything.
+            cx.observe_window_activation(window, |wb: &mut Self, window, cx| {
+                if !window.is_window_active() && wb.autosave_mode() == AutoSave::OnWindowChange {
+                    wb.save_all(window, cx);
+                }
+            }),
             cx.subscribe_in(&tests, window, Self::on_test_event),
             cx.subscribe_in(&solution, window, Self::on_solution_event),
             // File references in program output open on click.
@@ -532,6 +541,7 @@ impl Workbench {
             debug_generation: 0,
             breakpoints: BTreeMap::new(),
             watches: Vec::new(),
+            autosave: HashMap::new(),
             debug_console,
             debug_input,
             terminals: Vec::new(),
