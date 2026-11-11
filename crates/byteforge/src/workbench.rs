@@ -404,6 +404,7 @@ impl Workbench {
             cx.subscribe_in(&explorer, window, Self::on_explorer_event),
             cx.subscribe_in(&search, window, |wb, _, event, window, cx| match event {
                 SearchEvent::Open(path, point) => wb.open_file(path.clone(), Some(*point), window, cx),
+                SearchEvent::Replace { files, line, matcher, template, count } => wb.replace_in_files(files.clone(), *line, matcher.clone(), template.clone(), *count, window, cx),
             }),
             cx.subscribe_in(&scm, window, Self::on_scm_event),
             cx.subscribe_in(&tests, window, Self::on_test_event),

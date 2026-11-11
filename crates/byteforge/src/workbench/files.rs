@@ -105,4 +105,54 @@ impl Workbench {
     }
 
     // ───────────── git ─────────────
+
+    /// Replace in the Search view: open files change in their editor (one undo step each, unsaved, so the
+    /// change can be reviewed), the others on disk. Replace All asks first.
+    pub(super) fn replace_in_files(&mut self, files: Vec<PathBuf>, line: Option<usize>, matcher: bf_text::Matcher, template: String, count: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let files_n = files.len();
+        let apply = move |wb: &mut Self, cx: &mut Context<Self>| {
+            let (mut replaced, mut changed, mut failed) = (0usize, 0usize, Vec::new());
+            for path in &files {
+                let open = wb.tabs.iter().find(|t| t.page.is_none() && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, path))).map(|t| t.editor.clone());
+                match open {
+                    Some(editor) => {
+                        let text = editor.read(cx).state.buffer.text();
+                        let (new, n) = bf_core::search::replace_in_text(&text, &matcher, &template, line);
+                        if n > 0 {
+                            editor.update(cx, |e, cx| e.replace_text_minimal(&new, cx));
+                            replaced += n;
+                            changed += 1;
+                        }
+                    }
+                    None => match bf_core::search::replace_in_file(path, &matcher, &template, line) {
+                        Ok(0) => {}
+                        Ok(n) => {
+                            replaced += n;
+                            changed += 1;
+                        }
+                        Err(e) => failed.push(format!("{}: {e}", path.display())),
+                    },
+                }
+            }
+            wb.log(format!("Replaced {replaced} match{} in {changed} file{}.", if replaced == 1 { "" } else { "es" }, if changed == 1 { "" } else { "s" }));
+            for f in &failed {
+                wb.log(format!("Could not replace in {f}"));
+            }
+            wb.reload_changed_tabs(cx);
+            wb.search.update(cx, |s, cx| s.refresh(cx));
+            cx.notify();
+        };
+        if line.is_some() {
+            return apply(self, cx);
+        }
+        let question = format!("Replace {count} match{} in {files_n} file{}?", if count == 1 { "" } else { "es" }, if files_n == 1 { "" } else { "s" });
+        let detail = "Files that are open change in their editor (unsaved, undo takes it back); the others are changed on disk.";
+        let rx = window.prompt(PromptLevel::Warning, &question, Some(detail), &["Replace", "Cancel"], cx);
+        cx.spawn_in(window, async move |this, cx| {
+            if let Ok(0) = rx.await {
+                let _ = this.update(cx, |wb, cx| apply(wb, cx));
+            }
+        })
+        .detach();
+    }
 }
