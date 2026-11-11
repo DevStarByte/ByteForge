@@ -121,7 +121,8 @@ pub fn installed_shells() -> Vec<String> {
 
 /// The shell to start: the setting, else `$SHELL`, else the platform default.
 pub fn default_shell(configured: Option<String>) -> Option<String> {
-    configured.or_else(|| std::env::var("SHELL").ok()).filter(|s| !s.is_empty())
+    let set = |s: &String| !s.trim().is_empty();
+    configured.filter(set).or_else(|| std::env::var("SHELL").ok().filter(set))
 }
 
 /// A started shell, before its view exists.

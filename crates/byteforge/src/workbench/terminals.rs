@@ -64,7 +64,7 @@ impl Workbench {
 
     /// Lists the installed shells; the pick is saved as "terminal.shell".
     pub(super) fn open_shell_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let current = self.settings.get_string("terminal.shell");
+        let current = self.settings.get_string("terminal.shell").filter(|s| !s.trim().is_empty());
         let login = std::env::var("SHELL").unwrap_or_default();
         let mut default = PaletteItem::new("Login shell", PaletteAction::Command(Box::new(SetDefaultShell { shell: String::new() })));
         default.detail = Some(if login.is_empty() { "the system default".into() } else { login.clone() });
