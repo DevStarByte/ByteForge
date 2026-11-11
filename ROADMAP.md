@@ -19,7 +19,7 @@ The language server already supports all of these; the client needs the requests
 ## 2. Editor
 
 - [x] Code folding (braces, `#region`; indentation for XML/YAML), with gutter chevrons. `using` blocks (blank lines between included), runs of `//` / `///` comments and multi-line `/* */` comments fold too.
-- [x] Multiple cursors: Alt+Click, Ctrl+Alt+Up/Down, Ctrl+D to add the next match (plus Ctrl+Shift+L). Toggle Comment, Move / Duplicate / Delete Lines work on every cursor's lines (one undo step), and an accepted completion goes to every cursor that typed the same word. Still open: snippets with several cursors.
+- [x] Multiple cursors: Alt+Click, Ctrl+Alt+Up/Down, Ctrl+D to add the next match (plus Ctrl+Shift+L). Toggle Comment, Move / Duplicate / Delete Lines work on every cursor's lines (one undo step), and an accepted completion goes to every cursor that typed the same word. Snippets go to every cursor that typed the same prefix, and their fields are filled in together.
 - [x] Split editor (two editor groups side by side): Ctrl+\\, Ctrl+1/2. Tabs drag: onto another tab (reorder, or into the other group), onto a group's empty strip or editor (to its end), or onto the editor with one group (opens the right group). Still open: the same file in both groups (one shared buffer).
 - [x] User snippets (`prop`, `ctor`, `foreach`, `try`, …) offered in completion, with Tab between fields.
 - [x] Minimap.

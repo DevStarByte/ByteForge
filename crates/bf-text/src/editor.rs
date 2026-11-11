@@ -235,6 +235,21 @@ impl EditorState {
         all
     }
 
+    /// Sets one cursor per selection `(anchor, caret)`; `primary` is the index of the primary one.
+    pub fn set_selections(&mut self, selections: &[(Point, Point)], primary: usize) {
+        self.extra.clear();
+        for (i, &(anchor, caret)) in selections.iter().enumerate() {
+            let c = if anchor == caret { Cursor::new(caret, None) } else { Cursor::new(caret, Some(anchor)) };
+            if i == primary {
+                self.set_primary(c);
+            } else {
+                self.extra.push(c);
+            }
+        }
+        self.clamp();
+        self.merge_cursors();
+    }
+
     /// Drops the extra cursors, keeping the primary one.
     pub fn collapse_cursors(&mut self) {
         self.extra.clear();
