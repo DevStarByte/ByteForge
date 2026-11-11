@@ -325,6 +325,43 @@ impl Workbench {
         cx.notify();
     }
 
+    /// Moves tab `from` into `group`: before tab `at` (after it, when moving right in the same group), or
+    /// to the end of the group. A group's last tab can only leave it for the other, existing group.
+    pub(super) fn move_tab(&mut self, from: usize, group: usize, at: Option<usize>, window: &mut Window, cx: &mut Context<Self>) {
+        if from >= self.tabs.len() || at == Some(from) {
+            return;
+        }
+        let from_group = self.tabs[from].group;
+        if group != from_group && self.group_tabs(from_group).len() == 1 && !self.is_split() {
+            return; // the only tab can't split off on its own
+        }
+        let editors = |wb: &Self, ix: Option<usize>| ix.and_then(|i| wb.tabs.get(i)).map(|t| t.editor.clone());
+        let visible = [editors(self, self.visible[0]), editors(self, self.visible[1])];
+        let mut tab = self.tabs.remove(from);
+        tab.group = group;
+        let moved = tab.editor.clone();
+        let index = match at {
+            // Same group: the removal shifted the target, so this lands after it when moving right.
+            Some(target) if group == from_group => target.min(self.tabs.len()),
+            Some(target) => (if from < target { target - 1 } else { target }).min(self.tabs.len()),
+            None => self.tabs.iter().rposition(|t| t.group == group).map_or(self.tabs.len(), |p| p + 1),
+        };
+        self.tabs.insert(index, tab);
+        let find = |wb: &Self, e: &Option<Entity<EditorView>>| e.as_ref().and_then(|e| wb.tabs.iter().position(|t| t.editor == *e));
+        self.visible = [find(self, &visible[0]), find(self, &visible[1])];
+        let new_ix = self.tabs.iter().position(|t| t.editor == moved);
+        if from_group != group && self.visible[from_group] == new_ix {
+            self.visible[from_group] = None; // normalize_groups picks another tab there
+        }
+        self.visible[group] = new_ix;
+        self.focus_group = group;
+        self.normalize_groups();
+        if let Some(ix) = self.tabs.iter().position(|t| t.editor == moved) {
+            self.activate(ix, window, cx);
+        }
+        cx.notify();
+    }
+
     pub(super) fn focus_group(&mut self, group: usize, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(i) = self.visible[group].filter(|_| group == 0 || self.is_split()) {
             self.activate(i, window, cx);

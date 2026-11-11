@@ -2,6 +2,30 @@
 
 use super::*;
 
+/// A tab being dragged to another place or group; draws its title under the mouse.
+#[derive(Clone)]
+pub(super) struct DraggedTab {
+    pub index: usize,
+    title: String,
+}
+
+impl Render for DraggedTab {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let t = Theme::global(cx);
+        div()
+            .px_3()
+            .py_1()
+            .rounded(px(4.))
+            .bg(t.bg("tab.activeBackground"))
+            .border_1()
+            .border_color(t.c("menu.border"))
+            .text_color(t.c("tab.activeForeground"))
+            .text_size(t.m("tab.fontSize", 13.0))
+            .shadow(t.shadow("widget.shadow"))
+            .child(self.title.clone())
+    }
+}
+
 impl Workbench {
     /// The editor column; `editor.order` arranges tabs, breadcrumbs, content and the panel.
     pub(super) fn render_main(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -10,6 +34,7 @@ impl Workbench {
         let split = self.is_split();
         let tabs_at_bottom = lay.tabs_below_content();
         let show_tabs = lay.editor.iter().any(|p| p == "tabs");
+        let drop_color = t.c("focusBorder");
         let mut content: Option<gpui::AnyElement> = Some(if split {
             // Two groups side by side, each with its own tab strip.
             let border = t.c_or("editorGroup.border", 0x80808040);
@@ -18,7 +43,14 @@ impl Workbench {
                     let shown = self.visible[g].and_then(|i| self.tabs.get(i)).map(|t| (t.editor.clone(), t.page.clone()));
                     let editor: Option<gpui::AnyElement> = shown.map(|(editor, page)| self.render_page(page, editor, cx));
                     let tabs = show_tabs.then(|| self.render_tabs(tabs_at_bottom, g, cx));
-                    let body = div().flex_1().min_h_0().children(editor);
+                    // A tab dropped on a group's editor goes to the end of that group.
+                    let body = div()
+                        .id(SharedString::from(format!("editor-group-body-{g}")))
+                        .flex_1()
+                        .min_h_0()
+                        .children(editor)
+                        .drag_over::<DraggedTab>(move |s, _, _, _| s.border_2().border_color(drop_color))
+                        .on_drop(cx.listener(move |wb, d: &DraggedTab, w, cx| wb.move_tab(d.index, g, None, w, cx)));
                     div()
                         .id(SharedString::from(format!("editor-group-{g}")))
                         .flex_1()
@@ -53,7 +85,7 @@ impl Workbench {
                 "breadcrumbs" => col = col.children(self.render_breadcrumbs(cx)),
                 "content" => {
                     if let Some(c) = content.take() {
-                        col = col.child(div().flex_1().min_h_0().child(c));
+                        col = col.child(self.content_drop_zone(split, c, cx));
                     }
                 }
                 "panel" if self.panel_visible && !lay.panel_in_main() => {
@@ -64,9 +96,21 @@ impl Workbench {
             }
         }
         if let Some(c) = content {
-            col = col.child(div().flex_1().min_h_0().child(c));
+            col = col.child(self.content_drop_zone(split, c, cx));
         }
         col
+    }
+
+    /// The editor content; with one group, a tab dropped on it opens a second group on the right.
+    fn content_drop_zone(&self, split: bool, content: gpui::AnyElement, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let zone = div().id("editor-content").flex_1().min_h_0().child(content);
+        if split {
+            return zone.into_any_element();
+        }
+        let drop_color = Theme::global(cx).c("focusBorder");
+        zone.drag_over::<DraggedTab>(move |s, _, _, _| s.border_r_4().border_color(drop_color))
+            .on_drop(cx.listener(|wb, d: &DraggedTab, w, cx| wb.move_tab(d.index, 1, None, w, cx)))
+            .into_any_element()
     }
 
     /// What a tab shows: its page, or its editor.
@@ -84,6 +128,8 @@ impl Workbench {
         let indicator_bottom = t.layout.tab_indicator_bottom;
         let active = self.visible[group];
         let markdown_source = active.and_then(|i| self.tabs.get(i)).is_some_and(|t| t.page.is_none() && t.path.as_deref().is_some_and(preview::is_markdown));
+        let drop_color = t.c("focusBorder");
+        let group_ix = group;
         let tab_els: Vec<_> = self
             .tabs
             .iter()
@@ -161,6 +207,13 @@ impl Workbench {
                     .child(close)
                     .on_mouse_down(MouseButton::Middle, cx.listener(move |wb, _, w, cx| wb.close_tab(i, w, cx)))
                     .on_click(cx.listener(move |wb, _, w, cx| wb.activate(i, w, cx)))
+                    // Drag a tab onto another to move it there (also into the other group).
+                    .on_drag(DraggedTab { index: i, title: tab.title.clone() }, |d, _, _, cx| cx.new(|_| d.clone()))
+                    .drag_over::<DraggedTab>(move |s, d, _, _| if d.index == i { s } else { s.border_l_2().border_color(drop_color) })
+                    .on_drop(cx.listener(move |wb, d: &DraggedTab, w, cx| {
+                        cx.stop_propagation();
+                        wb.move_tab(d.index, group_ix, Some(i), w, cx);
+                    }))
             })
             .collect();
         div()
@@ -179,6 +232,8 @@ impl Workbench {
             })
             .border_color(t.c("editorGroupHeader.border"))
             .children(tab_els)
+            // Empty space of the strip: to the end of this group.
+            .on_drop(cx.listener(move |wb, d: &DraggedTab, w, cx| wb.move_tab(d.index, group_ix, None, w, cx)))
             .when(markdown_source, |d| {
                 d.child(div().flex_1()).child(div().flex_none().h_full().flex().items_center().child(
                     div()
