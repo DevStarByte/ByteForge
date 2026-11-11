@@ -1,0 +1,166 @@
+{
+  // Frosted acrylic: the desktop shows through blurred, and every panel adds a milky white haze instead of a
+  // dark tint, like a frosted sheet. Panels are separate sheets with a thin polished edge, and the accent is
+  // the pale mint of a cut acrylic edge. Corners are machined (small radius), not pills. As in Glass, the
+  // visible opacity is window.background + the panel's own color: raise the alpha (last two hex digits)
+  // for more contrast, lower it for more frost.
+  "name": "Acrylic",
+  "type": "dark",
+  "inherits": "ByteForge Dark",
+  "description": "Dark frosted acrylic with polished mint edges",
+
+  "colors": {
+    "accent": "#9fe8d6",
+    "focusBorder": "#9fe8d6",
+    "window.background": "#1b212670",
+    "window.foreground": "#eef3f5",
+    "foreground.muted": "#9fb0ba",
+    "icon.foreground": "#dfe8ec",
+    "overlay.background": "#0d111440",
+    "sash.hoverBorder": "#9fe8d6",
+
+    "titleBar.background": "linear-gradient(180deg, #c8d4dc1c, #c8d4dc0a)",
+    "titleBar.border": "#ffffff1c",
+    "titleBar.logo": "#9fe8d6",
+    "commandCenter.background": "#c8d4dc12",
+    "commandCenter.foreground": "#c3d0d7",
+    "commandCenter.border": "#ffffff24",
+    "commandCenter.hoverBorder": "#9fe8d680",
+    "commandCenter.hoverBackground": "#c8d4dc1c",
+    "windowControl.hoverBackground": "#c8d4dc1c",
+    "menu.background": "#262d33f2",
+    "menu.selectionBackground": "#9fe8d626",
+    "menu.border": "#ffffff24",
+
+    "activityBar.background": "#c8d4dc08",
+    "activityBar.border": "#ffffff14",
+    "activityBar.activeBorder": "#9fe8d6",
+    "activityBar.activeBackground": "#c8d4dc14",
+    "activityBar.hoverBackground": "#c8d4dc0d",
+    "activityBar.inactiveForeground": "#8a9ba5",
+
+    "sideBar.background": "#c8d4dc0a",
+    "sideBar.border": "#ffffff14",
+    "sideBarSectionHeader.foreground": "#c3d0d7",
+    "list.hoverBackground": "#c8d4dc0f",
+    "list.activeSelectionBackground": "#9fe8d61f",
+    "list.activeSelectionForeground": "#ffffff",
+
+    "editorGroupHeader.background": "#c8d4dc06",
+    "editorGroupHeader.border": "#ffffff14",
+    "tab.activeBackground": "#12171b60",
+    "tab.activeForeground": "#ffffff",
+    "tab.activeBorder": "#ffffff1c",
+    "tab.activeBorderTop": "#9fe8d6",
+    "tab.inactiveBackground": "transparent",
+    "tab.inactiveForeground": "#9fb0ba",
+    "tab.hoverBackground": "#c8d4dc0d",
+    "tab.border": "transparent",
+    "tab.modifiedIndicator": "#f2b880",
+    "breadcrumb.background": "#12171b60",
+    "breadcrumb.foreground": "#9fb0ba",
+
+    "editor.background": "#12171b60",
+    "editorGutter.background": "#12171b60",
+    "editor.foreground": "#e3eaee",
+    "editor.lineHighlightBackground": "#c8d4dc0a",
+    "editor.lineHighlightBorder": "transparent",
+    "editor.selectionBackground": "#9fe8d638",
+    "editorCursor.foreground": "#9fe8d6",
+    "editorLineNumber.foreground": "#ffffff55",
+    "editorLineNumber.activeForeground": "#cfe0e6",
+    "editorIndentGuide.background": "#ffffff14",
+    "editorWidget.background": "#262d33f4",
+    "editorWidget.border": "#ffffff24",
+
+    "panel.background": "#c8d4dc08",
+    "panel.border": "#ffffff14",
+    "panelTitle.activeBorder": "#9fe8d6",
+    "panelTitle.activeBackground": "#c8d4dc10",
+
+    "statusBar.background": "linear-gradient(180deg, #c8d4dc0a, #c8d4dc16)",
+    "statusBar.border": "#ffffff1c",
+    "statusBarItem.hoverBackground": "#c8d4dc1c",
+
+    "input.background": "#0d111440",
+    "input.border": "#ffffff24",
+    "button.background": "#9fe8d6",
+    "button.foreground": "#0f1a17",
+    "button.hoverBackground": "#b9f0e2",
+    "quickInput.background": "#262d33f4",
+    "quickInput.border": "#ffffff24",
+    "scrollbarSlider.background": "#c8d4dc30",
+    "scrollbarSlider.hoverBackground": "#c8d4dc50",
+    "welcome.logo": "#9fe8d640",
+    "welcome.titleForeground": "#eef3f5c0",
+    "welcome.foreground": "#c3d0d7b0"
+  },
+
+  "tokenColors": {
+    "keyword": "#9fe8d6",
+    "keyword - control": "#9fe8d6",
+    "comment": { "foreground": "#7d909b", "fontStyle": "italic" },
+    "string": "#f2b880",
+    "string - escape character": "#ffd6a8",
+    "number": "#f2b880",
+    "class name": "#9cc9ff",
+    "record class name": "#9cc9ff",
+    "struct name": "#9cc9ff",
+    "interface name": "#9cc9ff",
+    "enum name": "#9cc9ff",
+    "method name": "#d5c3ff",
+    "extension method name": "#d5c3ff",
+    "property name": "#e3eaee",
+    "field name": "#e3eaee",
+    "local name": "#e3eaee",
+    "parameter name": "#cfe0e6",
+    "constant name": "#f2b880",
+    "enum member name": "#f2b880",
+    "operator": "#9fb0ba",
+    "punctuation": "#9fb0ba",
+    "namespace name": "#c3d0d7"
+  },
+
+  "metrics": {
+    "titleBar.height": 38,
+    "titleBar.borderThickness": 1,
+    "commandCenter.radius": 5,
+    "commandCenter.height": 26,
+    "windowControl.radius": 4,
+
+    "activityBar.itemRadius": 5,
+    "activityBar.indicatorLeft.border": 2,
+    "activityBar.indicatorRight.border": 0,
+
+    "list.radius": 4,
+    "list.itemMargin": "6,1",
+
+    "tab.radius": 0,
+    "tab.borderThickness": 1,
+    "tab.indicatorSize": 2,
+    "editorGroupHeader.borderThickness": 1,
+    "panel.borderThickness": 1,
+    "panelTab.radius": 4,
+    "statusBar.borderThickness": 1,
+    "statusBarItem.radius": 4,
+
+    "widget.radius": 6,
+    "palette.radius": 8,
+    "input.radius": 4,
+    "button.radius": 4,
+    "scrollbar.size": 10,
+    "scrollbar.radius": 5,
+    "scrollbar.thumbMargin": 2
+  },
+
+  "editor": {
+    "selectionRadius": 3,
+    "lineHighlight": "fill"
+  },
+
+  "effects": {
+    "window.backdrop": "acrylic",
+    "palette.shadow": "0 18 48 0 #00000090",
+    "widget.shadow": "0 8 24 0 #00000070"
+  }
+}
