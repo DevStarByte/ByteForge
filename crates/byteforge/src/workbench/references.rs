@@ -72,11 +72,14 @@ impl Workbench {
     }
 
     /// Applies a rename: open files change in their editors (undoable), closed files on disk.
-    pub(super) fn apply_rename(&mut self, edit: &bf_lsp::WorkspaceEdit, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn apply_rename(&mut self, edit: &bf_lsp::WorkspaceEdit, window: &mut Window, cx: &mut Context<Self>) {
         let places: usize = edit.changes.iter().map(|(_, e)| e.len()).sum();
         let files = edit.changes.iter().filter(|(_, e)| !e.is_empty()).count();
-        self.apply_workspace_edit(edit, None, cx);
-        self.log(format!("Renamed {places} occurrence(s) in {files} file(s)."));
+        let edit = edit.clone();
+        self.confirm_workspace_edit("Rename", &edit.clone(), window, cx, move |wb, _, cx| {
+            wb.apply_workspace_edit(&edit, None, cx);
+            wb.log(format!("Renamed {places} occurrence(s) in {files} file(s)."));
+        });
     }
 
     pub(super) fn render_references(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {

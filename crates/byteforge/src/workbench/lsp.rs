@@ -101,6 +101,55 @@ impl Workbench {
     }
 
     fn finish_code_action(&mut self, action: bf_lsp::CodeAction, then: AfterApply, editor: gpui::WeakEntity<EditorView>, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(edit) = action.edit.clone() {
+            let title = action.display_title();
+            self.confirm_workspace_edit(&title, &edit, window, cx, move |wb, window, cx| wb.apply_code_action_now(action, then, editor, window, cx));
+        } else {
+            self.apply_code_action_now(action, then, editor, window, cx);
+        }
+    }
+
+    /// Before an edit that changes several files: asks, listing the files and how many places in each
+    /// ("refactor.previewMultiFileChanges"). One-file edits apply right away; undo takes them back.
+    pub(super) fn confirm_workspace_edit(
+        &mut self,
+        title: &str,
+        edit: &bf_lsp::WorkspaceEdit,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        apply: impl FnOnce(&mut Self, &mut Window, &mut Context<Self>) + 'static,
+    ) {
+        let files: Vec<(PathBuf, usize)> = edit.changes.iter().filter(|(_, e)| !e.is_empty()).map(|(p, e)| (p.clone(), e.len())).collect();
+        let creates = edit.creates.iter().filter(|p| !files.iter().any(|(f, _)| f == *p)).count();
+        if files.len() + creates <= 1 || !self.settings.get("refactor.previewMultiFileChanges", true) {
+            return apply(self, window, cx);
+        }
+        let root = self.workspace.root();
+        let places: usize = files.iter().map(|(_, n)| n).sum();
+        let mut lines: Vec<String> = files
+            .iter()
+            .take(12)
+            .map(|(p, n)| {
+                let shown = root.as_deref().and_then(|r| p.strip_prefix(r).ok()).unwrap_or(p).display().to_string();
+                let new = if p.exists() { "" } else { " (new file)" };
+                format!("{shown}: {n} change{}{new}", if *n == 1 { "" } else { "s" })
+            })
+            .collect();
+        if files.len() > 12 {
+            lines.push(format!("… and {} more files", files.len() - 12));
+        }
+        let question = format!("{title}: {places} change{} in {} files", if places == 1 { "" } else { "s" }, files.len() + creates);
+        let detail = format!("{}\n\nFiles that aren't open are opened with the changes, unsaved, so you can review them.", lines.join("\n"));
+        let rx = window.prompt(PromptLevel::Info, &question, Some(&detail), &["Apply", "Cancel"], cx);
+        cx.spawn_in(window, async move |this, cx| {
+            if let Ok(0) = rx.await {
+                let _ = this.update_in(cx, |wb, window, cx| apply(wb, window, cx));
+            }
+        })
+        .detach();
+    }
+
+    fn apply_code_action_now(&mut self, action: bf_lsp::CodeAction, then: AfterApply, editor: gpui::WeakEntity<EditorView>, window: &mut Window, cx: &mut Context<Self>) {
         let editor = editor.upgrade();
         // The file as it was, to tell the names a refactoring made up from the ones already there.
         let before = editor.as_ref().and_then(|e| {

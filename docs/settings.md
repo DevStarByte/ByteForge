@@ -16,6 +16,7 @@
   "terminal.shell": "/usr/bin/fish", "terminal.args": [],  // default: your login shell ($SHELL); also set by
                                                      // "Terminal: Select Default Shell…" (palette or the panel button)
   "editor.formatOnSave": false, "editor.defaultFormatter": "csharpier",   // or "csharp-ls"
+  "refactor.previewMultiFileChanges": true,            // ask (listing the files) before a rename or refactoring changes several files
   "refactor.renameGenerated": true,                    // after Extract Method / Introduce Local / Extract Interface, rename what it made up
   "git.blame.currentLine": true,                       // who last changed the caret's line, shown after it
   "explorer.autoReveal": true,                         // expand and scroll the tree to the file you switch to
