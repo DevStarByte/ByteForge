@@ -17,6 +17,7 @@ mod plugins;
 mod preview;
 mod references;
 mod render;
+mod settings_page;
 mod solution;
 mod symbols;
 mod tabs;
@@ -83,6 +84,8 @@ enum Page {
     Markdown(PathBuf),
     /// A diff editor (the tab's editor is its new side).
     Diff(Entity<crate::diff_view::DiffView>),
+    /// The settings screen.
+    Settings,
     /// The user secrets of a project, as a form (`file` is its secrets.json).
     Secrets { project: PathBuf, file: PathBuf },
 }
@@ -159,6 +162,8 @@ enum PromptKind {
     SecretNew { file: PathBuf },
     /// A new watch expression.
     WatchExpression,
+    /// A value for a setting on the settings screen.
+    SettingValue { key: String },
     /// A breakpoint's condition, hit count or log message.
     BreakpointOption { path: PathBuf, line: usize, option: debug::BreakpointOption },
 }
@@ -213,7 +218,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
         "csharp.reload",
     ]),
-    ("Preferences", &["settings.open", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
+    ("Preferences", &["settings.open", "settings.openJson", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
     ("Help", &["view.modules", "-", "app.checkForUpdates", "app.about"]),
 ];
 
@@ -271,6 +276,8 @@ pub struct Workbench {
     lsp_task: Option<Task<()>>,
     dotnet: Option<DotnetProcess>,
     dotnet_task: Option<Task<()>>,
+    /// The settings screen's search box.
+    settings_search: Option<Entity<TextInput>>,
     /// User-secrets pages showing their values (hidden by default).
     secrets_shown: std::collections::HashSet<PathBuf>,
     /// The project the running (or last) `dotnet watch` was started for, so it can be restarted.
@@ -536,6 +543,7 @@ impl Workbench {
             dotnet_task: None,
             watch_target: None,
             secrets_shown: Default::default(),
+            settings_search: None,
             build_problems: Vec::new(),
             debug: None,
             debug_generation: 0,

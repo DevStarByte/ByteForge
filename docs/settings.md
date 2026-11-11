@@ -1,6 +1,8 @@
 # Settings and keybindings
 
-`~/.config/byteforge/settings.json` (**Preferences → Open Settings**) reloads live:
+**Preferences → Settings** (Ctrl+,) lists the settings with switches and choices. They live in
+`~/.config/byteforge/settings.json` (**Preferences → Open Settings (JSON)**), which reloads live and keeps its
+comments when the settings screen changes a value:
 
 ```jsonc
 {

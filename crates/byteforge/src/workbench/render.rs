@@ -192,7 +192,8 @@ impl Render for Workbench {
                 }
             }))
             .on_action(cx.listener(|wb, _: &ReloadTheme, w, cx| wb.reload_theme(w, cx)))
-            .on_action(cx.listener(|wb, _: &OpenSettings, w, cx| {
+            .on_action(cx.listener(|wb, _: &OpenSettings, w, cx| wb.open_settings_page(w, cx)))
+            .on_action(cx.listener(|wb, _: &OpenSettingsJson, w, cx| {
                 let path = wb.settings.path().to_path_buf();
                 wb.open_file(path, None, w, cx)
             }))
