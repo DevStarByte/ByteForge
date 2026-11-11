@@ -13,9 +13,6 @@
 #   byteforge-<pkgver>-1-x86_64.pkg.tar.zst Arch package (`sudo pacman -U <file>`)
 #   ByteForge-<ver>-macos-arm64.dmg         macOS app, Apple Silicon (ad-hoc signed, not notarized)
 #   ByteForge-<ver>-macos-x64.dmg           macOS app, Intel (ad-hoc signed, not notarized)
-#   ByteForge-<ver>-macos-universal.dmg     both in one; only so installs from 0.3.4-beta.3 and older (whose
-#                                           updater looks for "-macos-universal.dmg") still find an update.
-#                                           Drop it once those versions are gone.
 # The signed [devstarbyte] pacman repo is still built by DevStarByte/arch-repo.
 name: Release
 
@@ -204,8 +201,6 @@ jobs:
             target: aarch64-apple-darwin
           - arch: x64
             target: x86_64-apple-darwin
-          - arch: universal
-            target: aarch64-apple-darwin, x86_64-apple-darwin
     env:
       VERSION: ${{ needs.version.outputs.version }}
       BYTEFORGE_VERSION: ${{ needs.version.outputs.version }}
