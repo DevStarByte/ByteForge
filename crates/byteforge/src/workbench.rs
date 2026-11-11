@@ -963,6 +963,7 @@ pub(crate) fn default_key(id: &str) -> String {
         "edit.fold" => "ctrl-shift-[",
         "edit.unfold" => "ctrl-shift-]",
         "view.goToWorkspaceSymbol" => "ctrl-t",
+        "view.goToSymbol" => "alt-\\",
         "edit.rename" => "f2",
         "edit.quickFix" => "ctrl-.",
         "edit.formatDocument" => "shift-alt-f",

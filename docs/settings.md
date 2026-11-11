@@ -57,4 +57,4 @@ conventions: Ctrl+Space, Ctrl+Tab, Ctrl+G, Ctrl+F5 and Ctrl+\` stay on ⌃; Repl
 | Ctrl+R Ctrl+M | Extract method | Ctrl+R Ctrl+I | Extract interface |
 | Ctrl+R Ctrl+G | Remove and sort usings | F7 / Shift+F7 | Next / previous change (diff editor) |
 | Ctrl+K | Color theme | Ctrl+Tab | Next editor |
-| Ctrl+Shift+G | Source Control | | |
+| Ctrl+Shift+G | Source Control | Alt+\\ | Go to symbol in editor |

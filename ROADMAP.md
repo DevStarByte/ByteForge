@@ -10,7 +10,7 @@ The language server already supports all of these; the client needs the requests
 - [x] **Rename Symbol** (F2): prompt with the current name, apply the workspace edit across files (open and closed).
 - [x] **Signature Help**: parameter hints while typing a call (on `(` and `,`, closes on `)` and Escape), with the active parameter in bold.
 - [x] **Go to Implementation** (Ctrl+F12) and **Go to Type Definition**: one result jumps, several go to the References panel.
-- [x] **Document Symbols**: Go to Symbol in Editor in the palette ("@"). Symbol breadcrumbs: the namespace, type and member around the caret follow the file path in the breadcrumbs bar; click one to go to its declaration. Still open: a key (Ctrl+Shift+O opens a folder today).
+- [x] **Document Symbols**: Go to Symbol in Editor in the palette ("@"). Symbol breadcrumbs: the namespace, type and member around the caret follow the file path in the breadcrumbs bar; click one to go to its declaration. Key: Alt+\\ (Visual Studio's Go to Member).
 - [x] **Workspace Symbols** (Ctrl+T): find any type or member by name ("#").
 - [x] **Document Highlight**: highlight the other uses of the symbol under the caret.
 - [x] **Inlay Hints**: inferred `var` types and parameter names (setting `editor.inlayHints`).

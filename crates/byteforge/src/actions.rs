@@ -299,7 +299,7 @@ fn builtin() -> Vec<Builtin> {
         ("edit.findReferences", "Find All References", "Go", Box::new(FindReferences), None),
         ("edit.goToImplementation", "Go to Implementations", "Go", Box::new(GoToImplementation), None),
         ("edit.goToTypeDefinition", "Go to Type Definition", "Go", Box::new(GoToTypeDefinition), None),
-        ("view.goToSymbol", "Go to Symbol in Editor…", "Go", Box::new(GoToSymbolInEditor), None),
+        ("view.goToSymbol", "Go to Symbol in Editor…", "Go", Box::new(GoToSymbolInEditor), Some("alt-\\")),
         ("view.goToWorkspaceSymbol", "Go to Symbol in Workspace…", "Go", Box::new(GoToSymbolInWorkspace), Some("ctrl-t")),
         ("edit.rename", "Rename Symbol", "Edit", Box::new(RenameSymbol), None),
         ("refactor.menu", "Refactor…", "Refactor", Box::new(Refactor), Some("ctrl-shift-r")),
