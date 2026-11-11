@@ -143,6 +143,10 @@ struct FindState {
     replace: Entity<TextInput>,
     show_replace: bool,
     match_case: bool,
+    whole_word: bool,
+    regex: bool,
+    /// Why the regular expression doesn't compile.
+    error: Option<String>,
     matches: Vec<(Point, Point)>,
     _subs: Vec<Subscription>,
 }
@@ -551,10 +555,10 @@ impl EditorView {
         self.schedule_git_diff(Duration::from_millis(120), cx);
         self.after_edit_merge(cx);
         self.schedule_outline(Duration::from_millis(1000), cx);
-        if let Some(find) = &self.find {
-            let (q, mc) = (find.query.read(cx).text().to_owned(), find.match_case);
+        if let Some(Ok(Some(matcher))) = self.find.as_ref().map(|f| f.matcher(cx)) {
+            let matches = self.state.find_matches(&matcher, 50_000);
             if let Some(find) = &mut self.find {
-                find.matches = self.state.find_all(&q, mc, 50_000);
+                find.matches = matches;
             }
         }
         self.state.clamp();

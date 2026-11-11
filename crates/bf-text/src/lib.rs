@@ -3,8 +3,10 @@
 
 mod buffer;
 mod editor;
+pub mod matcher;
 mod undo;
 
 pub use buffer::{Buffer, Change, LineEnding, Point};
 pub use editor::{CharClass, Cursor, EditorState, char_class, logical_col, visual_col};
+pub use matcher::{Matcher, Query};
 pub use undo::UndoStack;

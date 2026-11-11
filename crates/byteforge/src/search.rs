@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use bf_core::Workspace;
 use bf_core::search::{SearchHit, SearchMessage, search};
 use bf_text::Point;
-use gpui::{App, Context, Entity, EventEmitter, FocusHandle, Focusable, Subscription, Task, Window, div, prelude::*, px, uniform_list};
+use gpui::{App, Context, Entity, EventEmitter, FocusHandle, Focusable, HighlightStyle, SharedString, StyledText, Subscription, Task, Window, div, prelude::*, px, uniform_list};
 
 use crate::text_input::{InputEvent, TextInput};
 use crate::theme::Theme;
@@ -20,6 +20,8 @@ pub struct SearchView {
     workspace: Workspace,
     input: Entity<TextInput>,
     match_case: bool,
+    whole_word: bool,
+    regex: bool,
     hits: Vec<SearchHit>,
     summary: String,
     cancel: Arc<AtomicBool>,
@@ -43,7 +45,7 @@ impl SearchView {
                 this.run(cx);
             }
         });
-        Self { workspace, input, match_case: false, hits: Vec::new(), summary: String::new(), cancel: Arc::new(AtomicBool::new(false)), task: None, _sub: sub }
+        Self { workspace, input, match_case: false, whole_word: false, regex: false, hits: Vec::new(), summary: String::new(), cancel: Arc::new(AtomicBool::new(false)), task: None, _sub: sub }
     }
 
     fn run(&mut self, cx: &mut Context<Self>) {
@@ -55,14 +57,22 @@ impl SearchView {
             cx.notify();
             return;
         }
+        let matcher = match bf_text::Matcher::new(&bf_text::Query { text: query, match_case: self.match_case, whole_word: self.whole_word, regex: self.regex }) {
+            Ok(Some(m)) => m,
+            Ok(None) => return,
+            Err(e) => {
+                self.summary = format!("Invalid regular expression: {e}");
+                cx.notify();
+                return;
+            }
+        };
         self.summary = "Searching…".into();
         let cancel = Arc::new(AtomicBool::new(false));
         self.cancel = cancel.clone();
         let workspace = self.workspace.clone();
-        let match_case = self.match_case;
         self.task = Some(cx.spawn(async move |this, cx| {
             let files = cx.background_executor().spawn(async move { workspace.files() }).await;
-            let rx = search(files, query, match_case, cancel);
+            let rx = search(files, matcher, cancel);
             while let Ok(message) = rx.recv_async().await {
                 let done = matches!(message, SearchMessage::Done { .. });
                 let alive = this
@@ -109,7 +119,7 @@ impl Render for SearchView {
                         .justify_center()
                         .cursor_pointer()
                         .hover(|s| s.bg(t.c("list.hoverBackground")))
-                        .child(div().whitespace_nowrap().overflow_hidden().child(hit.preview.clone()))
+                        .child(div().whitespace_nowrap().overflow_hidden().child(preview(hit, &t)))
                         .child(div().whitespace_nowrap().overflow_hidden().text_size(px(11.)).text_color(t.c("foreground.muted")).child(format!("{rel}:{}", hit.line + 1)))
                         .on_click(move |_, _, cx| entity.update(cx, |_, cx| cx.emit(SearchEvent::Open(path.clone(), point))))
                 })
@@ -129,21 +139,54 @@ impl Render for SearchView {
                     .items_center()
                     .gap_1()
                     .child(div().flex_1().child(self.input.clone()))
-                    .child(
-                        div()
-                            .id("search-case")
-                            .px_1()
-                            .rounded(px(3.))
-                            .cursor_pointer()
-                            .when(self.match_case, |d| d.bg(t.bg("button.background")).text_color(t.c("button.foreground")))
-                            .child("Aa")
-                            .on_click(cx.listener(|v, _, _, cx| {
-                                v.match_case = !v.match_case;
-                                v.run(cx);
-                            })),
-                    ),
+                    .child(toggle("search-case", "Aa", self.match_case, "Match Case", &t).on_click(cx.listener(|v, _, _, cx| {
+                        v.match_case = !v.match_case;
+                        v.run(cx);
+                    })))
+                    .child(toggle("search-word", "ab", self.whole_word, "Match Whole Word", &t).underline().on_click(cx.listener(|v, _, _, cx| {
+                        v.whole_word = !v.whole_word;
+                        v.run(cx);
+                    })))
+                    .child(toggle("search-regex", ".*", self.regex, "Use Regular Expression", &t).on_click(cx.listener(|v, _, _, cx| {
+                        v.regex = !v.regex;
+                        v.run(cx);
+                    }))),
             )
             .child(div().px_3().text_size(px(12.)).text_color(t.c("foreground.muted")).child(self.summary.clone()))
             .child(list)
     }
+}
+
+/// An option button of the search box ("Aa", "ab", ".*").
+fn toggle(id: &'static str, label: &'static str, on: bool, tip: &'static str, t: &Theme) -> gpui::Stateful<gpui::Div> {
+    let hover = t.c("toolbar.hoverBackground");
+    div()
+        .id(id)
+        .px_1()
+        .rounded(px(3.))
+        .cursor_pointer()
+        .when(on, |d| d.bg(t.bg("button.background")).text_color(t.c("button.foreground")))
+        .when(!on, |d| d.hover(move |s| s.bg(hover)))
+        .child(label)
+        .tooltip(crate::workbench::tooltip(tip))
+}
+
+/// The hit's line (trimmed, at most 200 chars) with its matches highlighted.
+fn preview(hit: &SearchHit, t: &Theme) -> StyledText {
+    let lead = hit.text.chars().take_while(|c| c.is_whitespace()).count();
+    let shown: String = hit.text.chars().skip(lead).take(200).collect();
+    let shown = shown.trim_end().to_owned();
+    let len = shown.chars().count();
+    // Char ranges of the full line → byte ranges of the shown text.
+    let byte_at = |col: usize| shown.char_indices().nth(col).map_or(shown.len(), |(b, _)| b);
+    let style = HighlightStyle { background_color: Some(t.c_or("editor.findMatchHighlightBackground", 0xea5c0055)), ..Default::default() };
+    let highlights: Vec<(std::ops::Range<usize>, HighlightStyle)> = hit
+        .ranges
+        .iter()
+        .filter_map(|&(s, e)| {
+            let (s, e) = (s.saturating_sub(lead).min(len), e.saturating_sub(lead).min(len));
+            (e > s).then(|| (byte_at(s)..byte_at(e), style))
+        })
+        .collect();
+    StyledText::new(SharedString::from(shown)).with_highlights(highlights)
 }

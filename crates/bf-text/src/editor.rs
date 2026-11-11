@@ -1148,27 +1148,25 @@ impl EditorState {
     }
 
     /// Finds all occurrences of `query` (single line) as (start, end) points.
+    /// Plain-text matches of `query` (see [`EditorState::find_matches`]).
     pub fn find_all(&self, query: &str, match_case: bool, limit: usize) -> Vec<(Point, Point)> {
-        let mut result = Vec::new();
-        if query.is_empty() || query.contains('\n') {
-            return result;
+        if query.contains('\n') {
+            return Vec::new();
         }
-        let needle = if match_case { query.to_owned() } else { query.to_lowercase() };
-        let needle_len = query.chars().count();
+        match crate::Matcher::new(&crate::Query { text: query.to_owned(), match_case, ..Default::default() }) {
+            Ok(Some(m)) => self.find_matches(&m, limit),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Every match of `matcher` in the buffer (line by line), as char ranges, up to `limit`.
+    pub fn find_matches(&self, matcher: &crate::Matcher, limit: usize) -> Vec<(Point, Point)> {
+        let mut result = Vec::new();
         for l in 0..self.buffer.line_count() {
             let text = self.buffer.line(l);
-            let hay = if match_case { text.to_string() } else { text.to_lowercase() };
-            if hay.len() != text.len() {
-                // Lowercasing changed byte lengths; fall back to exact matching for this line.
-                for (byte, _) in text.match_indices(query) {
-                    let col = text[..byte].chars().count();
-                    result.push((Point::new(l, col), Point::new(l, col + needle_len)));
-                }
-                continue;
-            }
-            for (byte, _) in hay.match_indices(&needle) {
-                let col = text[..byte].chars().count();
-                result.push((Point::new(l, col), Point::new(l, col + needle_len)));
+            for range in matcher.find_in(&text) {
+                let (s, e) = crate::matcher::char_range(&text, range);
+                result.push((Point::new(l, s), Point::new(l, e)));
                 if result.len() >= limit {
                     return result;
                 }

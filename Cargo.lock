@@ -530,6 +530,7 @@ name = "bf-core"
 version = "0.3.4"
 dependencies = [
  "anyhow",
+ "bf-text",
  "dirs 5.0.1",
  "flume",
  "json5",
@@ -586,6 +587,7 @@ dependencies = [
 name = "bf-text"
 version = "0.3.4"
 dependencies = [
+ "regex",
  "ropey",
 ]
 

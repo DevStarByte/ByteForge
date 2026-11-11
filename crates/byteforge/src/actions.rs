@@ -80,7 +80,7 @@ actions!(
         Delete, DeleteWordRight, Newline, Tab, Outdent, SelectAll, Copy, Cut, Paste, Undo, Redo, DuplicateLines, DeleteLines,
         MoveLinesUp, MoveLinesDown, ToggleComment, Find, Replace, FindNext, FindPrevious, TriggerCompletion, GoToDefinition,
         Cancel, ToggleBreakpoint, QuickFix, FindReferences, RenameSymbol, ShowSignatureHelp, GoToImplementation, GoToTypeDefinition, Fold, Unfold, FoldAll, UnfoldAll,
-        AddCursorAbove, AddCursorBelow, AddNextMatch, SelectAllMatches
+        AddCursorAbove, AddCursorBelow, AddNextMatch, SelectAllMatches, ToggleFindCase, ToggleFindWholeWord, ToggleFindRegex
     ]
 );
 
@@ -456,6 +456,13 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         kb("ctrl-r ctrl-r", RenameSymbol, e),
         kb("ctrl-shift-space", ShowSignatureHelp, e),
         kb("escape", Cancel, e),
+    ]);
+    // The find bar's options. macOS keeps Option+letter for typing (ç, ∑, ®), so Cmd+Option there.
+    let find_key = |letter: char| if cfg!(target_os = "macos") { format!("cmd-alt-{letter}") } else { format!("alt-{letter}") };
+    cx.bind_keys([
+        KeyBinding::new(&find_key('c'), ToggleFindCase, e),
+        KeyBinding::new(&find_key('w'), ToggleFindWholeWord, e),
+        KeyBinding::new(&find_key('r'), ToggleFindRegex, e),
     ]);
     if cfg!(target_os = "macos") {
         // Cmd+Arrow goes to the line ends, like every macOS text view (Cmd+Up/Down come from ctrl-home/end).

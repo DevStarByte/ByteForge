@@ -5,3 +5,4 @@ edition.workspace = true
 
 [dependencies]
 ropey.workspace = true
+regex = "1"

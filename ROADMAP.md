@@ -14,7 +14,7 @@ the git history.
 
 ## 2. Everyday features
 
-- [ ] Search: regex and whole-word options in Find and in Search across files.
+- [x] Search: regex and whole-word options in Find and in Search across files (Aa / ab / .* toggles, Alt+C/W/R in the find bar, `$1` groups in Replace, matches highlighted in the Search results).
 - [ ] Replace across files (Search view), with a preview of each match.
 - [ ] Debugger: conditional breakpoints, logpoints, hit counts.
 - [ ] Debugger: watch expressions, and a variable's value on hover while paused.
