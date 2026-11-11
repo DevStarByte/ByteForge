@@ -7,9 +7,8 @@ impl EditorView {
         let l = &self.layout;
         let lh = l.line_height.max(1.0);
         let row = (((y - l.top) + self.scroll.1) / lh).floor().max(0.0) as usize;
-        let line = self.folds.line_of(row).min(self.state.buffer.line_count() - 1);
-        let visual = (x - l.text_left + self.scroll.0) / l.char_width.max(1.0);
-        Point::new(line, self.col_at_visual(line, visual))
+        let cell = (x - l.text_left + self.scroll.0) / l.char_width.max(1.0);
+        self.point_at_cell(row, cell)
     }
 
     pub(super) fn scrollbar_zone(&self, x: f32, y: f32) -> Option<bool> {
@@ -126,7 +125,7 @@ impl EditorView {
                 return;
             }
             DragMode::VScroll(last) => {
-                let ratio = (self.folds.row_count(self.state.buffer.line_count()) as f32 * self.layout.line_height) / self.layout.height.max(1.0);
+                let ratio = (self.row_count() as f32 * self.layout.line_height) / self.layout.height.max(1.0);
                 self.scroll_to((self.scroll.0, self.scroll.1 + (y - last) * ratio.max(1.0)), false);
                 self.drag = DragMode::VScroll(y);
                 cx.notify();

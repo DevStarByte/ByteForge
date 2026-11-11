@@ -21,16 +21,16 @@ impl EditorView {
             .on_action(cx.listener(|v, _: &SelectWordRight, _, cx| v.mv(cx, |s| s.move_right(true, true))))
             .on_action(cx.listener(|v, _: &MoveUp, _, cx| {
                 if !v.action_menu_nav(-1, cx) && !v.completion_nav(-1, cx) {
-                    v.mv(cx, |s| s.move_vertical(-1, false))
+                    v.vertical(-1, false, cx)
                 }
             }))
             .on_action(cx.listener(|v, _: &MoveDown, _, cx| {
                 if !v.action_menu_nav(1, cx) && !v.completion_nav(1, cx) {
-                    v.mv(cx, |s| s.move_vertical(1, false))
+                    v.vertical(1, false, cx)
                 }
             }))
-            .on_action(cx.listener(|v, _: &SelectUp, _, cx| v.mv(cx, |s| s.move_vertical(-1, true))))
-            .on_action(cx.listener(|v, _: &SelectDown, _, cx| v.mv(cx, |s| s.move_vertical(1, true))))
+            .on_action(cx.listener(|v, _: &SelectUp, _, cx| v.vertical(-1, true, cx)))
+            .on_action(cx.listener(|v, _: &SelectDown, _, cx| v.vertical(1, true, cx)))
             .on_action(cx.listener(|v, _: &MoveHome, _, cx| v.mv(cx, |s| s.move_home(false))))
             .on_action(cx.listener(|v, _: &MoveEnd, _, cx| v.mv(cx, |s| s.move_end(false))))
             .on_action(cx.listener(|v, _: &SelectHome, _, cx| v.mv(cx, |s| s.move_home(true))))
@@ -48,7 +48,7 @@ impl EditorView {
                     let n = v.page_lines();
                     let t = (v.scroll_target.0, v.scroll_target.1 - n as f32 * v.layout.line_height);
                     v.scroll_to(t, v.smooth_scrolling);
-                    v.mv(cx, |s| s.move_vertical(-n, false));
+                    v.vertical(-n, false, cx);
                 }
             }))
             .on_action(cx.listener(|v, _: &PageDown, _, cx| {
@@ -56,16 +56,16 @@ impl EditorView {
                     let n = v.page_lines();
                     let t = (v.scroll_target.0, v.scroll_target.1 + n as f32 * v.layout.line_height);
                     v.scroll_to(t, v.smooth_scrolling);
-                    v.mv(cx, |s| s.move_vertical(n, false));
+                    v.vertical(n, false, cx);
                 }
             }))
             .on_action(cx.listener(|v, _: &SelectPageUp, _, cx| {
                 let n = v.page_lines();
-                v.mv(cx, |s| s.move_vertical(-n, true))
+                v.vertical(-n, true, cx)
             }))
             .on_action(cx.listener(|v, _: &SelectPageDown, _, cx| {
                 let n = v.page_lines();
-                v.mv(cx, |s| s.move_vertical(n, true))
+                v.vertical(n, true, cx)
             }))
             .on_action(cx.listener(|v, _: &ScrollLineUp, _, cx| {
                 let t = (v.scroll.0, v.scroll.1 - v.layout.line_height);

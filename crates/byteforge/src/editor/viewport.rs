@@ -9,7 +9,7 @@ impl EditorView {
             return;
         }
         let lh = self.layout.line_height;
-        let y = self.folds.row_of(p.line) as f32 * lh;
+        let y = self.screen_pos(p, true).0 as f32 * lh;
         let mut target = self.scroll_target;
         if center {
             target.1 = y - (self.layout.height - lh) / 2.0;
@@ -40,6 +40,9 @@ impl EditorView {
         }
         let caret = self.state.caret();
         self.reveal(caret, false);
+        if self.wrap.is_some() {
+            return; // nothing runs off to the right
+        }
         let line = self.state.buffer.line(caret.line);
         let x = (bf_text::visual_col(&line, caret.col, self.state.tab_size) + self.inlay_shift(caret.line, caret.col, false)) as f32 * self.layout.char_width;
         let width = self.layout.text_width();
@@ -54,10 +57,10 @@ impl EditorView {
 
     pub(crate) fn clamp_scroll(&self, v: (f32, f32)) -> (f32, f32) {
         let lh = self.layout.line_height.max(1.0);
-        let max_y = ((self.folds.row_count(self.state.buffer.line_count()) as f32 - 1.0) * lh).max(0.0);
+        let max_y = ((self.row_count() as f32 - 1.0) * lh).max(0.0);
         let content_w = self.max_line_chars as f32 * self.layout.char_width + self.layout.char_width * 8.0;
         let view_w = self.layout.text_width();
-        let max_x = (content_w - view_w).max(0.0);
+        let max_x = if self.wrap.is_some() { 0.0 } else { (content_w - view_w).max(0.0) };
         (v.0.clamp(0.0, max_x), v.1.clamp(0.0, max_y))
     }
 

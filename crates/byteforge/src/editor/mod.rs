@@ -16,6 +16,7 @@ mod popups;
 mod refactor;
 mod snippet;
 mod viewport;
+mod wrap;
 
 use std::ops::Range;
 use std::path::PathBuf;
@@ -257,6 +258,11 @@ pub struct EditorView {
     /// Inlay hints sorted by position ("editor.inlayHints").
     pub(crate) inlays: Vec<inlays::Inlay>,
     pub inlay_hints_enabled: bool,
+    /// Long lines continue on the next rows ("editor.wordWrap").
+    pub word_wrap: bool,
+    pub(crate) wrap: Option<wrap::WrapMap>,
+    /// Up/Down with word wrap: the caret after the last vertical move and the column it aims for.
+    wrap_goal: Option<(Point, usize)>,
     pub minimap_enabled: bool,
     /// Test Explorer states of the tests (and test classes) declared in this file, by line.
     test_marks: Vec<(usize, crate::testing::TestState)>,
@@ -382,6 +388,9 @@ impl EditorView {
             snippet_session: None,
             inlays: Vec::new(),
             inlay_hints_enabled: true,
+            word_wrap: false,
+            wrap: None,
+            wrap_goal: None,
             minimap_enabled: false,
             test_marks: Vec::new(),
             minimap: None,
@@ -673,8 +682,8 @@ impl EditorView {
         let first = (self.scroll.1 / lh).floor().max(0.0) as usize;
         let last = ((self.scroll.1 + height) / lh).ceil() as usize;
         let max = self.state.buffer.line_count() - 1;
-        // Rows to lines: folded lines between them aren't drawn.
-        (self.folds.line_of(first).min(max), self.folds.line_of(last).min(max))
+        // Rows to lines: folded lines between them aren't drawn, wrapped lines take several rows.
+        (self.line_at_row(first).0.min(max), self.line_at_row(last).0.min(max))
     }
 
     /// Re-detects the language from the file name (a module's language appeared or went away) and
@@ -1029,9 +1038,9 @@ impl Render for EditorView {
 
 impl EditorView {
     fn caret_screen_pos(&self, p: Point) -> (f32, f32) {
-        let line = self.state.buffer.line(p.line);
-        let x = self.layout.text_left - self.scroll.0 + (bf_text::visual_col(&line, p.col, self.state.tab_size) + self.inlay_shift(p.line, p.col, false)) as f32 * self.layout.char_width;
-        let y = self.layout.top + self.folds.row_of(p.line) as f32 * self.layout.line_height - self.scroll.1;
+        let (row, cell) = self.screen_pos(p, false);
+        let x = self.layout.text_left - self.scroll.0 + cell as f32 * self.layout.char_width;
+        let y = self.layout.top + row as f32 * self.layout.line_height - self.scroll.1;
         (x - self.layout.left, y - self.layout.top)
     }
 

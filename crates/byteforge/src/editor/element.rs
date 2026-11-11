@@ -206,6 +206,7 @@ impl Element for EditorElement {
                 // Cached per buffer version.
                 view.fold_regions();
             }
+            view.update_wrap();
             view.take_pending_reveal();
             if view.follow_scroll_link() {
                 window.request_animation_frame();
@@ -230,8 +231,9 @@ impl Element for EditorElement {
             }
             let caret = view.state.caret();
             let caret_line = view.state.buffer.line(caret.line);
-            let caret_visual = visual_col(&caret_line, caret.col, view.state.tab_size) + view.inlay_shift(caret.line, caret.col, false);
-            let target = (caret_visual as f32 * char_width, view.folds.row_of(caret.line) as f32 * line_height);
+            let _ = &caret_line;
+            let (caret_row, caret_cell) = view.screen_pos(caret, false);
+            let target = (caret_cell as f32 * char_width, caret_row as f32 * line_height);
             if style.smooth_caret {
                 let drawn = view.caret_drawn.unwrap_or(target);
                 let (cx_, cy_) = (target.0 - drawn.0, target.1 - drawn.1);
@@ -494,10 +496,38 @@ impl Element for EditorElement {
         let origin_x = l.text_left - sx;
         let gutter_right = l.left + l.gutter;
         let line_top = |line: usize| px(l.top + view.row_of(line) as f32 * lh - sy);
-        // Where the character at `col` is drawn (after any inlay hint attached there), and where a range ending
-        // at `col` ends (before such a hint).
-        let x_at = |line: usize, col: usize| -> f32 { origin_x + (visual_col(view.line(line), col, tab) + view.inlay_shift(line, col, true)) as f32 * cw };
-        let x_end = |line: usize, col: usize| -> f32 { origin_x + (visual_col(view.line(line), col, tab) + view.inlay_shift(line, col, false)) as f32 * cw };
+        let wrap_cols = view.wrap.as_ref().map(|w| w.0);
+        // Where visual column `v` of `line` is drawn: (x, top of its row).
+        let cell_at = |line: usize, v: usize| -> (f32, Pixels) {
+            match wrap_cols {
+                Some(cols) => {
+                    let (seg, x) = super::wrap::segment_of(v, view.visual_len(line), cols);
+                    (origin_x + x as f32 * cw, line_top(line) + px(seg as f32 * lh))
+                }
+                None => (origin_x + v as f32 * cw, line_top(line)),
+            }
+        };
+        // The character at `col` (after an inlay hint there): its x and row top.
+        let pos = |line: usize, col: usize| cell_at(line, visual_col(view.line(line), col, tab) + view.inlay_shift(line, col, true));
+        // The pieces of `c0..c1` on `line`, one per screen row: (x0, x1, row top).
+        let spans = |line: usize, c0: usize, c1: usize| -> Vec<(f32, f32, Pixels)> {
+            let v0 = visual_col(view.line(line), c0, tab) + view.inlay_shift(line, c0, true);
+            let v1 = visual_col(view.line(line), c1, tab) + view.inlay_shift(line, c1, false);
+            let top = line_top(line);
+            let Some(cols) = wrap_cols else { return vec![(origin_x + v0 as f32 * cw, origin_x + v1 as f32 * cw, top)] };
+            if v1 <= v0 {
+                let (x, y) = cell_at(line, v0);
+                return vec![(x, x, y)];
+            }
+            (v0 / cols..=(v1 - 1) / cols)
+                .map(|seg| {
+                    let (a, b) = (v0.max(seg * cols), v1.min((seg + 1) * cols));
+                    (origin_x + (a - seg * cols) as f32 * cw, origin_x + (b - seg * cols) as f32 * cw, top + px(seg as f32 * lh))
+                })
+                .collect()
+        };
+        // The height of a whole line (all its rows).
+        let line_h = |line: usize| px(view.rows(line) as f32 * lh);
         let (first, last) = (view.first, view.last);
         let width = bounds.size.width;
 
@@ -510,7 +540,7 @@ impl Element for EditorElement {
             let has_selection = view.has_selection;
             let highlight = if has_selection { LineHighlight::None } else { style.line_highlight };
             if (first..=last).contains(&caret.line) {
-                let row = Bounds::new(point(px(gutter_right), line_top(caret.line)), size(width - px(l.gutter), px(lh)));
+                let row = Bounds::new(point(px(gutter_right), line_top(caret.line)), size(width - px(l.gutter), line_h(caret.line)));
                 if matches!(highlight, LineHighlight::Fill | LineHighlight::All) {
                     window.paint_quad(fill(row, theme.bg("editor.lineHighlightBackground")));
                 }
@@ -528,12 +558,12 @@ impl Element for EditorElement {
                 } else {
                     theme.c_or("editor.focusedStackFrameHighlightBackground", 0x7abd7a4d)
                 };
-                window.paint_quad(fill(Bounds::new(point(px(gutter_right), line_top(line)), size(width - px(l.gutter), px(lh))), color));
+                window.paint_quad(fill(Bounds::new(point(px(gutter_right), line_top(line)), size(width - px(l.gutter), line_h(line))), color));
             }
 
             // Whole-line backgrounds (diff view).
             for &(line, key) in &view.line_backgrounds {
-                window.paint_quad(fill(Bounds::new(point(px(gutter_right), line_top(line)), size(width - px(l.gutter), px(lh))), diff_background(&theme, key)));
+                window.paint_quad(fill(Bounds::new(point(px(gutter_right), line_top(line)), size(width - px(l.gutter), line_h(line))), diff_background(&theme, key)));
             }
 
             // Rulers.
@@ -553,14 +583,17 @@ impl Element for EditorElement {
                     let len = view.line_len(line);
                     let c0 = if line == s.line { s.col } else { 0 };
                     let c1 = if line == e.line { e.col } else { len };
-                    let x0 = x_at(line, c0);
-                    let x1 = x_end(line, c1) + if extend && line != e.line { cw * 0.6 } else { 0.0 };
-                    if x1 <= x0 {
-                        continue;
+                    let pieces = spans(line, c0, c1);
+                    let n = pieces.len();
+                    for (i, (x0, x1, top)) in pieces.into_iter().enumerate() {
+                        let x1 = x1 + if extend && line != e.line && i + 1 == n { cw * 0.6 } else { 0.0 };
+                        if x1 <= x0 {
+                            continue;
+                        }
+                        let b = Bounds::new(point(px(x0), top), size(px(x1 - x0), px(lh)));
+                        let r = px(style.selection_radius);
+                        window.paint_quad(quad(b, Corners::all(r), bg, if border.is_some() { 1.0 } else { 0.0 }, border.unwrap_or_default(), gpui::BorderStyle::Solid));
                     }
-                    let b = Bounds::new(point(px(x0), line_top(line)), size(px(x1 - x0), px(lh)));
-                    let r = px(style.selection_radius);
-                    window.paint_quad(quad(b, Corners::all(r), bg, if border.is_some() { 1.0 } else { 0.0 }, border.unwrap_or_default(), gpui::BorderStyle::Solid));
                 }
             };
             // Changed words (diff view).
@@ -579,8 +612,9 @@ impl Element for EditorElement {
             // Inlay hint backgrounds (the text is part of the shaped line).
             let inlay_bg = theme.c_or("editorInlayHint.background", 0x8080801f);
             for hint in &view.inlays {
-                let x = x_end(hint.at.line, hint.at.col) + hint.pad_left as f32 * cw;
-                let rect = Bounds::new(point(px(x - 1.0), line_top(hint.at.line) + px(lh * 0.1)), size(px(hint.label_len as f32 * cw + 2.0), px(lh * 0.8)));
+                let v = visual_col(view.line(hint.at.line), hint.at.col, tab) + view.inlay_shift(hint.at.line, hint.at.col, false) + hint.pad_left;
+                let (x, top) = cell_at(hint.at.line, v);
+                let rect = Bounds::new(point(px(x - 1.0), top + px(lh * 0.1)), size(px(hint.label_len as f32 * cw + 2.0), px(lh * 0.8)));
                 window.paint_quad(quad(rect, Corners::all(px(3.)), inlay_bg, 0.0, Hsla::default(), gpui::BorderStyle::Solid));
             }
 
@@ -609,7 +643,8 @@ impl Element for EditorElement {
                     if p.line < first || p.line > last {
                         continue;
                     }
-                    let rect = Bounds::new(point(px(x_at(p.line, p.col)), line_top(p.line)), size(px(cw), px(lh)));
+                    let (bx, btop) = pos(p.line, p.col);
+                    let rect = Bounds::new(point(px(bx), btop), size(px(cw), px(lh)));
                     let border = if b.is_some() { theme.c("editorBracketMatch.border") } else { theme.c("editorBracketHighlight.unexpectedBracket.foreground") };
                     window.paint_quad(quad(rect, Corners::all(px(2.)), theme.bg("editorBracketMatch.background"), 1.0, border, gpui::BorderStyle::Solid));
                 }
@@ -640,14 +675,16 @@ impl Element for EditorElement {
                     let mut v = 0;
                     for (col, ch) in text.chars().enumerate() {
                         let next = if ch == '\t' { (v / tab + 1) * tab } else { v + 1 };
-                        let hints = view.inlay_shift(line, col, true) as f32 * cw;
+                        let hints = view.inlay_shift(line, col, true);
+                        let (cell_x, cell_top) = cell_at(line, v + hints);
+                        let _ = top;
                         if ch == ' ' {
-                            let x = origin_x + hints + (v as f32 + 0.5) * cw - 1.0;
-                            window.paint_quad(fill(Bounds::new(point(px(x), top + px(lh / 2.0 - 1.0)), size(px(2.), px(2.))), ws_color));
+                            let x = cell_x + 0.5 * cw - 1.0;
+                            window.paint_quad(fill(Bounds::new(point(px(x), cell_top + px(lh / 2.0 - 1.0)), size(px(2.), px(2.))), ws_color));
                         } else if ch == '\t' {
-                            let x0 = origin_x + hints + (v as f32 + 0.2) * cw;
-                            let x1 = origin_x + hints + (next as f32 - 0.2) * cw;
-                            window.paint_quad(fill(Bounds::new(point(px(x0), top + px(lh / 2.0)), size(px(x1 - x0), px(1.))), ws_color));
+                            let x0 = cell_x + 0.2 * cw;
+                            let x1 = cell_x + ((next - v) as f32 - 0.2) * cw;
+                            window.paint_quad(fill(Bounds::new(point(px(x0), cell_top + px(lh / 2.0)), size(px(x1 - x0), px(1.))), ws_color));
                         } else if style.whitespace == Whitespace::Leading {
                             break;
                         }
@@ -656,10 +693,25 @@ impl Element for EditorElement {
                 }
             }
 
-            // Text.
+            // Text. A wrapped line is painted once per row, shifted left and clipped to that row.
             for (line, _, shaped) in &prepaint.lines {
                 let y = line_top(*line);
-                let _ = shaped.paint(point(px(origin_x), y), px(lh), window, cx);
+                match wrap_cols {
+                    Some(cols) => {
+                        let row_w = cols as f32 * cw;
+                        for seg in 0..view.rows(*line) {
+                            let top = y + px(seg as f32 * lh);
+                            // A little past the row's end, so a glyph's overhang (italic) isn't cut.
+                            let clip = Bounds::new(point(px(origin_x), top), size(px(row_w + cw * 0.5), px(lh)));
+                            window.with_content_mask(Some(gpui::ContentMask { bounds: clip }), |window| {
+                                let _ = shaped.paint(point(px(origin_x - seg as f32 * row_w), top), px(lh), window, cx);
+                            });
+                        }
+                    }
+                    None => {
+                        let _ = shaped.paint(point(px(origin_x), y), px(lh), window, cx);
+                    }
+                }
             }
 
             // Folded regions: a "⋯" marker after their first line.
@@ -669,8 +721,8 @@ impl Element for EditorElement {
                 if start < first || start > last || view.is_hidden(start) {
                     continue;
                 }
-                let x = x_end(start, view.line_len(start)) + cw;
-                let top = line_top(start);
+                let (x, top) = cell_at(start, view.visual_len(start));
+                let x = x + cw;
                 let rect = Bounds::new(point(px(x), top + px(lh * 0.15)), size(px(cw * 3.0), px(lh * 0.7)));
                 window.paint_quad(quad(rect, Corners::all(px(3.)), fold_bg, 0.0, Hsla::default(), gpui::BorderStyle::Solid));
                 let font = gpui::Font { weight: style.font_weight, ..gpui::font(theme.editor_font.clone()) };
@@ -683,11 +735,11 @@ impl Element for EditorElement {
 
             // File references.
             let link_color = theme.c_or("textLink.foreground", 0x3794ffff);
-            for (line, spans) in &prepaint.links {
-                for &(start, end) in spans {
-                    let (x0, x1) = (x_at(*line, start), x_end(*line, end));
-                    let y = line_top(*line) + px(lh - 2.0);
-                    window.paint_underline(point(px(x0), y), px(x1 - x0), &UnderlineStyle { color: Some(link_color), thickness: px(1.), wavy: false });
+            for (line, spans_of) in &prepaint.links {
+                for &(start, end) in spans_of {
+                    for (x0, x1, top) in spans(*line, start, end) {
+                        window.paint_underline(point(px(x0), top + px(lh - 2.0)), px(x1 - x0), &UnderlineStyle { color: Some(link_color), thickness: px(1.), wavy: false });
+                    }
                 }
             }
 
@@ -708,10 +760,10 @@ impl Element for EditorElement {
                     let len = view.line_len(line);
                     let c0 = if line == d.start.line { d.start.col.min(len) } else { 0 };
                     let c1 = if line == d.end.line { d.end.col.min(len) } else { len };
-                    let x0 = x_at(line, c0);
-                    let x1 = x_end(line, c1).max(x0 + cw);
-                    let y = line_top(line) + px(lh - 3.0);
-                    window.paint_underline(point(px(x0), y), px(x1 - x0), &UnderlineStyle { color: Some(color), thickness: px(1.), wavy: style.squiggle_wavy });
+                    for (x0, x1, top) in spans(line, c0, c1) {
+                        let x1 = x1.max(x0 + cw);
+                        window.paint_underline(point(px(x0), top + px(lh - 3.0)), px(x1 - x0), &UnderlineStyle { color: Some(color), thickness: px(1.), wavy: style.squiggle_wavy });
+                    }
                 }
             }
 
@@ -727,7 +779,8 @@ impl Element for EditorElement {
                         if c.line < first || c.line > last || view.is_hidden(c.line) {
                             continue;
                         }
-                        let (x, y) = (x_at(c.line, c.col).round(), line_top(c.line));
+                        let (x, y) = pos(c.line, c.col);
+                        let x = x.round();
                         let rect = match style.caret_style {
                             CaretStyle::Line => Bounds::new(point(px(x), y), size(px(w), px(lh))),
                             CaretStyle::Block | CaretStyle::BlockOutline => Bounds::new(point(px(x), y), size(px(cw), px(lh))),
@@ -1000,6 +1053,8 @@ struct Snap {
     inlays: Vec<super::inlays::Inlay>,
     /// Hidden line ranges (folds), folded regions and foldable regions starting on visible lines.
     hidden: Vec<(usize, usize)>,
+    /// Word wrap: columns per row and each line's first row.
+    wrap: Option<(usize, std::sync::Arc<Vec<usize>>)>,
     folded: Vec<(usize, usize)>,
     regions: Vec<(usize, usize)>,
     row_count: usize,
@@ -1051,7 +1106,8 @@ impl Snap {
             hidden: v.folds.hidden_ranges().to_vec(),
             folded: v.folds.folded().to_vec(),
             regions: if v.layout.fold_width > 0.0 { v.folds.cached_regions().iter().filter(|r| r.0 >= first && r.0 <= last).copied().collect() } else { Vec::new() },
-            row_count: v.folds.row_count(v.state.buffer.line_count()),
+            row_count: v.row_count(),
+            wrap: v.wrap.as_ref().map(|w| (w.cols, w.starts.clone())),
         }
     }
 
@@ -1060,8 +1116,31 @@ impl Snap {
         self.hidden.get(i).is_some_and(|h| h.0 <= line)
     }
 
-    /// The screen row of `line` (see `Folds::row_of`).
+    /// Rows `line` takes (more than one when it wraps).
+    fn rows(&self, line: usize) -> usize {
+        match &self.wrap {
+            Some((_, starts)) => starts.get(line + 1).zip(starts.get(line)).map_or(1, |(b, a)| (b - a).max(1)),
+            None => 1,
+        }
+    }
+
+    /// A line's width in cells: tabs expanded, inlay hints included.
+    fn visual_len(&self, line: usize) -> usize {
+        let text = self.line(line);
+        let len = text.chars().count();
+        visual_col(text, len, self.tab) + self.inlay_shift(line, len, false)
+    }
+
+    /// The screen row of `line` (see `Folds::row_of`; with word wrap, its first row).
     fn row_of(&self, line: usize) -> usize {
+        if let Some((_, starts)) = &self.wrap {
+            let i = self.hidden.partition_point(|h| h.1 < line);
+            let line = match self.hidden.get(i) {
+                Some(h) if h.0 <= line => h.0.saturating_sub(1),
+                _ => line,
+            };
+            return starts.get(line).copied().unwrap_or(0);
+        }
         let mut hidden_before = 0;
         for &(s, e) in &self.hidden {
             if s > line {

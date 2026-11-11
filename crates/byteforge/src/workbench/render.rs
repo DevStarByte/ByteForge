@@ -213,6 +213,19 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, a: &UseTemplate, w, cx| wb.use_template(a.clone(), w, cx)))
             .on_action(cx.listener(|wb, _: &ManageUserSecrets, w, cx| wb.open_user_secrets(w, cx)))
             .on_action(cx.listener(|wb, _: &OpenInOtherGroup, w, cx| wb.open_in_other_group(w, cx)))
+            .on_action(cx.listener(|wb, _: &ToggleWordWrap, _, cx| {
+                // Alt+Z: word wrap on or off for every editor (setting editor.wordWrap).
+                let on = !wb.settings.get_string("editor.wordWrap").is_some_and(|w| w == "on");
+                wb.settings.set("editor.wordWrap", json!(if on { "on" } else { "off" }));
+                for tab in &wb.tabs {
+                    tab.editor.update(cx, |e, cx| {
+                        if !e.read_only {
+                            e.word_wrap = on;
+                            cx.notify();
+                        }
+                    });
+                }
+            }))
             .on_action(cx.listener(|wb, a: &AddPackageVersion, w, cx| wb.add_package(PathBuf::from(&a.project), a.id.clone(), Some(a.version.clone()), w, cx)))
             .on_action(cx.listener(|wb, _: &EfAddMigration, w, cx| wb.start_ef("add", w, cx)))
             .on_action(cx.listener(|wb, _: &EfRemoveMigration, w, cx| wb.start_ef("remove", w, cx)))

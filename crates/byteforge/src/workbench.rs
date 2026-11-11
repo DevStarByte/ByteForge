@@ -202,7 +202,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "refactor.extractBaseClass", "-", "refactor.introduceVariable", "refactor.introduceConstant", "refactor.introduceField", "refactor.introduceParameter",
         "-", "refactor.inline", "refactor.moveTypeToFile", "-", "refactor.removeAndSortUsings", "refactor.sortUsings",
     ]),
-    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.splitEditor", "view.openInOtherGroup", "-", "view.toggleSideBar", "view.togglePanel"]),
+    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.splitEditor", "view.openInOtherGroup", "-", "view.toggleWordWrap", "view.toggleSideBar", "view.togglePanel"]),
     ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.fileHistory", "git.showLineCommit", "git.toggleBlame", "-",
         "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
@@ -718,6 +718,7 @@ impl Workbench {
         e.inlay_hints_enabled = s.get("editor.inlayHints", true);
         e.folding_enabled = s.get("editor.folding", true);
         e.minimap_enabled = s.get("editor.minimap", true) && !e.read_only;
+        e.word_wrap = s.get_string("editor.wordWrap").is_some_and(|w| w == "on");
         e.snippets = match (e.language, e.read_only) {
             (Some(language), false) => std::sync::Arc::new(bf_core::snippets::for_language(&self.paths.user_snippets(), language.id())),
             _ => std::sync::Arc::new(Vec::new()),
@@ -996,6 +997,7 @@ pub(crate) fn default_key(id: &str) -> String {
         "view.goToWorkspaceSymbol" => "ctrl-t",
         "view.goToSymbol" => "alt-\\",
         "edit.rename" => "f2",
+        "view.toggleWordWrap" => "alt-z",
         "edit.quickFix" => "ctrl-.",
         "edit.formatDocument" => "shift-alt-f",
         "refactor.menu" => "ctrl-shift-r",

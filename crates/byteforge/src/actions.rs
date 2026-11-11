@@ -83,7 +83,7 @@ actions!(
         Delete, DeleteWordRight, Newline, Tab, Outdent, SelectAll, Copy, Cut, Paste, Undo, Redo, DuplicateLines, DeleteLines,
         MoveLinesUp, MoveLinesDown, ToggleComment, Find, Replace, FindNext, FindPrevious, TriggerCompletion, GoToDefinition,
         Cancel, ToggleBreakpoint, QuickFix, FindReferences, RenameSymbol, ShowSignatureHelp, GoToImplementation, GoToTypeDefinition, Fold, Unfold, FoldAll, UnfoldAll,
-        AddCursorAbove, AddCursorBelow, AddNextMatch, SelectAllMatches, ToggleFindCase, ToggleFindWholeWord, ToggleFindRegex
+        AddCursorAbove, AddCursorBelow, AddNextMatch, SelectAllMatches, ToggleFindCase, ToggleFindWholeWord, ToggleFindRegex, ToggleWordWrap
     ]
 );
 
@@ -298,6 +298,7 @@ fn builtin() -> Vec<Builtin> {
         ("terminal.new", "New Terminal", "Terminal", Box::new(NewTerminal), Some("ctrl-shift-`")),
         ("terminal.kill", "Kill Terminal", "Terminal", Box::new(KillTerminal), None),
         ("terminal.selectDefaultShell", "Select Default Shell…", "Terminal", Box::new(SelectDefaultShell), None),
+        ("view.toggleWordWrap", "Toggle Word Wrap", "View", Box::new(ToggleWordWrap), Some("alt-z")),
         ("edit.toggleLineEnding", "Toggle Line Ending (LF/CRLF)", "Edit", Box::new(ToggleLineEnding), None),
         ("csharp.reload", "Restart C# Language Server", "C#", Box::new(ReloadCSharp), None),
         ("edit.undo", "Undo", "Edit", Box::new(Undo), None),
