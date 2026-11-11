@@ -155,11 +155,62 @@ impl Folds {
 /// Foldable regions of `lines`, sorted by first line, at most one per first line (the largest).
 pub(crate) fn regions(lines: &[String], style: Style) -> Vec<(usize, usize)> {
     let mut out = match style {
-        Style::Braces => brace_regions(lines),
+        Style::Braces => {
+            let mut r = brace_regions(lines);
+            r.extend(comment_and_using_regions(lines));
+            r
+        }
         Style::Indent => indent_regions(lines),
     };
     out.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
     out.dedup_by_key(|r| r.0);
+    out
+}
+
+/// Runs of `//` (and `///` doc) comment lines, multi-line `/* … */` comments, and the block of `using`
+/// directives (blank lines between them included): each foldable when it spans two lines or more.
+fn comment_and_using_regions(lines: &[String]) -> Vec<(usize, usize)> {
+    let is_using = |t: &str| {
+        let t = t.strip_prefix("global ").unwrap_or(t);
+        t.starts_with("using ") && t.ends_with(';') && !t.contains('(') && !t.starts_with("using var ")
+    };
+    let mut out = Vec::new();
+    let mut comment_run: Option<(usize, usize)> = None;
+    let mut usings: Option<(usize, usize)> = None;
+    let mut ix = 0;
+    while ix < lines.len() {
+        let t = lines[ix].trim();
+        // A `/* … */` comment that starts a line and ends on a later one.
+        if t.starts_with("/*")
+            && !t.contains("*/")
+            && let Some(end) = (ix + 1..lines.len()).find(|&j| lines[j].contains("*/"))
+        {
+            out.push((ix, end));
+            ix = end + 1;
+            continue;
+        }
+        if t.starts_with("//") {
+            comment_run = Some(comment_run.map_or((ix, ix), |(s, _)| (s, ix)));
+        } else if let Some((s, e)) = comment_run.take()
+            && e > s
+        {
+            out.push((s, e));
+        }
+        if is_using(t) {
+            usings = Some(usings.map_or((ix, ix), |(s, _)| (s, ix)));
+        } else if !t.is_empty()
+            && let Some((s, e)) = usings.take()
+            && e > s
+        {
+            out.push((s, e));
+        }
+        ix += 1;
+    }
+    for (s, e) in [comment_run, usings].into_iter().flatten() {
+        if e > s {
+            out.push((s, e));
+        }
+    }
     out
 }
 
@@ -444,8 +495,20 @@ mod tests {
             "namespace Demo\n{\n    public class A\n    {\n        // { not a brace\n        string s = \"}{\";\n        /* {\n        } */\n        void M() { }\n        void N()\n        {\n            var x = @\"{\n}\";\n        }\n    }\n    #region Helpers\n    #endregion\n}",
         );
         let r = regions(&text, Style::Braces);
-        // namespace (0..17), class (2..14), N (9..13), region (15..16).
-        assert_eq!(r, vec![(0, 17), (2, 14), (9, 13), (15, 16)]);
+        // namespace (0..17), class (2..14), the /* */ comment (6..7), N (9..13), region (15..16).
+        assert_eq!(r, vec![(0, 17), (2, 14), (6, 7), (9, 13), (15, 16)]);
+    }
+
+    #[test]
+    fn using_blocks_and_comment_runs_fold() {
+        let text = lines(
+            "using System;\nusing System.Linq;\n\nusing Foo;\n\nnamespace Demo;\n\n/// <summary>\n/// A thing.\n/// </summary>\npublic class A\n{\n    // one line\n    void M()\n    {\n        using var s = Open();\n        using var t = Open();\n    }\n}",
+        );
+        let r = regions(&text, Style::Braces);
+        assert!(r.contains(&(0, 3)), "usings with blank lines between: {r:?}");
+        assert!(r.contains(&(7, 9)), "doc comment: {r:?}");
+        assert!(!r.iter().any(|&(s, _)| s == 12), "a single comment line doesn't fold: {r:?}");
+        assert!(!r.iter().any(|&(s, _)| s == 15), "using statements aren't directives: {r:?}");
     }
 
     #[test]

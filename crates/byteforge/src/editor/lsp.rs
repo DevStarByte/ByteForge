@@ -10,7 +10,38 @@ impl EditorView {
             self.lsp = Some(lsp);
             self.schedule_semantic(Duration::from_millis(100), cx);
             self.schedule_inlay_hints(Duration::from_millis(300), cx);
+            self.schedule_outline(Duration::from_millis(300), cx);
         }
+    }
+
+    /// Reads the document's symbols again after `delay` (the breadcrumbs show the ones around the caret).
+    pub(super) fn schedule_outline(&mut self, delay: Duration, cx: &mut Context<Self>) {
+        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else { return };
+        let version = self.state.buffer.version();
+        self.outline_task = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(delay).await;
+            let Ok(Ok(symbols)) = lsp.document_symbols(&path).recv_async().await else { return };
+            let _ = this.update(cx, |view, cx| {
+                if view.state.buffer.version() == version && view.outline != symbols {
+                    view.outline = symbols;
+                    cx.emit(EditorEvent::OutlineChanged);
+                }
+            });
+        }));
+    }
+
+    /// The symbols around the caret, outermost first (namespace, type, member): `(name, kind, where)`.
+    pub fn symbol_path(&self) -> Vec<(String, &'static str, Point)> {
+        let caret = self.lsp_position(self.state.caret());
+        let at = (caret.line, caret.character);
+        let mut around: Vec<&bf_lsp::Symbol> = self
+            .outline
+            .iter()
+            .filter(|s| (s.full_range.start.line, s.full_range.start.character) <= at && at <= (s.full_range.end.line, s.full_range.end.character))
+            .collect();
+        around.sort_by_key(|s| s.depth);
+        let b = &self.state.buffer;
+        around.into_iter().map(|s| (s.name.clone(), s.kind, b.utf16_to_point(s.range.start.line as usize, s.range.start.character as usize))).collect()
     }
 
     /// The file was renamed or moved: the language server forgets the old path and opens the new one.
@@ -31,6 +62,10 @@ impl EditorView {
     }
 
     pub fn set_lsp_diagnostics(&mut self, diagnostics: Vec<bf_lsp::Diagnostic>, cx: &mut Context<Self>) {
+        // The server has the file loaded now; the first outline request may have come too early.
+        if self.outline.is_empty() {
+            self.schedule_outline(Duration::ZERO, cx);
+        }
         let b = &self.state.buffer;
         self.diagnostics = diagnostics
             .into_iter()

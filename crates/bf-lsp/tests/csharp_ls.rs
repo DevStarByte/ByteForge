@@ -177,6 +177,13 @@ fn csharp_ls_end_to_end() {
     assert!(ready);
     println!("[{:>6.1?}] got error diagnostics", t0.elapsed());
 
+    // Breadcrumbs: a member's full range covers its body, so the caret inside it finds it.
+    let outline = recv(client.document_symbols(&program), "document symbols");
+    let main = outline.iter().find(|s| s.name.starts_with("Main")).expect("Main in the outline");
+    let inside = find(PROGRAM, "var greeting", 0);
+    println!("           Main: name at {:?}, body {:?}..{:?}", main.range.start, main.full_range.start, main.full_range.end);
+    assert!(main.full_range.start.line < inside.line && inside.line < main.full_range.end.line, "{main:?}");
+
     // Refactorings, as the Refactor commands find them (csharp-ls sends them without a kind, edits resolved lazily).
     let t = Instant::now();
     let start = find(PROGRAM, "Console.WriteLine(greeting);", 0);

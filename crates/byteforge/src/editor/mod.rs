@@ -54,6 +54,8 @@ pub enum EditorEvent {
     /// Text changed (dirty state may have changed).
     Edited,
     CaretMoved,
+    /// The document's symbols were read again (breadcrumbs).
+    OutlineChanged,
     DiagnosticsChanged,
     Navigate(PathBuf, Point),
     /// Breakpoints were toggled, or edits moved them.
@@ -239,6 +241,9 @@ pub struct EditorView {
     context_menu: Option<ContextMenu>,
     /// Blame of the file (the caret line's annotation).
     blame: merge::BlameState,
+    /// The document's symbols (for the breadcrumbs), and the task refreshing them.
+    outline: Vec<bf_lsp::Symbol>,
+    outline_task: Option<Task<()>>,
     /// Merge conflicts in the text.
     conflicts: Vec<bf_core::conflicts::Conflict>,
     /// The word a hover request is waiting for.
@@ -360,6 +365,8 @@ impl EditorView {
             context_menu: None,
             blame: Default::default(),
             conflicts: Vec::new(),
+            outline: Vec::new(),
+            outline_task: None,
             hover_pending: None,
             hover_task: None,
             hover_bounds: Default::default(),
@@ -537,6 +544,7 @@ impl EditorView {
         self.schedule_inlay_hints(Duration::from_millis(600), cx);
         self.schedule_git_diff(Duration::from_millis(120), cx);
         self.after_edit_merge(cx);
+        self.schedule_outline(Duration::from_millis(1000), cx);
         if let Some(find) = &self.find {
             let (q, mc) = (find.query.read(cx).text().to_owned(), find.match_case);
             if let Some(find) = &mut self.find {

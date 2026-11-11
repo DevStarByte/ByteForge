@@ -10,7 +10,7 @@ The language server already supports all of these; the client needs the requests
 - [x] **Rename Symbol** (F2): prompt with the current name, apply the workspace edit across files (open and closed).
 - [x] **Signature Help**: parameter hints while typing a call (on `(` and `,`, closes on `)` and Escape), with the active parameter in bold.
 - [x] **Go to Implementation** (Ctrl+F12) and **Go to Type Definition**: one result jumps, several go to the References panel.
-- [x] **Document Symbols**: Go to Symbol in Editor in the palette ("@"). Still open: a key (Ctrl+Shift+O opens a folder today) and symbol breadcrumbs.
+- [x] **Document Symbols**: Go to Symbol in Editor in the palette ("@"). Symbol breadcrumbs: the namespace, type and member around the caret follow the file path in the breadcrumbs bar; click one to go to its declaration. Still open: a key (Ctrl+Shift+O opens a folder today).
 - [x] **Workspace Symbols** (Ctrl+T): find any type or member by name ("#").
 - [x] **Document Highlight**: highlight the other uses of the symbol under the caret.
 - [x] **Inlay Hints**: inferred `var` types and parameter names (setting `editor.inlayHints`).
@@ -18,7 +18,7 @@ The language server already supports all of these; the client needs the requests
 
 ## 2. Editor
 
-- [x] Code folding (braces, `#region`; indentation for XML/YAML), with gutter chevrons. Still open: folding `using` blocks and comment blocks.
+- [x] Code folding (braces, `#region`; indentation for XML/YAML), with gutter chevrons. `using` blocks (blank lines between included), runs of `//` / `///` comments and multi-line `/* */` comments fold too.
 - [x] Multiple cursors: Alt+Click, Ctrl+Alt+Up/Down, Ctrl+D to add the next match (plus Ctrl+Shift+L). Line commands (comment, move, duplicate) and completions still work on one cursor.
 - [x] Split editor (two editor groups side by side): Ctrl+\\, Ctrl+1/2. Still open: the same file in both groups (one shared buffer) and dragging tabs between groups.
 - [x] User snippets (`prop`, `ctor`, `foreach`, `try`, …) offered in completion, with Tab between fields.

@@ -559,6 +559,8 @@ mod tests {
         let names: Vec<_> = symbols.iter().map(|s| (s.name.as_str(), s.kind, s.depth, s.container.as_deref())).collect();
         assert_eq!(names, [("Demo", "namespace", 0, None), ("Widget", "class", 1, Some("Demo")), ("Count", "method", 2, Some("Widget"))]);
         assert_eq!(symbols[2].range.start, pos(4, 15));
+        // The whole declaration, for the breadcrumbs.
+        assert_eq!((symbols[1].full_range.start, symbols[1].full_range.end), (pos(2, 0), pos(8, 1)));
         assert_eq!(symbols[1].detail.as_deref(), Some("class Widget"));
 
         let v = json!([{ "name": "Widget", "kind": 5, "containerName": "Demo",
@@ -812,6 +814,7 @@ pub(crate) fn parse_document_symbols(v: &Value, path: &std::path::Path) -> Vec<c
             let Some(name) = str_field(item, "name") else { continue };
             let range = item.get("selectionRange").or_else(|| item.get("range")).or_else(|| item.pointer("/location/range")).and_then(parse_range);
             let Some(range) = range else { continue };
+            let full_range = item.get("range").or_else(|| item.pointer("/location/range")).and_then(parse_range).unwrap_or(range);
             let item_path = item.pointer("/location/uri").and_then(Value::as_str).and_then(uri_to_path).unwrap_or_else(|| path.to_path_buf());
             out.push(crate::Symbol {
                 name: name.clone(),
@@ -820,6 +823,7 @@ pub(crate) fn parse_document_symbols(v: &Value, path: &std::path::Path) -> Vec<c
                 container: container.map(str::to_owned).or_else(|| str_field(item, "containerName").filter(|c| !c.is_empty())),
                 path: item_path,
                 range,
+                full_range,
                 depth,
             });
             if let Some(children) = item.get("children").and_then(Value::as_array) {
@@ -851,6 +855,7 @@ pub(crate) fn parse_workspace_symbols(v: &Value) -> Vec<crate::Symbol> {
                         detail: None,
                         container: str_field(item, "containerName").filter(|c| !c.is_empty()),
                         path,
+                        full_range: range,
                         range,
                         depth: 0,
                     })

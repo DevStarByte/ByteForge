@@ -148,6 +148,8 @@ pub struct Symbol {
     pub path: PathBuf,
     /// Where the name is (the selection range for document symbols).
     pub range: Range,
+    /// The whole declaration, body included (document symbols; the same as `range` otherwise).
+    pub full_range: Range,
     /// Nesting level in the document outline (0 = top level).
     pub depth: usize,
 }

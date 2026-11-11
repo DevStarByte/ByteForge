@@ -197,15 +197,49 @@ impl Workbench {
 
     pub(super) fn render_breadcrumbs(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
         let t = Theme::global(cx);
-        let path = self.active.and_then(|i| self.tabs.get(i)).and_then(|tab| tab.path.clone())?;
+        let tab = self.active.and_then(|i| self.tabs.get(i)).filter(|tab| tab.page.is_none())?;
+        let path = tab.path.clone()?;
+        let editor = tab.editor.clone();
+        let symbols = editor.read(cx).symbol_path();
         let display = match self.workspace.root() {
             Some(root) => path.strip_prefix(&root).map(Path::to_path_buf).unwrap_or(path.clone()),
             None => path.clone(),
         };
         let parts: Vec<String> = display.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
-        let count = parts.len();
+        let count = parts.len() + symbols.len();
         let icon_size = t.m("breadcrumb.iconSize", 12.0);
         let fg = t.c("breadcrumb.foreground");
+        let hover = t.c("toolbar.hoverBackground");
+        let active = t.c("breadcrumb.activeForeground");
+        let file_parts = parts.len();
+        // The symbols around the caret: namespace › type › member; a click goes to the declaration.
+        let symbol_crumbs: Vec<gpui::AnyElement> = symbols
+            .into_iter()
+            .enumerate()
+            .flat_map(|(i, (name, kind, at))| {
+                let editor = editor.clone();
+                let color = if file_parts + i + 1 == count { active } else { fg };
+                [
+                    icon("chevronRight", icon_size, fg).into_any_element(),
+                    div()
+                        .id(SharedString::from(format!("crumb-symbol-{i}")))
+                        .px(px(2.))
+                        .rounded(px(3.))
+                        .cursor_pointer()
+                        .hover(move |s| s.bg(hover))
+                        .text_color(color)
+                        .child(name)
+                        .tooltip(crate::workbench::tooltip(format!("Go to this {kind}")))
+                        .on_click(move |_, window, cx| {
+                            editor.update(cx, |e, cx| {
+                                e.go_to(at, cx);
+                                e.focus(window);
+                            })
+                        })
+                        .into_any_element(),
+                ]
+            })
+            .collect();
         Some(
             div()
                 .flex_none()
@@ -219,10 +253,11 @@ impl Workbench {
                 .border_color(t.c("breadcrumb.border"))
                 .text_size(t.m("breadcrumb.fontSize", 12.0))
                 .children(parts.into_iter().enumerate().flat_map(move |(i, part)| {
-                    let color = if i + 1 == count { t.c("breadcrumb.activeForeground") } else { fg };
+                    let color = if i + 1 == count { active } else { fg };
                     let sep = (i > 0).then(|| icon("chevronRight", icon_size, fg).into_any_element());
                     sep.into_iter().chain(std::iter::once(div().text_color(color).child(part).into_any_element()))
-                })),
+                }))
+                .children(symbol_crumbs),
         )
     }
 
