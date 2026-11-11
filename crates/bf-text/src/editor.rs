@@ -344,6 +344,204 @@ impl EditorState {
         self.merge_cursors();
     }
 
+    // ───────────── line commands with several cursors ─────────────
+
+    /// The lines each cursor covers (a selection ending at column 0 leaves that line out).
+    fn cursor_lines(c: &Cursor) -> (usize, usize) {
+        let (s, e) = c.selection();
+        (s.line, if e.col == 0 && e.line > s.line { e.line - 1 } else { e.line })
+    }
+
+    /// The line blocks of all cursors, top to bottom, merged when they overlap (and when they touch, with
+    /// `touching`, so moved blocks don't run into each other).
+    fn cursor_line_blocks(&self, touching: bool) -> Vec<(usize, usize)> {
+        let mut ranges: Vec<(usize, usize)> = self.cursors().iter().map(|(c, _)| Self::cursor_lines(c)).collect();
+        ranges.sort_unstable();
+        let mut blocks: Vec<(usize, usize)> = Vec::new();
+        for (s, e) in ranges {
+            match blocks.last_mut() {
+                Some(last) if s <= last.1 || (touching && s == last.1 + 1) => last.1 = last.1.max(e),
+                _ => blocks.push((s, e)),
+            }
+        }
+        blocks
+    }
+
+    /// Puts the cursors back after `edit`, each moved over the changes it made.
+    fn keep_cursors_over(&mut self, edit: impl FnOnce(&mut Self)) {
+        let cursors = self.cursors();
+        let before = self.buffer.changes_len();
+        self.buffer.undo_stack().begin_group();
+        edit(self);
+        self.buffer.undo_stack().end_group();
+        let changes: Vec<Change> = self.buffer.changes_since(before).to_vec();
+        self.extra.clear();
+        for (mut c, is_primary) in cursors {
+            for change in &changes {
+                c.caret = shift_point(c.caret, change);
+                c.anchor = c.anchor.map(|a| shift_point(a, change));
+            }
+            if is_primary {
+                self.set_primary(c);
+            } else {
+                self.extra.push(c);
+            }
+        }
+        self.clamp();
+        self.merge_cursors();
+    }
+
+    /// Comments (or, when every non-empty line is commented, uncomments) the lines of all cursors; each
+    /// block gets the comment at its own indentation.
+    fn toggle_comment_multi(&mut self, prefix: &str, suffix: &str) {
+        let blocks = self.cursor_line_blocks(false);
+        let lines: Vec<(usize, String)> = blocks.iter().flat_map(|&(s, e)| s..=e).map(|l| (l, self.buffer.line(l).into_owned())).collect();
+        let non_empty: Vec<&String> = lines.iter().map(|(_, t)| t).filter(|t| !t.trim().is_empty()).collect();
+        if non_empty.is_empty() {
+            return;
+        }
+        let uncomment = non_empty.iter().all(|l| l.trim_start().starts_with(prefix) && l.trim_end().ends_with(suffix));
+        let (prefix, suffix) = (prefix.to_owned(), suffix.to_owned());
+        self.keep_cursors_over(|s| {
+            for &(first, last) in &blocks {
+                let block: Vec<String> = (first..=last).map(|l| s.buffer.line(l).into_owned()).collect();
+                let min_indent = block.iter().filter(|l| !l.trim().is_empty()).map(|l| l.chars().take_while(|c| c.is_whitespace()).count()).min().unwrap_or(0);
+                for (i, text) in block.iter().enumerate() {
+                    let l = first + i;
+                    if text.trim().is_empty() {
+                        continue;
+                    }
+                    if uncomment {
+                        if !suffix.is_empty() {
+                            let end = text.trim_end().len();
+                            let mut byte = end - suffix.len();
+                            if text[..byte].ends_with(' ') {
+                                byte -= 1;
+                            }
+                            let (from, to) = (text[..byte].chars().count(), text[..end].chars().count());
+                            s.buffer.replace(Point::new(l, from), Point::new(l, to), "");
+                        }
+                        let byte = text.find(prefix.as_str()).unwrap_or(0);
+                        let col = text[..byte].chars().count();
+                        let mut len = prefix.chars().count();
+                        if text[byte + prefix.len()..].starts_with(' ') {
+                            len += 1;
+                        }
+                        s.buffer.replace(Point::new(l, col), Point::new(l, col + len), "");
+                    } else {
+                        if !suffix.is_empty() {
+                            let end = text.trim_end().chars().count();
+                            s.buffer.replace(Point::new(l, end), Point::new(l, end), &format!(" {suffix}"));
+                        }
+                        s.buffer.replace(Point::new(l, min_indent), Point::new(l, min_indent), &format!("{prefix} "));
+                    }
+                }
+            }
+        });
+    }
+
+    /// Moves the lines of every cursor up or down by one; nothing moves when a block is at the edge.
+    fn move_lines_multi(&mut self, down: bool) {
+        let blocks = self.cursor_line_blocks(true);
+        let (Some(&(top, _)), Some(&(_, bottom))) = (blocks.first(), blocks.last()) else { return };
+        if (!down && top == 0) || (down && bottom + 1 >= self.buffer.line_count()) {
+            return;
+        }
+        let cursors = self.cursors();
+        self.buffer.undo_stack().begin_group();
+        // Touching blocks are merged, so each one swaps with a line no other block has.
+        let order: Vec<(usize, usize)> = if down { blocks.iter().rev().copied().collect() } else { blocks.clone() };
+        for (first, last) in order {
+            if down {
+                let below = self.buffer.line(last + 1).into_owned();
+                let below_len = below.chars().count();
+                self.buffer.replace(Point::new(last, self.buffer.line_len(last)), Point::new(last + 1, below_len), "");
+                self.buffer.replace(Point::new(first, 0), Point::new(first, 0), &format!("{below}\n"));
+            } else {
+                let above = self.buffer.line(first - 1).into_owned();
+                self.buffer.replace(Point::new(first - 1, 0), Point::new(first, 0), "");
+                let end = Point::new(last - 1, self.buffer.line_len(last - 1));
+                self.buffer.replace(end, end, &format!("\n{above}"));
+            }
+        }
+        self.buffer.undo_stack().end_group();
+        let shift = |p: Point| Point::new(if down { p.line + 1 } else { p.line - 1 }, p.col);
+        self.restore_cursors(cursors, |c| Cursor { caret: shift(c.caret), anchor: c.anchor.map(shift), ..c });
+    }
+
+    /// Duplicates the lines of every cursor below themselves; the cursors move to the copies.
+    fn duplicate_lines_multi(&mut self) {
+        let blocks = self.cursor_line_blocks(false);
+        let cursors = self.cursors();
+        self.buffer.undo_stack().begin_group();
+        for &(first, last) in blocks.iter().rev() {
+            let block = self.buffer.slice(Point::new(first, 0), Point::new(last, self.buffer.line_len(last)));
+            let end = Point::new(last, self.buffer.line_len(last));
+            self.buffer.replace(end, end, &format!("\n{block}"));
+        }
+        self.buffer.undo_stack().end_group();
+        // A cursor moves down by the size of its own block and of every block above it.
+        let added = |line: usize| blocks.iter().filter(|b| b.0 <= line).map(|b| b.1 - b.0 + 1).sum::<usize>();
+        self.restore_cursors(cursors, |c| {
+            let n = added(c.selection().0.line);
+            Cursor { caret: Point::new(c.caret.line + n, c.caret.col), anchor: c.anchor.map(|a| Point::new(a.line + n, a.col)), ..c }
+        });
+    }
+
+    /// Deletes the lines of every cursor; each cursor ends up where its lines were.
+    fn delete_lines_multi(&mut self) {
+        let blocks = self.cursor_line_blocks(true);
+        let cursors = self.cursors();
+        self.buffer.undo_stack().begin_group();
+        for &(first, last) in blocks.iter().rev() {
+            if last + 1 < self.buffer.line_count() {
+                self.buffer.replace(Point::new(first, 0), Point::new(last + 1, 0), "");
+            } else if first > 0 {
+                self.buffer.replace(Point::new(first - 1, self.buffer.line_len(first - 1)), Point::new(last, self.buffer.line_len(last)), "");
+            } else {
+                let end = self.buffer.end();
+                self.buffer.replace(Point::default(), end, "");
+            }
+        }
+        self.buffer.undo_stack().end_group();
+        let removed_above = |line: usize| blocks.iter().filter(|b| b.1 < line).map(|b| b.1 - b.0 + 1).sum::<usize>();
+        self.restore_cursors(cursors, |c| {
+            let first = blocks.iter().find(|b| b.0 <= c.caret.line && c.caret.line <= b.1).map_or(c.caret.line, |b| b.0);
+            Cursor::new(Point::new(first - removed_above(first), c.caret.col), None)
+        });
+    }
+
+    /// Sets the cursors to `cursors` moved by `f`, clamped and merged.
+    fn restore_cursors(&mut self, cursors: Vec<(Cursor, bool)>, f: impl Fn(Cursor) -> Cursor) {
+        self.extra.clear();
+        for (c, is_primary) in cursors {
+            let c = f(c);
+            if is_primary {
+                self.set_primary(c);
+            } else {
+                self.extra.push(c);
+            }
+        }
+        self.clamp();
+        self.merge_cursors();
+    }
+
+    /// Replaces the word before every cursor (when it is `prefix`, the word the primary cursor's completion
+    /// was asked for) with `text`: a completion accepted with several cursors.
+    pub fn complete_at_cursors(&mut self, prefix: &str, text: &str) {
+        let len = prefix.chars().count();
+        self.for_each_cursor(|s| {
+            let caret = s.caret;
+            if caret.col < len {
+                return;
+            }
+            let start = Point::new(caret.line, caret.col - len);
+            if s.buffer.slice(start, caret) == prefix {
+                s.replace_one(start, caret, text);
+            }
+        });
+    }
+
     /// Joins cursors that sit on the same spot or whose selections overlap.
     fn merge_cursors(&mut self) {
         let all = self.cursors();
@@ -708,13 +906,16 @@ impl EditorState {
     }
 
     pub fn toggle_comment(&mut self) {
-        self.extra.clear();
         let (prefix, suffix) = match (self.line_comment, self.block_comment) {
             (Some(prefix), _) => (prefix, ""),
             (None, Some((open, close))) => (open, close),
             (None, None) => return,
         };
         if self.read_only {
+            return;
+        }
+        if self.has_multiple_cursors() {
+            self.toggle_comment_multi(prefix, suffix);
             return;
         }
         let (first, last) = self.selected_lines();
@@ -769,8 +970,11 @@ impl EditorState {
     }
 
     pub fn move_lines(&mut self, down: bool) {
-        self.extra.clear();
         if self.read_only {
+            return;
+        }
+        if self.has_multiple_cursors() {
+            self.move_lines_multi(down);
             return;
         }
         let (first, last) = self.selected_lines();
@@ -797,8 +1001,11 @@ impl EditorState {
     }
 
     pub fn duplicate_lines(&mut self) {
-        self.extra.clear();
         if self.read_only {
+            return;
+        }
+        if self.has_multiple_cursors() {
+            self.duplicate_lines_multi();
             return;
         }
         let (first, last) = self.selected_lines();
@@ -811,8 +1018,11 @@ impl EditorState {
     }
 
     pub fn delete_lines(&mut self) {
-        self.extra.clear();
         if self.read_only {
+            return;
+        }
+        if self.has_multiple_cursors() {
+            self.delete_lines_multi();
             return;
         }
         let (first, last) = self.selected_lines();
@@ -1081,6 +1291,51 @@ mod tests {
         e.type_text("Y");
         e.undo();
         assert_eq!(e.buffer.text(), "ab\ncd\nef");
+    }
+
+    #[test]
+    fn multi_cursor_line_commands() {
+        let mut e = editor("a\nb\n    c\nd\ne");
+        e.line_comment = Some("//");
+        e.set_caret(Point::new(0, 1), false);
+        e.toggle_cursor(Point::new(2, 5));
+        e.toggle_cursor(Point::new(4, 0));
+        e.toggle_comment();
+        assert_eq!(e.buffer.text(), "// a\nb\n    // c\nd\n// e");
+        let carets: Vec<Point> = e.cursors().iter().map(|(c, _)| c.caret).collect();
+        assert_eq!(carets, vec![Point::new(0, 4), Point::new(2, 8), Point::new(4, 3)]);
+        e.toggle_comment();
+        assert_eq!(e.buffer.text(), "a\nb\n    c\nd\ne");
+        e.undo();
+        assert_eq!(e.buffer.text(), "// a\nb\n    // c\nd\n// e", "one undo step for all cursors");
+        e.undo();
+
+        // Move: lines 0 and 2 go down; line 4 is the last, so with it nothing moves.
+        e.set_caret(Point::new(0, 0), false);
+        e.toggle_cursor(Point::new(2, 0));
+        e.move_lines(true);
+        assert_eq!(e.buffer.text(), "b\na\nd\n    c\ne");
+        assert_eq!(e.cursors().iter().map(|(c, _)| c.caret.line).collect::<Vec<_>>(), vec![1, 3]);
+        e.move_lines(false);
+        assert_eq!(e.buffer.text(), "a\nb\n    c\nd\ne");
+
+        e.duplicate_lines();
+        assert_eq!(e.buffer.text(), "a\na\nb\n    c\n    c\nd\ne");
+        assert_eq!(e.cursors().iter().map(|(c, _)| c.caret.line).collect::<Vec<_>>(), vec![1, 4]);
+        e.delete_lines();
+        assert_eq!(e.buffer.text(), "a\nb\n    c\nd\ne");
+        assert_eq!(e.cursors().iter().map(|(c, _)| c.caret.line).collect::<Vec<_>>(), vec![1, 3]);
+    }
+
+    #[test]
+    fn completion_at_every_cursor() {
+        let mut e = editor("Con\nCon\nCo");
+        e.set_caret(Point::new(0, 3), false);
+        e.toggle_cursor(Point::new(1, 3));
+        e.toggle_cursor(Point::new(2, 2));
+        e.complete_at_cursors("Con", "Console");
+        // The last cursor typed something else, so it stays as it was.
+        assert_eq!(e.buffer.text(), "Console\nConsole\nCo");
     }
 
     #[test]

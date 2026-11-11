@@ -119,7 +119,13 @@ impl EditorView {
             self.insert_snippet(completion.start, caret, &item.insert_text, cx);
             return true;
         }
-        self.state.replace_range(completion.start, caret, &item.insert_text);
+        if self.state.has_multiple_cursors() {
+            // Every cursor that typed the same word gets the completion (snippets stay on one cursor).
+            let prefix = self.state.buffer.slice(completion.start, caret);
+            self.state.complete_at_cursors(&prefix, &item.insert_text);
+        } else {
+            self.state.replace_range(completion.start, caret, &item.insert_text);
+        }
         self.after_edit(cx);
         true
     }
