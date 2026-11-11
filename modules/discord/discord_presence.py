@@ -4,8 +4,7 @@ Talks to the Discord desktop app over its local IPC socket (no Discord library n
 to what you're doing in ByteForge: the file, its language, the project and the elapsed time.
 
 Settings (in ByteForge's settings.json):
-  "discord.clientId":     your Discord application's ID (https://discord.com/developers/applications);
-                          its name is what Discord shows after "Playing", so call it ByteForge.
+  "discord.clientId":     optional: your own Discord application's ID, to use instead of ByteForge's.
   "discord.showFileName": false shows "Editing a C# file" instead of the file name (default true).
   "discord.showProject":  false hides the project name (default true).
   "discord.largeImage":   an art asset key of your application, or an image URL (default: the ByteForge logo).
@@ -22,6 +21,7 @@ import time
 import uuid
 from pathlib import Path
 
+CLIENT_ID = "1569037494551322826"  # The ByteForge application on Discord.
 LOGO = "https://raw.githubusercontent.com/DevStarByte/ByteForge/packages/modules/discord/byteforge.png"
 MIN_INTERVAL = 4.0  # Discord allows 5 activity updates per 20 seconds.
 RETRY = 15.0
@@ -236,10 +236,7 @@ def worker():
             wake_retry = state["retry"]
             state["retry"] = False
         settings = read_settings()
-        client_id = str(settings.get("discord.clientId") or "").strip()
-        if not client_id:
-            status("Discord: set up", "Rich Presence needs your Discord application ID. Click for the steps.", "discord.setup")
-            continue
+        client_id = str(settings.get("discord.clientId") or "").strip() or CLIENT_ID
         if ipc and connected_id != client_id:
             ipc.close()
             ipc = None
@@ -257,7 +254,7 @@ def worker():
                 if str(e) != last_error:
                     log(f"Discord refused the connection: {e}. Check \"discord.clientId\" in settings.json.")
                     last_error = str(e)
-                status("Discord: error", f"Discord refused the connection: {e}", "discord.setup")
+                status("Discord: error", f"Discord refused the connection: {e}. Click to retry.", "discord.reconnect")
                 continue
             ipc, connected_id, last_error = candidate, client_id, None
             with state_lock:
@@ -296,20 +293,6 @@ def update(**changes):
 
 # ───────────── commands ─────────────
 
-def setup():
-    log(
-        "To show your ByteForge activity on Discord:\n"
-        "  1. Open https://discord.com/developers/applications and choose New Application. Name it ByteForge:\n"
-        "     Discord shows that name after \"Playing\".\n"
-        "  2. Copy the Application ID from the General Information page.\n"
-        f"  3. In {settings_path()}, add  \"discord.clientId\": \"<that ID>\"  and save.\n"
-        "Optional: \"discord.showFileName\": false and \"discord.showProject\": false hide the file and project names."
-    )
-    send({"type": "openFile", "path": str(settings_path())})
-    send({"type": "showView", "id": "output"})
-    update(retry=True)
-
-
 def reconnect():
     update(retry=True)
 
@@ -322,7 +305,6 @@ def toggle():
 
 
 COMMANDS = {
-    "discord.setup": ("Set Up Rich Presence", setup),
     "discord.toggle": ("Pause or Resume Sharing", toggle),
     "discord.reconnect": ("Reconnect", reconnect),
 }
