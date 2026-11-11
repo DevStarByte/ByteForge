@@ -106,6 +106,86 @@ pub fn parse_search(json: &str) -> anyhow::Result<Vec<PackageInfo>> {
     Ok(packages)
 }
 
+/// Every version of package `id` on the feeds, prereleases included: the latest stable one first, then
+/// the rest newest first.
+pub fn versions(dir: &Path, id: &str) -> anyhow::Result<Vec<String>> {
+    let (ok, stdout, stderr) = dotnet(dir, &["package", "search", id, "--exact-match", "--prerelease", "--format", "json"])?;
+    if !ok && stdout.trim().is_empty() {
+        bail!("{}", first_line(&stderr));
+    }
+    Ok(order_versions(parse_versions(&stdout)?))
+}
+
+/// The versions in `dotnet package search --exact-match --format json` output (several feeds merged).
+pub fn parse_versions(json: &str) -> anyhow::Result<Vec<String>> {
+    let root: serde_json::Value = serde_json::from_str(json.trim()).context("unexpected output from dotnet package search")?;
+    let mut out: Vec<String> = Vec::new();
+    for source in root.get("searchResult").and_then(|v| v.as_array()).into_iter().flatten() {
+        for package in source.get("packages").and_then(|v| v.as_array()).into_iter().flatten() {
+            if let Some(v) = package.get("version").and_then(|v| v.as_str())
+                && !out.iter().any(|o| o.eq_ignore_ascii_case(v))
+            {
+                out.push(v.to_owned());
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Whether a NuGet version is a prerelease (`1.0.0-beta.2`).
+pub fn is_prerelease(version: &str) -> bool {
+    version.split('+').next().unwrap_or(version).contains('-')
+}
+
+/// Latest stable first (what Enter takes), then everything else newest first.
+pub fn order_versions(mut versions: Vec<String>) -> Vec<String> {
+    versions.sort_by(|a, b| compare_versions(b, a));
+    if let Some(stable) = versions.iter().position(|v| !is_prerelease(v)) {
+        let v = versions.remove(stable);
+        versions.insert(0, v);
+    }
+    versions
+}
+
+/// Orders NuGet versions: numeric parts (missing ones are 0), then a release above its prereleases, then
+/// the prerelease labels part by part (numbers numerically, below words). Build metadata (`+…`) is ignored.
+pub fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    let split = |v: &str| {
+        let v = v.split('+').next().unwrap_or(v);
+        let (release, pre) = v.split_once('-').map_or((v, None), |(r, p)| (r, Some(p)));
+        let numbers: Vec<u64> = release.split('.').map(|n| n.parse().unwrap_or(0)).collect();
+        (numbers, pre.map(str::to_owned))
+    };
+    let ((na, pa), (nb, pb)) = (split(a), split(b));
+    for i in 0..na.len().max(nb.len()) {
+        match na.get(i).unwrap_or(&0).cmp(nb.get(i).unwrap_or(&0)) {
+            Ordering::Equal => {}
+            other => return other,
+        }
+    }
+    match (pa, pb) {
+        (None, None) => Ordering::Equal,
+        (None, Some(_)) => Ordering::Greater,
+        (Some(_), None) => Ordering::Less,
+        (Some(pa), Some(pb)) => {
+            let (ia, ib): (Vec<&str>, Vec<&str>) = (pa.split(['.', '-']).collect(), pb.split(['.', '-']).collect());
+            for (x, y) in ia.iter().zip(&ib) {
+                let order = match (x.parse::<u64>(), y.parse::<u64>()) {
+                    (Ok(x), Ok(y)) => x.cmp(&y),
+                    (Ok(_), Err(_)) => Ordering::Less,
+                    (Err(_), Ok(_)) => Ordering::Greater,
+                    (Err(_), Err(_)) => x.to_lowercase().cmp(&y.to_lowercase()),
+                };
+                if order != Ordering::Equal {
+                    return order;
+                }
+            }
+            ia.len().cmp(&ib.len())
+        }
+    }
+}
+
 /// Lists the outdated top-level packages of a project or solution. Runs `dotnet restore` first when the
 /// project has never been restored (listing needs the assets file).
 pub fn outdated(dir: &Path, target: &Path) -> anyhow::Result<Outdated> {
@@ -211,5 +291,36 @@ mod tests {
         let b = &o[Path::new("/w/B/B.csproj")];
         assert_eq!(b.get("newtonsoft.json").map(String::as_str), Some("13.0.4"));
         assert!(!b.contains_key("gone"));
+    }
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    #[test]
+    fn orders_versions_like_nuget() {
+        use std::cmp::Ordering::*;
+        assert_eq!(compare_versions("13.0.3", "13.0.10"), Less);
+        assert_eq!(compare_versions("2.0.0", "2.0.0-beta02-0092"), Greater);
+        assert_eq!(compare_versions("1.0.0-beta.2", "1.0.0-beta.10"), Less);
+        assert_eq!(compare_versions("1.0.0-alpha", "1.0.0-beta"), Less);
+        assert_eq!(compare_versions("1.0.0-rc.1", "1.0.0-rc.1.1"), Less);
+        assert_eq!(compare_versions("2.0", "2.0.0.0"), Equal);
+        assert_eq!(compare_versions("1.0.0+build.5", "1.0.0"), Equal);
+    }
+
+    #[test]
+    fn latest_stable_comes_first() {
+        let all = ["2.0.0-beta02-0092", "2.0.0", "3.0.0-rc.1", "2.14.1", "3.0.0-beta.54"].map(String::from).to_vec();
+        assert_eq!(order_versions(all), ["2.14.1", "3.0.0-rc.1", "3.0.0-beta.54", "2.0.0", "2.0.0-beta02-0092"]);
+        assert_eq!(order_versions(vec!["1.0.0-preview.1".into()]), ["1.0.0-preview.1"]);
+    }
+
+    #[test]
+    fn parses_exact_match_output() {
+        let json = r#"{"version":2,"problems":[],"searchResult":[{"sourceName":"nuget.org","packages":[{"id":"A","version":"1.0.0"},{"id":"A","version":"1.1.0-beta"}]},{"sourceName":"local","packages":[{"id":"A","version":"1.0.0"}]}]}"#;
+        assert_eq!(parse_versions(json).unwrap(), ["1.0.0", "1.1.0-beta"]);
+        assert!(is_prerelease("1.1.0-beta") && !is_prerelease("1.1.0+sha.abc-def"));
     }
 }

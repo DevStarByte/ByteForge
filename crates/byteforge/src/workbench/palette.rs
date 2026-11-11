@@ -150,9 +150,9 @@ impl Workbench {
                     }
                     PaletteAction::Branch(branch) => self.scm.update(cx, |s, cx| s.checkout(branch, cx)),
                     PaletteAction::GoTo(path, at) => self.open_file(path, Some(at), window, cx),
-                    PaletteAction::Package(id, version) => {
+                    PaletteAction::Package(id, _latest) => {
                         if let Some(project) = self.package_target.take() {
-                            self.add_package(project, id, Some(version), window, cx);
+                            self.open_version_picker(project, id, window, cx);
                         }
                     }
                     PaletteAction::Prompt(text) => {

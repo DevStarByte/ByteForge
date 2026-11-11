@@ -35,6 +35,15 @@ pub struct AddPackageTo {
 
 actions!(nuget, [AddPackage, CheckPackageUpdates]);
 
+/// Adds `id` at `version` to `project` (picked in the version list after a NuGet search).
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = nuget, no_json)]
+pub struct AddPackageVersion {
+    pub project: String,
+    pub id: String,
+    pub version: String,
+}
+
 actions!(ef, [EfAddMigration, EfRemoveMigration, EfUpdateDatabase, EfUpdateDatabaseTo, EfGenerateScript, EfDropDatabase]);
 
 /// An EF Core migrations command, filled in step by step (context picked, name typed, …): `op` is add,

@@ -71,7 +71,16 @@ impl Workbench {
             cx.background_executor().timer(Duration::from_millis(350)).await;
             let _ = this.update(cx, |wb, cx| wb.set_package_items(vec![note(format!("Searching for “{query}”…"))], cx));
             let q = query.clone();
-            let result = cx.background_executor().spawn(async move { bf_core::nuget::search(&root, &q, false) }).await;
+            // Stable versions first; a package that only has prereleases is found with them.
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    match bf_core::nuget::search(&root, &q, false) {
+                        Ok(found) if found.is_empty() => bf_core::nuget::search(&root, &q, true),
+                        other => other,
+                    }
+                })
+                .await;
             let _ = this.update(cx, |wb, cx| {
                 let items = match result {
                     Ok(packages) if packages.is_empty() => vec![note(format!("No packages found for “{query}”"))],
@@ -81,7 +90,7 @@ impl Workbench {
                             let mut item = PaletteItem::new(p.id.clone(), PaletteAction::Package(p.id, p.version.clone()));
                             let downloads = format!("{} downloads", bf_core::nuget::format_downloads(p.downloads));
                             item.detail = Some(if p.owners.is_empty() { downloads } else { format!("{} · {downloads}", p.owners) });
-                            item.hint = Some(p.version);
+                            item.hint = Some(if bf_core::nuget::is_prerelease(&p.version) { format!("{} (prerelease)", p.version) } else { p.version });
                             item
                         })
                         .collect(),
@@ -90,6 +99,43 @@ impl Workbench {
                 wb.set_package_items(items, cx);
             });
         }));
+    }
+
+    /// After a search pick: the package's versions (latest stable first, so Enter takes it; prereleases
+    /// marked). Picking one adds it.
+    pub(super) fn open_version_picker(&mut self, project: PathBuf, id: String, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(root) = self.workspace.root() else { return };
+        let package = id.clone();
+        let task = cx.background_spawn(async move { bf_core::nuget::versions(&root, &package) });
+        cx.spawn_in(window, async move |this, cx| {
+            let versions = task.await;
+            let _ = this.update_in(cx, |wb, window, cx| {
+                let versions = match versions {
+                    Ok(v) if !v.is_empty() => v,
+                    Ok(_) => return wb.add_package(project, id, None, window, cx),
+                    Err(e) => {
+                        wb.log(format!("Could not list the versions of {id} ({e:#}); adding the latest."));
+                        return wb.add_package(project, id, None, window, cx);
+                    }
+                };
+                let project_arg = project.to_string_lossy().into_owned();
+                let items = versions
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| {
+                        let mut item = PaletteItem::new(v.clone(), PaletteAction::Command(Box::new(AddPackageVersion { project: project_arg.clone(), id: id.clone(), version: v.clone() })));
+                        item.hint = Some(match (i, bf_core::nuget::is_prerelease(v)) {
+                            (0, false) => "latest stable".into(),
+                            (_, true) => "prerelease".into(),
+                            _ => String::new(),
+                        });
+                        item
+                    })
+                    .collect();
+                wb.open_pick_palette(items, &format!("Version of {id} to add to {}", project_name(&project)), window, cx);
+            });
+        })
+        .detach();
     }
 
     fn set_package_items(&mut self, items: Vec<PaletteItem>, cx: &mut Context<Self>) {
