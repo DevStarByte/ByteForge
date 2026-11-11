@@ -11,7 +11,8 @@
 #   ByteForge-<ver>-windows-x64-setup.exe   installer (current user, no admin needed)
 #   ByteForge-<ver>-windows-x64.zip         portable
 #   byteforge-<pkgver>-1-x86_64.pkg.tar.zst Arch package (`sudo pacman -U <file>`)
-#   ByteForge-<ver>-macos-universal.dmg     macOS app, Apple Silicon + Intel (ad-hoc signed, not notarized)
+#   ByteForge-<ver>-macos-arm64.dmg         macOS app, Apple Silicon (ad-hoc signed, not notarized)
+#   ByteForge-<ver>-macos-x64.dmg           macOS app, Intel (ad-hoc signed, not notarized)
 # The signed [devstarbyte] pacman repo is still built by DevStarByte/arch-repo.
 name: Release
 
@@ -191,24 +192,34 @@ jobs:
 
   macos:
     needs: version
+    # Both builds run on Apple Silicon; the Intel one is cross-compiled.
     runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            target: aarch64-apple-darwin
+          - arch: x64
+            target: x86_64-apple-darwin
     env:
       VERSION: ${{ needs.version.outputs.version }}
       BYTEFORGE_VERSION: ${{ needs.version.outputs.version }}
-      UNIVERSAL: "1"
+      ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
 
       - name: Build app and dmg
         run: packaging/macos/bundle.sh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos
+          name: macos-${{ matrix.arch }}
           path: dist/*.dmg
           if-no-files-found: error
 
@@ -219,7 +230,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: "{windows,arch,macos}"
+          pattern: "{windows,arch,macos-*}"
           path: dist
           merge-multiple: true
 

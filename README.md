@@ -82,7 +82,7 @@ Windows builds are signed through SignPath Foundation once its approval comes th
 
 ### macOS
 
-Download `ByteForge-<version>-macos-universal.dmg` from
+Download `ByteForge-<version>-macos-arm64.dmg` (Apple Silicon) or `ByteForge-<version>-macos-x64.dmg` (Intel) from
 [Releases](https://github.com/DevStarByte/ByteForge/releases) and drag ByteForge into Applications. The app
 isn't notarized yet, so the first time right-click it and pick **Open** (or run
 `xattr -dr com.apple.quarantine /Applications/ByteForge.app`). You also need the

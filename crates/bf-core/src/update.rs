@@ -130,8 +130,10 @@ struct ApiAsset {
 fn asset_suffix() -> Option<&'static str> {
     if cfg!(windows) {
         Some("-windows-x64-setup.exe")
-    } else if cfg!(target_os = "macos") {
-        Some("-macos-universal.dmg")
+    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        Some("-macos-arm64.dmg")
+    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+        Some("-macos-x64.dmg")
     } else {
         None
     }
@@ -301,7 +303,8 @@ mod tests {
         {"tag_name": "v0.4.0-beta.1", "draft": false, "html_url": "b", "body": "beta", "assets": []},
         {"tag_name": "v0.3.5", "draft": false, "html_url": "https://x/v0.3.5", "body": "notes", "assets": [
             {"name": "ByteForge-0.3.5-windows-x64-setup.exe", "browser_download_url": "https://x/setup.exe", "size": 10},
-            {"name": "ByteForge-0.3.5-macos-universal.dmg", "browser_download_url": "https://x/app.dmg", "size": 20}
+            {"name": "ByteForge-0.3.5-macos-arm64.dmg", "browser_download_url": "https://x/arm64.dmg", "size": 20},
+            {"name": "ByteForge-0.3.5-macos-x64.dmg", "browser_download_url": "https://x/x64.dmg", "size": 20}
         ]},
         {"tag_name": "v0.3.6", "draft": true, "assets": []},
         {"tag_name": "v0.3.4", "draft": false, "assets": []}
@@ -314,8 +317,10 @@ mod tests {
         assert_eq!(stable.page, "https://x/v0.3.5");
         if cfg!(windows) {
             assert_eq!(stable.asset.unwrap().url, "https://x/setup.exe");
-        } else if cfg!(target_os = "macos") {
-            assert_eq!(stable.asset.unwrap().url, "https://x/app.dmg");
+        } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+            assert_eq!(stable.asset.unwrap().url, "https://x/arm64.dmg");
+        } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+            assert_eq!(stable.asset.unwrap().url, "https://x/x64.dmg");
         } else {
             assert!(stable.asset.is_none());
         }
