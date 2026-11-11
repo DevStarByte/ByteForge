@@ -389,7 +389,7 @@ pub fn hit_condition_met(condition: &str, hits: u64) -> bool {
         "<=" => hits <= n,
         ">" => hits > n,
         "<" => hits < n,
-        "%" => n == 0 || hits % n == 0,
+        "%" => n == 0 || hits.is_multiple_of(n),
         _ => hits == n,
     }
 }
