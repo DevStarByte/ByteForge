@@ -54,7 +54,7 @@ actions!(terminal, [ToggleTerminal, NewTerminal, KillTerminal, TerminalCopy, Ter
 
 actions!(
     debug,
-    [StartDebugging, RestartDebugging, Pause, StepOver, StepInto, StepOut, RemoveAllBreakpoints, AttachToProcess]
+    [StartDebugging, RestartDebugging, Pause, StepOver, StepInto, StepOut, RemoveAllBreakpoints, AttachToProcess, AttachToContainer]
 );
 
 actions!(
@@ -107,6 +107,21 @@ actions!(app, [HideApp, HideOtherApps, ShowAllApps, MinimizeWindow, ZoomWindow])
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
 #[action(namespace = debug, no_json)]
 pub struct AttachToPid {
+    pub pid: u32,
+}
+
+/// Lists the processes of this container to attach to (picked in "Attach to .NET Process in Container").
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = debug, no_json)]
+pub struct PickContainerProcess {
+    pub container: String,
+}
+
+/// Attaches the debugger to process `pid` (its PID inside the container) in `container`.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = debug, no_json)]
+pub struct AttachToContainerPid {
+    pub container: String,
     pub pid: u32,
 }
 
@@ -250,6 +265,7 @@ fn builtin() -> Vec<Builtin> {
         ("debug.toggleBreakpoint", "Toggle Breakpoint", "Debug", Box::new(ToggleBreakpoint), Some("f9")),
         ("debug.removeAllBreakpoints", "Remove All Breakpoints", "Debug", Box::new(RemoveAllBreakpoints), None),
         ("debug.attach", "Attach to .NET Process…", "Debug", Box::new(AttachToProcess), None),
+        ("debug.attachContainer", "Attach to .NET Process in Container…", "Debug", Box::new(AttachToContainer), None),
         ("view.debug", "Run and Debug", "View", Box::new(ShowDebug), Some("ctrl-shift-d")),
         ("view.debugConsole", "Debug Console", "View", Box::new(ShowDebugConsole), Some("ctrl-shift-y")),
         ("view.testing", "Testing", "View", Box::new(ShowTesting), None),

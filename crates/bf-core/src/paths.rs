@@ -24,6 +24,11 @@ impl AppPaths {
         }
     }
 
+    /// Downloads ByteForge keeps (e.g. netcoredbg for containers): the OS cache folder, else the config folder.
+    pub fn cache_dir(&self) -> PathBuf {
+        dirs::cache_dir().map(|d| d.join("byteforge")).unwrap_or_else(|| self.config_dir.join("cache"))
+    }
+
     pub fn settings_file(&self) -> PathBuf {
         self.config_dir.join("settings.json")
     }

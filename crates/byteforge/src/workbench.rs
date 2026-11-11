@@ -197,7 +197,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
     ("Run", &[
         "debug.start", "dotnet.run", "dotnet.watch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
-        "debug.toggleBreakpoint", "debug.removeAllBreakpoints", "debug.attach", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
+        "debug.toggleBreakpoint", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
         "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.dropDatabase", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
         "csharp.reload",

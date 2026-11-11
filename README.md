@@ -30,7 +30,8 @@ live, and modules written in any language can extend it.
   File and Remove and Sort Usings; what a refactoring names (`NewMethod`, `value`) goes straight to Rename
 - **Razor and MSBuild:** highlighting for `.razor`, `.cshtml`, `.csproj` and other XML project files
 - **Debugger:** breakpoints, stepping, variables and a Debug Console through netcoredbg; F5 runs ASP.NET Core apps
-  with their launch profile (shown in the status bar; click it or use "Select Launch Profile…" to switch)
+  with their launch profile (shown in the status bar; click it or use "Select Launch Profile…" to switch); attach
+  to a running process, also inside a Docker container (netcoredbg is put into the container for you)
 - **EF Core migrations:** add, remove, update the database (to any migration), generate SQL scripts and drop the
   database from the Run menu, with the `DbContext` and migrations found in the source
 - **Hot reload:** "Run with Watch" (Alt+F5) runs the app under `dotnet watch`, applies edits while it runs and

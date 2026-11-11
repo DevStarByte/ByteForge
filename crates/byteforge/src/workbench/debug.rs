@@ -4,6 +4,7 @@
 //! `.cshtml` files), stepping, the Run and Debug view and the Debug Console.
 
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::anyhow;
@@ -32,6 +33,15 @@ enum Phase {
 enum Target {
     Launch { project: PathBuf, program: PathBuf },
     Attach { pid: u32 },
+    /// A process in a Docker container (its PID there), debugged by the netcoredbg put into it.
+    Container { container: String, pid: u32 },
+}
+
+/// Source paths of a container session: breakpoints go out as short workspace-relative paths, stack
+/// frames come back with the container's paths (see `bf_core::container`).
+struct ContainerPaths {
+    root: PathBuf,
+    files: Arc<Vec<PathBuf>>,
 }
 
 pub(super) struct DebugSession {
@@ -56,6 +66,7 @@ pub(super) struct DebugSession {
     bp_ids: HashMap<i64, (PathBuf, usize)>,
     profile: Option<LaunchProfile>,
     browser_opened: bool,
+    container: Option<ContainerPaths>,
     _tasks: Vec<Task<()>>,
 }
 
@@ -78,6 +89,7 @@ impl DebugSession {
             bp_ids: HashMap::new(),
             profile: None,
             browser_opened: false,
+            container: None,
             _tasks: Vec::new(),
         }
     }
@@ -221,7 +233,12 @@ impl Workbench {
         let generation = session.generation;
         let lines: Vec<usize> = self.breakpoints.get(path).map(|list| list.iter().map(|b| b.line).collect()).unwrap_or_default();
         let request: Vec<SourceBreakpoint> = lines.iter().map(|line| SourceBreakpoint { line: *line as u32 + 1, condition: None }).collect();
-        let rx = client.set_breakpoints(path, &request);
+        // In a container the program was built elsewhere: netcoredbg matches a relative path by its end.
+        let sent = match &session.container {
+            Some(c) => PathBuf::from(bf_core::container::breakpoint_path(path, &c.root, &c.files)),
+            None => path.to_path_buf(),
+        };
+        let rx = client.set_breakpoints(&sent, &request);
         let path = path.to_path_buf();
         cx.spawn(async move |this, cx| {
             let Ok(result) = rx.recv_async().await else { return };
@@ -394,13 +411,153 @@ impl Workbench {
         .detach();
     }
 
+    // ───────────── containers ─────────────
+
+    /// "Attach to .NET Process in Container…": the running containers (straight to the processes when
+    /// there is only one).
+    pub(super) fn open_container_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let task = cx.background_spawn(async { bf_core::container::containers() });
+        cx.spawn_in(window, async move |this, cx| {
+            let containers = task.await;
+            let _ = this.update_in(cx, |wb, window, cx| match containers {
+                Err(e) => {
+                    wb.log(format!("Could not list containers: {e:#}"));
+                    wb.show_panel(PanelView::Output, cx);
+                }
+                Ok(list) if list.is_empty() => {
+                    wb.log("No running containers. Start the app's container first (docker run / docker compose up).");
+                    wb.show_panel(PanelView::Output, cx);
+                }
+                Ok(list) if list.len() == 1 => wb.open_container_process_picker(list[0].name.clone(), window, cx),
+                Ok(list) => {
+                    let items = list
+                        .into_iter()
+                        .map(|c| {
+                            let mut item = PaletteItem::new(c.name.clone(), PaletteAction::Command(Box::new(PickContainerProcess { container: c.name.clone() })));
+                            item.detail = Some(format!("{} \u{2022} {}", c.image, c.status));
+                            item.search = Some(format!("{} {} {}", c.name, c.image, c.id));
+                            item
+                        })
+                        .collect();
+                    wb.show_debug_pick(items, "Select the container to debug in", window, cx);
+                }
+            });
+        })
+        .detach();
+    }
+
+    /// The .NET processes in `container` (attaches right away when there is one).
+    pub(super) fn open_container_process_picker(&mut self, container: String, window: &mut Window, cx: &mut Context<Self>) {
+        let name = container.clone();
+        let task = cx.background_spawn(async move { bf_core::container::app_candidates(&bf_core::container::processes(&name)) });
+        cx.spawn_in(window, async move |this, cx| {
+            let apps = task.await;
+            let _ = this.update_in(cx, |wb, window, cx| match apps.as_slice() {
+                [] => {
+                    wb.log(format!("No app process found in {container}."));
+                    wb.show_panel(PanelView::Output, cx);
+                }
+                [only] => wb.debug_attach_container(container.clone(), only.pid, window, cx),
+                many => {
+                    let items = many
+                        .iter()
+                        .map(|p| {
+                            let mut item = PaletteItem::new(format!("{}  ({})", short(&p.command, 80), p.pid), PaletteAction::Command(Box::new(AttachToContainerPid { container: container.clone(), pid: p.pid })));
+                            item.search = Some(format!("{} {}", p.pid, p.command));
+                            item
+                        })
+                        .collect();
+                    wb.show_debug_pick(items, &format!("Select the process in {container} to attach to"), window, cx);
+                }
+            });
+        })
+        .detach();
+    }
+
+    fn show_debug_pick(&mut self, items: Vec<PaletteItem>, placeholder: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.menu_open = None;
+        let palette = cx.new(|cx| Palette::new(Mode::Pick, items, placeholder, "", window, cx));
+        let sub = cx.subscribe_in(&palette, window, Self::on_palette_event);
+        palette.update(cx, |p, cx| p.focus_input(window, cx));
+        self.palette = Some((palette, sub));
+        cx.notify();
+    }
+
+    /// Attaches to `pid` in `container`: puts netcoredbg into the container first when it isn't there (the
+    /// host's own when it can run there, else the Linux release for the container's architecture).
+    pub(super) fn debug_attach_container(&mut self, container: String, pid: u32, window: &mut Window, cx: &mut Context<Self>) {
+        if self.debug.is_some() {
+            self.log("Stop the current debug session first (Shift+F5).");
+            self.show_panel(PanelView::Output, cx);
+            return;
+        }
+        let Some(root) = self.workspace.root() else { return };
+        self.debug_generation += 1;
+        let generation = self.debug_generation;
+        let mut session = DebugSession::new(generation, format!("{container} (process {pid})"), Phase::Starting);
+        session.container = Some(ContainerPaths { root, files: self.workspace.files() });
+        self.debug = Some(session);
+        self.debug_console.update(cx, |c, cx| c.reload_text("", cx));
+        self.debug_print(format!("Attaching to process {pid} in container {container}…\n"), cx);
+        self.show_side(SideView::Debug, cx);
+        self.show_panel(PanelView::DebugConsole, cx);
+
+        let host = bf_dap::netcoredbg_command(self.settings.get_string("debug.netcoredbgPath").as_deref());
+        let cache = self.paths.cache_dir();
+        let (tx, progress) = flume::unbounded::<String>();
+        let name = container.clone();
+        let prepare = cx.background_spawn(async move {
+            use bf_core::container as c;
+            if c::debugger_ready(&name) {
+                return Ok(());
+            }
+            let arch = c::architecture(&name).unwrap_or_else(|| "amd64".into());
+            let dir = match host.as_deref().and_then(|h| c::host_debugger_dir(h, &arch)) {
+                Some(dir) => dir,
+                None => {
+                    let _ = tx.send(format!("Downloading netcoredbg for linux-{arch}…\n"));
+                    c::download_debugger(&arch, &cache)?
+                }
+            };
+            let _ = tx.send(format!("Copying netcoredbg into {name} ({})…\n", bf_core::container::DEBUGGER_DIR));
+            c::install_debugger(&name, &dir)
+        });
+        let progress_task = cx.spawn(async move |this, cx| {
+            while let Ok(line) = progress.recv_async().await {
+                let _ = this.update(cx, |wb, cx| wb.debug_print(line, cx));
+            }
+        });
+        let task = cx.spawn_in(window, async move |this, cx| {
+            let result = prepare.await;
+            let _ = this.update_in(cx, |wb, window, cx| {
+                if !wb.same_session(generation) {
+                    return;
+                }
+                match result {
+                    Ok(()) => wb.debug_connect(generation, Target::Container { container, pid }, String::new(), window, cx),
+                    Err(e) => {
+                        wb.debug_print(format!("Could not debug in the container: {e:#}\n"), cx);
+                        wb.debug_end(cx);
+                    }
+                }
+            });
+        });
+        if let Some(session) = self.debug.as_mut() {
+            session._tasks.extend([progress_task, task]);
+        }
+    }
+
     fn debug_connect(&mut self, generation: u64, target: Target, adapter: String, window: &mut Window, cx: &mut Context<Self>) {
         let cwd = match &target {
             Target::Launch { project, .. } => project.parent().map(Path::to_path_buf),
-            Target::Attach { .. } => self.workspace.root(),
+            Target::Attach { .. } | Target::Container { .. } => self.workspace.root(),
         }
         .unwrap_or_else(|| PathBuf::from("."));
-        let (client, events) = match DapClient::start(AdapterConfig { command: adapter, args: vec!["--interpreter=vscode".into()], cwd: cwd.clone() }) {
+        let (command, args) = match &target {
+            Target::Container { container, .. } => ("docker".to_owned(), bf_core::container::adapter_args(container)),
+            _ => (adapter, vec!["--interpreter=vscode".into()]),
+        };
+        let (client, events) = match DapClient::start(AdapterConfig { command, args, cwd: cwd.clone() }) {
             Ok(started) => started,
             Err(e) => {
                 self.debug_print(format!("{e:#}\n"), cx);
@@ -442,7 +599,7 @@ impl Workbench {
                 });
                 (arguments, false)
             }
-            Target::Attach { pid } => (
+            Target::Attach { pid } | Target::Container { pid, .. } => (
                 json!({ "name": ".NET Attach", "type": "coreclr", "request": "attach", "processId": pid, "justMyCode": just_my_code }),
                 true,
             ),
@@ -693,7 +850,16 @@ impl Workbench {
             let _ = this.update_in(cx, |wb, window, cx| {
                 let Some(session) = wb.debug.as_mut().filter(|s| s.generation == generation) else { return };
                 match result {
-                    Ok(frames) => {
+                    Ok(mut frames) => {
+                        if let Some(c) = &session.container {
+                            for frame in &mut frames {
+                                if let Some(path) = &frame.path
+                                    && !path.is_file()
+                                {
+                                    frame.path = bf_core::container::host_path(&path.to_string_lossy(), &c.files).or(frame.path.take());
+                                }
+                            }
+                        }
                         // Start at the first frame with source on disk (user code).
                         let first = frames.iter().position(|f| f.path.as_ref().is_some_and(|p| p.is_file())).unwrap_or(0);
                         session.frames = frames;
