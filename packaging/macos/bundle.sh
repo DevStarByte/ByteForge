@@ -46,6 +46,9 @@ STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
-hdiutil create -volname ByteForge -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+# hdiutil's own size estimate for -srcfolder is often too small on CI runners
+# ("No space left on device"), so size the image from the staged folder plus headroom.
+SIZE_MB=$(( $(du -sm "$STAGE" | cut -f1) * 12 / 10 + 50 ))
+hdiutil create -volname ByteForge -srcfolder "$STAGE" -fs HFS+ -size "${SIZE_MB}m" -ov -format UDZO "$DMG"
 rm -rf "$STAGE"
 echo "Built $APP and $DMG"
