@@ -114,7 +114,7 @@ impl LayoutConfig {
             title_right: list(s, "titleBar.right", &title_right),
             status_left: list(s, "statusBar.left", &["branch", "sync", "problems", "run", "launchProfile", "modules"]),
             status_center: list(s, "statusBar.center", &[]),
-            status_right: list(s, "statusBar.right", &["modules", "position", "indent", "encoding", "eol", "language", "lsp"]),
+            status_right: list(s, "statusBar.right", &["update", "modules", "position", "indent", "encoding", "eol", "language", "lsp"]),
             activity_items: list(s, "activityBar.items", &["explorer", "search", "scm", "debug", "testing", "solution", "modules", "spacer", "settings"]),
             panel_tabs: list(s, "panel.tabs", &["problems", "output", "debugConsole", "terminal"]),
             menus: list(s, "menuBar.menus", &["File", "Edit", "View", "Go", "Git", "Run", "Preferences", "Help"]),

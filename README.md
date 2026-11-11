@@ -97,6 +97,14 @@ live in the macOS menu bar, ⌘+Click goes to a definition, and the Explorer sho
 icons (`"explorer.nativeIcons": false` brings back the theme's). ByteForge picks up the `PATH` of your login
 shell, so tools installed through Homebrew or `~/.dotnet/tools` are found even when it's started from Finder.
 
+### Updates
+
+On Windows (installed with the setup) and macOS, ByteForge checks for a new release once a day and offers to
+install it: it downloads the update, closes, installs and starts again. "Check for Updates…" (Help menu, or the
+app menu on macOS) checks right away. Turn the daily check off with `"update.checkAutomatically": false`, or get
+betas too with `"update.includePrereleases": true`. The portable zip and Linux packages only point you to the
+new release.
+
 Pre-releases (betas) are marked as such on the Releases page; each release also carries the Arch package
 (`sudo pacman -U byteforge-*.pkg.tar.zst`) for trying a beta without the pacman repo.
 

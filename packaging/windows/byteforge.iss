@@ -42,6 +42,8 @@ UninstallDisplayIcon={app}\byteforge.exe
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+; the updater closes ByteForge itself; this covers a second window or a slow exit
+CloseApplications=yes
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
@@ -60,3 +62,11 @@ Name: "{autodesktop}\ByteForge"; Filename: "{app}\byteforge.exe"; Tasks: desktop
 
 [Run]
 Filename: "{app}\byteforge.exe"; Description: "{cm:LaunchProgram,ByteForge}"; Flags: nowait postinstall skipifsilent
+; the built-in updater runs the setup with /SILENT /RELAUNCH=1 and expects ByteForge back afterwards
+Filename: "{app}\byteforge.exe"; Flags: nowait runasoriginaluser; Check: ShouldRelaunch
+
+[Code]
+function ShouldRelaunch: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:RELAUNCH|0}') = '1');
+end;

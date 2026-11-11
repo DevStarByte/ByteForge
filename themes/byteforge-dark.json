@@ -499,7 +499,7 @@
     // (module items, placed by their alignment), position, indent, encoding, eol, language, lsp, spacer, commands.
     // "statusBar.left": ["branch", "sync", "problems", "run", "launchProfile", "modules"],
     // "statusBar.center": [],
-    // "statusBar.right": ["modules", "position", "indent", "encoding", "eol", "language", "lsp"],
+    // "statusBar.right": ["update", "modules", "position", "indent", "encoding", "eol", "language", "lsp"],
 
     "tab.indicatorPosition": "bottom",  // top | bottom: edge of the active tab that gets the indicator
 

@@ -9,7 +9,7 @@ actions!(
     [
         NewFile, OpenFile, OpenFolder, Save, SaveAs, SaveAll, CloseEditor, CloseAllEditors, Quit, CommandPalette, QuickOpen, GoToLine,
         ToggleSideBar, TogglePanel, ShowExplorer, ShowSearch, ShowProblems, ShowOutput, ShowModules, NextEditor, PreviousEditor,
-        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, About, Build, Run, RunWithWatch, SelectLaunchProfile, NewProject, NewItem, ManageUserSecrets, Test, Clean, Restore, Stop,
+        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, About, CheckForUpdates, Build, Run, RunWithWatch, SelectLaunchProfile, NewProject, NewItem, ManageUserSecrets, Test, Clean, Restore, Stop,
         ToggleLineEnding, ReloadCSharp, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
         GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
         FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup,
@@ -178,6 +178,7 @@ fn builtin() -> Vec<Builtin> {
         ("theme.reload", "Reload Theme", "Preferences", Box::new(ReloadTheme), None),
         ("settings.open", "Open Settings (JSON)", "Preferences", Box::new(OpenSettings), Some("ctrl-,")),
         ("app.about", "About ByteForge", "Help", Box::new(About), None),
+        ("app.checkForUpdates", "Check for Updates…", "Help", Box::new(CheckForUpdates), None),
         ("dotnet.build", "Build", "Run", Box::new(Build), Some("ctrl-shift-b")),
         ("dotnet.run", "Run Without Debugging", "Run", Box::new(Run), Some("ctrl-f5")),
         ("dotnet.watch", "Run with Watch (Hot Reload)", "Run", Box::new(RunWithWatch), Some("alt-f5")),

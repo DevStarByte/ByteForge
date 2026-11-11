@@ -193,10 +193,11 @@ impl Render for Workbench {
                 wb.open_file(path, None, w, cx)
             }))
             .on_action(cx.listener(|wb, _: &About, _, cx| {
-                wb.log(format!("ByteForge {} — Rust + GPUI, {} {}", env!("CARGO_PKG_VERSION"), std::env::consts::OS, std::env::consts::ARCH));
+                wb.log(format!("ByteForge {} — Rust + GPUI, {} {}", update::VERSION, std::env::consts::OS, std::env::consts::ARCH));
                 wb.log(format!("Config: {}", wb.paths.config_dir.display()));
                 wb.show_panel(PanelView::Output, cx);
             }))
+            .on_action(cx.listener(|wb, _: &CheckForUpdates, w, cx| wb.check_for_updates(true, w, cx)))
             .on_action(cx.listener(|wb, _: &Build, w, cx| wb.run_dotnet("build", w, cx)))
             .on_action(cx.listener(|wb, _: &Run, w, cx| wb.run_dotnet("run", w, cx)))
             .on_action(cx.listener(|wb, _: &RunWithWatch, w, cx| wb.run_dotnet("watch", w, cx)))

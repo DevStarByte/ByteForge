@@ -79,6 +79,9 @@ jobs:
 
       - name: Build
         run: cargo build --release --locked -p byteforge
+        env:
+          # the updater compares against the release version, beta suffix included
+          BYTEFORGE_VERSION: ${{ needs.version.outputs.version }}
 
       - name: Stage
         shell: pwsh
@@ -191,6 +194,7 @@ jobs:
     runs-on: macos-latest
     env:
       VERSION: ${{ needs.version.outputs.version }}
+      BYTEFORGE_VERSION: ${{ needs.version.outputs.version }}
       UNIVERSAL: "1"
     steps:
       - uses: actions/checkout@v4

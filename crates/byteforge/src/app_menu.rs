@@ -22,6 +22,7 @@ pub fn install(cx: &mut App) {
         name: "ByteForge".into(),
         items: vec![
             MenuItem::action("About ByteForge", About),
+            MenuItem::action("Check for Updates…", CheckForUpdates),
             MenuItem::separator(),
             MenuItem::action("Settings…", OpenSettings),
             MenuItem::separator(),
@@ -39,8 +40,8 @@ pub fn install(cx: &mut App) {
     for (name, ids) in MENUS {
         let mut items: Vec<MenuItem> = Vec::new();
         for id in ids.iter() {
-            // Quit and Settings live in the app menu on macOS.
-            if matches!(*id, "app.exit" | "app.about") {
+            // Quit, About and Check for Updates live in the app menu on macOS.
+            if matches!(*id, "app.exit" | "app.about" | "app.checkForUpdates") {
                 continue;
             }
             if *id == "-" {

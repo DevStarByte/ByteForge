@@ -272,6 +272,13 @@ impl Workbench {
                             }))
                             .into_any_element(),
                     ],
+                    "update" => self
+                        .update_status()
+                        .map(|(text, tip)| {
+                            item(name, id("up"), Some("arrowDown"), text).tooltip(tooltip(tip)).on_click(cx.listener(|wb, _, w, cx| wb.update_clicked(w, cx))).into_any_element()
+                        })
+                        .into_iter()
+                        .collect(),
                     "launchProfile" => self
                         .status_profile
                         .clone()

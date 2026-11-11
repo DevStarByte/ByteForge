@@ -23,6 +23,7 @@ mod templates;
 mod terminals;
 mod testing;
 mod title_bar;
+mod update;
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
@@ -190,7 +191,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "csharp.reload",
     ]),
     ("Preferences", &["settings.open", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
-    ("Help", &["view.modules", "app.about"]),
+    ("Help", &["view.modules", "-", "app.checkForUpdates", "app.about"]),
 ];
 
 pub struct Workbench {
@@ -228,6 +229,8 @@ pub struct Workbench {
     template_task: Option<Task<()>>,
     /// The startup project's launch profile, shown in the status bar ("launchProfile").
     status_profile: Option<String>,
+    update: update::UpdateState,
+    update_task: Option<Task<()>>,
     prompt: Option<PromptKind>,
     side: SideView,
     side_visible: bool,
@@ -427,6 +430,7 @@ impl Workbench {
                         AppEvent::FilesChanged => {
                             wb.explorer.update(cx, |e, cx| e.refresh(cx));
                             wb.refresh_status_profile();
+        wb.schedule_update_check(window, cx);
                             for p in &wb.plugins {
                                 p.event("filesChanged", None);
                             }
@@ -473,6 +477,8 @@ impl Workbench {
             item_templates: None,
             template_task: None,
             status_profile: None,
+            update: update::UpdateState::Idle,
+            update_task: None,
             prompt: None,
             side: SideView::Explorer,
             side_visible: true,
@@ -777,6 +783,7 @@ impl Workbench {
         for p in &self.plugins {
             p.stop();
         }
+        self.apply_pending_update();
     }
 
     // ───────────── C# language server ─────────────

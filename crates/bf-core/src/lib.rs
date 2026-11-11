@@ -15,6 +15,7 @@ pub mod snippets;
 pub mod solution;
 pub mod testing;
 pub mod templates;
+pub mod update;
 pub mod theme;
 pub mod watch;
 pub mod workspace;
