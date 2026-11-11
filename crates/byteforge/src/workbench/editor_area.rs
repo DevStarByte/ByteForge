@@ -187,7 +187,7 @@ impl Workbench {
                         .rounded(px(4.))
                         .cursor_pointer()
                         .hover(|s| s.bg(t.c("toolbar.hoverBackground")))
-                        .tooltip(tooltip("Open Preview to the Side (Ctrl+Shift+V opens it here)"))
+                        .tooltip(tooltip(format!("Open Preview to the Side ({} opens it here)", crate::actions::key_label("ctrl-shift-v"))))
                         .child(icon("openPreview", px(16.), t.c("icon.foreground")))
                         .on_click(cx.listener(|wb, _, w, cx| wb.open_markdown_preview(true, w, cx))),
                 ))

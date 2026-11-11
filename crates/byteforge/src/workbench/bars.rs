@@ -124,17 +124,17 @@ impl Workbench {
                 }
             }
             let view = match name.as_str() {
-                "explorer" => Some((SideView::Explorer, "files", "Explorer (Ctrl+Shift+E)", "Files")),
-                "search" => Some((SideView::Search, "search", "Search (Ctrl+Shift+F)", "Search")),
-                "scm" => Some((SideView::SourceControl, "sourceControl", "Source Control (Ctrl+Shift+G)", "Git")),
-                "debug" => Some((SideView::Debug, "debug", "Run and Debug (Ctrl+Shift+D)", "Debug")),
-                "testing" | "tests" => Some((SideView::Testing, "beaker", "Testing", "Tests")),
-                "solution" => Some((SideView::Solution, "fileSolution", "Solution", "Solution")),
-                "modules" => Some((SideView::Modules, "puzzle", "Modules", "Modules")),
+                "explorer" => Some((SideView::Explorer, "files", format!("Explorer ({})", crate::actions::key_label("ctrl-shift-e")), "Files")),
+                "search" => Some((SideView::Search, "search", format!("Search ({})", crate::actions::key_label("ctrl-shift-f")), "Search")),
+                "scm" => Some((SideView::SourceControl, "sourceControl", format!("Source Control ({})", crate::actions::key_label("ctrl-shift-g")), "Git")),
+                "debug" => Some((SideView::Debug, "debug", format!("Run and Debug ({})", crate::actions::key_label("ctrl-shift-d")), "Debug")),
+                "testing" | "tests" => Some((SideView::Testing, "beaker", "Testing".to_owned(), "Tests")),
+                "solution" => Some((SideView::Solution, "fileSolution", "Solution".to_owned(), "Solution")),
+                "modules" => Some((SideView::Modules, "puzzle", "Modules".to_owned(), "Modules")),
                 _ => None,
             };
             if let Some((view, icon_name, tip, label)) = view {
-                let mut el = item(id, icon_name, tip.into(), label, side_visible && side == view);
+                let mut el = item(id, icon_name, tip, label, side_visible && side == view);
                 if view == SideView::SourceControl {
                     el = el.children(badge(scm_count));
                 }
@@ -144,7 +144,7 @@ impl Workbench {
             match name.as_str() {
                 "spacer" => bar = bar.child(div().flex_1()),
                 "settings" => {
-                    bar = bar.child(item(id, "settings", "Settings (Ctrl+,)".into(), "", false).on_click(cx.listener(|_, _, w, cx| w.dispatch_action(Box::new(OpenSettings), cx))));
+                    bar = bar.child(item(id, "settings", format!("Settings ({})", crate::actions::key_label("ctrl-,")), "", false).on_click(cx.listener(|_, _, w, cx| w.dispatch_action(Box::new(OpenSettings), cx))));
                 }
                 other => {
                     if let Some((action, title, icon_name)) = command_button(other, cx) {

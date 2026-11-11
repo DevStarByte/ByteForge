@@ -28,7 +28,7 @@ impl Workbench {
             PanelView::References => self.render_references(cx),
             PanelView::Terminal => match self.terminals.get(self.active_terminal) {
                 Some((terminal, _)) => terminal.clone().into_any_element(),
-                None => div().p_3().text_color(t.c("foreground.muted")).child("No terminal is open. Press Ctrl+Shift+` to start one.").into_any_element(),
+                None => div().p_3().text_color(t.c("foreground.muted")).child(format!("No terminal is open. Press {} to start one.", crate::actions::key_label("ctrl-shift-`"))).into_any_element(),
             },
             PanelView::Problems => {
                 let root = self.workspace.root();
@@ -262,7 +262,7 @@ impl Workbench {
                     "warnings" => vec![item(name, id("w"), Some("warning"), warnings.to_string()).on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::Problems, cx))).into_any_element()],
                     "run" => vec![
                         item(name, id("r"), Some(if running { "stop" } else { "play" }), debugging.clone().unwrap_or_else(|| if running { "Stop".into() } else { "Run".into() }))
-                            .tooltip(tooltip(if running { "Stop (Shift+F5)" } else { "Build and run without debugging (Ctrl+F5)" }))
+                            .tooltip(tooltip(if running { "Stop (Shift+F5)".to_owned() } else { format!("Build and run without debugging ({})", crate::actions::key_label("ctrl-f5")) }))
                             .on_click(cx.listener(move |_, _, w, cx| {
                                 if running {
                                     w.dispatch_action(Box::new(Stop), cx)

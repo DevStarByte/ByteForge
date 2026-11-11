@@ -24,6 +24,11 @@
 
 ## Default shortcuts
 
+On macOS, read Ctrl as ⌘ in the table below (⌘⇧P, ⌘S, ⌘+Click, …). The exceptions follow macOS
+conventions: Ctrl+Space, Ctrl+Tab, Ctrl+G, Ctrl+F5 and Ctrl+\` stay on ⌃; Replace is ⌘⌥F; fold/unfold are
+⌘⌥[ / ⌘⌥]; words move with ⌥←/→, line ends with ⌘←/→ and the document ends with ⌘↑/↓. In
+`"keybindings"`, `secondary-` means ⌘ on macOS and Ctrl elsewhere (`"view.quickOpen": "secondary-e"`).
+
 | Shortcut | Action | Shortcut | Action |
 |---|---|---|---|
 | Ctrl+Shift+P / F1 | Command palette | Ctrl+P | Go to file |

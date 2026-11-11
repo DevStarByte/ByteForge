@@ -109,7 +109,7 @@ impl Workbench {
             })
             .collect();
         self.menu_open = None;
-        let palette = cx.new(|cx| Palette::new(Mode::Pick, items, &format!("Launch profile for {name} (F5, Ctrl+F5, Alt+F5)"), "", window, cx));
+        let palette = cx.new(|cx| Palette::new(Mode::Pick, items, &format!("Launch profile for {name} (F5, {}, {})", crate::actions::key_label("ctrl-f5"), crate::actions::key_label("alt-f5")), "", window, cx));
         let sub = cx.subscribe_in(&palette, window, Self::on_palette_event);
         palette.update(cx, |p, cx| p.focus_input(window, cx));
         self.palette = Some((palette, sub));

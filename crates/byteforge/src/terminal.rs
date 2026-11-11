@@ -341,7 +341,7 @@ impl TerminalView {
         window.focus(&self.focus);
         let (x, y) = (f32::from(event.position.x), f32::from(event.position.y));
         let (at, side) = self.grid_point(x, y);
-        if event.modifiers.control {
+        if event.modifiers.secondary() {
             let (text, col) = self.row_text(at);
             let links = bf_core::links::find_links(&text, self.link_root.as_deref());
             if let Some(link) = links.into_iter().find(|l| l.start <= col && col < l.end) {

@@ -819,7 +819,7 @@ impl Workbench {
                 .text_color(t.c("sideBarSectionHeader.foreground"))
                 .child(title)
         };
-        let tool = |id: &'static str, icon_name: &'static str, tip: &'static str, color: gpui::Hsla| {
+        let tool = |id: &'static str, icon_name: &'static str, tip: SharedString, color: gpui::Hsla| {
             div()
                 .id(id)
                 .p(px(4.))
@@ -871,16 +871,16 @@ impl Workbench {
                     .items_center()
                     .gap_1()
                     .child(if stopped || !running {
-                        tool("dbg-continue", "play", "Continue (F5)", if stopped { t.c_or("debugIcon.continueForeground", 0x75beffff) } else { off })
+                        tool("dbg-continue", "play", "Continue (F5)".into(), if stopped { t.c_or("debugIcon.continueForeground", 0x75beffff) } else { off })
                             .on_click(cx.listener(|wb, _, _, cx| wb.debug_continue(cx)))
                     } else {
-                        tool("dbg-pause", "pause", "Pause (F6)", t.c_or("debugIcon.pauseForeground", 0x75beffff)).on_click(cx.listener(|wb, _, _, cx| wb.debug_pause(cx)))
+                        tool("dbg-pause", "pause", "Pause (F6)".into(), t.c_or("debugIcon.pauseForeground", 0x75beffff)).on_click(cx.listener(|wb, _, _, cx| wb.debug_pause(cx)))
                     })
-                    .child(tool("dbg-over", "stepOver", "Step Over (F10)", if stopped { on } else { off }).on_click(cx.listener(|wb, _, _, cx| wb.debug_step(Step::Over, cx))))
-                    .child(tool("dbg-into", "stepInto", "Step Into (F11)", if stopped { on } else { off }).on_click(cx.listener(|wb, _, _, cx| wb.debug_step(Step::Into, cx))))
-                    .child(tool("dbg-out", "stepOut", "Step Out (Shift+F11)", if stopped { on } else { off }).on_click(cx.listener(|wb, _, _, cx| wb.debug_step(Step::Out, cx))))
-                    .child(tool("dbg-restart", "refresh", "Restart (Ctrl+Shift+F5)", t.c_or("debugIcon.restartForeground", 0x89d185ff)).on_click(cx.listener(|wb, _, w, cx| wb.debug_restart(w, cx))))
-                    .child(tool("dbg-stop", "stop", "Stop (Shift+F5)", t.c_or("debugIcon.stopForeground", 0xf48771ff)).on_click(cx.listener(|wb, _, _, cx| wb.debug_stop(cx))));
+                    .child(tool("dbg-over", "stepOver", "Step Over (F10)".into(), if stopped { on } else { off }).on_click(cx.listener(|wb, _, _, cx| wb.debug_step(Step::Over, cx))))
+                    .child(tool("dbg-into", "stepInto", "Step Into (F11)".into(), if stopped { on } else { off }).on_click(cx.listener(|wb, _, _, cx| wb.debug_step(Step::Into, cx))))
+                    .child(tool("dbg-out", "stepOut", "Step Out (Shift+F11)".into(), if stopped { on } else { off }).on_click(cx.listener(|wb, _, _, cx| wb.debug_step(Step::Out, cx))))
+                    .child(tool("dbg-restart", "refresh", format!("Restart ({})", crate::actions::key_label("ctrl-shift-f5")).into(), t.c_or("debugIcon.restartForeground", 0x89d185ff)).on_click(cx.listener(|wb, _, w, cx| wb.debug_restart(w, cx))))
+                    .child(tool("dbg-stop", "stop", "Stop (Shift+F5)".into(), t.c_or("debugIcon.stopForeground", 0xf48771ff)).on_click(cx.listener(|wb, _, _, cx| wb.debug_stop(cx))));
                 let status = if stopped && !session.stop_reason.is_empty() {
                     format!("Paused on {}", session.stop_reason)
                 } else {

@@ -117,7 +117,7 @@ impl Workbench {
         let t = Theme::global(cx);
         let hover = t.c("toolbar.hoverBackground");
         let icon_size = t.m("panel.iconSize", 14.0);
-        let button = |id: &'static str, name: &'static str, tip: &'static str| {
+        let button = |id: &'static str, name: &'static str, tip: SharedString| {
             div().id(id).p_1().rounded(px(4.)).cursor_pointer().hover(move |s| s.bg(hover)).tooltip(tooltip(tip)).child(icon(name, icon_size, t.c("icon.foreground")))
         };
         let mut out: Vec<gpui::AnyElement> = Vec::new();
@@ -144,9 +144,9 @@ impl Workbench {
                 );
             }
         }
-        out.push(button("term-new", "add", "New Terminal (Ctrl+Shift+`)").on_click(cx.listener(|wb, _, w, cx| wb.new_terminal(w, cx))).into_any_element());
-        out.push(button("term-shell", "terminal", "Select Default Shell…").on_click(cx.listener(|wb, _, w, cx| wb.open_shell_picker(w, cx))).into_any_element());
-        out.push(button("term-kill", "trash", "Kill Terminal").on_click(cx.listener(|wb, _, w, cx| wb.kill_terminal(w, cx))).into_any_element());
+        out.push(button("term-new", "add", format!("New Terminal ({})", crate::actions::key_label("ctrl-shift-`")).into()).on_click(cx.listener(|wb, _, w, cx| wb.new_terminal(w, cx))).into_any_element());
+        out.push(button("term-shell", "terminal", "Select Default Shell…".into()).on_click(cx.listener(|wb, _, w, cx| wb.open_shell_picker(w, cx))).into_any_element());
+        out.push(button("term-kill", "trash", "Kill Terminal".into()).on_click(cx.listener(|wb, _, w, cx| wb.kill_terminal(w, cx))).into_any_element());
         out
     }
 

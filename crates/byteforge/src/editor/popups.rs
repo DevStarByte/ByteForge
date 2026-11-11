@@ -193,7 +193,7 @@ impl EditorView {
             body = body.child(div().flex().gap_2().child(icon(name, px(14.), t.c(key)).mt(px(2.))).child(div().flex_1().child(text)));
         }
         if has_problems && self.lsp.is_some() {
-            body = body.child(div().text_size(px(11.)).text_color(t.c("foreground.muted")).child("Ctrl+. for quick fixes"));
+            body = body.child(div().text_size(px(11.)).text_color(t.c("foreground.muted")).child(format!("{} for quick fixes", crate::actions::key_label("ctrl-."))));
         }
         if has_text {
             if self.diagnostics_in(hover.range).next().is_some() {

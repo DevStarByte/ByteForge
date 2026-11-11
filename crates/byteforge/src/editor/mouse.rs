@@ -42,7 +42,7 @@ impl EditorView {
         }
         let p = self.point_at(x, y);
         if self.detect_links
-            && (self.read_only || e.modifiers.control)
+            && (self.read_only || e.modifiers.secondary())
             && e.click_count == 1
             && x >= self.layout.text_left
             && let Some(link) = self.link_at(p)
@@ -51,7 +51,7 @@ impl EditorView {
             cx.emit(EditorEvent::Navigate(link.path.clone(), at));
             return;
         }
-        if e.modifiers.control && !e.modifiers.shift {
+        if e.modifiers.secondary() && !e.modifiers.shift {
             self.state.set_caret(p, false);
             self.after_move(cx);
             self.go_to_definition_at(p, cx);

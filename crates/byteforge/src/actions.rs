@@ -64,6 +64,9 @@ actions!(
 
 actions!(input, [Confirm, InputBackspace, InputDelete, InputLeft, InputRight, InputSelectLeft, InputSelectRight, InputHome, InputEnd, InputSelectAll, InputCopy, InputCut, InputPaste, InputUp, InputDown, InputCancel, InputPageUp, InputPageDown]);
 
+// The macOS application and Window menus.
+actions!(app, [HideApp, HideOtherApps, ShowAllApps, MinimizeWindow, ZoomWindow]);
+
 /// Attaches the debugger to a running .NET process (picked in the attach palette).
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
 #[action(namespace = debug, no_json)]
@@ -255,14 +258,15 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
     let mut commands = Commands::default();
     let mut bindings = Vec::new();
     for (id, title, category, action, key) in builtin() {
+        // User overrides are taken as written ("secondary-" means Cmd on macOS, Ctrl elsewhere).
         let key = match overrides.get(id) {
             Some(k) if k.trim().is_empty() => None,
-            Some(k) => Some(k.as_str()),
-            None => key,
+            Some(k) => Some(k.clone()),
+            None => key.map(platform_keys),
         };
         if let Some(key) = key {
             let mapper = cx.keyboard_mapper().clone();
-            match KeyBinding::load(key, action.boxed_clone(), None, false, None, mapper.as_ref()) {
+            match KeyBinding::load(&key, action.boxed_clone(), None, false, None, mapper.as_ref()) {
                 Ok(binding) => bindings.push(binding),
                 Err(e) => log::warn!("invalid keybinding '{key}' for {id}: {e}"),
             }
@@ -270,84 +274,100 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         commands.list.push(CommandInfo { id: id.into(), title: title.into(), category, action });
     }
     // F1 first so Ctrl+Shift+P stays the displayed (highest-precedence) binding.
-    cx.bind_keys([KeyBinding::new("f1", CommandPalette, None)]);
+    cx.bind_keys([kb("f1", CommandPalette, None)]);
     cx.bind_keys(bindings);
 
     let e = Some(EDITOR);
     cx.bind_keys([
-        KeyBinding::new("left", MoveLeft, e),
-        KeyBinding::new("right", MoveRight, e),
-        KeyBinding::new("up", MoveUp, e),
-        KeyBinding::new("down", MoveDown, e),
-        KeyBinding::new("shift-left", SelectLeft, e),
-        KeyBinding::new("shift-right", SelectRight, e),
-        KeyBinding::new("shift-up", SelectUp, e),
-        KeyBinding::new("shift-down", SelectDown, e),
-        KeyBinding::new("ctrl-left", MoveWordLeft, e),
-        KeyBinding::new("ctrl-right", MoveWordRight, e),
-        KeyBinding::new("ctrl-shift-left", SelectWordLeft, e),
-        KeyBinding::new("ctrl-shift-right", SelectWordRight, e),
-        KeyBinding::new("home", MoveHome, e),
-        KeyBinding::new("end", MoveEnd, e),
-        KeyBinding::new("shift-home", SelectHome, e),
-        KeyBinding::new("shift-end", SelectEnd, e),
-        KeyBinding::new("ctrl-home", MoveDocStart, e),
-        KeyBinding::new("ctrl-end", MoveDocEnd, e),
-        KeyBinding::new("ctrl-shift-home", SelectDocStart, e),
-        KeyBinding::new("ctrl-shift-end", SelectDocEnd, e),
-        KeyBinding::new("pageup", PageUp, e),
-        KeyBinding::new("pagedown", PageDown, e),
-        KeyBinding::new("shift-pageup", SelectPageUp, e),
-        KeyBinding::new("shift-pagedown", SelectPageDown, e),
-        KeyBinding::new("ctrl-up", ScrollLineUp, e),
-        KeyBinding::new("ctrl-down", ScrollLineDown, e),
-        KeyBinding::new("backspace", Backspace, e),
-        KeyBinding::new("shift-backspace", Backspace, e),
-        KeyBinding::new("ctrl-backspace", DeleteWordLeft, e),
-        KeyBinding::new("delete", Delete, e),
-        KeyBinding::new("ctrl-delete", DeleteWordRight, e),
-        KeyBinding::new("enter", Newline, e),
-        KeyBinding::new("tab", Tab, e),
-        KeyBinding::new("shift-tab", Outdent, e),
-        KeyBinding::new("ctrl-a", SelectAll, e),
-        KeyBinding::new("ctrl-c", Copy, e),
-        KeyBinding::new("ctrl-insert", Copy, e),
-        KeyBinding::new("ctrl-x", Cut, e),
-        KeyBinding::new("ctrl-v", Paste, e),
-        KeyBinding::new("shift-insert", Paste, e),
-        KeyBinding::new("ctrl-z", Undo, e),
-        KeyBinding::new("ctrl-y", Redo, e),
-        KeyBinding::new("ctrl-shift-z", Redo, e),
-        KeyBinding::new("shift-alt-down", DuplicateLines, e),
-        KeyBinding::new("ctrl-d", AddNextMatch, e),
-        KeyBinding::new("ctrl-shift-l", SelectAllMatches, e),
-        KeyBinding::new("ctrl-alt-up", AddCursorAbove, e),
-        KeyBinding::new("ctrl-alt-down", AddCursorBelow, e),
-        KeyBinding::new("ctrl-shift-k", DeleteLines, e),
-        KeyBinding::new("alt-up", MoveLinesUp, e),
-        KeyBinding::new("alt-down", MoveLinesDown, e),
-        KeyBinding::new("ctrl-/", ToggleComment, e),
-        KeyBinding::new("ctrl-#", ToggleComment, e),
-        KeyBinding::new("ctrl-f", Find, e),
-        KeyBinding::new("ctrl-h", Replace, e),
-        KeyBinding::new("f3", FindNext, e),
-        KeyBinding::new("shift-f3", FindPrevious, e),
-        KeyBinding::new("ctrl-space", TriggerCompletion, e),
-        KeyBinding::new("f12", GoToDefinition, e),
-        KeyBinding::new("ctrl-.", QuickFix, e),
-        KeyBinding::new("shift-f12", FindReferences, e),
-        KeyBinding::new("ctrl-f12", GoToImplementation, e),
-        KeyBinding::new("ctrl-shift-[", Fold, e),
-        KeyBinding::new("ctrl-shift-]", Unfold, e),
-        KeyBinding::new("f2", RenameSymbol, e),
-        KeyBinding::new("ctrl-shift-space", ShowSignatureHelp, e),
-        KeyBinding::new("escape", Cancel, e),
+        kb("left", MoveLeft, e),
+        kb("right", MoveRight, e),
+        kb("up", MoveUp, e),
+        kb("down", MoveDown, e),
+        kb("shift-left", SelectLeft, e),
+        kb("shift-right", SelectRight, e),
+        kb("shift-up", SelectUp, e),
+        kb("shift-down", SelectDown, e),
+        kb("ctrl-left", MoveWordLeft, e),
+        kb("ctrl-right", MoveWordRight, e),
+        kb("ctrl-shift-left", SelectWordLeft, e),
+        kb("ctrl-shift-right", SelectWordRight, e),
+        kb("home", MoveHome, e),
+        kb("end", MoveEnd, e),
+        kb("shift-home", SelectHome, e),
+        kb("shift-end", SelectEnd, e),
+        kb("ctrl-home", MoveDocStart, e),
+        kb("ctrl-end", MoveDocEnd, e),
+        kb("ctrl-shift-home", SelectDocStart, e),
+        kb("ctrl-shift-end", SelectDocEnd, e),
+        kb("pageup", PageUp, e),
+        kb("pagedown", PageDown, e),
+        kb("shift-pageup", SelectPageUp, e),
+        kb("shift-pagedown", SelectPageDown, e),
+        kb("ctrl-up", ScrollLineUp, e),
+        kb("ctrl-down", ScrollLineDown, e),
+        kb("backspace", Backspace, e),
+        kb("shift-backspace", Backspace, e),
+        kb("ctrl-backspace", DeleteWordLeft, e),
+        kb("delete", Delete, e),
+        kb("ctrl-delete", DeleteWordRight, e),
+        kb("enter", Newline, e),
+        kb("tab", Tab, e),
+        kb("shift-tab", Outdent, e),
+        kb("ctrl-a", SelectAll, e),
+        kb("ctrl-c", Copy, e),
+        kb("ctrl-insert", Copy, e),
+        kb("ctrl-x", Cut, e),
+        kb("ctrl-v", Paste, e),
+        kb("shift-insert", Paste, e),
+        kb("ctrl-z", Undo, e),
+        kb("ctrl-y", Redo, e),
+        kb("ctrl-shift-z", Redo, e),
+        kb("shift-alt-down", DuplicateLines, e),
+        kb("ctrl-d", AddNextMatch, e),
+        kb("ctrl-shift-l", SelectAllMatches, e),
+        kb("ctrl-alt-up", AddCursorAbove, e),
+        kb("ctrl-alt-down", AddCursorBelow, e),
+        kb("ctrl-shift-k", DeleteLines, e),
+        kb("alt-up", MoveLinesUp, e),
+        kb("alt-down", MoveLinesDown, e),
+        kb("ctrl-/", ToggleComment, e),
+        kb("ctrl-#", ToggleComment, e),
+        kb("ctrl-f", Find, e),
+        kb("ctrl-h", Replace, e),
+        kb("f3", FindNext, e),
+        kb("shift-f3", FindPrevious, e),
+        kb("ctrl-space", TriggerCompletion, e),
+        kb("f12", GoToDefinition, e),
+        kb("ctrl-.", QuickFix, e),
+        kb("shift-f12", FindReferences, e),
+        kb("ctrl-f12", GoToImplementation, e),
+        kb("ctrl-shift-[", Fold, e),
+        kb("ctrl-shift-]", Unfold, e),
+        kb("f2", RenameSymbol, e),
+        kb("ctrl-shift-space", ShowSignatureHelp, e),
+        kb("escape", Cancel, e),
     ]);
+    if cfg!(target_os = "macos") {
+        // Cmd+Arrow goes to the line ends, like every macOS text view (Cmd+Up/Down come from ctrl-home/end).
+        cx.bind_keys([
+            KeyBinding::new("cmd-left", MoveHome, e),
+            KeyBinding::new("cmd-right", MoveEnd, e),
+            KeyBinding::new("cmd-shift-left", SelectHome, e),
+            KeyBinding::new("cmd-shift-right", SelectEnd, e),
+            KeyBinding::new("cmd-left", InputHome, Some(INPUT)),
+            KeyBinding::new("cmd-right", InputEnd, Some(INPUT)),
+        ]);
+    }
 
-    cx.bind_keys([KeyBinding::new("f2", RenameEntry, Some(EXPLORER))]);
+    cx.bind_keys([kb("f2", RenameEntry, Some(EXPLORER))]);
 
     let term = Some(TERMINAL);
-    let mut terminal_bindings = vec![KeyBinding::new("ctrl-shift-c", TerminalCopy, term), KeyBinding::new("ctrl-shift-v", TerminalPaste, term), KeyBinding::new("shift-insert", TerminalPaste, term)];
+    let mut terminal_bindings = if cfg!(target_os = "macos") {
+        // Cmd never reaches the shell on macOS, so plain Cmd+C/V can copy and paste.
+        vec![KeyBinding::new("cmd-c", TerminalCopy, term), KeyBinding::new("cmd-v", TerminalPaste, term)]
+    } else {
+        vec![KeyBinding::new("ctrl-shift-c", TerminalCopy, term), KeyBinding::new("ctrl-shift-v", TerminalPaste, term), KeyBinding::new("shift-insert", TerminalPaste, term)]
+    };
     for c in SHELL_KEYS.chars() {
         // NoAction hides the IDE binding here, so the key reaches the terminal's key handler.
         terminal_bindings.push(KeyBinding::new(&format!("ctrl-{c}"), gpui::NoAction, term));
@@ -356,49 +376,138 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
 
     let i = Some(INPUT);
     cx.bind_keys([
-        KeyBinding::new("enter", Confirm, i),
-        KeyBinding::new("backspace", InputBackspace, i),
-        KeyBinding::new("delete", InputDelete, i),
-        KeyBinding::new("left", InputLeft, i),
-        KeyBinding::new("right", InputRight, i),
-        KeyBinding::new("shift-left", InputSelectLeft, i),
-        KeyBinding::new("shift-right", InputSelectRight, i),
-        KeyBinding::new("home", InputHome, i),
-        KeyBinding::new("end", InputEnd, i),
-        KeyBinding::new("ctrl-a", InputSelectAll, i),
-        KeyBinding::new("ctrl-c", InputCopy, i),
-        KeyBinding::new("ctrl-x", InputCut, i),
-        KeyBinding::new("ctrl-v", InputPaste, i),
-        KeyBinding::new("up", InputUp, i),
-        KeyBinding::new("down", InputDown, i),
-        KeyBinding::new("pageup", InputPageUp, i),
-        KeyBinding::new("pagedown", InputPageDown, i),
-        KeyBinding::new("escape", InputCancel, i),
+        kb("enter", Confirm, i),
+        kb("backspace", InputBackspace, i),
+        kb("delete", InputDelete, i),
+        kb("left", InputLeft, i),
+        kb("right", InputRight, i),
+        kb("shift-left", InputSelectLeft, i),
+        kb("shift-right", InputSelectRight, i),
+        kb("home", InputHome, i),
+        kb("end", InputEnd, i),
+        kb("ctrl-a", InputSelectAll, i),
+        kb("ctrl-c", InputCopy, i),
+        kb("ctrl-x", InputCut, i),
+        kb("ctrl-v", InputPaste, i),
+        kb("up", InputUp, i),
+        kb("down", InputDown, i),
+        kb("pageup", InputPageUp, i),
+        kb("pagedown", InputPageDown, i),
+        kb("escape", InputCancel, i),
     ]);
 
     cx.set_global(commands);
 }
 
-/// "ctrl-shift-p" → "Ctrl+Shift+P" (chords separated by spaces).
+/// A built-in binding, translated for the platform (see [`platform_keys`]).
+fn kb<A: gpui::Action>(keys: &str, action: A, context: Option<&str>) -> KeyBinding {
+    KeyBinding::new(&platform_keys(keys), action, context)
+}
+
+/// Built-in bindings are written the Windows/Linux way ("ctrl-s"). On macOS they become their Mac
+/// equivalents: Ctrl turns into Cmd, except for keys macOS reserves or where Mac editors differ.
+pub fn platform_keys(keys: &str) -> String {
+    if !cfg!(target_os = "macos") {
+        return keys.to_owned();
+    }
+    keys.split_whitespace().map(mac_chord).collect::<Vec<_>>().join(" ")
+}
+
+fn mac_chord(chord: &str) -> String {
+    let special = match chord {
+        // Word and document movement follow the macOS text conventions.
+        "ctrl-left" => "alt-left",
+        "ctrl-right" => "alt-right",
+        "ctrl-shift-left" => "alt-shift-left",
+        "ctrl-shift-right" => "alt-shift-right",
+        "ctrl-home" => "cmd-up",
+        "ctrl-end" => "cmd-down",
+        "ctrl-shift-home" => "cmd-shift-up",
+        "ctrl-shift-end" => "cmd-shift-down",
+        "ctrl-backspace" => "alt-backspace",
+        "ctrl-delete" => "alt-delete",
+        // Cmd+H hides the app and Cmd+Shift+[ / ] switch tabs on macOS.
+        "ctrl-h" => "cmd-alt-f",
+        "ctrl-shift-[" => "cmd-alt-[",
+        "ctrl-shift-]" => "cmd-alt-]",
+        // Cmd+Space is Spotlight and Cmd+Tab the app switcher; these stay on Ctrl, like in VS Code for macOS.
+        "ctrl-space" | "ctrl-shift-space" | "ctrl-tab" | "ctrl-shift-tab" | "ctrl-`" | "ctrl-shift-`" | "ctrl-g" | "ctrl-f5" | "ctrl-up"
+        | "ctrl-down" => chord,
+        _ => "",
+    };
+    if !special.is_empty() {
+        return special.to_owned();
+    }
+    chord.split('-').map(|part| if part == "ctrl" { "cmd" } else { part }).collect::<Vec<_>>().join("-")
+}
+
+/// A built-in binding as shown to the user: "ctrl-shift-p" → "Ctrl+Shift+P" (on macOS "⇧⌘P").
+pub fn key_label(keys: &str) -> String {
+    pretty_keys(&platform_keys(keys))
+}
+
+/// "ctrl-shift-p" → "Ctrl+Shift+P" (chords separated by spaces); macOS uses its symbols: "cmd-shift-p" → "⇧⌘P".
 pub fn pretty_keys(text: &str) -> String {
+    let mac = cfg!(target_os = "macos");
     text.split_whitespace()
         .map(|chord| {
-            chord
-                .split('-')
-                .map(|part| match part {
-                    "ctrl" => "Ctrl".to_owned(),
-                    "shift" => "Shift".to_owned(),
-                    "alt" => "Alt".to_owned(),
-                    "cmd" | "super" | "win" => "Super".to_owned(),
-                    other if other.chars().count() == 1 => other.to_uppercase(),
-                    other => {
+            let mut parts: Vec<&str> = chord.split('-').collect();
+            if mac {
+                // Apple's order: ⌃⌥⇧⌘, then the key.
+                let rank = |p: &str| match p {
+                    "ctrl" => 0,
+                    "alt" => 1,
+                    "shift" => 2,
+                    "cmd" | "super" | "win" | "secondary" => 3,
+                    _ => 4,
+                };
+                parts.sort_by_key(|p| rank(p));
+            }
+            let labels: Vec<String> = parts
+                .iter()
+                .map(|part| match (*part, mac) {
+                    ("ctrl", true) => "⌃".to_owned(),
+                    ("alt", true) => "⌥".to_owned(),
+                    ("shift", true) => "⇧".to_owned(),
+                    ("cmd" | "super" | "win" | "secondary", true) => "⌘".to_owned(),
+                    ("left", true) => "←".to_owned(),
+                    ("right", true) => "→".to_owned(),
+                    ("up", true) => "↑".to_owned(),
+                    ("down", true) => "↓".to_owned(),
+                    ("enter", true) => "↩".to_owned(),
+                    ("backspace", true) => "⌫".to_owned(),
+                    ("escape", true) => "⎋".to_owned(),
+                    ("ctrl" | "secondary", false) => "Ctrl".to_owned(),
+                    ("shift", false) => "Shift".to_owned(),
+                    ("alt", false) => "Alt".to_owned(),
+                    ("cmd" | "super" | "win", false) => "Super".to_owned(),
+                    (other, _) if other.chars().count() == 1 => other.to_uppercase(),
+                    (other, _) => {
                         let mut c = other.chars();
                         c.next().map(|f| f.to_uppercase().chain(c).collect()).unwrap_or_default()
                     }
                 })
-                .collect::<Vec<_>>()
-                .join("+")
+                .collect();
+            labels.join(if mac { "" } else { "+" })
         })
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mac_chord;
+
+    #[test]
+    fn mac_bindings_use_cmd_except_where_macos_differs() {
+        assert_eq!(mac_chord("ctrl-shift-p"), "cmd-shift-p");
+        assert_eq!(mac_chord("ctrl-s"), "cmd-s");
+        assert_eq!(mac_chord("ctrl-left"), "alt-left");
+        assert_eq!(mac_chord("ctrl-home"), "cmd-up");
+        assert_eq!(mac_chord("ctrl-h"), "cmd-alt-f");
+        assert_eq!(mac_chord("ctrl-space"), "ctrl-space");
+        assert_eq!(mac_chord("ctrl-`"), "ctrl-`");
+        assert_eq!(mac_chord("shift-alt-f"), "shift-alt-f");
+        assert_eq!(mac_chord("f12"), "f12");
+    }
 }

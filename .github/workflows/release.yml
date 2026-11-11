@@ -11,6 +11,7 @@
 #   ByteForge-<ver>-windows-x64-setup.exe   installer (current user, no admin needed)
 #   ByteForge-<ver>-windows-x64.zip         portable
 #   byteforge-<pkgver>-1-x86_64.pkg.tar.zst Arch package (`sudo pacman -U <file>`)
+#   ByteForge-<ver>-macos-universal.dmg     macOS app, Apple Silicon + Intel (ad-hoc signed, not notarized)
 # The signed [devstarbyte] pacman repo is still built by DevStarByte/arch-repo.
 name: Release
 
@@ -185,14 +186,36 @@ jobs:
           path: packaging/arch/*.pkg.tar.zst
           if-no-files-found: error
 
+  macos:
+    needs: version
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      UNIVERSAL: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build app and dmg
+        run: packaging/macos/bundle.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*.dmg
+          if-no-files-found: error
+
   release:
     if: github.ref_type == 'tag'
-    needs: [version, windows, arch]
+    needs: [version, windows, arch, macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: "{windows,arch}"
+          pattern: "{windows,arch,macos}"
           path: dist
           merge-multiple: true
 

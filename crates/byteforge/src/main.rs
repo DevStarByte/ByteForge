@@ -3,6 +3,8 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod actions;
+#[cfg(target_os = "macos")]
+mod app_menu;
 mod assets;
 mod editor;
 mod explorer;
@@ -46,6 +48,7 @@ fn install_crash_log(paths: &AppPaths) {
 }
 
 fn main() {
+    bf_core::paths::import_login_shell_path();
     let paths = AppPaths::detect();
     paths.ensure_created();
     install_crash_log(&paths);
@@ -75,6 +78,8 @@ fn main() {
 
         let overrides: HashMap<String, String> = settings.get("keybindings", HashMap::new());
         actions::install(cx, &overrides);
+        #[cfg(target_os = "macos")]
+        app_menu::install(cx);
 
         let bounds = Bounds::centered(None, size(px(1400.), px(900.)), cx);
         let options = WindowOptions {

@@ -30,7 +30,7 @@ pub fn netcoredbg_command(configured: Option<&str>) -> Option<String> {
         }
         folders.push(PathBuf::from(r"C:\Program Files\netcoredbg"));
     } else {
-        folders.extend(["/usr/share/netcoredbg", "/usr/lib/netcoredbg", "/opt/netcoredbg"].map(PathBuf::from));
+        folders.extend(["/usr/share/netcoredbg", "/usr/lib/netcoredbg", "/opt/netcoredbg", "/usr/local/share/netcoredbg", "/usr/local/netcoredbg"].map(PathBuf::from));
     }
     if let Some(home) = &home {
         folders.push(home.join(".local").join("share").join("netcoredbg"));

@@ -33,6 +33,13 @@ impl Workbench {
                     if cfg!(windows) {
                         return;
                     }
+                    // macOS drags the window itself; double-click does what the user picked in System Settings.
+                    if cfg!(target_os = "macos") {
+                        if e.click_count == 2 {
+                            window.titlebar_double_click();
+                        }
+                        return;
+                    }
                     if e.click_count == 2 {
                         window.zoom_window();
                     } else {
@@ -42,6 +49,8 @@ impl Workbench {
             })
             // The center zone is an overlay so it stays centered in the window, whatever the sides contain.
             .when(!center.is_empty(), |d| d.child(div().absolute().inset_0().flex().items_center().justify_center().gap(t.m("titleBar.spacing", 2.0)).children(center)))
+            // Room for the macOS traffic lights, which sit over the top-left corner of the window.
+            .when(custom && !at_bottom && cfg!(target_os = "macos"), |d| d.child(div().flex_none().w(px(76.))))
             .child(div().h_full().flex_1().min_w_0().flex().items_center().gap(t.m("titleBar.spacing", 2.0)).children(left))
             .child(div().h_full().flex().items_center().gap(t.m("titleBar.spacing", 2.0)).children(right))
     }
@@ -78,7 +87,12 @@ impl Workbench {
             let id = SharedString::from(format!("tb-{zone}-{n}"));
             match name {
                 "logo" => out.push(div().flex_none().pl_3().pr_2().child(icon("logo", t.m("titleBar.logoSize", 16.0), t.c("titleBar.logo"))).into_any_element()),
-                "menu" => out.push(self.render_menu_bar(upward, fg, cx).into_any_element()),
+                // macOS shows the menus in its own menu bar (see `crate::app_menu`).
+                "menu" => {
+                    if !cfg!(target_os = "macos") {
+                        out.push(self.render_menu_bar(upward, fg, cx).into_any_element());
+                    }
+                }
                 "title" => {
                     let text = match self.active.and_then(|i| self.tabs.get(i)) {
                         Some(tab) => format!("{} — {}", tab.title, self.workspace.root().and_then(|r| r.file_name().map(|n| n.to_string_lossy().into_owned())).unwrap_or_else(|| "ByteForge".into())),
@@ -119,16 +133,16 @@ impl Workbench {
                 }
                 "toggleSideBar" => {
                     let icon_name = if t.layout.right_of_editor("sideBar") { "layoutSideBarRight" } else { "layoutSideBar" };
-                    out.push(title_icon(id, icon_name, "Toggle Side Bar (Ctrl+B)".into(), self.side_visible).on_click(cx.listener(|wb, _, _, cx| {
+                    out.push(title_icon(id, icon_name, format!("Toggle Side Bar ({})", crate::actions::key_label("ctrl-b")), self.side_visible).on_click(cx.listener(|wb, _, _, cx| {
                         wb.side_visible = !wb.side_visible;
                         cx.notify();
                     })).into_any_element());
                 }
-                "togglePanel" => out.push(title_icon(id, "layoutPanel", "Toggle Panel (Ctrl+J)".into(), self.panel_visible).on_click(cx.listener(|wb, _, _, cx| {
+                "togglePanel" => out.push(title_icon(id, "layoutPanel", format!("Toggle Panel ({})", crate::actions::key_label("ctrl-j")), self.panel_visible).on_click(cx.listener(|wb, _, _, cx| {
                     wb.panel_visible = !wb.panel_visible;
                     cx.notify();
                 })).into_any_element()),
-                "themePicker" => out.push(title_icon(id, "palette", "Color Theme (Ctrl+K)".into(), false).on_click(cx.listener(|wb, _, w, cx| wb.open_palette(Mode::Themes, w, cx))).into_any_element()),
+                "themePicker" => out.push(title_icon(id, "palette", format!("Color Theme ({})", crate::actions::key_label("ctrl-k")), false).on_click(cx.listener(|wb, _, w, cx| wb.open_palette(Mode::Themes, w, cx))).into_any_element()),
                 "windowControls" => {
                     if self.custom_titlebar && !cfg!(target_os = "macos") {
                         out.push(render_window_controls(window, cx).into_any_element());
@@ -169,7 +183,7 @@ impl Workbench {
             .text_size(t.m("commandCenter.fontSize", 12.0))
             .cursor_pointer()
             .hover(move |s| s.bg(cc_hover_bg).border_color(cc_hover_border))
-            .tooltip(tooltip("Search files by name (Ctrl+P)"))
+            .tooltip(tooltip(format!("Search files by name ({})", crate::actions::key_label("ctrl-p"))))
             .child(icon("search", t.m("commandCenter.iconSize", 13.0), t.c("commandCenter.foreground")))
             .child(root_name)
             .on_click(cx.listener(|wb, _, w, cx| {

@@ -10,6 +10,7 @@
 [![.NET](https://img.shields.io/badge/.NET-SDK-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Linux](https://img.shields.io/badge/Linux-X11%20%7C%20Wayland-FCC624?logo=linux&logoColor=black)](#install)
 [![Windows](https://img.shields.io/badge/Windows-supported-0078D6?logo=windows&logoColor=white)](#install)
+[![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%7C%20Intel-000000?logo=apple&logoColor=white)](#install)
 [![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE)
 
 </div>
@@ -76,6 +77,22 @@ dotnet tool install -g csharp-ls
 Windows builds are signed through SignPath Foundation once its approval comes through; see the
 [code signing policy](docs/code-signing.md).
 
+### macOS
+
+Download `ByteForge-<version>-macos-universal.dmg` from
+[Releases](https://github.com/DevStarByte/ByteForge/releases) and drag ByteForge into Applications. The app
+isn't notarized yet, so the first time right-click it and pick **Open** (or run
+`xattr -dr com.apple.quarantine /Applications/ByteForge.app`). You also need the
+[.NET SDK](https://dotnet.microsoft.com/download) and the C# language server:
+
+```sh
+dotnet tool install -g csharp-ls
+```
+
+Shortcuts use ⌘ where Windows and Linux use Ctrl (⌘⇧P for the command palette, ⌘S to save, …), the menus
+live in the macOS menu bar, and ⌘+Click goes to a definition. ByteForge picks up the `PATH` of your login
+shell, so tools installed through Homebrew or `~/.dotnet/tools` are found even when it's started from Finder.
+
 Pre-releases (betas) are marked as such on the Releases page; each release also carries the Arch package
 (`sudo pacman -U byteforge-*.pkg.tar.zst`) for trying a beta without the pacman repo.
 
@@ -88,8 +105,8 @@ dotnet tool install -g csharp-ls
 cargo run --release -p byteforge -- ~/code/my-project
 ```
 
-`./packaging/linux/install.sh` installs a build to `~/.local`, and `packaging/arch` has a PKGBUILD
-(`makepkg -si`).
+`./packaging/linux/install.sh` installs a build to `~/.local`, `packaging/arch` has a PKGBUILD
+(`makepkg -si`), and on macOS `packaging/macos/bundle.sh` builds `dist/ByteForge.app` and a `.dmg`.
 
 **Optional:**
 - For debugging, install [netcoredbg](https://github.com/Samsung/netcoredbg) (AUR: `netcoredbg`).
