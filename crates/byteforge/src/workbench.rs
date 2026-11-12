@@ -86,11 +86,18 @@ enum Page {
     Diff(Entity<crate::diff_view::DiffView>),
     /// The settings screen.
     Settings,
+    /// The tab's file in the merge editor: its two sides above, the file's own editor as the result.
+    Merge(Entity<crate::merge_view::MergeView>),
     /// The user secrets of a project, as a form (`file` is its secrets.json).
     Secrets { project: PathBuf, file: PathBuf },
 }
 
 impl Tab {
+    /// The tab shows its file's editor (alone, or as the merge editor's result), not some other page.
+    fn is_document(&self) -> bool {
+        matches!(self.page, None | Some(Page::Merge(_)))
+    }
+
     fn module_page(&self) -> Option<&str> {
         match &self.page {
             Some(Page::Module(id)) => Some(id),
@@ -212,7 +219,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
     ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.splitEditor", "view.openInOtherGroup", "-", "view.toggleWordWrap", "view.toggleSideBar", "view.togglePanel"]),
     ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.fileHistory", "git.showLineCommit", "git.toggleBlame", "git.toggleBlameGutter", "-",
-        "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
+        "merge.editor", "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
     ("Run", &[
         "debug.start", "dotnet.run", "dotnet.watch", "dotnet.restartWatch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
         "debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",

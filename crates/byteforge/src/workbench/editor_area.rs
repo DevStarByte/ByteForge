@@ -120,6 +120,7 @@ impl Workbench {
             Some(Page::Markdown(path)) => self.render_markdown_page(&path, cx).into_any_element(),
             Some(Page::Diff(diff)) => diff.into_any_element(),
             Some(Page::Settings) => self.render_settings_page(cx).into_any_element(),
+            Some(Page::Merge(merge)) => merge.into_any_element(),
             Some(Page::Secrets { project, file }) => self.render_secrets_page(&project, &file, cx).into_any_element(),
             None => editor.into_any_element(),
         }
@@ -129,7 +130,7 @@ impl Workbench {
         let t = Theme::global(cx);
         let indicator_bottom = t.layout.tab_indicator_bottom;
         let active = self.visible[group];
-        let markdown_source = active.and_then(|i| self.tabs.get(i)).is_some_and(|t| t.page.is_none() && t.path.as_deref().is_some_and(preview::is_markdown));
+        let markdown_source = active.and_then(|i| self.tabs.get(i)).is_some_and(|t| t.is_document() && t.path.as_deref().is_some_and(preview::is_markdown));
         let drop_color = t.c("focusBorder");
         let group_ix = group;
         let tab_els: Vec<_> = self
@@ -254,7 +255,7 @@ impl Workbench {
 
     pub(super) fn render_breadcrumbs(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
         let t = Theme::global(cx);
-        let tab = self.active.and_then(|i| self.tabs.get(i)).filter(|tab| tab.page.is_none())?;
+        let tab = self.active.and_then(|i| self.tabs.get(i)).filter(|tab| tab.is_document())?;
         let path = tab.path.clone()?;
         let editor = tab.editor.clone();
         let symbols = editor.read(cx).symbol_path();

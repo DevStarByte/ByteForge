@@ -219,6 +219,97 @@ impl Workbench {
         .detach();
     }
 
+    // ───────────── the merge editor ─────────────
+
+    /// "Merge Conflict: Open Merge Editor": the current file's tab shows its two sides (as git has them)
+    /// above the file's editor. Asked again, it goes back to the plain editor.
+    pub(super) fn toggle_merge_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(ix) = self.active else { return };
+        if matches!(self.tabs[ix].page, Some(Page::Merge(_))) {
+            return self.close_merge_editor(ix, window, cx);
+        }
+        let Some(path) = self.tabs[ix].path.clone().filter(|_| self.tabs[ix].page.is_none()) else {
+            self.log("Merge Editor: open the file with the conflict first.");
+            return;
+        };
+        let Some(git) = self.scm.read(cx).git().cloned() else {
+            self.log("Merge Editor: the opened folder is not a git repository.");
+            return;
+        };
+        let editor = self.tabs[ix].editor.clone();
+        let (git_path, file) = (path.clone(), path);
+        let task = cx.background_spawn(async move { git.conflict_sides(&git_path) });
+        cx.spawn_in(window, async move |this, cx| {
+            let (_, current, incoming) = task.await;
+            let _ = this.update_in(cx, |wb, window, cx| {
+                let Some(ix) = wb.tabs.iter().position(|t| t.editor == editor) else { return };
+                if current.is_none() && incoming.is_none() && editor.read(cx).conflict_summary().0 == 0 {
+                    wb.log("Merge Editor: this file has no merge conflict (git has no sides for it and it has no conflict markers).");
+                    wb.show_panel(PanelView::Output, cx);
+                    return;
+                }
+                let merge = cx.new(|cx| crate::merge_view::MergeView::new(editor.clone(), file, current, incoming, cx));
+                let sub = cx.subscribe_in(&merge, window, |wb: &mut Self, merge, event: &crate::merge_view::MergeEvent, window, cx| {
+                    let Some(ix) = wb.tabs.iter().position(|t| matches!(&t.page, Some(Page::Merge(m)) if m == merge)) else { return };
+                    match event {
+                        crate::merge_view::MergeEvent::Close => wb.close_merge_editor(ix, window, cx),
+                        crate::merge_view::MergeEvent::Resolve(path) => wb.resolve_merged_file(ix, path.clone(), window, cx),
+                    }
+                });
+                wb.tabs[ix].page = Some(Page::Merge(merge));
+                wb.tabs[ix]._subs.push(sub);
+                editor.update(cx, |e, cx| {
+                    e.go_to_conflict(true, cx);
+                    e.focus(window);
+                });
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Back to the file's plain editor.
+    fn close_merge_editor(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(tab) = self.tabs.get_mut(ix) {
+            tab.page = None;
+            let editor = tab.editor.clone();
+            editor.update(cx, |e, _| e.focus(window));
+        }
+        cx.notify();
+    }
+
+    /// "Mark as Resolved": saves the merged file and stages it (which is how git learns the conflict is
+    /// settled), then goes back to the plain editor.
+    fn resolve_merged_file(&mut self, ix: usize, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        if self.tabs.get(ix).is_some_and(|t| t.editor.read(cx).conflict_summary().0 > 0) {
+            self.log("There are still conflicts in the file.");
+            return;
+        }
+        self.save_tab(ix, window, cx);
+        let Some(git) = self.scm.read(cx).git().cloned() else { return };
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let task = cx.background_spawn(async move { git.stage(std::slice::from_ref(&path)) });
+        cx.spawn_in(window, async move |this, cx| {
+            let result = task.await;
+            let _ = this.update_in(cx, |wb, window, cx| {
+                match result {
+                    Ok(()) => {
+                        wb.log(format!("{name} is resolved and staged."));
+                        if let Some(ix) = wb.tabs.iter().position(|t| matches!(&t.page, Some(Page::Merge(_))) && t.path.as_deref().is_some_and(|p| p.file_name().is_some_and(|n| n.to_string_lossy() == name))) {
+                            wb.close_merge_editor(ix, window, cx);
+                        }
+                    }
+                    Err(e) => {
+                        wb.log(format!("Could not stage {name}: {e:#}"));
+                        wb.show_panel(PanelView::Output, cx);
+                    }
+                }
+                wb.scm.update(cx, |s, cx| s.refresh(cx));
+            });
+        })
+        .detach();
+    }
+
     // ───────────── history and blame ─────────────
 
     /// "Git: File History": the commits that changed the current file; picking one opens its diff.
@@ -548,6 +639,76 @@ mod tests {
             assert!(label(3).is_some_and(|l| l != first), "line 4 is from the second commit");
             assert!(e.layout.blame > 0.0, "the gutter has the column after a paint");
         });
+        drop(guard);
+    }
+
+    /// The merge editor on a real conflict: both sides show, a side is accepted in the result, and Mark
+    /// as Resolved saves and stages the file, which settles the conflict for git.
+    #[gpui::test]
+    fn the_merge_editor_resolves_a_conflict(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "merge-editor");
+        let repo = guard.dir.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q", "-b", "main"]);
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+            git(&repo, &["config", k, v]);
+        }
+        let file = repo.join("A.cs");
+        std::fs::write(&file, "class A { }\n").unwrap();
+        git(&repo, &["add", "."]);
+        git(&repo, &["commit", "-qm", "first"]);
+        git(&repo, &["switch", "-qc", "feature"]);
+        std::fs::write(&file, "class A { int incoming; }\n").unwrap();
+        git(&repo, &["commit", "-qam", "incoming"]);
+        git(&repo, &["switch", "-q", "main"]);
+        std::fs::write(&file, "class A { int current; }\n").unwrap();
+        git(&repo, &["commit", "-qam", "current"]);
+        assert!(!std::process::Command::new("git").args(["merge", "feature"]).current_dir(&repo).output().unwrap().status.success());
+
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(repo.clone(), window, cx);
+            wb.open_file(file.clone(), None, window, cx);
+        });
+        let merge_of = |wb: &Workbench| wb.tabs.iter().find_map(|t| match &t.page {
+            Some(Page::Merge(m)) => Some(m.clone()),
+            _ => None,
+        });
+        let mut merge = None;
+        for _ in 0..100 {
+            cx.run_until_parked();
+            if wb.update(cx, |wb, cx| wb.scm.read(cx).git().is_some()) && merge.is_none() {
+                wb.update_in(cx, |wb, window, cx| {
+                    if merge_of(wb).is_none() {
+                        wb.toggle_merge_editor(window, cx);
+                    }
+                });
+            }
+            cx.run_until_parked();
+            merge = wb.update(cx, |wb, _| merge_of(wb));
+            if merge.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(30));
+        }
+        let merge = merge.expect("the merge editor opened");
+        cx.run_until_parked();
+        assert_eq!(merge.read_with(cx, |m, cx| m.sides_for_test(cx)), ("class A { int current; }\n".to_owned(), "class A { int incoming; }\n".to_owned()));
+        assert_eq!(merge.read_with(cx, |m, cx| m.conflicts_left(cx)), 1);
+        // The tab is still the file's tab: its editor is the result.
+        let editor = wb.update(cx, |wb, _| wb.active_editor().unwrap());
+        editor.update(cx, |e, cx| e.accept_conflict(bf_core::conflicts::Resolution::Current, cx));
+        assert_eq!(merge.read_with(cx, |m, cx| m.conflicts_left(cx)), 0);
+        merge.update(cx, |_, cx| cx.emit(crate::merge_view::MergeEvent::Resolve(file.clone())));
+        for _ in 0..100 {
+            cx.run_until_parked();
+            if wb.update(cx, |wb, _| merge_of(wb).is_none()) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(30));
+        }
+        assert!(wb.update(cx, |wb, _| merge_of(wb).is_none()), "back to the plain editor");
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "class A { int current; }\n");
+        assert_eq!(git(&repo, &["diff", "--name-only", "--diff-filter=U"]), "", "git has no unmerged file left");
         drop(guard);
     }
 }

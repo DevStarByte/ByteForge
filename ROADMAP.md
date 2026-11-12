@@ -31,7 +31,7 @@ the git history.
 - [x] EF Core: "Update Database to Migration…" marks each migration applied or pending once EF has asked the database (the list shows at once from the source; when the database can't be reached, the Output says why). "Scaffold DbContext from Database…" asks for the connection string (kept out of the log) and the provider, and generates the entities and the DbContext into Models/.
 - [x] Diff editor: Stage Change / Revert Change (working tree) and Unstage Change (staged) for the change the toolbar is on: the index or the file gets exactly that change, in its own line endings. "Collapse Unchanged" folds the long stretches without changes on both sides.
 - [ ] Diff editor: edit the working-tree side in place (the panes hold filler lines to stay aligned, so this needs rows that aren't text).
-- [ ] Blame for every line in the gutter; a three-way merge editor.
+- [x] Blame for every line: "Git: Toggle Blame Gutter" adds a column with each run of lines' commit, author and age (click: that commit's change). Merge editor ("Merge Conflict: Open Merge Editor"): Current and Incoming as git has them, read-only, above the Result, which is the file's own editor; the toolbar counts conflicts, steps through them, accepts a side and marks the file resolved (save and stage).
 - [ ] F5 in a container: build, start and debug the app's container.
 
 Not possible with today's tools: Change Signature with csharp-ls (needs a dialog it doesn't have; see

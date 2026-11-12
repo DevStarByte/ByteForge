@@ -251,7 +251,7 @@ impl EditorView {
             }
         };
         if !self.read_only && !self.conflict_entries().is_empty() {
-            for id in ["merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth"] {
+            for id in ["merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.editor"] {
                 command(&mut entries, id);
             }
             entries.push(None);

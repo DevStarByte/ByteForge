@@ -70,7 +70,7 @@ impl Workbench {
 
     /// The text to preview: the open editor's (unsaved edits included), else the file on disk.
     fn markdown_source(&mut self, path: &Path, cx: &App) -> Option<String> {
-        if let Some(tab) = self.tabs.iter().find(|t| t.page.is_none() && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, path))) {
+        if let Some(tab) = self.tabs.iter().find(|t| t.is_document() && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, path))) {
             return Some(tab.editor.read(cx).save_path_text());
         }
         let modified = std::fs::metadata(path).and_then(|m| m.modified()).ok();

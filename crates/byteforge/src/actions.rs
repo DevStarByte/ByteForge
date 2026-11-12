@@ -90,7 +90,7 @@ actions!(
 actions!(diff, [DiffNextChange, DiffPreviousChange, DiffToggleInline]);
 
 // Git in the editor: merge conflicts and blame (handled by the editor), file history (the workbench).
-actions!(merge, [AcceptCurrentChange, AcceptIncomingChange, AcceptBothChanges, NextConflict, PreviousConflict]);
+actions!(merge, [AcceptCurrentChange, AcceptIncomingChange, AcceptBothChanges, NextConflict, PreviousConflict, ToggleMergeEditor]);
 actions!(git, [ShowLineCommit, GitFileHistory, GitToggleBlame, GitToggleBlameGutter]);
 
 /// Opens what `commit` changed in `file` (picked in File History).
@@ -236,6 +236,7 @@ fn builtin() -> Vec<Builtin> {
         ("merge.acceptCurrent", "Accept Current Change", "Merge Conflict", Box::new(AcceptCurrentChange), None),
         ("merge.acceptIncoming", "Accept Incoming Change", "Merge Conflict", Box::new(AcceptIncomingChange), None),
         ("merge.acceptBoth", "Accept Both Changes", "Merge Conflict", Box::new(AcceptBothChanges), None),
+        ("merge.editor", "Open Merge Editor (Current, Incoming, Result)", "Merge Conflict", Box::new(ToggleMergeEditor), None),
         ("merge.next", "Next Conflict", "Merge Conflict", Box::new(NextConflict), None),
         ("merge.previous", "Previous Conflict", "Merge Conflict", Box::new(PreviousConflict), None),
         ("view.nextEditor", "Next Editor", "View", Box::new(NextEditor), Some("ctrl-tab")),

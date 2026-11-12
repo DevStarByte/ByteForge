@@ -214,7 +214,7 @@ impl Workbench {
         let git = self.scm.read(cx).git().is_some().then(|| self.scm.read(cx).status().clone());
         let bom = self.active.and_then(|i| self.tabs.get(i)).is_some_and(|t| t.bom);
         // (position, indent, encoding, eol, language) of the active editor.
-        let on_page = self.active.and_then(|i| self.tabs.get(i)).is_some_and(|t| t.page.is_some());
+        let on_page = self.active.and_then(|i| self.tabs.get(i)).is_some_and(|t| !t.is_document());
         let editor_info = self.active_editor().filter(|_| !on_page).map(|editor| {
             let e = editor.read(cx);
             let caret = e.state.caret();

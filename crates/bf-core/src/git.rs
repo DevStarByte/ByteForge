@@ -394,6 +394,14 @@ impl Git {
         }
     }
 
+    /// The sides of a conflicted file as git keeps them: the common base, the current side (ours) and
+    /// the incoming side (theirs). A side is `None` when the file doesn't exist on it.
+    pub fn conflict_sides(&self, path: &Path) -> (Option<String>, Option<String>, Option<String>) {
+        let rel = self.rel(path);
+        let stage = |n: u8| self.raw_content(&format!(":{n}:{rel}")).map(|t| t.replace("\r\n", "\n"));
+        (stage(1), stage(2), stage(3))
+    }
+
     /// Puts the uncommitted changes (untracked files included) on the stash.
     pub fn stash_push(&self, message: &str) -> anyhow::Result<String> {
         run_verbose(&self.root, &["stash", "push", "--include-untracked", "-m", message])
@@ -977,6 +985,9 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         assert_eq!(conflicts.len(), 1, "{text}");
         assert_eq!((conflicts[0].current_label.as_str(), conflicts[0].incoming_label.as_str()), ("HEAD", "feature/x"));
         assert!(repo.status().unwrap().change_for(&file).unwrap().conflict);
+        let (base, ours, theirs) = repo.conflict_sides(&file);
+        assert!(base.is_some());
+        assert_eq!((ours.as_deref(), theirs.as_deref()), (Some("class A { int current; }\n"), Some("class A { int incoming; }\n")));
         let both = crate::conflicts::apply(&text, &conflicts[0], crate::conflicts::Resolution::Both);
         assert_eq!(both, "class A { int current; }\nclass A { int incoming; }\n");
         let _ = std::fs::remove_dir_all(&dir);

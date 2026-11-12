@@ -62,7 +62,7 @@ impl Workbench {
     /// right when there is one group); edits in either show in both.
     pub(super) fn open_in_other_group(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(ix) = self.active else { return };
-        let Some(path) = self.tabs[ix].path.clone().filter(|_| self.tabs[ix].page.is_none()) else {
+        let Some(path) = self.tabs[ix].path.clone().filter(|_| self.tabs[ix].is_document()) else {
             self.log("Open in Other Group works on files.");
             return;
         };

@@ -114,7 +114,7 @@ impl Workbench {
         let apply = move |wb: &mut Self, cx: &mut Context<Self>| {
             let (mut replaced, mut changed, mut failed) = (0usize, 0usize, Vec::new());
             for path in &files {
-                let open = wb.tabs.iter().find(|t| t.page.is_none() && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, path))).map(|t| t.editor.clone());
+                let open = wb.tabs.iter().find(|t| t.is_document() && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, path))).map(|t| t.editor.clone());
                 match open {
                     Some(editor) => {
                         let text = editor.read(cx).state.buffer.text();

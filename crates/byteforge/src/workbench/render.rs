@@ -161,6 +161,7 @@ impl Render for Workbench {
             }))
             .on_action(cx.listener(|wb, _: &GitFileHistory, w, cx| wb.open_file_history(w, cx)))
             .on_action(cx.listener(|wb, a: &GitShowFileAtCommit, w, cx| wb.open_commit_diff(a.commit.clone(), a.file.clone(), w, cx)))
+            .on_action(cx.listener(|wb, _: &ToggleMergeEditor, w, cx| wb.toggle_merge_editor(w, cx)))
             .on_action(cx.listener(|wb, _: &GitToggleBlame, _, cx| wb.toggle_blame(cx)))
             .on_action(cx.listener(|wb, _: &GitToggleBlameGutter, _, cx| {
                 // Per editor: the column for the file you're looking at.

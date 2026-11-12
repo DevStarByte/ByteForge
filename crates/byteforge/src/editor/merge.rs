@@ -154,6 +154,11 @@ impl EditorView {
         self.line_backgrounds = backgrounds;
     }
 
+    /// Merge conflicts left in the text, and the branch names their markers give (current, incoming).
+    pub fn conflict_summary(&self) -> (usize, Option<(String, String)>) {
+        (self.conflicts.len(), self.conflicts.first().map(|c| (c.current_label.clone(), c.incoming_label.clone())))
+    }
+
     /// The conflict around the caret.
     fn conflict_at_caret(&self) -> Option<&Conflict> {
         let line = self.state.caret().line;
