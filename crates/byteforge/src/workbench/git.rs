@@ -163,7 +163,7 @@ impl Workbench {
     fn diff_change(&mut self, diff: Entity<crate::diff_view::DiffView>, action: ChangeAction, path: PathBuf, change: bf_core::diff::LineChange, window: &mut Window, cx: &mut Context<Self>) {
         let Some(git) = self.scm.read(cx).git().cloned() else { return };
         let staged = action == ChangeAction::Unstage;
-        let apply = move |wb: &mut Self, window: &mut Window, cx: &mut Context<Self>| {
+        let apply = move |_: &mut Self, window: &mut Window, cx: &mut Context<Self>| {
             let (g, p) = (git.clone(), path.clone());
             let task = cx.background_spawn(async move {
                 match action {
@@ -190,7 +190,6 @@ impl Workbench {
                 });
             })
             .detach();
-            let _ = wb;
         };
         if action != ChangeAction::Revert {
             return apply(self, window, cx);
@@ -198,7 +197,7 @@ impl Workbench {
         let rx = window.prompt(PromptLevel::Warning, "Revert this change?", Some("The lines go back to what git has; what you changed in them is lost."), &["Revert", "Cancel"], cx);
         cx.spawn_in(window, async move |this, cx| {
             if let Ok(0) = rx.await {
-                let _ = this.update_in(cx, |wb, window, cx| apply(wb, window, cx));
+                let _ = this.update_in(cx, apply);
             }
         })
         .detach();
