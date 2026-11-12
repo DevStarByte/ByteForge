@@ -70,6 +70,13 @@ impl EditorView {
             self.toggle_breakpoint(p.line, cx);
             return;
         }
+        // The blame column: its commit's change to this file.
+        if self.layout.blame > 0.0 && x >= self.layout.left + self.layout.glyph && x < self.layout.left + self.layout.glyph + self.layout.blame && y < self.layout.top + self.layout.height {
+            self.state.set_caret(Point::new(p.line, 0), false);
+            self.after_move(cx);
+            self.show_line_commit(cx);
+            return;
+        }
         if x < self.layout.left + self.layout.gutter || e.click_count >= 3 {
             let end = if p.line + 1 < self.state.buffer.line_count() { Point::new(p.line + 1, 0) } else { self.state.line_end(p) };
             self.state.select(Point::new(p.line, 0), end);

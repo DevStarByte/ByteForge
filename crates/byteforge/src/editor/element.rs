@@ -128,6 +128,8 @@ impl EditorView {
 pub struct Prepaint {
     lines: Vec<(usize, f32, ShapedLine)>,
     numbers: Vec<(f32, ShapedLine, f32)>,
+    /// The blame column's text per visible line.
+    blame: Vec<(usize, ShapedLine)>,
     /// Char ranges of file references per visible line.
     links: Vec<(usize, Vec<(usize, usize)>)>,
 }
@@ -180,7 +182,10 @@ impl Element for EditorElement {
             let digits = (largest.max(1) as f32).log10().floor() as usize + 1;
             let glyph = if view.glyph_margin { theme.n("editorGutter.glyphMarginWidth", line_height).round() } else { 0.0 };
             let fold_width = if view.folding_enabled && view.show_line_numbers { (char_width * 1.6).round().max(12.0) } else { 0.0 };
+            // The blame column: 26 characters in the line numbers' size, and a little room.
+            let blame = if view.blame_gutter() { (26.0 * char_width * number_size / style.font_size).ceil() + 14.0 } else { 0.0 };
             let gutter = glyph
+                + blame
                 + fold_width
                 + if view.show_line_numbers {
                     (digits.max(3) as f32 * char_width * number_size / style.font_size).ceil() + style.gutter_left + style.gutter_right
@@ -201,6 +206,7 @@ impl Element for EditorElement {
                 fold_left: f32::from(bounds.left()) + gutter - fold_width - style.gutter_right.min(6.0),
                 fold_width,
                 minimap: if view.minimap_enabled && f32::from(bounds.size.width) > 500.0 { theme.n("minimap.width", 80.0).round() } else { 0.0 },
+                blame,
             };
             if fold_width > 0.0 {
                 // Cached per buffer version.
@@ -468,7 +474,24 @@ impl Element for EditorElement {
             }
         }
 
-        Prepaint { lines, numbers, links }
+        // The blame column.
+        let mut blame = Vec::new();
+        {
+            let v = self.view.read(cx);
+            if v.layout.blame > 0.0 {
+                let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
+                for line_ix in first..=last {
+                    if v.folds.is_hidden(line_ix) {
+                        continue;
+                    }
+                    let Some(label) = v.blame_gutter_label(line_ix, first, now) else { continue };
+                    let run = TextRun { len: label.len(), font: editor_font.clone(), color: number_color, background_color: None, underline: None, strikethrough: None };
+                    blame.push((line_ix, text_system.shape_line(SharedString::from(label), px(number_size), &[run], None)));
+                }
+            }
+        }
+
+        Prepaint { lines, numbers, blame, links }
     }
 
     fn paint(
@@ -855,6 +878,9 @@ impl Element for EditorElement {
                     }
                 };
                 window.paint_quad(quad(rect, Corners::all(px(theme.n("editorGutter.changeRadius", 0.0))), theme.bg(key), 0.0, Hsla::default(), gpui::BorderStyle::Solid));
+            }
+            for (line, shaped) in &prepaint.blame {
+                let _ = shaped.paint(point(px(l.left + l.glyph + 6.0), line_top(*line)), px(lh), window, cx);
             }
             for (line, shaped, w) in &prepaint.numbers {
                 let x = gutter_right - style.gutter_right - l.fold_width - w;

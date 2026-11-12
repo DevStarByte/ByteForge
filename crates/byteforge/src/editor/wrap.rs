@@ -222,7 +222,7 @@ mod view_tests {
         let view = cx.new(|cx| EditorView::new(text, None, cx));
         view.update(cx, |v, _| {
             v.word_wrap = true;
-            v.layout = Layout { left: 0.0, top: 0.0, width: 240.0, height: 400.0, gutter: 40.0, text_left: 40.0, char_width: 10.0, line_height: 20.0, glyph: 0.0, fold_left: 0.0, fold_width: 0.0, minimap: 0.0 };
+            v.layout = Layout { left: 0.0, top: 0.0, width: 240.0, height: 400.0, gutter: 40.0, text_left: 40.0, char_width: 10.0, line_height: 20.0, glyph: 0.0, fold_left: 0.0, fold_width: 0.0, minimap: 0.0, blame: 0.0 };
             v.update_wrap();
         });
         view

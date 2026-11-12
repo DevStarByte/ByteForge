@@ -162,6 +162,15 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &GitFileHistory, w, cx| wb.open_file_history(w, cx)))
             .on_action(cx.listener(|wb, a: &GitShowFileAtCommit, w, cx| wb.open_commit_diff(a.commit.clone(), a.file.clone(), w, cx)))
             .on_action(cx.listener(|wb, _: &GitToggleBlame, _, cx| wb.toggle_blame(cx)))
+            .on_action(cx.listener(|wb, _: &GitToggleBlameGutter, _, cx| {
+                // Per editor: the column for the file you're looking at.
+                if let Some(editor) = wb.active_editor() {
+                    editor.update(cx, |e, cx| {
+                        let on = !e.blame_gutter();
+                        e.set_blame_gutter(on, cx);
+                    });
+                }
+            }))
             .on_action(cx.listener(|wb, _: &GitOpenChanges, w, cx| {
                 let path = wb.active.and_then(|i| wb.tabs.get(i)).and_then(|t| t.path.clone());
                 let change = path.and_then(|p| wb.scm.read(cx).status().change_for(&p).cloned());

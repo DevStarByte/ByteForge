@@ -503,4 +503,51 @@ mod tests {
         assert!(unstaged.contains("+line thirty-six") && !unstaged.contains("line three"), "{unstaged}");
         drop(guard);
     }
+
+    /// The blame gutter: a column with each run of lines' commit and author, drawn left of the line numbers.
+    #[gpui::test]
+    fn the_blame_gutter_shows_each_commit(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "blame-gutter");
+        let repo = guard.dir.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q", "-b", "main"]);
+        for (k, v) in [("user.name", "Ann Example"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+            git(&repo, &["config", k, v]);
+        }
+        let file = repo.join("A.cs");
+        std::fs::write(&file, "one\ntwo\nthree\n").unwrap();
+        git(&repo, &["add", "."]);
+        git(&repo, &["commit", "-qm", "first"]);
+        std::fs::write(&file, "one\ntwo\nthree\nfour\n").unwrap();
+        git(&repo, &["commit", "-qam", "second"]);
+
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(repo.clone(), window, cx);
+            wb.open_file(file.clone(), None, window, cx);
+        });
+        cx.run_until_parked();
+        let editor = wb.update(cx, |wb, _| wb.active_editor().expect("the file is open"));
+        // The SCM view finds the repository in the background; the editor gets it with its git base.
+        for _ in 0..100 {
+            cx.run_until_parked();
+            wb.update(cx, |wb, cx| wb.update_git_bases(cx));
+            editor.update(cx, |e, cx| e.set_blame_gutter(true, cx));
+            cx.run_until_parked();
+            if editor.read_with(cx, |e, _| e.blame_gutter() && e.blame_gutter_label(0, 0, 0).is_some()) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(30));
+        }
+        cx.run_until_parked();
+        editor.read_with(cx, |e, _| {
+            assert!(e.blame_gutter());
+            let label = |line| e.blame_gutter_label(line, 0, i64::MAX / 4);
+            let first = label(0).expect("line 1 is blamed");
+            assert!(first.contains("Ann Example"), "{first}");
+            assert_eq!(label(1), None, "line 2 continues line 1's commit");
+            assert!(label(3).is_some_and(|l| l != first), "line 4 is from the second commit");
+            assert!(e.layout.blame > 0.0, "the gutter has the column after a paint");
+        });
+        drop(guard);
+    }
 }

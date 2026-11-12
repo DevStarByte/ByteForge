@@ -199,6 +199,8 @@ pub(crate) struct Layout {
     pub fold_width: f32,
     /// Width of the minimap at the right edge (0 when hidden).
     pub minimap: f32,
+    /// Width of the blame column, between the breakpoint margin and the line numbers (0 when hidden).
+    pub blame: f32,
 }
 
 impl Layout {

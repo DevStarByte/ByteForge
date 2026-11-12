@@ -123,6 +123,31 @@ impl BlameLine {
     }
 }
 
+/// A short age for narrow columns: "now", "5m", "3h", "2d", "3w", "4mo", "2y".
+pub fn short_age(seconds: i64) -> String {
+    let s = seconds.max(0);
+    match s {
+        0..60 => "now".to_owned(),
+        60..3600 => format!("{}m", s / 60),
+        3600..86_400 => format!("{}h", s / 3600),
+        86_400..604_800 => format!("{}d", s / 86_400),
+        604_800..2_629_746 => format!("{}w", s / 604_800),
+        2_629_746..31_556_952 => format!("{}mo", s / 2_629_746),
+        _ => format!("{}y", s / 31_556_952),
+    }
+}
+
+impl BlameLine {
+    /// The blame gutter's text, in a fixed width: commit, author, age ("a1b2c3d Ann Example    3d").
+    pub fn gutter_label(&self, now: i64) -> String {
+        if self.uncommitted {
+            return format!("{:<26}", "        not committed");
+        }
+        let author: String = self.author.chars().take(12).collect();
+        format!("{} {:<12} {:>5}", &self.commit[..self.commit.len().min(7)], author, short_age(now - self.time))
+    }
+}
+
 /// "just now", "5 minutes ago", "3 days ago", "2 years ago".
 pub fn relative_time(seconds: i64) -> String {
     let s = seconds.max(0);
@@ -810,6 +835,15 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         assert!(blame[2].uncommitted && !blame[0].uncommitted);
         assert_eq!(blame[0].label(1_700_000_000 + 3 * 86_400), "Ann, 3 days ago \u{2022} Initial");
         assert_eq!(blame[2].label(0), "You \u{2022} Uncommitted changes");
+    }
+
+    #[test]
+    fn blame_gutter_labels_have_one_width() {
+        let b = BlameLine { commit: "a1b2c3d4e5f6".into(), author: "Ann Example-Longname".into(), time: 0, summary: "x".into(), filename: "a".into(), uncommitted: false };
+        assert_eq!(b.gutter_label(3 * 86_400), "a1b2c3d Ann Example     3d");
+        let u = BlameLine { uncommitted: true, ..b.clone() };
+        assert_eq!(u.gutter_label(0).chars().count(), b.gutter_label(0).chars().count());
+        assert_eq!((short_age(30), short_age(7200), short_age(40 * 86_400), short_age(800 * 86_400)), ("now".into(), "2h".into(), "1mo".into(), "2y".into()));
     }
 
     #[test]

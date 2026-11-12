@@ -20,6 +20,8 @@ pub(crate) struct BlameState {
     pub repo: Option<Git>,
     /// The current-line annotation ("git.blame.currentLine").
     pub enabled: bool,
+    /// The blame column in the gutter ("Git: Toggle Blame Gutter").
+    pub gutter: bool,
     lines: Arc<Vec<BlameLine>>,
     /// The text changed since the blame: lines may have moved, so nothing is shown until it is redone.
     stale: bool,
@@ -43,7 +45,7 @@ impl EditorView {
     /// Re-blames after `delay` (edits wait a little, so typing doesn't run git on every key).
     pub(super) fn schedule_blame(&mut self, delay: Duration, cx: &mut Context<Self>) {
         let (Some(repo), Some(path)) = (self.blame.repo.clone(), self.path.clone()) else { return };
-        if !self.blame.enabled || self.read_only {
+        if !(self.blame.enabled || self.blame.gutter) || self.read_only {
             return;
         }
         let rope = self.state.buffer.rope().clone();
@@ -63,6 +65,31 @@ impl EditorView {
                 cx.notify();
             });
         }));
+    }
+
+    /// Shows or hides the blame column in the gutter.
+    pub fn set_blame_gutter(&mut self, on: bool, cx: &mut Context<Self>) {
+        self.blame.gutter = on;
+        if on {
+            self.schedule_blame(Duration::ZERO, cx);
+        }
+        cx.notify();
+    }
+
+    /// Whether the blame column shows (it needs a repository).
+    pub fn blame_gutter(&self) -> bool {
+        self.blame.gutter && self.blame.repo.is_some() && self.path.is_some()
+    }
+
+    /// The blame column's text for `line`: its commit, author and age, or nothing on the lines that
+    /// continue the commit of the line above (`first_visible` always gets its text).
+    pub(crate) fn blame_gutter_label(&self, line: usize, first_visible: usize, now: i64) -> Option<String> {
+        if self.blame.stale {
+            return None;
+        }
+        let b = self.blame.lines.get(line)?;
+        let continues = line > first_visible && line > 0 && self.blame.lines.get(line - 1).is_some_and(|above| above.commit == b.commit);
+        (!continues).then(|| b.gutter_label(now))
     }
 
     /// Text edited: blame and conflicts move with it.
