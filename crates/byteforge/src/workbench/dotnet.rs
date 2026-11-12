@@ -183,20 +183,37 @@ impl Workbench {
         root: PathBuf,
         args: Vec<String>,
         env: Vec<(String, String)>,
+        on_line: Option<LineHook>,
+        then: Option<DotnetDone>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        self.start_program_with("dotnet", root, args, env, on_line, then, window, cx)
+    }
+
+    /// Runs `program args` like [`start_dotnet_with`](Self::start_dotnet_with) runs dotnet (`docker build`
+    /// for a container): one at a time, output in the Output panel, stopped with Shift+F5.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn start_program_with(
+        &mut self,
+        program: &'static str,
+        root: PathBuf,
+        args: Vec<String>,
+        env: Vec<(String, String)>,
         mut on_line: Option<LineHook>,
         then: Option<DotnetDone>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
         let verb = args.first().cloned().unwrap_or_default();
-        let compiles = matches!(verb.as_str(), "build" | "run" | "test" | "watch");
+        let compiles = program == "dotnet" && matches!(verb.as_str(), "build" | "run" | "test" | "watch");
         if compiles {
             self.build_problems.clear();
         }
         // A scaffold's connection string (it may hold a password) stays out of the log.
         let shown: Vec<&str> = args.iter().enumerate().map(|(i, a)| if i > 0 && args[i - 1] == "scaffold" { "<connection string>" } else { a.as_str() }).collect();
-        self.log(format!("> dotnet {}", shown.join(" ")));
-        match DotnetProcess::start_with_env(&root, args, &env) {
+        self.log(format!("> {program} {}", shown.join(" ")));
+        match DotnetProcess::start_program(program, &root, args, &env) {
             Ok((process, rx)) => {
                 self.dotnet = Some(process);
                 let tx = self.output_tx.clone();
@@ -213,7 +230,7 @@ impl Workbench {
                                 let _ = tx.send(line);
                             }
                             RunEvent::Exited { code, seconds } => {
-                                let _ = tx.send(log_line(format!("dotnet {verb} exited with code {} after {seconds:.1}s", code.map_or("?".into(), |c| c.to_string()))));
+                                let _ = tx.send(log_line(format!("{program} {verb} exited with code {} after {seconds:.1}s", code.map_or("?".into(), |c| c.to_string()))));
                                 let _ = this.update_in(cx, |wb, window, cx| {
                                     wb.dotnet = None;
                                     if compiles {
@@ -233,7 +250,7 @@ impl Workbench {
                 true
             }
             Err(e) => {
-                self.log(format!("Could not start dotnet (is the .NET SDK installed?): {e}"));
+                self.log(if program == "dotnet" { format!("Could not start dotnet (is the .NET SDK installed?): {e}") } else { format!("Could not start {program} (is it installed and on PATH?): {e}") });
                 cx.notify();
                 false
             }

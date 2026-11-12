@@ -65,7 +65,7 @@ actions!(
     debug,
     [
         StartDebugging, RestartDebugging, Pause, StepOver, StepInto, StepOut, RemoveAllBreakpoints, AttachToProcess, AttachToContainer,
-        AddConditionalBreakpoint, AddLogpoint, EditBreakpointHitCount
+        AddConditionalBreakpoint, AddLogpoint, EditBreakpointHitCount, StartDebuggingInContainer
     ]
 );
 
@@ -287,6 +287,7 @@ fn builtin() -> Vec<Builtin> {
         ("debug.removeAllBreakpoints", "Remove All Breakpoints", "Debug", Box::new(RemoveAllBreakpoints), None),
         ("debug.attach", "Attach to .NET Process…", "Debug", Box::new(AttachToProcess), None),
         ("debug.attachContainer", "Attach to .NET Process in Container…", "Debug", Box::new(AttachToContainer), None),
+        ("debug.startInContainer", "Start Debugging in Container", "Debug", Box::new(StartDebuggingInContainer), None),
         ("view.debug", "Run and Debug", "View", Box::new(ShowDebug), Some("ctrl-shift-d")),
         ("view.debugConsole", "Debug Console", "View", Box::new(ShowDebugConsole), Some("ctrl-shift-y")),
         ("view.testing", "Testing", "View", Box::new(ShowTesting), None),

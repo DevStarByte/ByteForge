@@ -482,6 +482,72 @@ impl Workbench {
 
     // ───────────── containers ─────────────
 
+    /// "Start Debugging in Container": builds the startup project's image from its Dockerfile (as Debug
+    /// when the Dockerfile can), starts a container from it and attaches the debugger to the app in it.
+    /// The container is removed when the session ends.
+    pub(super) fn debug_start_in_container(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.debug.is_some() {
+            self.log("Stop the current debug session first (Shift+F5).");
+            self.show_panel(PanelView::Output, cx);
+            return;
+        }
+        let Some(root) = self.workspace.root() else { return };
+        let Some(project) = self.startup_project() else {
+            self.log("No .csproj to run in this folder. Set \"dotnet.project\" to the project to start.");
+            self.show_panel(PanelView::Output, cx);
+            return;
+        };
+        let Some(plan) = bf_core::container::plan(&project, &root) else {
+            self.log("Start Debugging in Container needs a Dockerfile next to the project or in the folder (the Docker module's \"Add Docker Support\" writes one).");
+            self.show_panel(PanelView::Output, cx);
+            return;
+        };
+        if self.dotnet_busy(cx) {
+            return;
+        }
+        self.save_all(window, cx);
+        self.show_panel(PanelView::Output, cx);
+        if !plan.debug_build {
+            self.log("The Dockerfile has no BUILD_CONFIGURATION argument, so the image is built as it says (probably Release): breakpoints may not bind as well as in a Debug build.");
+        }
+        let args = plan.build_args();
+        let then: DotnetDone = Box::new(move |wb, ok, window, cx| {
+            if !ok {
+                wb.log("The image didn't build; see the output above.");
+                wb.show_panel(PanelView::Output, cx);
+                return;
+            }
+            let starting = plan.clone();
+            let task = cx.background_spawn(async move {
+                starting.start()?;
+                // The app needs a moment to be up before its process shows.
+                std::thread::sleep(std::time::Duration::from_millis(1200));
+                let apps = bf_core::container::app_candidates(&bf_core::container::processes(&starting.name));
+                anyhow::Ok((starting.ports(), apps.first().map(|p| p.pid)))
+            });
+            cx.spawn_in(window, async move |this, cx| {
+                let started = task.await;
+                let _ = this.update_in(cx, |wb, window, cx| match started {
+                    Ok((ports, pid)) => {
+                        wb.log(format!("Container {} is running.", plan.name));
+                        for port in ports {
+                            wb.log(format!("  port {port}"));
+                        }
+                        let name = plan.name.clone();
+                        wb.debug_container = Some(plan);
+                        wb.debug_attach_container(name, pid.unwrap_or(1), window, cx);
+                    }
+                    Err(e) => {
+                        wb.log(format!("Could not start the container: {e:#}"));
+                        wb.show_panel(PanelView::Output, cx);
+                    }
+                });
+            })
+            .detach();
+        });
+        self.start_program_with("docker", root, args, Vec::new(), None, Some(then), window, cx);
+    }
+
     /// "Attach to .NET Process in Container…": the running containers (straight to the processes when
     /// there is only one).
     pub(super) fn open_container_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -806,6 +872,11 @@ impl Workbench {
     fn debug_end(&mut self, cx: &mut Context<Self>) {
         self.debug_clear_exec(cx);
         self.debug = None;
+        // The container started for this session goes with it.
+        if let Some(plan) = self.debug_container.take() {
+            self.debug_print(format!("Stopping the container {}…\n", plan.name), cx);
+            cx.background_spawn(async move { plan.remove() }).detach();
+        }
         for list in self.breakpoints.values_mut() {
             for b in list.iter_mut() {
                 b.verified = true;
@@ -1509,5 +1580,71 @@ impl Workbench {
                     .child(div().flex_1().child(self.debug_input.clone())),
             )
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod container_tests {
+    use super::*;
+    use crate::workbench::settings_page::view_tests::workbench;
+
+    fn docker(args: &[&str]) -> String {
+        let out = std::process::Command::new("docker").args(args).output().expect("docker");
+        String::from_utf8_lossy(&out.stdout).trim().to_owned()
+    }
+
+    /// "Start Debugging in Container" on a project with Visual Studio's Dockerfile: the image builds, the
+    /// container starts, the debugger attaches to the app in it, and stopping removes the container.
+    /// Builds a Docker image (pulling the .NET images), so it only runs with BF_TEST_DOCKER=1.
+    #[gpui::test]
+    fn start_debugging_in_a_container(cx: &mut gpui::TestAppContext) {
+        if std::env::var("BF_TEST_DOCKER").is_err() {
+            println!("SKIPPED: set BF_TEST_DOCKER=1 (needs Docker and netcoredbg)");
+            return;
+        }
+        let (guard, wb, cx) = workbench(cx, "container-f5");
+        let root = guard.dir.join("sln");
+        let app = root.join("Ticker");
+        std::fs::create_dir_all(&app).unwrap();
+        std::fs::write(app.join("Ticker.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>").unwrap();
+        std::fs::write(app.join("Program.cs"), "var n = 0;\nwhile (true)\n{\n    n++;\n    Console.WriteLine($\"tick {n}\");\n    Thread.Sleep(500);\n}\n").unwrap();
+        std::fs::write(
+            app.join("Dockerfile"),
+            "FROM mcr.microsoft.com/dotnet/runtime:10.0 AS base\nWORKDIR /app\n\nFROM mcr.microsoft.com/dotnet/sdk:10.0 AS build\nARG BUILD_CONFIGURATION=Release\nWORKDIR /src\nCOPY [\"Ticker/Ticker.csproj\", \"Ticker/\"]\nRUN dotnet restore \"Ticker/Ticker.csproj\"\nCOPY . .\nWORKDIR \"/src/Ticker\"\nRUN dotnet build \"Ticker.csproj\" -c $BUILD_CONFIGURATION -o /app/build\n\nFROM base AS final\nWORKDIR /app\nCOPY --from=build /app/build .\nENTRYPOINT [\"dotnet\", \"Ticker.dll\"]\n",
+        )
+        .unwrap();
+
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(root.clone(), window, cx);
+            wb.debug_start_in_container(window, cx);
+        });
+        // Build, run, copy netcoredbg in, attach.
+        let mut attached = false;
+        for _ in 0..1200 {
+            cx.run_until_parked();
+            attached = wb.update(cx, |wb, _| wb.debug.as_ref().is_some_and(|s| s.attached && s.configured));
+            if attached {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+        let name = "byteforge-debug-ticker";
+        assert!(attached, "the debugger attached to the app in the container");
+        assert!(docker(&["ps", "--format", "{{.Names}}"]).lines().any(|n| n == name), "the container runs");
+        assert!(wb.update(cx, |wb, _| wb.debug_container.is_some()));
+
+        wb.update(cx, |wb, cx| wb.debug_stop(cx));
+        let mut gone = false;
+        for _ in 0..120 {
+            cx.run_until_parked();
+            gone = !docker(&["ps", "-a", "--format", "{{.Names}}"]).lines().any(|n| n == name);
+            if gone {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+        assert!(gone, "stopping the session removes the container");
+        let _ = std::process::Command::new("docker").args(["rmi", "-f", name]).output();
+        drop(guard);
     }
 }

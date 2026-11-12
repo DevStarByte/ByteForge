@@ -292,6 +292,7 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &AttachToProcess, w, cx| wb.open_attach_picker(w, cx)))
             .on_action(cx.listener(|wb, action: &AttachToPid, w, cx| wb.debug_attach(action.pid, w, cx)))
             .on_action(cx.listener(|wb, _: &AttachToContainer, w, cx| wb.open_container_picker(w, cx)))
+            .on_action(cx.listener(|wb, _: &StartDebuggingInContainer, w, cx| wb.debug_start_in_container(w, cx)))
             .on_action(cx.listener(|wb, _: &AddConditionalBreakpoint, w, cx| wb.edit_breakpoint_option(debug::BreakpointOption::Condition, w, cx)))
             .on_action(cx.listener(|wb, _: &AddLogpoint, w, cx| wb.edit_breakpoint_option(debug::BreakpointOption::LogMessage, w, cx)))
             .on_action(cx.listener(|wb, _: &EditBreakpointHitCount, w, cx| wb.edit_breakpoint_option(debug::BreakpointOption::HitCount, w, cx)))

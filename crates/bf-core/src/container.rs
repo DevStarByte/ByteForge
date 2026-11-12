@@ -190,6 +190,84 @@ pub fn adapter_args(container: &str) -> Vec<String> {
     vec!["exec".into(), "-i".into(), container.into(), format!("{DEBUGGER_DIR}/netcoredbg"), "--interpreter=vscode".into()]
 }
 
+// ───────────── building and starting a project's container ─────────────
+
+/// What "Start Debugging in Container" builds and runs for a project.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ContainerPlan {
+    pub dockerfile: PathBuf,
+    /// The folder `docker build` gets (what the Dockerfile's COPY paths are relative to).
+    pub context: PathBuf,
+    /// Image and container name.
+    pub name: String,
+    /// The Dockerfile takes `BUILD_CONFIGURATION`, so the image can be built as Debug.
+    pub debug_build: bool,
+}
+
+/// The plan for `project`: its Dockerfile (next to the project, else in `root`) and the build context.
+/// Visual Studio's Dockerfiles sit in the project folder but copy `Project/Project.csproj`, so their
+/// context is the folder above; otherwise it is the Dockerfile's folder.
+pub fn plan(project: &Path, root: &Path) -> Option<ContainerPlan> {
+    let dir = project.parent()?;
+    let dockerfile = [dir.join("Dockerfile"), root.join("Dockerfile")].into_iter().find(|p| p.is_file())?;
+    let text = std::fs::read_to_string(&dockerfile).unwrap_or_default();
+    Some(plan_for(project, &dockerfile, &text))
+}
+
+pub fn plan_for(project: &Path, dockerfile: &Path, dockerfile_text: &str) -> ContainerPlan {
+    let dir = project.parent().unwrap_or(project);
+    let folder = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let docker_dir = dockerfile.parent().unwrap_or(dir);
+    // A COPY of "<project folder>/…" means the paths start one folder up.
+    let copies_from_above = !folder.is_empty()
+        && docker_dir == dir
+        && dockerfile_text.lines().map(str::trim).filter(|l| l.to_uppercase().starts_with("COPY")).any(|l| l.contains(&format!("\"{folder}/")) || l.contains(&format!(" {folder}/")));
+    let context = if copies_from_above { dir.parent().unwrap_or(dir).to_path_buf() } else { docker_dir.to_path_buf() };
+    let stem = project.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let safe: String = stem.to_lowercase().chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect();
+    ContainerPlan {
+        dockerfile: dockerfile.to_path_buf(),
+        context,
+        name: format!("byteforge-debug-{}", safe.trim_matches('-')),
+        debug_build: dockerfile_text.contains("BUILD_CONFIGURATION"),
+    }
+}
+
+impl ContainerPlan {
+    /// `docker build`, as Debug when the Dockerfile can.
+    pub fn build_args(&self) -> Vec<String> {
+        let mut args: Vec<String> = vec!["build".into(), "-t".into(), self.name.clone(), "-f".into(), self.dockerfile.to_string_lossy().into_owned()];
+        if self.debug_build {
+            args.extend(["--build-arg".into(), "BUILD_CONFIGURATION=Debug".into()]);
+        }
+        args.push(self.context.to_string_lossy().into_owned());
+        args
+    }
+
+    /// `docker run`: detached, removed when it stops, every exposed port published, Development environment.
+    pub fn run_args(&self) -> Vec<String> {
+        ["run", "-d", "--rm", "--name", &self.name, "-P", "-e", "ASPNETCORE_ENVIRONMENT=Development", "-e", "DOTNET_ENVIRONMENT=Development", &self.name].iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    /// Starts the container (replacing one left from an earlier run). Returns the container id.
+    pub fn start(&self) -> anyhow::Result<String> {
+        let _ = run(&["rm", "-f", &self.name]);
+        let args = self.run_args();
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        Ok(run(&args)?.trim().to_owned())
+    }
+
+    /// The published ports, as `docker port` prints them ("8080/tcp -> 0.0.0.0:32768").
+    pub fn ports(&self) -> Vec<String> {
+        run(&["port", &self.name]).map(|t| t.lines().map(str::to_owned).collect()).unwrap_or_default()
+    }
+
+    /// Stops and removes the container.
+    pub fn remove(&self) {
+        let _ = run(&["rm", "-f", &self.name]);
+    }
+}
+
 /// Path components, for comparing paths from different systems.
 fn components(path: &str) -> Vec<&str> {
     path.split(['/', '\\']).filter(|c| !c.is_empty() && *c != ".").collect()
@@ -248,6 +326,24 @@ mod tests {
         assert_eq!(host_path("/src/Models/Order.cs", &files()), Some(PathBuf::from("/w/App/Models/Order.cs")));
         assert_eq!(host_path("/usr/share/dotnet/Something.cs", &files()), None);
         assert_eq!(host_path("C:\\src\\App\\Program.cs", &files()), Some(PathBuf::from("/w/App/Program.cs")));
+    }
+
+    #[test]
+    fn plans_the_build_like_visual_studio() {
+        let project = Path::new("/w/Shop.Web/Shop.Web.csproj");
+        // Visual Studio's Dockerfile: in the project folder, copying from the solution folder.
+        let vs = "FROM sdk AS build\nARG BUILD_CONFIGURATION=Release\nWORKDIR /src\nCOPY [\"Shop.Web/Shop.Web.csproj\", \"Shop.Web/\"]\nCOPY . .\n";
+        let plan = plan_for(project, Path::new("/w/Shop.Web/Dockerfile"), vs);
+        assert_eq!(plan.context, Path::new("/w"));
+        assert_eq!(plan.name, "byteforge-debug-shop-web");
+        assert_eq!(plan.build_args(), ["build", "-t", "byteforge-debug-shop-web", "-f", "/w/Shop.Web/Dockerfile", "--build-arg", "BUILD_CONFIGURATION=Debug", "/w"]);
+        assert!(plan.run_args().contains(&"-P".to_owned()));
+        // A Dockerfile that copies its own folder: that folder is the context, and it builds as written.
+        let simple = plan_for(project, Path::new("/w/Shop.Web/Dockerfile"), "FROM sdk\nCOPY . .\nRUN dotnet publish\n");
+        assert_eq!(simple.context, Path::new("/w/Shop.Web"));
+        assert_eq!(simple.build_args(), ["build", "-t", "byteforge-debug-shop-web", "-f", "/w/Shop.Web/Dockerfile", "/w/Shop.Web"]);
+        // A Dockerfile in the workspace root.
+        assert_eq!(plan_for(project, Path::new("/w/Dockerfile"), vs).context, Path::new("/w"));
     }
 
     #[test]

@@ -91,7 +91,8 @@ impl DotnetProcess {
         Self::start_program("dotnet", root, args, env)
     }
 
-    fn start_program(program: &str, root: &Path, args: Vec<String>, env: &[(String, String)]) -> anyhow::Result<(Self, flume::Receiver<RunEvent>)> {
+    /// Starts any program the same way (`docker build`, …): output streamed, stoppable as a group.
+    pub fn start_program(program: &str, root: &Path, args: Vec<String>, env: &[(String, String)]) -> anyhow::Result<(Self, flume::Receiver<RunEvent>)> {
         let mut command = Command::new(program);
         command
             .args(&args)

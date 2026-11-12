@@ -222,7 +222,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "merge.editor", "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
     ("Run", &[
         "debug.start", "dotnet.run", "dotnet.watch", "dotnet.restartWatch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
-        "debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
+        "debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "debug.startInContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
         "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.scaffold", "ef.dropDatabase", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
         "csharp.reload",
@@ -297,6 +297,8 @@ pub struct Workbench {
     debug_generation: u64,
     /// Breakpoints of all files (open or not), sorted by line.
     breakpoints: BTreeMap<PathBuf, Vec<crate::editor::Breakpoint>>,
+    /// The container "Start Debugging in Container" started; removed when the debug session ends.
+    debug_container: Option<bf_core::container::ContainerPlan>,
     /// Pending "afterDelay" auto saves, by editor.
     autosave: HashMap<gpui::EntityId, Task<()>>,
     /// Watch expressions of the opened folder (Debug view).
@@ -559,6 +561,7 @@ impl Workbench {
             breakpoints: BTreeMap::new(),
             watches: Vec::new(),
             autosave: HashMap::new(),
+            debug_container: None,
             debug_console,
             debug_input,
             terminals: Vec::new(),

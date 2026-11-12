@@ -32,7 +32,7 @@ the git history.
 - [x] Diff editor: Stage Change / Revert Change (working tree) and Unstage Change (staged) for the change the toolbar is on: the index or the file gets exactly that change, in its own line endings. "Collapse Unchanged" folds the long stretches without changes on both sides.
 - [ ] Diff editor: edit the working-tree side in place (the panes hold filler lines to stay aligned, so this needs rows that aren't text).
 - [x] Blame for every line: "Git: Toggle Blame Gutter" adds a column with each run of lines' commit, author and age (click: that commit's change). Merge editor ("Merge Conflict: Open Merge Editor"): Current and Incoming as git has them, read-only, above the Result, which is the file's own editor; the toolbar counts conflicts, steps through them, accepts a side and marks the file resolved (save and stage).
-- [ ] F5 in a container: build, start and debug the app's container.
+- [x] F5 in a container: "Start Debugging in Container" (Run menu) builds the startup project's image from its Dockerfile (as Debug when it takes BUILD_CONFIGURATION; the context is found as Visual Studio's Dockerfiles need it), starts the container with its ports published, attaches the debugger to the app in it, and removes the container when the session ends.
 
 Not possible with today's tools: Change Signature with csharp-ls (needs a dialog it doesn't have; see
 the Roslyn server above), and debugging in Alpine (musl) images (netcoredbg has no musl release).
