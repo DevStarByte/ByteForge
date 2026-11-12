@@ -840,7 +840,7 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
     #[test]
     fn blame_gutter_labels_have_one_width() {
         let b = BlameLine { commit: "a1b2c3d4e5f6".into(), author: "Ann Example-Longname".into(), time: 0, summary: "x".into(), filename: "a".into(), uncommitted: false };
-        assert_eq!(b.gutter_label(3 * 86_400), "a1b2c3d Ann Example     3d");
+        assert_eq!(b.gutter_label(3 * 86_400), "a1b2c3d Ann Example-    3d");
         let u = BlameLine { uncommitted: true, ..b.clone() };
         assert_eq!(u.gutter_label(0).chars().count(), b.gutter_label(0).chars().count());
         assert_eq!((short_age(30), short_age(7200), short_age(40 * 86_400), short_age(800 * 86_400)), ("now".into(), "2h".into(), "1mo".into(), "2y".into()));
