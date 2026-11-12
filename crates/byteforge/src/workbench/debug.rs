@@ -1585,7 +1585,6 @@ impl Workbench {
 
 #[cfg(test)]
 mod container_tests {
-    use super::*;
     use crate::workbench::settings_page::view_tests::workbench;
 
     fn docker(args: &[&str]) -> String {
