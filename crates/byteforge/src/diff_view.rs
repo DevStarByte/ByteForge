@@ -19,6 +19,27 @@ use crate::theme::Theme;
 pub enum DiffEvent {
     /// "Open File": the new side's file, at this line.
     OpenFile(PathBuf, Point),
+    /// Stage, unstage or revert the change the toolbar is on, in this file.
+    Change(ChangeAction, PathBuf, bf_core::diff::LineChange),
+}
+
+/// What the two sides are, which decides what can be done with one change.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DiffKind {
+    /// Index ↔ working tree: a change can be staged or reverted.
+    WorkingTree,
+    /// HEAD ↔ index: a change can be unstaged.
+    Staged,
+    /// A commit, or anything else that's history.
+    #[default]
+    ReadOnly,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChangeAction {
+    Stage,
+    Unstage,
+    Revert,
 }
 
 pub struct DiffView {
@@ -34,6 +55,9 @@ pub struct DiffView {
     /// The file to open, when the new side is the working tree or a file that exists.
     file: Option<PathBuf>,
     language: Option<Language>,
+    kind: DiffKind,
+    /// Long unchanged stretches are folded away ("Collapse Unchanged").
+    collapsed: bool,
 }
 
 impl EventEmitter<DiffEvent> for DiffView {}
@@ -52,14 +76,15 @@ impl DiffView {
                 e.set_language(language, cx);
             });
         }
-        Self { right, left, diff: Diff::default(), inline: false, current: None, labels: Default::default(), file: None, language }
+        Self { right, left, diff: Diff::default(), inline: false, current: None, labels: Default::default(), file: None, language, kind: DiffKind::ReadOnly, collapsed: false }
     }
 
     /// Shows the comparison of `old` and `new`; keeps the view mode (and the change, when there still is one).
-    pub fn set_texts(&mut self, old: &str, new: &str, labels: (String, String), file: Option<PathBuf>, cx: &mut Context<Self>) {
+    pub fn set_texts(&mut self, old: &str, new: &str, labels: (String, String), file: Option<PathBuf>, kind: DiffKind, cx: &mut Context<Self>) {
         self.diff = bf_core::diff::compare(old, new);
         self.labels = labels;
         self.file = file;
+        self.kind = kind;
         self.current = self.current.filter(|&c| c < self.diff.hunks.len());
         self.refresh(cx);
         if self.current.is_none() && !self.diff.is_unchanged() {
@@ -82,7 +107,30 @@ impl DiffView {
             self.left.update(cx, |e, cx| show_pane(e, pane, cx));
         }
         self.right.update(cx, |e, cx| show_pane(e, right, cx));
+        // The same rows fold on both sides, so they stay in step.
+        let folds = |pane: &Pane| if self.collapsed { bf_core::diff::unchanged_folds(&pane.kinds, 3) } else { Vec::new() };
+        if let Some(pane) = left {
+            let f = folds(pane);
+            self.left.update(cx, |e, _| e.folds.set_folded(f));
+        }
+        let f = folds(right);
+        self.right.update(cx, |e, _| e.folds.set_folded(f));
         cx.notify();
+    }
+
+    /// "Collapse Unchanged" / "Show All": hides the long stretches without changes.
+    pub fn toggle_collapsed(&mut self, cx: &mut Context<Self>) {
+        self.collapsed = !self.collapsed;
+        self.refresh(cx);
+        if let Some(c) = self.current {
+            self.go_to_change(c, cx);
+        }
+    }
+
+    /// Stage, unstage or revert the change the toolbar is on (the workbench does it and reloads the diff).
+    pub(crate) fn change_action(&mut self, action: ChangeAction, cx: &mut Context<Self>) {
+        let (Some(file), Some(change)) = (self.file.clone(), self.current.and_then(|c| self.diff.changes.get(c).copied())) else { return };
+        cx.emit(DiffEvent::Change(action, file, change));
     }
 
     fn hunk_rows(&self) -> &[usize] {
@@ -201,6 +249,14 @@ impl Render for DiffView {
             .child(div().text_color(muted).whitespace_nowrap().child(position))
             .child(button("diff-prev", "arrow-up", "Previous Change (Shift+F7)").on_click(cx.listener(|v, _, _, cx| v.step(false, cx))))
             .child(button("diff-next", "arrow-down", "Next Change (F7)").on_click(cx.listener(|v, _, _, cx| v.step(true, cx))))
+            .when(self.current.is_some() && self.file.is_some() && self.kind == DiffKind::WorkingTree, |d| {
+                d.child(text_button("diff-stage", "Stage Change").on_click(cx.listener(|v, _, _, cx| v.change_action(ChangeAction::Stage, cx))))
+                    .child(text_button("diff-revert", "Revert Change").on_click(cx.listener(|v, _, _, cx| v.change_action(ChangeAction::Revert, cx))))
+            })
+            .when(self.current.is_some() && self.file.is_some() && self.kind == DiffKind::Staged, |d| {
+                d.child(text_button("diff-unstage", "Unstage Change").on_click(cx.listener(|v, _, _, cx| v.change_action(ChangeAction::Unstage, cx))))
+            })
+            .child(text_button("diff-collapse", if self.collapsed { "Show All" } else { "Collapse Unchanged" }).on_click(cx.listener(|v, _, _, cx| v.toggle_collapsed(cx))))
             .child(text_button("diff-mode", if self.inline { "Side by Side" } else { "Inline" }).on_click(cx.listener(|v, _, w, cx| v.toggle_inline(w, cx))))
             .when(self.file.is_some(), |d| d.child(text_button("diff-open", "Open File").on_click(cx.listener(|v, _, _, cx| v.open_file(cx)))));
         let body = if self.inline {
@@ -223,5 +279,14 @@ impl Render for DiffView {
             .on_action(cx.listener(|v, _: &DiffToggleInline, w, cx| v.toggle_inline(w, cx)))
             .child(toolbar)
             .child(body)
+    }
+}
+
+#[cfg(test)]
+impl DiffView {
+    /// (changes, the change the toolbar is on, rows hidden on the new side) for tests.
+    pub(crate) fn state_for_test(&self, cx: &gpui::App) -> (usize, Option<usize>, usize) {
+        let hidden = self.right.read(cx).folds.hidden_ranges().iter().map(|(s, e)| e + 1 - s).sum();
+        (self.diff.changes.len(), self.current, hidden)
     }
 }

@@ -50,8 +50,80 @@ pub struct Diff {
     pub inline_hunks: Vec<usize>,
     /// For each change, the new file's line (0-based) it is at, to open the file there.
     pub hunk_lines: Vec<usize>,
+    /// For each change, the lines it replaces in the old text and the lines that replace them in the new.
+    pub changes: Vec<LineChange>,
     pub added: usize,
     pub removed: usize,
+}
+
+/// One change as line ranges (0-based start, count): `old` lines are replaced by `new` lines. An insertion
+/// has no old lines (its `old.0` is where they go), a deletion no new ones.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct LineChange {
+    pub old: (usize, usize),
+    pub new: (usize, usize),
+}
+
+/// The lines of `text` with their line endings.
+fn raw_lines(text: &str) -> Vec<&str> {
+    text.split_inclusive('\n').collect()
+}
+
+/// `base` with lines `at.0 .. at.0 + at.1` replaced by lines `from.0 .. from.0 + from.1` of `source`.
+/// Line endings come along with their lines; a line moved to the end of the text without one, or put
+/// before others without one, gets the text's line ending fixed up.
+fn splice(base: &str, at: (usize, usize), source: &str, from: (usize, usize)) -> String {
+    let (b, s) = (raw_lines(base), raw_lines(source));
+    let newline = if base.contains("\r\n") || source.contains("\r\n") { "\r\n" } else { "\n" };
+    let start = at.0.min(b.len());
+    let end = (at.0 + at.1).min(b.len());
+    let mut out: Vec<String> = Vec::with_capacity(b.len() + from.1);
+    out.extend(b[..start].iter().map(|l| (*l).to_owned()));
+    out.extend(s.iter().skip(from.0).take(from.1).map(|l| (*l).to_owned()));
+    out.extend(b[end..].iter().map(|l| (*l).to_owned()));
+    // Every line but the last needs its line ending.
+    let n = out.len();
+    for line in out.iter_mut().take(n.saturating_sub(1)) {
+        if !line.ends_with('\n') {
+            line.push_str(newline);
+        }
+    }
+    out.concat()
+}
+
+/// `old` with one change applied: what staging just that change puts in the index.
+pub fn apply_change(old: &str, new: &str, change: &LineChange) -> String {
+    splice(old, change.old, new, change.new)
+}
+
+/// `new` with one change taken back: what reverting (or unstaging) just that change leaves.
+pub fn revert_change(old: &str, new: &str, change: &LineChange) -> String {
+    splice(new, change.new, old, change.old)
+}
+
+/// Rows to hide when unchanged regions are collapsed: for each run of unchanged rows longer than
+/// `2 * context + 1`, the fold `(first, last)` whose first row stays visible (as the "⋯" line) and that
+/// leaves `context` rows next to each change.
+pub fn unchanged_folds(kinds: &[RowKind], context: usize) -> Vec<(usize, usize)> {
+    let mut folds = Vec::new();
+    let mut i = 0;
+    while i < kinds.len() {
+        if kinds[i] != RowKind::Unchanged {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < kinds.len() && kinds[i] == RowKind::Unchanged {
+            i += 1;
+        }
+        // Keep context after the change above and before the change below (none at the text's edges).
+        let from = if start == 0 { 0 } else { start + context };
+        let to = if i == kinds.len() { i - 1 } else { (i - 1).saturating_sub(context) };
+        if to > from + 1 {
+            folds.push((from, to));
+        }
+    }
+    folds
 }
 
 impl Diff {
@@ -109,6 +181,7 @@ fn push_change(out: &mut Diff, old_lines: &[&str], new_lines: &[&str], (o, ol, n
     out.hunks.push(out.left.kinds.len());
     out.inline_hunks.push(out.inline.kinds.len());
     out.hunk_lines.push(n.min(new_lines.len().saturating_sub(1)));
+    out.changes.push(LineChange { old: (o, ol), new: (n, nl) });
     // Lines replaced one for one get their changed words marked.
     let words: Vec<Option<WordChanges>> =
         (0..ol.max(nl)).map(|i| (i < ol && i < nl).then(|| changed_words(old[i], new[i])).flatten()).collect();
@@ -235,6 +308,51 @@ mod tests {
     fn rewritten_lines_get_no_word_marks() {
         let d = compare("int a = 1;\n", "Console.WriteLine(message);\n");
         assert!(d.left.words.is_empty() && d.right.words.is_empty());
+    }
+
+    #[test]
+    fn stages_and_reverts_one_change() {
+        let old = "a\nb\nc\nd\n";
+        let new = "a\nB\nc\nnew\nd\n";
+        let d = compare(old, new);
+        assert_eq!(d.changes, [LineChange { old: (1, 1), new: (1, 1) }, LineChange { old: (3, 0), new: (3, 1) }]);
+        // Staging the first change only: the index gets `B` but not `new`.
+        assert_eq!(apply_change(old, new, &d.changes[0]), "a\nB\nc\nd\n");
+        assert_eq!(apply_change(old, new, &d.changes[1]), "a\nb\nc\nnew\nd\n");
+        // Reverting the second change only: the working file loses `new` but keeps `B`.
+        assert_eq!(revert_change(old, new, &d.changes[1]), "a\nB\nc\nd\n");
+        assert_eq!(revert_change(old, new, &d.changes[0]), "a\nb\nc\nnew\nd\n");
+        // Applying every change, last first, gives the new text.
+        let all = d.changes.iter().rev().fold(old.to_owned(), |text, c| apply_change(&text, new, c));
+        assert_eq!(all, new);
+    }
+
+    #[test]
+    fn line_endings_and_missing_final_newlines_survive() {
+        let old = "a\r\nb\r\n";
+        let new = "a\r\nb\r\nc";
+        let d = compare(&old.replace("\r\n", "\n"), &new.replace("\r\n", "\n"));
+        assert_eq!(apply_change(old, new, &d.changes[0]), "a\r\nb\r\nc");
+        assert_eq!(revert_change(old, new, &d.changes[0]), old);
+        // A line without a line ending that ends up before another gets one.
+        let (old, new) = ("x\ny", "x\ny\nz\n");
+        let d = compare(old, new);
+        assert_eq!(apply_change(old, new, &d.changes[0]), new);
+    }
+
+    #[test]
+    fn collapses_long_unchanged_runs() {
+        use RowKind::*;
+        let mut kinds = vec![Unchanged; 10];
+        kinds.push(Added);
+        kinds.extend(vec![Unchanged; 12]);
+        kinds.push(Removed);
+        kinds.extend(vec![Unchanged; 4]);
+        // Rows 0..=9 before the first change: 3 rows of context stay (7, 8, 9); 0 stays as the fold's line.
+        // Rows 11..=22 between the changes: context 11-13 and 20-22; 14 stays as the fold's line.
+        // The 4 rows at the end are too few to fold.
+        assert_eq!(unchanged_folds(&kinds, 3), [(0, 6), (14, 19)]);
+        assert!(unchanged_folds(&[Unchanged, Added, Unchanged], 3).is_empty());
     }
 
     #[test]

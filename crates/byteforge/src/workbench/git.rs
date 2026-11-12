@@ -1,6 +1,24 @@
 //! Source control events, git gutter bases and diff tabs.
 
 use super::*;
+use crate::diff_view::{ChangeAction, DiffKind};
+
+/// The diff tab's title: the file name and which comparison it is.
+fn diff_title(path: &Path, staged: bool, untracked: bool) -> String {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    format!("{name} ({})", if staged { "Staged" } else if untracked { "Untracked" } else { "Working Tree" })
+}
+
+/// What the two sides of a working-tree or staged diff are called.
+fn diff_labels(staged: bool, untracked: bool) -> (String, String) {
+    if staged {
+        ("HEAD".to_owned(), "Index (staged)".to_owned())
+    } else if untracked {
+        ("(new file)".to_owned(), "Working Tree".to_owned())
+    } else {
+        ("Index".to_owned(), "Working Tree".to_owned())
+    }
+}
 
 impl Workbench {
     pub(super) fn on_scm_event(&mut self, scm: &Entity<ScmView>, event: &ScmEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -79,18 +97,12 @@ impl Workbench {
     /// Opens a change in the diff editor (reusing its tab when it is already open).
     pub(super) fn open_diff(&mut self, change: bf_core::git::FileChange, staged: bool, window: &mut Window, cx: &mut Context<Self>) {
         let Some(git) = self.scm.read(cx).git().cloned() else { return };
-        let name = change.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let title = format!("{name} ({})", if staged { "Staged" } else if change.untracked { "Untracked" } else { "Working Tree" });
-        let labels = if staged {
-            ("HEAD".to_owned(), "Index (staged)".to_owned())
-        } else if change.untracked {
-            ("(new file)".to_owned(), "Working Tree".to_owned())
-        } else {
-            ("Index".to_owned(), "Working Tree".to_owned())
-        };
+        let title = diff_title(&change.path, staged, change.untracked);
+        let labels = diff_labels(staged, change.untracked);
+        let kind = if staged { DiffKind::Staged } else { DiffKind::WorkingTree };
         let path = change.path.clone();
         let task = cx.background_spawn(async move { git.diff_texts(&change, staged) });
-        self.show_diff_tab(title, path, labels, task, window, cx);
+        self.show_diff_tab(title, path, labels, kind, task, window, cx);
     }
 
     /// Opens what a commit changed in a file (first parent ↔ commit) in the diff editor.
@@ -105,12 +117,13 @@ impl Workbench {
         let new = if file.status == 'D' { "(deleted)".to_owned() } else { commit.short().to_owned() };
         let path = file.path.clone();
         let task = cx.background_spawn(async move { git.commit_diff_texts(&commit, &file) });
-        self.show_diff_tab(title, path, (old, new), task, window, cx);
+        self.show_diff_tab(title, path, (old, new), DiffKind::ReadOnly, task, window, cx);
     }
 
     /// Shows `(old, new)` from `task` in a diff editor tab titled `title`, reusing an open one of the same
     /// title. `path` is the file compared: its language highlights both sides, and "Open File" opens it.
-    pub(super) fn show_diff_tab(&mut self, title: String, path: PathBuf, labels: (String, String), task: Task<(String, String)>, window: &mut Window, cx: &mut Context<Self>) {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn show_diff_tab(&mut self, title: String, path: PathBuf, labels: (String, String), kind: DiffKind, task: Task<(String, String)>, window: &mut Window, cx: &mut Context<Self>) {
         cx.spawn_in(window, async move |this, cx| {
             let (old, new) = task.await;
             let _ = this.update_in(cx, |wb, window, cx| {
@@ -122,15 +135,16 @@ impl Workbench {
                 {
                     diff.update(cx, |d, cx| {
                         d.set_language(language, cx);
-                        d.set_texts(&old, &new, labels, file, cx);
+                        d.set_texts(&old, &new, labels, file, kind, cx);
                     });
                     wb.activate(ix, window, cx);
                     return;
                 }
                 let editor = cx.new(|cx| EditorView::new("", None, cx));
                 let diff = cx.new(|cx| crate::diff_view::DiffView::new(editor.clone(), language, cx));
-                let sub = cx.subscribe_in(&diff, window, |wb: &mut Self, _, event: &crate::diff_view::DiffEvent, window, cx| match event {
+                let sub = cx.subscribe_in(&diff, window, |wb: &mut Self, diff, event: &crate::diff_view::DiffEvent, window, cx| match event {
                     crate::diff_view::DiffEvent::OpenFile(path, at) => wb.open_file(path.clone(), Some(*at), window, cx),
+                    crate::diff_view::DiffEvent::Change(action, path, change) => wb.diff_change(diff.clone(), *action, path.clone(), *change, window, cx),
                 });
                 wb.add_tab(editor, None, title, false, window, cx);
                 if let Some(tab) = wb.tabs.last_mut() {
@@ -138,9 +152,54 @@ impl Workbench {
                     tab._subs.push(sub);
                 }
                 // After the tab is showing, so the editors know their size when they scroll to the first change.
-                diff.update(cx, |d, cx| d.set_texts(&old, &new, labels, file, cx));
+                diff.update(cx, |d, cx| d.set_texts(&old, &new, labels, file, kind, cx));
                 cx.notify();
             });
+        })
+        .detach();
+    }
+
+    /// Stage, unstage or revert one change from the diff editor (Revert asks first), then show what's left.
+    fn diff_change(&mut self, diff: Entity<crate::diff_view::DiffView>, action: ChangeAction, path: PathBuf, change: bf_core::diff::LineChange, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(git) = self.scm.read(cx).git().cloned() else { return };
+        let staged = action == ChangeAction::Unstage;
+        let apply = move |wb: &mut Self, window: &mut Window, cx: &mut Context<Self>| {
+            let (g, p) = (git.clone(), path.clone());
+            let task = cx.background_spawn(async move {
+                match action {
+                    ChangeAction::Stage => g.stage_change(&p, &change)?,
+                    ChangeAction::Unstage => g.unstage_change(&p, &change)?,
+                    ChangeAction::Revert => g.revert_change(&p, &change)?,
+                }
+                anyhow::Ok(g.diff_texts_of(&p, staged))
+            });
+            cx.spawn_in(window, async move |this, cx| {
+                let result = task.await;
+                let _ = this.update(cx, |wb, cx| match result {
+                    Ok((old, new)) => {
+                        let kind = if staged { DiffKind::Staged } else { DiffKind::WorkingTree };
+                        let file = path.exists().then(|| path.clone());
+                        diff.update(cx, |d, cx| d.set_texts(&old, &new, diff_labels(staged, false), file, kind, cx));
+                        wb.reload_changed_tabs(cx);
+                        wb.scm.update(cx, |s, cx| s.refresh(cx));
+                    }
+                    Err(e) => {
+                        wb.log(format!("Could not change {}: {e:#}", path.display()));
+                        wb.show_panel(PanelView::Output, cx);
+                    }
+                });
+            })
+            .detach();
+            let _ = wb;
+        };
+        if action != ChangeAction::Revert {
+            return apply(self, window, cx);
+        }
+        let rx = window.prompt(PromptLevel::Warning, "Revert this change?", Some("The lines go back to what git has; what you changed in them is lost."), &["Revert", "Cancel"], cx);
+        cx.spawn_in(window, async move |this, cx| {
+            if let Ok(0) = rx.await {
+                let _ = this.update_in(cx, |wb, window, cx| apply(wb, window, cx));
+            }
         })
         .detach();
     }
@@ -382,6 +441,67 @@ mod tests {
         }
         assert_eq!(git(&repo, &["branch", "--show-current"]), "feature");
         assert!(git(&repo, &["stash", "list"]).contains("ByteForge: before switching to feature"));
+        drop(guard);
+    }
+
+    /// The diff editor stages one change of two (the other stays unstaged, the file untouched) and
+    /// collapses the unchanged lines.
+    #[gpui::test]
+    fn the_diff_editor_stages_one_change(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "stage-change");
+        let repo = guard.dir.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q", "-b", "main"]);
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+            git(&repo, &["config", k, v]);
+        }
+        let file = repo.join("Big.cs");
+        let lines: Vec<String> = (1..=40).map(|i| format!("line {i}")).collect();
+        std::fs::write(&file, lines.join("\n") + "\n").unwrap();
+        git(&repo, &["add", "."]);
+        git(&repo, &["commit", "-qm", "first"]);
+        let mut edited = lines.clone();
+        edited[2] = "line three".into();
+        edited[35] = "line thirty-six".into();
+        std::fs::write(&file, edited.join("\n") + "\n").unwrap();
+
+        wb.update_in(cx, |wb, window, cx| wb.open_folder(repo.clone(), window, cx));
+        cx.run_until_parked();
+        let change = bf_core::git::FileChange { path: file.clone(), orig: None, index: '.', worktree: 'M', untracked: false, conflict: false };
+        wb.update_in(cx, |wb, window, cx| wb.open_diff(change, false, window, cx));
+        let mut diff = None;
+        for _ in 0..100 {
+            cx.run_until_parked();
+            diff = wb.update(cx, |wb, _| wb.tabs.iter().find_map(|t| match &t.page {
+                Some(Page::Diff(d)) => Some(d.clone()),
+                _ => None,
+            }));
+            if diff.as_ref().is_some_and(|d| d.read_with(cx, |d, cx| d.state_for_test(cx).0) == 2) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let diff = diff.expect("the diff tab opened");
+        assert_eq!(diff.read_with(cx, |d, cx| d.state_for_test(cx)), (2, Some(0), 0), "two changes, on the first, nothing folded");
+
+        // Collapse Unchanged hides the long stretch between the two changes.
+        diff.update(cx, |d, cx| d.toggle_collapsed(cx));
+        assert!(diff.read_with(cx, |d, cx| d.state_for_test(cx).2) > 20);
+
+        // Stage Change on the first change.
+        diff.update(cx, |d, cx| d.change_action(ChangeAction::Stage, cx));
+        for _ in 0..100 {
+            cx.run_until_parked();
+            if diff.read_with(cx, |d, cx| d.state_for_test(cx).0) == 1 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert_eq!(diff.read_with(cx, |d, cx| d.state_for_test(cx).0), 1, "one unstaged change left in the diff");
+        let staged = git(&repo, &["diff", "--cached", "--unified=0"]);
+        assert!(staged.contains("+line three") && !staged.contains("thirty-six"), "{staged}");
+        let unstaged = git(&repo, &["diff", "--unified=0"]);
+        assert!(unstaged.contains("+line thirty-six") && !unstaged.contains("line three"), "{unstaged}");
         drop(guard);
     }
 }

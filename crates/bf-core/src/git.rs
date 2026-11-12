@@ -310,6 +310,65 @@ impl Git {
         }
     }
 
+    /// A file's content at `spec` (`:path` for the index, `HEAD:path`), exactly as stored.
+    fn raw_content(&self, spec: &str) -> Option<String> {
+        let output = git(&self.root).args(["show", spec]).output().ok()?;
+        output.status.success().then(|| String::from_utf8_lossy(&output.stdout).into_owned())
+    }
+
+    /// Makes `content` the staged version of `path` (keeping its file mode).
+    fn write_index(&self, path: &Path, content: &str) -> anyhow::Result<()> {
+        let rel = self.rel(path);
+        let sha = run_with_input(&self.root, &["hash-object", "-w", "--stdin"], content)?.trim().to_owned();
+        let listed = run(&self.root, &["ls-files", "-s", "--", &rel]).unwrap_or_default();
+        let mode = listed.split_whitespace().next().filter(|m| m.len() == 6).unwrap_or("100644").to_owned();
+        run(&self.root, &["update-index", "--add", "--cacheinfo", &format!("{mode},{sha},{rel}")])?;
+        Ok(())
+    }
+
+    /// Stages one change of a file (index ↔ working tree): the index gets its content with just that
+    /// change applied, in the index's line endings.
+    pub fn stage_change(&self, path: &Path, change: &crate::diff::LineChange) -> anyhow::Result<()> {
+        let rel = self.rel(path);
+        let old = self.raw_content(&format!(":{rel}")).unwrap_or_default();
+        let mut new = std::fs::read_to_string(path)?;
+        if !old.contains("\r\n") && !old.is_empty() {
+            new = new.replace("\r\n", "\n"); // autocrlf: the index keeps LF
+        }
+        self.write_index(path, &crate::diff::apply_change(&old, &new, change))
+    }
+
+    /// Unstages one change of a file (HEAD ↔ index): the index gets its content with that change taken back.
+    pub fn unstage_change(&self, path: &Path, change: &crate::diff::LineChange) -> anyhow::Result<()> {
+        let rel = self.rel(path);
+        let old = self.raw_content(&format!("HEAD:{rel}")).unwrap_or_default();
+        let new = self.raw_content(&format!(":{rel}")).ok_or_else(|| anyhow::anyhow!("{rel} isn't staged"))?;
+        self.write_index(path, &crate::diff::revert_change(&old, &new, change))
+    }
+
+    /// Takes one change of a file's working copy back to what the index has (in the file's line endings).
+    pub fn revert_change(&self, path: &Path, change: &crate::diff::LineChange) -> anyhow::Result<()> {
+        let rel = self.rel(path);
+        let new = std::fs::read_to_string(path)?;
+        let mut old = self.raw_content(&format!(":{rel}")).or_else(|| self.raw_content(&format!("HEAD:{rel}"))).unwrap_or_default();
+        if new.contains("\r\n") && !old.contains("\r\n") {
+            old = old.replace('\n', "\r\n");
+        }
+        std::fs::write(path, crate::diff::revert_change(&old, &new, change))?;
+        Ok(())
+    }
+
+    /// (old, new) texts of a file for the diff editor, by path: HEAD ↔ index when `staged`, otherwise
+    /// index ↔ working tree (line endings normalized, as [`Git::diff_texts`]).
+    pub fn diff_texts_of(&self, path: &Path, staged: bool) -> (String, String) {
+        let read = |p: &Path| std::fs::read(p).map(|b| String::from_utf8_lossy(&b).replace("\r\n", "\n")).unwrap_or_default();
+        if staged {
+            (self.head_content(path).unwrap_or_default(), self.index_content(path).unwrap_or_default())
+        } else {
+            (self.index_content(path).or_else(|| self.head_content(path)).unwrap_or_default(), read(path))
+        }
+    }
+
     /// Puts the uncommitted changes (untracked files included) on the stash.
     pub fn stash_push(&self, message: &str) -> anyhow::Result<String> {
         run_verbose(&self.root, &["stash", "push", "--include-untracked", "-m", message])
@@ -846,6 +905,29 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         repo.create_branch("feature/x").unwrap();
         let branches = repo.branches().unwrap();
         assert!(branches.iter().any(|b| b.name == "feature/x" && b.current));
+
+        // Staging, unstaging and reverting single changes of a file.
+        run(repo.root(), &["checkout", "-q", "-"]).unwrap();
+        let multi = repo.root().join("Multi.cs");
+        std::fs::write(&multi, "one\ntwo\nthree\nfour\nfive\n").unwrap();
+        repo.stage_all().unwrap();
+        repo.commit("multi", false).unwrap();
+        std::fs::write(&multi, "one\nTWO\nthree\nfour\nfive\nsix\n").unwrap();
+        let (old, new) = repo.diff_texts_of(&multi, false);
+        let d = crate::diff::compare(&old, &new);
+        assert_eq!(d.changes.len(), 2);
+        repo.stage_change(&multi, &d.changes[1]).unwrap();
+        assert_eq!(repo.index_content(&multi).as_deref(), Some("one\ntwo\nthree\nfour\nfive\nsix\n"), "only the second change is staged");
+        assert_eq!(std::fs::read_to_string(&multi).unwrap(), "one\nTWO\nthree\nfour\nfive\nsix\n", "the working file is untouched");
+        let staged = crate::diff::compare(&repo.diff_texts_of(&multi, true).0, &repo.diff_texts_of(&multi, true).1);
+        repo.unstage_change(&multi, &staged.changes[0]).unwrap();
+        assert_eq!(repo.index_content(&multi).as_deref(), Some("one\ntwo\nthree\nfour\nfive\n"), "unstaged again");
+        let (old, new) = repo.diff_texts_of(&multi, false);
+        let d = crate::diff::compare(&old, &new);
+        repo.revert_change(&multi, &d.changes[0]).unwrap();
+        assert_eq!(std::fs::read_to_string(&multi).unwrap(), "one\ntwo\nthree\nfour\nfive\nsix\n", "TWO is reverted, six stays");
+        std::fs::write(&multi, "one\ntwo\nthree\nfour\nfive\n").unwrap();
+        run(repo.root(), &["checkout", "-q", "-"]).unwrap();
 
         // A real merge conflict, as git writes it: found and resolved.
         std::fs::write(&file, "class A { int incoming; }\n").unwrap();
