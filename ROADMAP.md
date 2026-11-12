@@ -28,7 +28,7 @@ the git history.
 
 ## 3. Left over from the roadmap
 
-- [ ] EF Core: show which migrations are applied (needs the database), and `dotnet ef dbcontext scaffold`.
+- [x] EF Core: "Update Database to Migration…" marks each migration applied or pending once EF has asked the database (the list shows at once from the source; when the database can't be reached, the Output says why). "Scaffold DbContext from Database…" asks for the connection string (kept out of the log) and the provider, and generates the entities and the DbContext into Models/.
 - [ ] Diff editor: stage or revert one change, collapse unchanged regions, edit the working-tree side.
 - [ ] Blame for every line in the gutter; a three-way merge editor.
 - [ ] F5 in a container: build, start and debug the app's container.

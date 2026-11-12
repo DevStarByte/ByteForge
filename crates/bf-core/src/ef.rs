@@ -37,6 +37,78 @@ pub enum Op {
     Script(PathBuf),
     /// `database drop --force`.
     Drop,
+    /// `dbcontext scaffold <connection> <provider> --output-dir <dir>`: entity classes and a DbContext
+    /// from an existing database.
+    Scaffold { connection: String, provider: String, output_dir: String },
+}
+
+/// The database providers offered for scaffolding: (name, NuGet package).
+pub const PROVIDERS: &[(&str, &str)] = &[
+    ("SQL Server", "Microsoft.EntityFrameworkCore.SqlServer"),
+    ("PostgreSQL", "Npgsql.EntityFrameworkCore.PostgreSQL"),
+    ("SQLite", "Microsoft.EntityFrameworkCore.Sqlite"),
+    ("MySQL / MariaDB", "Pomelo.EntityFrameworkCore.MySql"),
+    ("Oracle", "Oracle.EntityFrameworkCore"),
+];
+
+/// A migration as `dotnet ef migrations list` reports it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ListedMigration {
+    pub id: String,
+    /// Applied to the database; `None` when the database couldn't be asked.
+    pub applied: Option<bool>,
+}
+
+/// `dotnet ef migrations list --json --prefix-output` for a context.
+pub fn list_args(project: &Path, startup: &Path, context: &str) -> Vec<String> {
+    let mut args: Vec<String> = vec!["ef".into(), "migrations".into(), "list".into(), "--json".into(), "--prefix-output".into()];
+    args.extend(["--project".into(), project.to_string_lossy().into_owned()]);
+    if startup != project {
+        args.extend(["--startup-project".into(), startup.to_string_lossy().into_owned()]);
+    }
+    if !context.is_empty() {
+        args.extend(["--context".into(), context.to_owned()]);
+    }
+    args.push("--no-color".into());
+    args
+}
+
+/// The migrations in `migrations list --json --prefix-output` output (the JSON is on the `data:` lines),
+/// and why the database couldn't be asked, when it couldn't.
+pub fn parse_list(output: &str) -> (Vec<ListedMigration>, Option<String>) {
+    let json: String = output.lines().filter_map(|l| l.strip_prefix("data:")).collect::<Vec<_>>().join("\n");
+    let listed = serde_json::from_str::<serde_json::Value>(&json)
+        .ok()
+        .and_then(|v| v.as_array().cloned())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|m| Some(ListedMigration { id: m.get("id")?.as_str()?.to_owned(), applied: m.get("applied").and_then(|a| a.as_bool()) }))
+        .collect();
+    let warning = output
+        .lines()
+        .filter_map(|l| l.strip_prefix("warn:"))
+        .map(str::trim)
+        .find(|l| l.contains("accessing the database"))
+        .map(|l| l.split(" Error: ").nth(1).unwrap_or(l).chars().take(200).collect());
+    (listed, warning)
+}
+
+/// Asks EF which migrations are applied (it builds the project first, so this takes a few seconds).
+pub fn list(root: &Path, project: &Path, startup: &Path, context: &str) -> anyhow::Result<(Vec<ListedMigration>, Option<String>)> {
+    let mut command = std::process::Command::new("dotnet");
+    command.args(list_args(project, startup, context)).current_dir(root).env("DOTNET_NOLOGO", "1").stdin(std::process::Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let out = command.output()?;
+    let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    if !out.status.success() {
+        let why = text.lines().filter_map(|l| l.strip_prefix("error:")).map(str::trim).next().unwrap_or("dotnet ef migrations list failed").to_owned();
+        anyhow::bail!(why);
+    }
+    Ok(parse_list(&text))
 }
 
 /// The `DbContext`s of the (non-test) projects below `root`.
@@ -151,6 +223,9 @@ pub fn args(op: &Op, project: &Path, startup: &Path, context: &str) -> Vec<Strin
         Op::Update(Some(target)) => vec!["ef".into(), "database".into(), "update".into(), target.clone()],
         Op::Script(out) => vec!["ef".into(), "migrations".into(), "script".into(), "--idempotent".into(), "--output".into(), out.to_string_lossy().into_owned()],
         Op::Drop => vec!["ef".into(), "database".into(), "drop".into(), "--force".into()],
+        Op::Scaffold { connection, provider, output_dir } => {
+            vec!["ef".into(), "dbcontext".into(), "scaffold".into(), connection.clone(), provider.clone(), "--output-dir".into(), output_dir.clone()]
+        }
     };
     args.extend(["--project".into(), project.to_string_lossy().into_owned()]);
     if startup != project {
@@ -215,6 +290,30 @@ mod tests {
         );
         assert_eq!(args(&Op::Update(Some("0".into())), p, p, ""), ["ef", "database", "update", "0", "--project", "/w/Data/Data.csproj", "--no-color"]);
         assert_eq!(args(&Op::Drop, p, p, "")[..4], ["ef", "database", "drop", "--force"]);
+    }
+
+    #[test]
+    fn reads_the_applied_state() {
+        let out = "info:    Build started...\ninfo:    Build succeeded.\ndata:    [\ndata:      {\ndata:        \"id\": \"20260101_Init\",\ndata:        \"name\": \"Init\",\ndata:        \"applied\": true\ndata:      },\ndata:      {\ndata:        \"id\": \"20260201_AddOrders\",\ndata:        \"applied\": false\ndata:      }\ndata:    ]\n";
+        let (listed, warning) = parse_list(out);
+        assert_eq!(listed, [ListedMigration { id: "20260101_Init".into(), applied: Some(true) }, ListedMigration { id: "20260201_AddOrders".into(), applied: Some(false) }]);
+        assert_eq!(warning, None);
+        let offline = "warn:    An error occurred while accessing the database. Continuing without the information provided by the database. Error: A network-related error occurred\ndata:    [\ndata:      { \"id\": \"20260101_Init\", \"applied\": null }\ndata:    ]\n";
+        let (listed, warning) = parse_list(offline);
+        assert_eq!(listed[0].applied, None);
+        assert_eq!(warning.as_deref(), Some("A network-related error occurred"));
+        assert_eq!(parse_list("error: nope").0, []);
+    }
+
+    #[test]
+    fn scaffold_command_line() {
+        let p = Path::new("/w/Data/Data.csproj");
+        let op = Op::Scaffold { connection: "Server=.;Database=Shop".into(), provider: "Microsoft.EntityFrameworkCore.SqlServer".into(), output_dir: "Models".into() };
+        assert_eq!(
+            args(&op, p, p, ""),
+            ["ef", "dbcontext", "scaffold", "Server=.;Database=Shop", "Microsoft.EntityFrameworkCore.SqlServer", "--output-dir", "Models", "--project", "/w/Data/Data.csproj", "--no-color"]
+        );
+        assert_eq!(list_args(p, Path::new("/w/Web/Web.csproj"), "ShopContext")[..5], ["ef", "migrations", "list", "--json", "--prefix-output"]);
     }
 
     #[test]

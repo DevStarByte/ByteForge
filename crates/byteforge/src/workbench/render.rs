@@ -234,6 +234,7 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &EfUpdateDatabaseTo, w, cx| wb.start_ef("update-to", w, cx)))
             .on_action(cx.listener(|wb, _: &EfGenerateScript, w, cx| wb.start_ef("script", w, cx)))
             .on_action(cx.listener(|wb, _: &EfDropDatabase, w, cx| wb.start_ef("drop", w, cx)))
+            .on_action(cx.listener(|wb, _: &EfScaffold, w, cx| wb.start_scaffold(w, cx)))
             .on_action(cx.listener(|wb, a: &EfCommand, w, cx| wb.run_ef(a.clone(), w, cx)))
             .on_action(cx.listener(|wb, _: &Test, w, cx| wb.run_all_tests(w, cx)))
             .on_action(cx.listener(|wb, _: &ShowTesting, w, cx| wb.toggle_side(SideView::Testing, w, cx)))

@@ -156,6 +156,8 @@ enum PromptKind {
     RenameSymbol { editor: gpui::WeakEntity<EditorView>, at: Point, old: String },
     /// Name of a new EF Core migration.
     EfMigrationName(crate::actions::EfCommand),
+    /// The connection string of the database to scaffold a DbContext from, into this project.
+    EfScaffoldConnection { project: PathBuf },
     /// New value of a user secret.
     SecretValue { file: PathBuf, key: String },
     /// A new user secret, typed as `Name = value`.
@@ -214,7 +216,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
     ("Run", &[
         "debug.start", "dotnet.run", "dotnet.watch", "dotnet.restartWatch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
         "debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
-        "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.dropDatabase", "-",
+        "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.scaffold", "ef.dropDatabase", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
         "csharp.reload",
     ]),

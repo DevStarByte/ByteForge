@@ -44,7 +44,7 @@ pub struct AddPackageVersion {
     pub version: String,
 }
 
-actions!(ef, [EfAddMigration, EfRemoveMigration, EfUpdateDatabase, EfUpdateDatabaseTo, EfGenerateScript, EfDropDatabase]);
+actions!(ef, [EfAddMigration, EfRemoveMigration, EfUpdateDatabase, EfUpdateDatabaseTo, EfGenerateScript, EfDropDatabase, EfScaffold]);
 
 /// An EF Core migrations command, filled in step by step (context picked, name typed, …): `op` is add,
 /// remove, update, update-to, script or drop; empty fields are still to be asked.
@@ -266,6 +266,7 @@ fn builtin() -> Vec<Builtin> {
         ("ef.updateDatabase", "Update Database", "EF Core", Box::new(EfUpdateDatabase), None),
         ("ef.updateDatabaseTo", "Update Database to Migration…", "EF Core", Box::new(EfUpdateDatabaseTo), None),
         ("ef.script", "Generate SQL Script", "EF Core", Box::new(EfGenerateScript), None),
+        ("ef.scaffold", "Scaffold DbContext from Database…", "EF Core", Box::new(EfScaffold), None),
         ("ef.dropDatabase", "Drop Database…", "EF Core", Box::new(EfDropDatabase), None),
         ("dotnet.test", "Test", "Run", Box::new(Test), None),
         ("dotnet.clean", "Clean", "Run", Box::new(Clean), None),

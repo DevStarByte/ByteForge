@@ -193,7 +193,9 @@ impl Workbench {
         if compiles {
             self.build_problems.clear();
         }
-        self.log(format!("> dotnet {}", args.join(" ")));
+        // A scaffold's connection string (it may hold a password) stays out of the log.
+        let shown: Vec<&str> = args.iter().enumerate().map(|(i, a)| if i > 0 && args[i - 1] == "scaffold" { "<connection string>" } else { a.as_str() }).collect();
+        self.log(format!("> dotnet {}", shown.join(" ")));
         match DotnetProcess::start_with_env(&root, args, &env) {
             Ok((process, rx)) => {
                 self.dotnet = Some(process);

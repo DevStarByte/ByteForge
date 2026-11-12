@@ -10,7 +10,8 @@ use bf_core::ef::{self, Op};
 /// The EF Core version the `dotnet-ef` tool has (the project's packages must match its major version).
 fn ef_version() -> Option<String> {
     let output = Command::new("dotnet").args(["ef", "--version", "--no-color"]).output().ok()?;
-    let text = String::from_utf8_lossy(&output.stdout);
+    // dotnet-ef 10 prints the version to stdout, 11 to stderr.
+    let text = format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
     let version = text.lines().map(str::trim).rfind(|l| l.chars().next().is_some_and(|c| c.is_ascii_digit()))?.to_owned();
     output.status.success().then_some(version)
 }
@@ -88,6 +89,13 @@ public static class Program { public static void Main() { } }
     assert!(ok, "migrations script failed:\n{out}");
     let sql = std::fs::read_to_string(&script).unwrap();
     assert!(sql.contains("CREATE TABLE [Orders]"), "{sql}");
+
+    // Which migrations are applied: no server here, so EF lists them without that and says why.
+    let (listed, warning) = ef::list(&dir, &project, &project, context).expect("migrations list");
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    assert!(listed[0].id.ends_with("_Init"));
+    assert_eq!(listed[0].applied, None);
+    assert!(warning.is_some(), "the reason the database couldn't be asked");
 
     // `migrations remove` asks the database whether the migration is applied, so it needs a server.
     drop(guard);
