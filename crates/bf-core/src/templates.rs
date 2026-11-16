@@ -272,6 +272,27 @@ pub fn write_secrets(path: &Path, secrets: &[(String, String)]) -> anyhow::Resul
     Ok(())
 }
 
+/// Sets (or, with `None`, removes) one secret in the file by editing only that member's text, so the
+/// comments, order and nesting of a hand-edited secrets.json stay. A missing or empty file starts flat.
+pub fn save_secret(path: &Path, key: &str, value: Option<&str>) -> anyhow::Result<()> {
+    let text = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e.into()),
+    };
+    let bom = text.starts_with('\u{feff}');
+    let body = text.trim_start_matches('\u{feff}');
+    if body.trim().is_empty() {
+        let mut secrets = Vec::new();
+        set_secret(&mut secrets, key, value);
+        return write_secrets(path, &secrets);
+    }
+    let value = value.map(|v| serde_json::Value::String(v.to_owned()));
+    let edited = crate::settings::set_config_key_in_text(body, key, value.as_ref()).ok_or_else(|| anyhow::anyhow!("secrets.json isn't a JSON object"))?;
+    std::fs::write(path, if bom { format!("\u{feff}{edited}") } else { edited })?;
+    Ok(())
+}
+
 /// Sets `key` (replacing its value, or adding it at the end) or, with `None`, removes it.
 pub fn set_secret(secrets: &mut Vec<(String, String)>, key: &str, value: Option<&str>) {
     let at = secrets.iter().position(|(k, _)| k.eq_ignore_ascii_case(key));
@@ -288,6 +309,26 @@ pub fn set_secret(secrets: &mut Vec<(String, String)>, key: &str, value: Option<
 #[cfg(test)]
 mod secrets_tests {
     use super::*;
+
+    #[test]
+    fn saving_a_secret_keeps_comments_and_nesting() {
+        let dir = std::env::temp_dir().join(format!("bf-secrets-edit-{}", std::process::id()));
+        let file = dir.join("secrets.json");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(&file, "{\n  // dev only\n  \"Db\": {\n    \"Password\": \"old\", // rotate monthly\n    \"User\": \"sa\"\n  },\n  \"Api:Key\": \"abc\"\n}\n").unwrap();
+        save_secret(&file, "db:password", Some("new")).unwrap();
+        save_secret(&file, "Api:Key", None).unwrap();
+        save_secret(&file, "Token", Some("t")).unwrap();
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.contains("// dev only") && text.contains("// rotate monthly"), "{text}");
+        assert!(text.contains("\"Password\": \"new\"") && !text.contains("Api:Key"), "{text}");
+        assert_eq!(read_secrets(&file).unwrap(), [("Db:Password".to_owned(), "new".to_owned()), ("Db:User".to_owned(), "sa".to_owned()), ("Token".to_owned(), "t".to_owned())]);
+        // A new file starts flat.
+        std::fs::remove_file(&file).unwrap();
+        save_secret(&file, "A:B", Some("1")).unwrap();
+        assert_eq!(read_secrets(&file).unwrap(), [("A:B".to_owned(), "1".to_owned())]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn reads_nested_and_flat_secrets_and_writes_them_flat() {

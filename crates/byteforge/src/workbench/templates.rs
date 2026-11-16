@@ -251,9 +251,7 @@ impl Workbench {
 
     /// Sets (or, with `None`, removes) one secret in `file`.
     pub(super) fn update_secret(&mut self, file: &Path, key: &str, value: Option<&str>, cx: &mut Context<Self>) -> anyhow::Result<()> {
-        let mut secrets = templates::read_secrets(file)?;
-        templates::set_secret(&mut secrets, key, value);
-        templates::write_secrets(file, &secrets)?;
+        templates::save_secret(file, key, value)?;
         self.reload_changed_tabs(cx);
         cx.notify();
         Ok(())

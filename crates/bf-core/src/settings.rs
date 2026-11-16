@@ -289,6 +289,32 @@ pub fn set_in_text(text: &str, key: &str, value: Option<&Value>) -> Option<Strin
     Some(out)
 }
 
+/// Like [`set_in_text`] for a configuration key (`Db:Password`, keys matched without case): it edits the
+/// member inside a nested object when the text has one (`{"Db": {"Password": …}}`), else the flat one,
+/// and adds a missing key flat at the end. Everything else (comments, order, formatting) stays.
+pub fn set_config_key_in_text(text: &str, key: &str, value: Option<&Value>) -> Option<String> {
+    let (list, _) = members(text)?;
+    if let Some(m) = list.iter().find(|m| m.key.eq_ignore_ascii_case(key)) {
+        return set_in_text(text, &m.key, value);
+    }
+    for m in &list {
+        let nested = key.get(..m.key.len()).is_some_and(|p| p.eq_ignore_ascii_case(&m.key)) && key[m.key.len()..].starts_with(':');
+        let inner = &text[m.value.0..m.value.1];
+        if nested && inner.starts_with('{') && let Some(edited) = set_config_key_in_text(inner, &key[m.key.len() + 1..], value) {
+            if edited == inner {
+                continue;
+            }
+            let mut out = text.to_owned();
+            out.replace_range(m.value.0..m.value.1, &edited);
+            return Some(out);
+        }
+    }
+    match value {
+        Some(_) => set_in_text(text, key, value),
+        None => Some(text.to_owned()),
+    }
+}
+
 fn read(path: &Path) -> Map<String, Value> {
     std::fs::read_to_string(path)
         .ok()
