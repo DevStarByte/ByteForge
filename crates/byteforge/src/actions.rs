@@ -288,7 +288,7 @@ fn builtin() -> Vec<Builtin> {
         ("debug.attach", "Attach to .NET Process…", "Debug", Box::new(AttachToProcess), None),
         ("debug.attachContainer", "Attach to .NET Process in Container…", "Debug", Box::new(AttachToContainer), None),
         ("debug.startInContainer", "Start Debugging in Container", "Debug", Box::new(StartDebuggingInContainer), None),
-        ("view.debug", "Run and Debug", "View", Box::new(ShowDebug), Some("ctrl-shift-d")),
+        ("view.debug", "Run and Debug", "View", Box::new(ShowDebug), None),
         ("view.debugConsole", "Debug Console", "View", Box::new(ShowDebugConsole), Some("ctrl-shift-y")),
         ("view.testing", "Testing", "View", Box::new(ShowTesting), None),
         ("view.solution", "Solution", "View", Box::new(ShowSolution), None),
@@ -347,7 +347,7 @@ fn builtin() -> Vec<Builtin> {
         ("diff.nextChange", "Next Change", "Diff", Box::new(DiffNextChange), None),
         ("diff.previousChange", "Previous Change", "Diff", Box::new(DiffPreviousChange), None),
         ("diff.toggleInline", "Toggle Inline / Side by Side", "Diff", Box::new(DiffToggleInline), None),
-        ("edit.formatDocument", "Format Document", "Edit", Box::new(FormatDocument), Some("shift-alt-f")),
+        ("edit.formatDocument", "Format Document", "Edit", Box::new(FormatDocument), Some("ctrl-shift-d")),
         ("edit.formatDocumentWith", "Format Document With…", "Edit", Box::new(FormatDocumentWith), None),
     ]
 }
@@ -398,6 +398,7 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
     // F1 first so Ctrl+Shift+P stays the displayed (highest-precedence) binding.
     cx.bind_keys([kb("f1", CommandPalette, None)]);
     cx.bind_keys(bindings);
+    cx.bind_keys([kb("ctrl-pageup", PreviousEditor, None), kb("ctrl-pagedown", NextEditor, None)]);
 
     let e = Some(EDITOR);
     cx.bind_keys([
@@ -444,16 +445,23 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         kb("ctrl-z", Undo, e),
         kb("ctrl-y", Redo, e),
         kb("ctrl-shift-z", Redo, e),
-        kb("shift-alt-down", DuplicateLines, e),
+        kb("ctrl-shift-alt-down", DuplicateLines, e),
         kb("ctrl-d", AddNextMatch, e),
         kb("ctrl-shift-l", SelectAllMatches, e),
+        kb("shift-alt-up", AddCursorAbove, e),
+        kb("shift-alt-down", AddCursorBelow, e),
         kb("ctrl-alt-up", AddCursorAbove, e),
         kb("ctrl-alt-down", AddCursorBelow, e),
         kb("ctrl-shift-k", DeleteLines, e),
+        kb("ctrl-shift-up", MoveLinesUp, e),
+        kb("ctrl-shift-down", MoveLinesDown, e),
         kb("alt-up", MoveLinesUp, e),
         kb("alt-down", MoveLinesDown, e),
         kb("ctrl-/", ToggleComment, e),
         kb("ctrl-#", ToggleComment, e),
+        kb("ctrl-shift-\\", ToggleComment, e),
+        kb("ctrl-shift-#", ToggleComment, e),
+        kb("shift-alt-f", FormatDocument, e),
         kb("ctrl-f", Find, e),
         kb("ctrl-h", Replace, e),
         kb("f3", FindNext, e),

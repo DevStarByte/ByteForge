@@ -328,7 +328,7 @@ impl Workbench {
                 "explorer" => Some((SideView::Explorer, "files", format!("Explorer ({})", crate::actions::key_label("ctrl-shift-e")), "Files")),
                 "search" => Some((SideView::Search, "search", format!("Search ({})", crate::actions::key_label("ctrl-shift-f")), "Search")),
                 "scm" => Some((SideView::SourceControl, "sourceControl", format!("Source Control ({})", crate::actions::key_label("ctrl-shift-g")), "Git")),
-                "debug" => Some((SideView::Debug, "debug", format!("Run and Debug ({})", crate::actions::key_label("ctrl-shift-d")), "Debug")),
+                "debug" => Some((SideView::Debug, "debug", "Run and Debug".to_owned(), "Debug")),
                 "testing" | "tests" => Some((SideView::Testing, "beaker", "Testing".to_owned(), "Tests")),
                 "solution" => Some((SideView::Solution, "fileSolution", "Solution".to_owned(), "Solution")),
                 "modules" => Some((SideView::Modules, "puzzle", "Modules".to_owned(), "Modules")),

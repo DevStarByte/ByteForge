@@ -47,9 +47,9 @@ conventions: Ctrl+Space, Ctrl+Tab, Ctrl+G, Ctrl+F5 and Ctrl+\` stay on ⌃; Repl
 | Ctrl+Shift+O | Open folder | Ctrl+G | Go to line |
 | Ctrl+S / Ctrl+Shift+S | Save / Save as | F12, Ctrl+Click | Go to definition |
 | Ctrl+F / Ctrl+H | Find / Replace | Ctrl+Space | Completion |
-| Ctrl+/ (Ctrl+# on DE) | Toggle comment | Alt+↑/↓ | Move lines |
+| Ctrl+/, Ctrl+Shift+\\ (Ctrl+# / Ctrl+Shift+# on DE) | Toggle comment | Ctrl+Shift+↑/↓, Alt+↑/↓ | Move lines |
 | Ctrl+D | Add next occurrence (multi-cursor) | Ctrl+Shift+K | Delete lines |
-| Alt+Click, Ctrl+Alt+↑/↓ | Add cursor | Shift+Alt+↓ | Duplicate lines |
+| Alt+Click, Shift+Alt+↑/↓, Ctrl+Alt+↑/↓ | Add cursor | Ctrl+Shift+Alt+↓ | Duplicate lines |
 | Ctrl+\\ | Split editor | Ctrl+1 / Ctrl+2 | Focus editor group |
 | Ctrl+B / Ctrl+J | Toggle side bar / panel | Ctrl+Shift+E / F | Explorer / Search |
 | Ctrl+Shift+B | Build | F5 | Start debugging / Continue |
@@ -57,9 +57,9 @@ conventions: Ctrl+Space, Ctrl+Tab, Ctrl+G, Ctrl+F5 and Ctrl+\` stay on ⌃; Repl
 | Alt+F5 | Run with Watch (hot reload) | Shift+Alt+F5 | Restart Watch |
 | F9 | Toggle breakpoint | F10 / F11 / Shift+F11 | Step over / into / out |
 | F6 | Pause | Ctrl+Shift+F5 | Restart debugging |
-| Ctrl+Shift+D | Run and Debug | Ctrl+Shift+Y | Debug Console |
+| Ctrl+Shift+Y | Debug Console | Ctrl+PgUp / Ctrl+PgDn | Previous / next editor |
 | Ctrl+\` | Toggle terminal | Ctrl+Shift+\` | New terminal |
-| Ctrl+. | Quick fix / refactor at the cursor | Shift+Alt+F | Format document |
+| Ctrl+. | Quick fix / refactor at the cursor | Ctrl+Shift+D, Shift+Alt+F | Format document |
 | Ctrl+Shift+R | Refactor… (refactorings only) | F2, Ctrl+R Ctrl+R | Rename symbol |
 | Ctrl+R Ctrl+M | Extract method | Ctrl+R Ctrl+I | Extract interface |
 | Ctrl+R Ctrl+G | Remove and sort usings | F7 / Shift+F7 | Next / previous change (diff editor) |
