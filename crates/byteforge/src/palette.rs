@@ -276,6 +276,7 @@ impl Render for Palette {
                     let entity = view.clone();
                     div()
                         .id(ix)
+                        .debug_selector(|| format!("palette-row-{}", item.label))
                         .w_full()
                         .h(px(row_h))
                         .px_2()

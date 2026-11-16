@@ -503,6 +503,39 @@ mod tests {
         drop(guard);
     }
 
+    /// A real mouse click on the branch's row in the picker switches to it (and closes the picker).
+    #[gpui::test]
+    fn clicking_a_branch_row_switches_to_it(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "branch-click");
+        let repo = guard.dir.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q", "-b", "main"]);
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+            git(&repo, &["config", k, v]);
+        }
+        std::fs::write(repo.join("a.txt"), "a\n").unwrap();
+        git(&repo, &["add", "."]);
+        git(&repo, &["commit", "-qm", "first"]);
+        git(&repo, &["branch", "feature"]);
+
+        wb.update_in(cx, |wb, window, cx| wb.open_folder(repo.clone(), window, cx));
+        cx.run_until_parked();
+        wb.update_in(cx, |wb, window, cx| wb.open_branch_picker(window, cx));
+        cx.run_until_parked();
+        let row = cx.debug_bounds("palette-row-feature").expect("the feature row is drawn");
+        cx.simulate_click(row.center(), gpui::Modifiers::none());
+        for _ in 0..50 {
+            cx.run_until_parked();
+            if git(&repo, &["branch", "--show-current"]) == "feature" {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        assert_eq!(git(&repo, &["branch", "--show-current"]), "feature");
+        assert!(wb.read_with(cx, |wb, _| wb.palette.is_none()), "the picker closes");
+        drop(guard);
+    }
+
     /// Local changes in the way: the switch fails with a question instead of silently, and "Stash Changes
     /// and Switch" puts them on the stash and switches.
     #[gpui::test]
