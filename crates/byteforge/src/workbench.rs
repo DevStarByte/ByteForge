@@ -292,6 +292,8 @@ pub struct Workbench {
     lsp_status: String,
     lsp_task: Option<Task<()>>,
     dotnet: Option<DotnetProcess>,
+    /// The running dotnet process was stopped with Shift+F5 (a test queue ends there instead of going on).
+    dotnet_stopped: bool,
     dotnet_task: Option<Task<()>>,
     /// The settings screen's search box.
     settings_search: Option<Entity<TextInput>>,
@@ -559,6 +561,7 @@ impl Workbench {
             lsp_status: String::new(),
             lsp_task: None,
             dotnet: None,
+            dotnet_stopped: false,
             dotnet_task: None,
             watch_target: None,
             secrets_shown: Default::default(),

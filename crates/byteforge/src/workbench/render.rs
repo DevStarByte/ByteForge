@@ -273,6 +273,7 @@ impl Render for Workbench {
                     wb.debug_stop(cx);
                 } else if let Some(d) = &wb.dotnet {
                     d.kill();
+                    wb.dotnet_stopped = true;
                     wb.log("Process stopped.");
                 }
                 cx.notify();

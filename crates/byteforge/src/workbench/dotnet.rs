@@ -216,6 +216,7 @@ impl Workbench {
         match DotnetProcess::start_program(program, &root, args, &env) {
             Ok((process, rx)) => {
                 self.dotnet = Some(process);
+                self.dotnet_stopped = false;
                 let tx = self.output_tx.clone();
                 self.dotnet_task = Some(cx.spawn_in(window, async move |this, cx| {
                     while let Ok(event) = rx.recv_async().await {

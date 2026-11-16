@@ -64,13 +64,21 @@ impl Workbench {
         let then: DotnetDone = Box::new(move |wb, _, window, cx| {
             let results = read_results(&results_dir);
             let _ = std::fs::remove_dir_all(&results_dir);
-            if results.is_empty() {
-                wb.log(format!("Tests: no results for {label} (did the build fail? see above)."));
+            if wb.dotnet_stopped {
                 wb.tests.update(cx, |v, cx| v.cancel_run(cx));
+                if !queue.is_empty() {
+                    wb.log(format!("Tests: stopped; {} more test project(s) not run.", queue.len()));
+                }
                 return;
             }
-            wb.log(summary_line(&label, &results));
-            wb.tests.update(cx, |v, cx| v.finish_run(results, cx));
+            if results.is_empty() {
+                // Most likely this project didn't build; the other projects can still run.
+                wb.log(format!("Tests: no results for {label} (did the build fail? see above)."));
+                wb.tests.update(cx, |v, cx| v.cancel_run(cx));
+            } else {
+                wb.log(summary_line(&label, &results));
+                wb.tests.update(cx, |v, cx| v.finish_run(results, cx));
+            }
             if !queue.is_empty() {
                 wb.run_tests(queue, false, window, cx);
             }
@@ -228,6 +236,33 @@ public class SlowTests
 
     fn summary(cx: &mut gpui::VisualTestContext, wb: &Entity<Workbench>) -> String {
         wb.read_with(cx, |wb, cx| wb.tests.read(cx).summary_text())
+    }
+
+    /// Run All over two test projects where the first doesn't build: it says so and the second still runs.
+    #[gpui::test]
+    #[ignore = "runs dotnet test on two projects (about 20 seconds)"]
+    fn run_all_goes_on_after_a_project_that_does_not_build(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "run-all-broken");
+        let ws = guard.dir.join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+        if !dotnet(&ws, &["new", "xunit", "-o", "ABroken", "-n", "ABroken"]) || !dotnet(&ws, &["new", "xunit", "-o", "Good", "-n", "Good"]) {
+            eprintln!("skipped: dotnet or the xunit template is not available");
+            return;
+        }
+        std::fs::write(ws.join("ABroken").join("UnitTest1.cs"), "namespace ABroken;\npublic class UnitTest1\n{\n    [Fact]\n    public void Test1() { int x = ; }\n}\n").unwrap();
+        wb.update_in(cx, |wb, window, cx| wb.open_folder(ws.clone(), window, cx));
+        cx.run_until_parked();
+        cx.dispatch_action(ShowTesting);
+        wait(cx, &wb, |wb, cx| wb.tests.read(cx).is_discovered());
+        let runs: Vec<String> = wb.read_with(cx, |wb, cx| wb.tests.read(cx).run_all().into_iter().map(|r| r.label).collect());
+        assert_eq!(runs.len(), 2, "both projects are queued: {runs:?}");
+        assert_eq!(runs[0], "ABroken", "the broken one runs first");
+
+        cx.dispatch_action(RunAllTests);
+        wait(cx, &wb, |wb, cx| wb.tests.read(cx).test_state("Good.UnitTest1.Test1") == TestState::Passed);
+        let out = wb.read_with(cx, |wb, cx| output(wb, cx));
+        assert!(out.contains("no results for ABroken"), "{out}");
+        drop(guard);
     }
 
     /// The Testing view while a real `dotnet test` runs: tests turn running, then passed or failed one by
