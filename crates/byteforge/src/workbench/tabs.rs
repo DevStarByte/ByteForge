@@ -751,14 +751,19 @@ mod tests {
         drop(guard);
     }
 
-    /// The breadcrumbs show the symbols around the caret; clicking one goes to it. With two groups each
-    /// group has its own breadcrumbs, of the file it shows.
+    /// The labels in the open breadcrumb dropdown, with the current one starred (None when closed).
+    fn crumb_menu(wb: &Entity<Workbench>, cx: &mut VisualTestContext) -> Option<Vec<String>> {
+        wb.read_with(cx, |wb, _| wb.crumb_menu_labels())
+    }
+
+    /// The breadcrumbs show the symbols around the caret; clicking one lists the symbols next to it, and
+    /// picking one goes to it. With two groups each group has its own breadcrumbs, of the file it shows.
     #[gpui::test]
     fn clicking_a_breadcrumb_goes_to_the_symbol(cx: &mut gpui::TestAppContext) {
         let (guard, wb, cx) = workbench(cx, "breadcrumbs");
         let dir = guard.dir.join("ws");
         open_files(&wb, cx, &dir, &["b.txt"]);
-        std::fs::write(dir.join("a.txt"), "class Foo\n{\n    void Bar()\n    {\n    }\n}\n").unwrap();
+        std::fs::write(dir.join("a.txt"), "class Foo\n{\n    void Bar()\n    {\n    }\n    void Baz()\n    {\n    }\n}\n").unwrap();
         wb.update_in(cx, |wb, window, cx| wb.open_file(dir.join("a.txt"), None, window, cx));
         cx.run_until_parked();
         let pos = |line, character| bf_lsp::Position { line, character };
@@ -772,7 +777,11 @@ mod tests {
             full_range: bf_lsp::Range { start: pos(full.0.0, full.0.1), end: pos(full.1.0, full.1.1) },
             depth,
         };
-        let outline = vec![symbol("Foo", "class", (0, 6), ((0, 0), (5, 1)), 0), symbol("Bar", "method", (2, 9), ((2, 4), (4, 5)), 1)];
+        let outline = vec![
+            symbol("Foo", "class", (0, 6), ((0, 0), (8, 1)), 0),
+            symbol("Bar", "method", (2, 9), ((2, 4), (4, 5)), 1),
+            symbol("Baz", "method", (5, 9), ((5, 4), (7, 5)), 1),
+        ];
         let editor = wb.read_with(cx, |wb, _| wb.active_editor().unwrap());
         editor.update(cx, |e, cx| {
             e.set_outline_for_test(outline.clone());
@@ -782,6 +791,9 @@ mod tests {
         redraw(cx);
         assert!(cx.debug_bounds("crumb-0-Bar").is_some(), "the method is in the breadcrumbs");
         click(cx, "crumb-0-Foo".into());
+        assert_eq!(crumb_menu(&wb, cx), Some(vec!["*Foo".to_string()]));
+        click(cx, "crumb-item-Foo".into());
+        assert_eq!(crumb_menu(&wb, cx), None);
         assert_eq!(editor.read_with(cx, |e, _| e.state.caret()), Point::new(0, 6));
         // (debug_bounds keeps elements of earlier frames, so this asks the editor.)
         let around: Vec<String> = editor.read_with(cx, |e, _| e.symbol_path().into_iter().map(|s| s.0).collect());
@@ -794,8 +806,74 @@ mod tests {
         editor.update(cx, |e, cx| e.go_to(Point::new(3, 4), cx));
         click(cx, "tab-0-b.txt".into());
         click(cx, "crumb-1-Bar".into());
-        assert_eq!(editor.read_with(cx, |e, _| e.state.caret()), Point::new(2, 9));
+        assert_eq!(crumb_menu(&wb, cx), Some(vec!["*Bar".to_string(), "Baz".into()]), "the methods of the class");
         wb.read_with(cx, |wb, _| assert_eq!(wb.active.map(|i| wb.tabs[i].title.as_str()), Some("a.txt"), "the clicked group is in front"));
+        // Down and Enter pick the next one.
+        cx.simulate_keystrokes("down enter");
+        redraw(cx);
+        assert_eq!(crumb_menu(&wb, cx), None);
+        assert_eq!(editor.read_with(cx, |e, _| e.state.caret()), Point::new(5, 9));
+        drop(guard);
+    }
+
+    /// A folder crumb lists the folder (as the Explorer does); a folder in it drills down, a file opens in
+    /// the crumb's group. The file crumb lists its siblings. Escape and a second click close the list.
+    #[gpui::test]
+    fn breadcrumb_folders_list_their_entries(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "breadcrumb-folders");
+        let ws = guard.dir.join("ws");
+        for d in ["src/sub", "src/obj", "src/Zeta"] {
+            std::fs::create_dir_all(ws.join(d)).unwrap();
+        }
+        for f in ["src/a.txt", "src/b.txt", "src/sub/c.txt", "README.md"] {
+            std::fs::write(ws.join(f), "x\n").unwrap();
+        }
+        wb.update_in(cx, |wb, window, cx| wb.open_folder(ws.clone(), window, cx));
+        cx.run_until_parked();
+        wb.update_in(cx, |wb, window, cx| wb.open_file(ws.join("src/a.txt"), None, window, cx));
+        redraw(cx);
+
+        // Folders first, case-insensitive, `obj` left out; the way to the file is marked.
+        click(cx, "crumb-0-src".into());
+        assert_eq!(crumb_menu(&wb, cx), Some(vec!["sub".to_string(), "Zeta".into(), "*a.txt".into(), "b.txt".into()]));
+        // Clicking the crumb again closes it.
+        click(cx, "crumb-0-src".into());
+        assert_eq!(crumb_menu(&wb, cx), None);
+        click(cx, "crumb-0-src".into());
+        click(cx, "crumb-item-sub".into());
+        assert_eq!(crumb_menu(&wb, cx), Some(vec!["c.txt".to_string()]), "drilled into sub");
+        click(cx, "crumb-item-c.txt".into());
+        assert_eq!(crumb_menu(&wb, cx), None);
+        assert_eq!(tabs(&wb, cx), vec![(0, "a.txt".into()), (0, "c.txt".into())]);
+
+        // The file crumb: its folder, itself marked; Escape closes and gives the editor the keys back.
+        click(cx, "crumb-0-c.txt".into());
+        assert_eq!(crumb_menu(&wb, cx), Some(vec!["*c.txt".to_string()]));
+        cx.simulate_keystrokes("escape");
+        redraw(cx);
+        assert_eq!(crumb_menu(&wb, cx), None);
+        let focused = wb.update_in(cx, |wb, window, cx| wb.active_editor().unwrap().read(cx).focus_handle(cx).is_focused(window));
+        assert!(focused, "the editor has the focus again");
+
+        // Keyboard: src lists sub (marked), Zeta, a.txt, b.txt; Down twice and Enter opens a.txt.
+        click(cx, "crumb-0-src".into());
+        cx.simulate_keystrokes("down down enter");
+        redraw(cx);
+        wb.read_with(cx, |wb, _| assert_eq!(wb.active.map(|i| wb.tabs[i].title.as_str()), Some("a.txt")));
+
+        // Two groups: a file picked in the right group's crumbs opens there, though the left has it too.
+        wb.update_in(cx, |wb, window, cx| {
+            let c = wb.tabs.iter().position(|t| t.title == "c.txt").unwrap();
+            wb.move_tab(c, 1, None, window, cx)
+        });
+        redraw(cx);
+        click(cx, "crumb-1-src".into());
+        click(cx, "crumb-item-b.txt".into());
+        assert_eq!(tabs(&wb, cx), vec![(0, "a.txt".into()), (1, "c.txt".into()), (1, "b.txt".into())]);
+        click(cx, "crumb-1-src".into());
+        click(cx, "crumb-item-a.txt".into());
+        assert_eq!(tabs(&wb, cx), vec![(0, "a.txt".into()), (1, "c.txt".into()), (1, "b.txt".into()), (1, "a.txt".into())]);
+        wb.read_with(cx, |wb, _| assert_eq!(wb.active.map(|i| (wb.tabs[i].group, wb.tabs[i].title.as_str())), Some((1, "a.txt"))));
         drop(guard);
     }
 }

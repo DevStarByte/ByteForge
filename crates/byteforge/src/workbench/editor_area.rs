@@ -259,53 +259,41 @@ impl Workbench {
             })
     }
 
-    /// The breadcrumbs of tab `ix` (the one `group` shows).
+    /// The breadcrumbs of tab `ix` (the one `group` shows). Each crumb opens a dropdown: a folder's
+    /// entries, the file's folder, or the symbols next to a symbol.
     pub(super) fn render_breadcrumbs(&self, ix: Option<usize>, group: usize, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
         let t = Theme::global(cx);
         let tab = ix.and_then(|i| self.tabs.get(i)).filter(|tab| tab.is_document())?;
         let path = tab.path.clone()?;
         let editor = tab.editor.clone();
         let symbols = editor.read(cx).symbol_path();
-        let display = match self.workspace.root() {
-            Some(root) => path.strip_prefix(&root).map(Path::to_path_buf).unwrap_or(path.clone()),
-            None => path.clone(),
-        };
-        let parts: Vec<String> = display.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
+        let base = self.workspace.root().filter(|root| path.starts_with(root)).unwrap_or_default();
+        let parts: Vec<String> = path.strip_prefix(&base).unwrap_or(&path).components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
         let count = parts.len() + symbols.len();
         let icon_size = t.m("breadcrumb.iconSize", 12.0);
         let fg = t.c("breadcrumb.foreground");
-        let hover = t.c("toolbar.hoverBackground");
         let active = t.c("breadcrumb.activeForeground");
         let file_parts = parts.len();
-        // The symbols around the caret: namespace › type › member; a click goes to the declaration.
-        let symbol_crumbs: Vec<gpui::AnyElement> = symbols
-            .into_iter()
-            .enumerate()
-            .flat_map(|(i, (name, kind, at))| {
-                let editor = editor.clone();
-                let color = if file_parts + i + 1 == count { active } else { fg };
-                [
-                    icon("chevronRight", icon_size, fg).into_any_element(),
-                    div()
-                        .id(SharedString::from(format!("crumb-symbol-{group}-{i}")))
-                        .debug_selector(|| format!("crumb-{group}-{name}"))
-                        .px(px(2.))
-                        .rounded(px(3.))
-                        .cursor_pointer()
-                        .hover(move |s| s.bg(hover))
-                        .text_color(color)
-                        .child(name)
-                        .tooltip(crate::workbench::tooltip(format!("Go to this {kind}")))
-                        .on_click(move |_, window, cx| {
-                            editor.update(cx, |e, cx| {
-                                e.go_to(at, cx);
-                                e.focus(window);
-                            })
-                        })
-                        .into_any_element(),
-                ]
-            })
-            .collect();
+        let mut crumbs: Vec<gpui::AnyElement> = Vec::new();
+        let mut dir = base;
+        for (i, part) in parts.into_iter().enumerate() {
+            // A folder lists its own entries (the one on the way to the file marked); the file its folder's.
+            let source = if i + 1 == file_parts {
+                CrumbSource::Dir { dir: path.parent().map(Path::to_path_buf).unwrap_or_default(), mark: path.clone() }
+            } else {
+                dir.push(&part);
+                let next = path.components().nth(dir.components().count()).map(|c| dir.join(c));
+                CrumbSource::Dir { dir: dir.clone(), mark: next.unwrap_or_default() }
+            };
+            let color = if i + 1 == count { active } else { fg };
+            crumbs.extend((i > 0).then(|| icon("chevronRight", icon_size, fg).into_any_element()));
+            crumbs.push(self.render_crumb(group, i, part, color, source, &editor, cx));
+        }
+        for (i, (name, ..)) in symbols.into_iter().enumerate() {
+            let color = if file_parts + i + 1 == count { active } else { fg };
+            crumbs.push(icon("chevronRight", icon_size, fg).into_any_element());
+            crumbs.push(self.render_crumb(group, file_parts + i, name, color, CrumbSource::Symbol(i), &editor, cx));
+        }
         Some(
             div()
                 .flex_none()
@@ -318,13 +306,188 @@ impl Workbench {
                 .border_b(px(f32::from(t.edges("breadcrumb.borderThickness", 0.0).bottom)))
                 .border_color(t.c("breadcrumb.border"))
                 .text_size(t.m("breadcrumb.fontSize", 12.0))
-                .children(parts.into_iter().enumerate().flat_map(move |(i, part)| {
-                    let color = if i + 1 == count { active } else { fg };
-                    let sep = (i > 0).then(|| icon("chevronRight", icon_size, fg).into_any_element());
-                    sep.into_iter().chain(std::iter::once(div().text_color(color).child(part).into_any_element()))
-                }))
-                .children(symbol_crumbs),
+                .children(crumbs),
         )
+    }
+
+    /// Crumb `crumb` of `group`'s breadcrumbs, with its dropdown when that is open.
+    #[allow(clippy::too_many_arguments)]
+    fn render_crumb(&self, group: usize, crumb: usize, label: String, color: gpui::Hsla, source: CrumbSource, editor: &Entity<EditorView>, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let t = Theme::global(cx);
+        let hover = t.c("toolbar.hoverBackground");
+        let menu = self.crumb_menu.as_ref().filter(|m| m.group == group && m.crumb == crumb && m.editor == *editor);
+        let dropdown = menu.map(|m| self.render_crumb_menu(m, cx));
+        let editor = editor.clone();
+        let selector = format!("crumb-{group}-{label}");
+        div()
+            .id(SharedString::from(format!("crumb-{group}-{crumb}")))
+            .debug_selector(|| selector)
+            .relative()
+            .px(px(2.))
+            .rounded(px(3.))
+            .cursor_pointer()
+            .when(menu.is_some(), |d| d.bg(hover))
+            .hover(move |s| s.bg(hover))
+            .text_color(color)
+            .child(label)
+            .on_mouse_down(MouseButton::Left, cx.listener(move |wb, ev: &MouseDownEvent, window, cx| {
+                // Not the group's own handler: that would focus the editor, away from the dropdown.
+                cx.stop_propagation();
+                if wb.crumb_closed_at.take() == Some((group, crumb, ev.position)) {
+                    return;
+                }
+                wb.open_crumb_menu(group, crumb, &source, &editor, window, cx);
+            }))
+            .children(dropdown)
+            .into_any_element()
+    }
+
+    fn open_crumb_menu(&mut self, group: usize, crumb: usize, source: &CrumbSource, editor: &Entity<EditorView>, window: &mut Window, cx: &mut Context<Self>) {
+        if self.focus_group != group {
+            self.focus_group(group, window, cx);
+        }
+        let (entries, current) = match source {
+            CrumbSource::Dir { dir, mark } => {
+                let entries = self.crumb_dir_entries(dir);
+                let current = entries.iter().position(|e| matches!(&e.target, CrumbTarget::Dir(p) | CrumbTarget::File(p) if p == mark));
+                (entries, current)
+            }
+            CrumbSource::Symbol(i) => {
+                let e = editor.read(cx);
+                let at = e.symbol_path().get(*i).map(|s| s.2);
+                let entries: Vec<CrumbEntry> = e.sibling_symbols(*i).into_iter().map(|(label, kind, p)| CrumbEntry { label, target: CrumbTarget::Symbol(kind, p) }).collect();
+                let current = entries.iter().position(|e| matches!(e.target, CrumbTarget::Symbol(_, p) if Some(p) == at));
+                (entries, current)
+            }
+        };
+        let focus = cx.focus_handle();
+        window.focus(&focus);
+        let scroll = gpui::ScrollHandle::new();
+        scroll.scroll_to_item(current.unwrap_or(0));
+        self.crumb_menu = Some(CrumbMenu { group, crumb, editor: editor.clone(), entries, selected: current.unwrap_or(0), current, focus, scroll });
+        cx.notify();
+    }
+
+    /// A folder's entries as the Explorer shows them (folders first, excludes left out).
+    fn crumb_dir_entries(&self, dir: &Path) -> Vec<CrumbEntry> {
+        self.workspace
+            .list_dir(dir)
+            .into_iter()
+            .map(|(p, is_dir)| CrumbEntry {
+                label: p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+                target: if is_dir { CrumbTarget::Dir(p) } else { CrumbTarget::File(p) },
+            })
+            .collect()
+    }
+
+    fn render_crumb_menu(&self, m: &CrumbMenu, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let t = Theme::global(cx);
+        let selection = t.c("menu.selectionBackground");
+        let items: Vec<gpui::AnyElement> = m
+            .entries
+            .iter()
+            .enumerate()
+            .map(|(ix, e)| {
+                let item = match &e.target {
+                    CrumbTarget::Symbol(kind, _) => crate::menu::item(&t, ix, e.label.clone(), Some((*kind).into())),
+                    target => {
+                        let icon = crate::explorer::file_icon_view(&e.label, matches!(target, CrumbTarget::Dir(_)), false, px(14.), &t);
+                        crate::menu::icon_item(&t, ix, icon, e.label.clone())
+                    }
+                };
+                let selector = format!("crumb-item-{}", e.label);
+                item.debug_selector(|| selector)
+                    .when(ix == m.selected, |d| d.bg(selection))
+                    .when(m.current == Some(ix), |d| d.font_weight(gpui::FontWeight::SEMIBOLD))
+                    .on_click(cx.listener(move |wb, _, window, cx| wb.pick_crumb_entry(ix, window, cx)))
+                    .into_any_element()
+            })
+            .collect();
+        let panel = crate::menu::panel(&t, 180.)
+            .id("crumb-menu")
+            .debug_selector(|| "crumb-menu".into())
+            // The editor under it must not take the clicks.
+            .occlude()
+            .max_h(px(400.))
+            .overflow_y_scroll()
+            .track_scroll(&m.scroll)
+            .track_focus(&m.focus)
+            .key_context("Menu")
+            .on_action(cx.listener(|wb, _: &InputUp, _, cx| wb.move_crumb_selection(-1, cx)))
+            .on_action(cx.listener(|wb, _: &InputDown, _, cx| wb.move_crumb_selection(1, cx)))
+            .on_action(cx.listener(|wb, _: &Confirm, window, cx| {
+                if let Some(ix) = wb.crumb_menu.as_ref().map(|m| m.selected) {
+                    wb.pick_crumb_entry(ix, window, cx);
+                }
+            }))
+            .on_action(cx.listener(|wb, _: &InputCancel, window, cx| {
+                if let Some(m) = wb.crumb_menu.take() {
+                    m.editor.update(cx, |e, _| e.focus(window));
+                }
+                cx.notify();
+            }))
+            .on_mouse_down_out(cx.listener(|wb, ev: &MouseDownEvent, _, cx| {
+                if let Some(m) = wb.crumb_menu.take() {
+                    wb.crumb_closed_at = Some((m.group, m.crumb, ev.position));
+                    cx.notify();
+                }
+            }))
+            .children(items)
+            .when(m.entries.is_empty(), |d| d.child(div().px_3().py_1().text_color(t.c("foreground.muted")).child("Empty")));
+        div()
+            .absolute()
+            .left_0()
+            .top(gpui::relative(1.))
+            .child(gpui::deferred(gpui::anchored().anchor(gpui::Corner::TopLeft).snap_to_window().child(panel)).with_priority(1))
+            .into_any_element()
+    }
+
+    #[cfg(test)]
+    pub(super) fn crumb_menu_labels(&self) -> Option<Vec<String>> {
+        let m = self.crumb_menu.as_ref()?;
+        Some(m.entries.iter().enumerate().map(|(i, e)| if m.current == Some(i) { format!("*{}", e.label) } else { e.label.clone() }).collect())
+    }
+
+    fn move_crumb_selection(&mut self, by: isize, cx: &mut Context<Self>) {
+        let Some(m) = self.crumb_menu.as_mut().filter(|m| !m.entries.is_empty()) else { return };
+        m.selected = m.selected.saturating_add_signed(by).min(m.entries.len() - 1);
+        m.scroll.scroll_to_item(m.selected);
+        cx.notify();
+    }
+
+    /// A file opens in the crumb's group, a folder shows its entries, a symbol is gone to.
+    fn pick_crumb_entry(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(target) = self.crumb_menu.as_ref().and_then(|m| m.entries.get(ix)).map(|e| e.target.clone()) else { return };
+        match target {
+            CrumbTarget::Dir(dir) => {
+                let entries = self.crumb_dir_entries(&dir);
+                if let Some(m) = self.crumb_menu.as_mut() {
+                    (m.entries, m.selected, m.current) = (entries, 0, None);
+                    m.scroll.scroll_to_item(0);
+                    window.focus(&m.focus);
+                }
+            }
+            CrumbTarget::File(path) => {
+                let Some(m) = self.crumb_menu.take() else { return };
+                if self.focus_group != m.group {
+                    self.focus_group(m.group, window, cx);
+                }
+                self.open_file(path, None, window, cx);
+                // It was open only in the other group: a view of it here too.
+                if self.is_split() && self.active.is_some_and(|a| self.tabs[a].group != m.group) {
+                    self.open_in_other_group(window, cx);
+                }
+            }
+            CrumbTarget::Symbol(_, at) => {
+                if let Some(m) = self.crumb_menu.take() {
+                    m.editor.update(cx, |e, cx| {
+                        e.go_to(at, cx);
+                        e.focus(window);
+                    });
+                }
+            }
+        }
+        cx.notify();
     }
 
     /// The welcome page; `welcome.order` (logo, title, shortcuts) and `welcome.shortcuts` (command ids).
@@ -369,4 +532,36 @@ impl Workbench {
         }
         page
     }
+}
+
+/// A breadcrumb's open dropdown.
+pub(super) struct CrumbMenu {
+    group: usize,
+    /// The crumb it hangs from (its place in the row), of `editor`'s breadcrumbs.
+    crumb: usize,
+    editor: Entity<EditorView>,
+    entries: Vec<CrumbEntry>,
+    /// The entry Up/Down/Enter act on, and the one the crumb stands for (the file itself, say).
+    selected: usize,
+    current: Option<usize>,
+    focus: FocusHandle,
+    scroll: gpui::ScrollHandle,
+}
+
+struct CrumbEntry {
+    label: String,
+    target: CrumbTarget,
+}
+
+#[derive(Clone)]
+enum CrumbTarget {
+    Dir(PathBuf),
+    File(PathBuf),
+    Symbol(&'static str, Point),
+}
+
+/// What a crumb's dropdown lists: `dir`'s entries with `mark` marked, or the siblings of the `i`th symbol.
+enum CrumbSource {
+    Dir { dir: PathBuf, mark: PathBuf },
+    Symbol(usize),
 }

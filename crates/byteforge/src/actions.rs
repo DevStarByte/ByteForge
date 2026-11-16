@@ -534,6 +534,9 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         kb("pagedown", InputPageDown, i),
         kb("escape", InputCancel, i),
     ]);
+    // Dropdowns that take the keyboard (the breadcrumbs'): the input's actions, no typing.
+    let m = Some("Menu");
+    cx.bind_keys([kb("up", InputUp, m), kb("down", InputDown, m), kb("enter", Confirm, m), kb("escape", InputCancel, m)]);
 
     cx.set_global(commands);
 }

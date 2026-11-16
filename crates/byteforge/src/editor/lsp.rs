@@ -39,16 +39,31 @@ impl EditorView {
 
     /// The symbols around the caret, outermost first (namespace, type, member): `(name, kind, where)`.
     pub fn symbol_path(&self) -> Vec<(String, &'static str, Point)> {
-        let caret = self.lsp_position(self.state.caret());
-        let at = (caret.line, caret.character);
-        let mut around: Vec<&bf_lsp::Symbol> = self
-            .outline
+        self.symbols_around_caret().into_iter().map(|s| self.symbol_entry(s)).collect()
+    }
+
+    /// The symbols next to the `i`th one of [`Self::symbol_path`] (itself included, in outline order):
+    /// those of the same depth inside the same parent.
+    pub fn sibling_symbols(&self, i: usize) -> Vec<(String, &'static str, Point)> {
+        let around = self.symbols_around_caret();
+        let Some(me) = around.get(i) else { return Vec::new() };
+        let parent = i.checked_sub(1).map(|p| around[p]);
+        self.outline
             .iter()
-            .filter(|s| (s.full_range.start.line, s.full_range.start.character) <= at && at <= (s.full_range.end.line, s.full_range.end.character))
-            .collect();
+            .filter(|s| s.depth == me.depth && parent.is_none_or(|p| contains(&p.full_range, &s.full_range.start)))
+            .map(|s| self.symbol_entry(s))
+            .collect()
+    }
+
+    fn symbols_around_caret(&self) -> Vec<&bf_lsp::Symbol> {
+        let caret = self.lsp_position(self.state.caret());
+        let mut around: Vec<&bf_lsp::Symbol> = self.outline.iter().filter(|s| contains(&s.full_range, &caret)).collect();
         around.sort_by_key(|s| s.depth);
-        let b = &self.state.buffer;
-        around.into_iter().map(|s| (s.name.clone(), s.kind, b.utf16_to_point(s.range.start.line as usize, s.range.start.character as usize))).collect()
+        around
+    }
+
+    fn symbol_entry(&self, s: &bf_lsp::Symbol) -> (String, &'static str, Point) {
+        (s.name.clone(), s.kind, self.state.buffer.utf16_to_point(s.range.start.line as usize, s.range.start.character as usize))
     }
 
     /// The file was renamed or moved: the language server forgets the old path and opens the new one.
@@ -565,4 +580,8 @@ mod hover_expression_tests {
         assert_eq!(hover_expression("x = 1.5;", 4), None);
         assert_eq!(hover_expression("this.name", 6).as_deref(), Some("this.name"));
     }
+}
+
+fn contains(r: &bf_lsp::Range, p: &bf_lsp::Position) -> bool {
+    (r.start.line, r.start.character) <= (p.line, p.character) && (p.line, p.character) <= (r.end.line, r.end.character)
 }
