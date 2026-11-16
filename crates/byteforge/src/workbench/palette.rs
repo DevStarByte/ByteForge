@@ -175,7 +175,8 @@ impl Workbench {
 
     pub(super) fn complete_prompt(&mut self, kind: PromptKind, text: String, window: &mut Window, cx: &mut Context<Self>) {
         let text = text.trim().to_owned();
-        if text.is_empty() {
+        // An emptied secret is a value too (an optional setting left blank).
+        if text.is_empty() && !matches!(kind, PromptKind::SecretValue { .. }) {
             return;
         }
         let result: anyhow::Result<()> = (|| {
