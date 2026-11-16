@@ -68,6 +68,9 @@ impl MergeView {
     fn accept(&mut self, how: Resolution, window: &mut Window, cx: &mut Context<Self>) {
         self.result.update(cx, |e, cx| {
             // On no conflict: go to the next one first, so the button always does something useful.
+            if !e.caret_in_conflict() {
+                e.go_to_conflict(true, cx);
+            }
             e.accept_conflict(how, cx);
             e.focus(window);
         });
@@ -89,9 +92,9 @@ impl Render for MergeView {
         let hover = t.c("toolbar.hoverBackground");
         let left = self.conflicts_left(cx);
         let name = self.file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let text_button = |id: &'static str, label: &'static str| div().id(id).px(px(6.)).py(px(1.)).rounded(px(4.)).cursor_pointer().hover(move |s| s.bg(hover)).child(label);
+        let text_button = |id: &'static str, label: &'static str| div().id(id).debug_selector(|| id.into()).px(px(6.)).py(px(1.)).rounded(px(4.)).cursor_pointer().hover(move |s| s.bg(hover)).child(label);
         let icon_button = |id: &'static str, glyph: &'static str, tip: &'static str| {
-            div().id(id).p(px(3.)).rounded(px(4.)).cursor_pointer().hover(move |s| s.bg(hover)).child(icon(glyph, px(14.), fg)).tooltip(crate::workbench::tooltip(tip))
+            div().id(id).debug_selector(|| id.into()).p(px(3.)).rounded(px(4.)).cursor_pointer().hover(move |s| s.bg(hover)).child(icon(glyph, px(14.), fg)).tooltip(crate::workbench::tooltip(tip))
         };
         let status = match left {
             0 => "No conflicts left".to_owned(),

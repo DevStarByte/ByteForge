@@ -427,6 +427,10 @@ impl Element for EditorElement {
         if view_cache_len > 4000 {
             self.view.update(cx, |view, _| view.line_cache.clear());
         }
+        // Where the conflict notes' actions landed, so a click on one runs it.
+        self.view.update(cx, |view, _| {
+            view.conflict_note_hits = lines.iter().filter(|(line, _, _)| view.conflicts.iter().any(|c| c.start == *line)).flat_map(|(line, _, shaped)| super::merge::note_hits(*line, shaped)).collect();
+        });
 
         // File references to underline.
         let links: Vec<(usize, Vec<(usize, usize)>)> = self.view.update(cx, |view, _| {

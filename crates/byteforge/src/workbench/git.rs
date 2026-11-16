@@ -134,7 +134,8 @@ impl Workbench {
                     DiffKind::WorkingTree => wb.tabs.iter().find(|t| t.is_document() && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))).map(|t| t.editor.read(cx).state.buffer.text()).unwrap_or(new),
                     _ => new,
                 };
-                let existing = wb.tabs.iter().position(|t| t.title == title && matches!(t.page, Some(Page::Diff(_))));
+                // Same title and same file: two `Program.cs` in different folders get a tab each.
+                let existing = wb.tabs.iter().position(|t| t.title == title && matches!(&t.page, Some(Page::Diff(d)) if d.read(cx).path() == path));
                 if let Some(ix) = existing
                     && let Some(Page::Diff(diff)) = wb.tabs[ix].page.clone()
                 {
@@ -146,7 +147,7 @@ impl Workbench {
                     return;
                 }
                 let editor = cx.new(|cx| EditorView::new("", None, cx));
-                let diff = cx.new(|cx| crate::diff_view::DiffView::new(editor.clone(), language, cx));
+                let diff = cx.new(|cx| crate::diff_view::DiffView::new(editor.clone(), path.clone(), language, cx));
                 let sub = cx.subscribe_in(&diff, window, |wb: &mut Self, diff, event: &crate::diff_view::DiffEvent, window, cx| match event {
                     crate::diff_view::DiffEvent::OpenFile(path, at) => wb.open_file(path.clone(), Some(*at), window, cx),
                     crate::diff_view::DiffEvent::Change(action, path, change) => wb.diff_change(diff.clone(), *action, path.clone(), *change, window, cx),
@@ -173,14 +174,15 @@ impl Workbench {
     /// Stage, unstage or revert one change from the diff editor (Revert asks first), then show what's left.
     fn diff_change(&mut self, diff: Entity<crate::diff_view::DiffView>, action: ChangeAction, path: PathBuf, change: bf_core::diff::LineChange, window: &mut Window, cx: &mut Context<Self>) {
         let Some(git) = self.scm.read(cx).git().cloned() else { return };
-        // Stage and Revert work on the file on disk: unsaved edits in the diff go there first.
-        if let Some(ix) = self.tabs.iter().position(|t| matches!(&t.page, Some(Page::Diff(d)) if *d == diff))
-            && self.tabs[ix].editor.read(cx).is_modified()
-        {
-            self.save_tab(ix, window, cx);
-        }
         let staged = action == ChangeAction::Unstage;
-        let apply = move |_: &mut Self, window: &mut Window, cx: &mut Context<Self>| {
+        let apply = move |wb: &mut Self, window: &mut Window, cx: &mut Context<Self>| {
+            // Stage and Revert work on the file on disk, and the change is one of the text the diff shows:
+            // unsaved edits (in the diff, or in the file's tab the diff took its text from) go there first.
+            if !staged
+                && let Some(ix) = wb.tabs.iter().position(|t| t.save_path(cx).is_some_and(|p| bf_core::paths::same_path(&p, &path)) && t.editor.read(cx).is_modified())
+            {
+                wb.save_tab(ix, window, cx);
+            }
             let (g, p) = (git.clone(), path.clone());
             let task = cx.background_spawn(async move {
                 match action {
@@ -276,7 +278,10 @@ impl Workbench {
                 wb.tabs[ix].page = Some(Page::Merge(merge));
                 wb.tabs[ix]._subs.push(sub);
                 editor.update(cx, |e, cx| {
-                    e.go_to_conflict(true, cx);
+                    // Already in one (opened from Ctrl+., or opened again): that's the one to look at.
+                    if !e.caret_in_conflict() {
+                        e.go_to_conflict(true, cx);
+                    }
                     e.focus(window);
                 });
                 cx.notify();
@@ -825,6 +830,411 @@ mod tests {
         assert!(wb.update(cx, |wb, _| merge_of(wb).is_none()), "back to the plain editor");
         assert_eq!(std::fs::read_to_string(&file).unwrap(), "class A { int current; }\n");
         assert_eq!(git(&repo, &["diff", "--name-only", "--diff-filter=U"]), "", "git has no unmerged file left");
+        drop(guard);
+    }
+
+    // ───────────── click-through: what a user does with the mouse and keys ─────────────
+
+    /// A repository in the test's folder with one commit of `files`.
+    fn repo_with(guard: &crate::workbench::settings_page::view_tests::TestWorkbench, files: &[(&str, &str)]) -> PathBuf {
+        let repo = guard.dir.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q", "-b", "main"]);
+        for (k, v) in [("user.name", "Ann Example"), ("user.email", "t@example.com"), ("commit.gpgsign", "false"), ("core.autocrlf", "false")] {
+            git(&repo, &["config", k, v]);
+        }
+        for (name, text) in files {
+            std::fs::write(repo.join(name), text).unwrap();
+        }
+        git(&repo, &["add", "."]);
+        git(&repo, &["commit", "-qm", "first"]);
+        repo
+    }
+
+    /// Runs the app until `done` holds (git runs on background threads), or panics with `what`.
+    fn wait_for(cx: &mut gpui::VisualTestContext, what: &str, mut done: impl FnMut(&mut gpui::VisualTestContext) -> bool) {
+        for _ in 0..200 {
+            cx.run_until_parked();
+            if done(cx) {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        panic!("timed out waiting for: {what}");
+    }
+
+    /// Clicks the element drawn with `selector` (it has to be on screen).
+    fn click(cx: &mut gpui::VisualTestContext, selector: &'static str) {
+        cx.run_until_parked();
+        let bounds = cx.debug_bounds(selector).unwrap_or_else(|| panic!("{selector} is not on screen"));
+        cx.simulate_click(bounds.center(), gpui::Modifiers::none());
+        cx.run_until_parked();
+    }
+
+    /// Clicks at `(x, y)` in window coordinates.
+    fn click_at(cx: &mut gpui::VisualTestContext, x: f32, y: f32) {
+        cx.simulate_click(gpui::point(px(x), px(y)), gpui::Modifiers::none());
+        cx.run_until_parked();
+    }
+
+    fn diff_tab(wb: &Entity<Workbench>, cx: &mut gpui::VisualTestContext) -> Option<(usize, Entity<crate::diff_view::DiffView>, Entity<EditorView>)> {
+        wb.update(cx, |wb, _| {
+            wb.tabs.iter().enumerate().find_map(|(ix, t)| match &t.page {
+                Some(Page::Diff(d)) => Some((ix, d.clone(), t.editor.clone())),
+                _ => None,
+            })
+        })
+    }
+
+    /// Opens `file` and waits until source control knows the repository and the file's change.
+    fn open_with_status(wb: &Entity<Workbench>, cx: &mut gpui::VisualTestContext, repo: &Path, file: &Path) {
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(repo.to_path_buf(), window, cx);
+            wb.open_file(file.to_path_buf(), None, window, cx);
+        });
+        wait_for(cx, "git status", |cx| wb.update(cx, |wb, cx| wb.scm.read(cx).status().change_for(file).is_some()));
+    }
+
+    /// The diff editor's toolbar, clicked through: Next Change, Collapse Unchanged, Stage Change, Revert
+    /// Change (with its question), Inline / Side by Side and Open File.
+    #[gpui::test]
+    fn clicking_through_the_diff_toolbar(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "diff-clicks");
+        let lines: Vec<String> = (1..=40).map(|i| format!("line {i}")).collect();
+        let repo = repo_with(&guard, &[("Big.cs", &(lines.join("\n") + "\n"))]);
+        let file = repo.join("Big.cs");
+        let mut edited = lines.clone();
+        edited[2] = "line three".into();
+        edited[35] = "line thirty-six".into();
+        std::fs::write(&file, edited.join("\n") + "\n").unwrap();
+        open_with_status(&wb, cx, &repo, &file);
+
+        // "Git: Open Changes" on the file's tab.
+        cx.dispatch_action(crate::actions::GitOpenChanges);
+        wait_for(cx, "the diff tab", |cx| diff_tab(&wb, cx).is_some_and(|(_, d, _)| d.read_with(cx, |d, cx| d.state_for_test(cx).0) == 2));
+        let (_, diff, right) = diff_tab(&wb, cx).unwrap();
+        assert_eq!(diff.read_with(cx, |d, cx| d.state_for_test(cx).1), Some(0));
+
+        click(cx, "diff-next");
+        assert_eq!(diff.read_with(cx, |d, cx| d.state_for_test(cx).1), Some(1), "Next Change goes to the second change");
+        assert_eq!(right.read_with(cx, |e, _| e.state.caret().line), 35);
+        click(cx, "diff-prev");
+        assert_eq!(diff.read_with(cx, |d, cx| d.state_for_test(cx).1), Some(0), "Previous Change goes back");
+
+        click(cx, "diff-collapse");
+        assert!(diff.read_with(cx, |d, cx| d.state_for_test(cx).2) > 20, "Collapse Unchanged folds the middle");
+        click(cx, "diff-collapse");
+        assert_eq!(diff.read_with(cx, |d, cx| d.state_for_test(cx).2), 0, "Show All unfolds it");
+
+        // Stage the second change.
+        click(cx, "diff-next");
+        click(cx, "diff-stage");
+        wait_for(cx, "the staged change", |cx| diff.read_with(cx, |d, cx| d.state_for_test(cx).0) == 1);
+        let staged = git(&repo, &["diff", "--cached", "--unified=0"]);
+        assert!(staged.contains("+line thirty-six") && !staged.contains("line three"), "{staged}");
+
+        // Revert the first: it asks, and Cancel leaves the file alone.
+        click(cx, "diff-revert");
+        assert!(cx.has_pending_prompt(), "Revert asks first");
+        cx.simulate_prompt_answer("Cancel");
+        cx.run_until_parked();
+        assert!(std::fs::read_to_string(&file).unwrap().contains("line three"));
+        click(cx, "diff-revert");
+        cx.simulate_prompt_answer("Revert");
+        wait_for(cx, "the reverted change", |cx| diff.read_with(cx, |d, cx| d.state_for_test(cx).0) == 0);
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.contains("line 3\n") && text.contains("line thirty-six"), "{text}");
+        assert_eq!(diff.read_with(cx, |d, cx| d.state_for_test(cx).1), None, "no change, no Stage Change");
+
+        // Inline and back.
+        click(cx, "diff-mode");
+        assert!(right.read_with(cx, |e, _| e.read_only), "inline is read-only");
+        click(cx, "diff-mode");
+        assert!(!right.read_with(cx, |e, _| e.read_only));
+
+        // Open File: the file's own tab.
+        click(cx, "diff-open");
+        let active_is_file = wb.update(cx, |wb, _| wb.active.and_then(|i| wb.tabs.get(i)).is_some_and(|t| t.page.is_none() && t.path.as_deref() == Some(file.as_path())));
+        assert!(active_is_file, "Open File shows the file's tab");
+        drop(guard);
+    }
+
+    /// The diff shows the file's open tab with its unsaved edits; Stage Change on one of those saves the
+    /// tab first, so the change staged is the one shown.
+    #[gpui::test]
+    fn staging_an_unsaved_change_saves_it_first(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "diff-unsaved");
+        let lines: Vec<String> = (1..=20).map(|i| format!("line {i}")).collect();
+        let repo = repo_with(&guard, &[("A.cs", &(lines.join("\n") + "\n"))]);
+        let file = repo.join("A.cs");
+        let mut on_disk = lines.clone();
+        on_disk[17] = "line eighteen".into();
+        std::fs::write(&file, on_disk.join("\n") + "\n").unwrap();
+        open_with_status(&wb, cx, &repo, &file);
+        let mut typed = on_disk.clone();
+        typed[2] = "line three".into();
+        let doc = wb.update(cx, |wb, _| wb.active_editor().unwrap());
+        doc.update(cx, |e, cx| e.replace_text_minimal(&(typed.join("\n") + "\n"), cx));
+
+        cx.dispatch_action(crate::actions::GitOpenChanges);
+        wait_for(cx, "the diff tab", |cx| diff_tab(&wb, cx).is_some_and(|(_, d, _)| d.read_with(cx, |d, cx| d.state_for_test(cx).0) == 2));
+        let (_, diff, _) = diff_tab(&wb, cx).unwrap();
+        assert_eq!(diff.read_with(cx, |d, cx| d.state_for_test(cx).1), Some(0), "on the unsaved change");
+        click(cx, "diff-stage");
+        wait_for(cx, "the staged change", |cx| diff.read_with(cx, |d, cx| d.state_for_test(cx).0) == 1);
+        let staged = git(&repo, &["diff", "--cached", "--unified=0"]);
+        assert!(staged.contains("+line three") && !staged.contains("eighteen"), "{staged}");
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), typed.join("\n") + "\n");
+        drop(guard);
+    }
+
+    /// Two changed files of the same name get a diff tab each: reusing one would show the second file
+    /// with the first one's unsaved edits, and Ctrl+S would write them into the wrong file.
+    #[gpui::test]
+    fn same_named_files_get_their_own_diff_tabs(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "diff-same-name");
+        let repo = guard.dir.join("repo");
+        std::fs::create_dir_all(repo.join("a")).unwrap();
+        std::fs::create_dir_all(repo.join("b")).unwrap();
+        std::fs::write(repo.join("a/P.cs"), "a\n").unwrap();
+        std::fs::write(repo.join("b/P.cs"), "b\n").unwrap();
+        let repo = repo_with(&guard, &[]);
+        let (a, b) = (repo.join("a/P.cs"), repo.join("b/P.cs"));
+        std::fs::write(&a, "a changed\n").unwrap();
+        std::fs::write(&b, "b changed\n").unwrap();
+        open_with_status(&wb, cx, &repo, &a);
+        let change = |p: &Path| bf_core::git::FileChange { path: p.to_path_buf(), orig: None, index: '.', worktree: 'M', untracked: false, conflict: false };
+        wb.update_in(cx, |wb, window, cx| wb.open_diff(change(&a), false, window, cx));
+        wait_for(cx, "a's diff", |cx| diff_tab(&wb, cx).is_some());
+        let (_, _, right) = diff_tab(&wb, cx).unwrap();
+        right.update(cx, |e, cx| e.replace_text_minimal("a edited\n", cx));
+        wb.update_in(cx, |wb, window, cx| wb.open_diff(change(&b), false, window, cx));
+        let diffs = |wb: &Entity<Workbench>, cx: &mut gpui::VisualTestContext| wb.update(cx, |wb, _| wb.tabs.iter().filter(|t| matches!(t.page, Some(Page::Diff(_)))).count());
+        wait_for(cx, "b's diff", |cx| diffs(&wb, cx) == 2);
+        assert_eq!(right.read_with(cx, |e, _| e.state.buffer.text()), "a edited\n", "a's tab keeps its edit");
+        drop(guard);
+    }
+
+    /// The staged diff: Unstage Change on one of two staged changes.
+    #[gpui::test]
+    fn clicking_unstage_change(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "diff-unstage");
+        let lines: Vec<String> = (1..=20).map(|i| format!("line {i}")).collect();
+        let repo = repo_with(&guard, &[("A.cs", &(lines.join("\n") + "\n"))]);
+        let file = repo.join("A.cs");
+        let mut edited = lines.clone();
+        edited[1] = "line two".into();
+        edited[17] = "line eighteen".into();
+        std::fs::write(&file, edited.join("\n") + "\n").unwrap();
+        git(&repo, &["add", "."]);
+        open_with_status(&wb, cx, &repo, &file);
+
+        cx.dispatch_action(crate::actions::GitOpenChanges);
+        wait_for(cx, "the staged diff", |cx| diff_tab(&wb, cx).is_some_and(|(_, d, _)| d.read_with(cx, |d, cx| d.state_for_test(cx).0) == 2));
+        let (_, diff, _) = diff_tab(&wb, cx).unwrap();
+        assert!(cx.debug_bounds("diff-stage").is_none() && cx.debug_bounds("diff-revert").is_none(), "a staged diff only unstages");
+        click(cx, "diff-unstage");
+        wait_for(cx, "the unstaged change", |cx| diff.read_with(cx, |d, cx| d.state_for_test(cx).0) == 1);
+        let staged = git(&repo, &["diff", "--cached", "--unified=0"]);
+        assert!(staged.contains("+line eighteen") && !staged.contains("line two"), "{staged}");
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), edited.join("\n") + "\n", "the file keeps both changes");
+        drop(guard);
+    }
+
+    /// Typing into the working-tree side of the diff and saving it with Ctrl+S keeps the file's CRLF
+    /// line endings.
+    #[gpui::test]
+    fn typing_in_the_diff_and_saving_keeps_crlf(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "diff-crlf");
+        let repo = repo_with(&guard, &[("A.cs", "one\r\ntwo\r\nthree\r\n")]);
+        let file = repo.join("A.cs");
+        std::fs::write(&file, "one\r\nTWO\r\nthree\r\n").unwrap();
+        open_with_status(&wb, cx, &repo, &file);
+        // Only the diff tab: the file's tab would otherwise save it with its own line endings.
+        wb.update_in(cx, |wb, window, cx| wb.close_tab(0, window, cx));
+        let change = wb.update(cx, |wb, cx| wb.scm.read(cx).status().change_for(&file).cloned().unwrap());
+        wb.update_in(cx, |wb, window, cx| wb.open_diff(change, false, window, cx));
+        wait_for(cx, "the diff tab", |cx| diff_tab(&wb, cx).is_some_and(|(_, d, _)| d.read_with(cx, |d, cx| d.state_for_test(cx).0) == 1));
+        let (_, _, right) = diff_tab(&wb, cx).unwrap();
+
+        // Click at the end of line 3 on the right and type.
+        let (x, y) = right.read_with(cx, |e, _| (e.layout.text_left + 20.0 * e.layout.char_width, e.layout.top + 2.5 * e.layout.line_height));
+        click_at(cx, x, y);
+        assert_eq!(right.read_with(cx, |e, _| e.state.caret().line), 2);
+        cx.simulate_input("!");
+        cx.simulate_keystrokes("ctrl-s");
+        cx.run_until_parked();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "one\r\nTWO\r\nthree!\r\n");
+        drop(guard);
+    }
+
+    /// "Git: Toggle Blame Gutter", then a click on a gutter entry opens that commit's change to the file.
+    #[gpui::test]
+    fn clicking_a_blame_gutter_entry_opens_its_commit(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "blame-click");
+        let repo = repo_with(&guard, &[("A.cs", "one\ntwo\n")]);
+        let file = repo.join("A.cs");
+        std::fs::write(&file, "one\ntwo\nthree\n").unwrap();
+        git(&repo, &["commit", "-qam", "add three"]);
+        std::fs::write(&file, "one\ntwo\nthree\nfour\n").unwrap();
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(repo.clone(), window, cx);
+            wb.open_file(file.clone(), None, window, cx);
+        });
+        let editor = wb.update(cx, |wb, _| wb.active_editor().unwrap());
+        wait_for(cx, "the repository", |cx| wb.update(cx, |wb, cx| wb.scm.read(cx).git().is_some()));
+        wb.update(cx, |wb, cx| wb.update_git_bases(cx));
+        cx.dispatch_action(crate::actions::GitToggleBlameGutter);
+        wait_for(cx, "the blame column", |cx| editor.read_with(cx, |e, _| e.layout.blame > 0.0 && e.blame_gutter_label(2, 0, 0).is_some()));
+
+        // Line 3's entry: the "add three" commit.
+        let (x, y) = editor.read_with(cx, |e, _| (e.layout.left + e.layout.glyph + 10.0, e.layout.top + 2.5 * e.layout.line_height));
+        click_at(cx, x, y);
+        wait_for(cx, "the commit's diff", |cx| diff_tab(&wb, cx).is_some());
+        let title = wb.update(cx, |wb, _| wb.active.map(|i| wb.tabs[i].title.clone()));
+        let short = git(&repo, &["rev-parse", "--short=7", "HEAD"]);
+        assert_eq!(title, Some(format!("A.cs ({short})")));
+
+        // Line 4 isn't committed: no tab.
+        wb.update_in(cx, |wb, window, cx| {
+            let ix = wb.tabs.iter().position(|t| t.editor == editor).unwrap();
+            wb.activate(ix, window, cx);
+        });
+        cx.run_until_parked();
+        let tabs = wb.update(cx, |wb, _| wb.tabs.len());
+        let (x, y) = editor.read_with(cx, |e, _| (e.layout.left + e.layout.glyph + 10.0, e.layout.top + 3.5 * e.layout.line_height));
+        click_at(cx, x, y);
+        for _ in 0..10 {
+            cx.run_until_parked();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert_eq!(wb.update(cx, |wb, _| wb.tabs.len()), tabs);
+
+        // Toggled again, the column goes.
+        cx.dispatch_action(crate::actions::GitToggleBlameGutter);
+        cx.run_until_parked();
+        assert_eq!(editor.read_with(cx, |e, _| e.layout.blame), 0.0);
+        drop(guard);
+    }
+
+    /// The line blame after the caret's line, and "Git: Toggle Line Blame" turning it off and on.
+    #[gpui::test]
+    fn toggling_line_blame(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "line-blame");
+        let repo = repo_with(&guard, &[("A.cs", "one\ntwo\n")]);
+        let file = repo.join("A.cs");
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(repo.clone(), window, cx);
+            wb.open_file(file.clone(), None, window, cx);
+        });
+        let editor = wb.update(cx, |wb, _| wb.active_editor().unwrap());
+        wait_for(cx, "the repository", |cx| wb.update(cx, |wb, cx| wb.scm.read(cx).git().is_some()));
+        wb.update(cx, |wb, cx| wb.update_git_bases(cx));
+        wait_for(cx, "the line blame", |cx| editor.read_with(cx, |e, _| e.end_of_line_note(0).is_some()));
+        assert!(editor.read_with(cx, |e, _| e.end_of_line_note(0).unwrap().contains("Ann Example")));
+        cx.dispatch_action(crate::actions::GitToggleBlame);
+        cx.run_until_parked();
+        assert_eq!(editor.read_with(cx, |e, _| e.end_of_line_note(0)), None);
+        cx.dispatch_action(crate::actions::GitToggleBlame);
+        wait_for(cx, "the line blame again", |cx| editor.read_with(cx, |e, _| e.end_of_line_note(0).is_some()));
+        drop(guard);
+    }
+
+    /// Two conflicting commits on `A.cs`, merged: a repository with two conflicts in the file.
+    fn conflicted_repo(guard: &crate::workbench::settings_page::view_tests::TestWorkbench) -> PathBuf {
+        let base: String = (1..=12).map(|i| format!("line {i}\n")).collect();
+        let repo = repo_with(guard, &[("A.cs", &base)]);
+        let file = repo.join("A.cs");
+        let with = |a: &str, b: &str| base.replace("line 2\n", &format!("{a}\n")).replace("line 11\n", &format!("{b}\n"));
+        git(&repo, &["switch", "-qc", "feature"]);
+        std::fs::write(&file, with("theirs 2", "theirs 11")).unwrap();
+        git(&repo, &["commit", "-qam", "incoming"]);
+        git(&repo, &["switch", "-q", "main"]);
+        std::fs::write(&file, with("ours 2", "ours 11")).unwrap();
+        git(&repo, &["commit", "-qam", "current"]);
+        assert!(!std::process::Command::new("git").args(["merge", "feature"]).current_dir(&repo).output().unwrap().status.success());
+        repo
+    }
+
+    /// Inline: Ctrl+. in a conflict offers Accept Current / Incoming / Both, and so does the note after its
+    /// first line, which can be clicked.
+    #[gpui::test]
+    fn accepting_a_conflict_inline(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "conflict-inline");
+        let repo = conflicted_repo(&guard);
+        let file = repo.join("A.cs");
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(repo.clone(), window, cx);
+            wb.open_file(file.clone(), None, window, cx);
+        });
+        cx.run_until_parked();
+        let editor = wb.update(cx, |wb, _| wb.active_editor().unwrap());
+        assert_eq!(editor.read_with(cx, |e, _| e.conflict_summary().0), 2);
+        assert!(editor.read_with(cx, |e, _| e.end_of_line_note(1).is_some_and(|n| n.contains("Accept Current"))));
+
+        // Click into the first conflict's incoming side, Ctrl+., and take the second entry (Incoming).
+        let (x, y) = editor.read_with(cx, |e, _| (e.layout.text_left + 4.0, e.layout.top + 3.5 * e.layout.line_height));
+        click_at(cx, x, y);
+        cx.simulate_keystrokes("ctrl-. down enter");
+        cx.run_until_parked();
+        assert_eq!(editor.read_with(cx, |e, _| e.conflict_summary().0), 1);
+        let text = editor.read_with(cx, |e, _| e.state.buffer.text());
+        assert!(text.starts_with("line 1\ntheirs 2\nline 3\n"), "{text}");
+
+        // A click on "Accept Both" after the second conflict's first line.
+        let (x, y) = editor.read_with(cx, |e, _| e.conflict_note_point_for_test(bf_core::conflicts::Resolution::Both)).expect("the note is drawn");
+        click_at(cx, x, y);
+        let text = editor.read_with(cx, |e, _| e.state.buffer.text());
+        assert!(text.ends_with("line 10\nours 11\ntheirs 11\nline 12\n"), "{text}");
+        assert_eq!(editor.read_with(cx, |e, _| e.conflict_summary().0), 0);
+        drop(guard);
+    }
+
+    /// The merge editor clicked through: Close, Next Conflict, Accept Incoming, Accept Current with the
+    /// caret outside any conflict, Mark as Resolved.
+    #[gpui::test]
+    fn clicking_through_the_merge_editor(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "merge-clicks");
+        let repo = conflicted_repo(&guard);
+        let file = repo.join("A.cs");
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(repo.clone(), window, cx);
+            wb.open_file(file.clone(), None, window, cx);
+        });
+        let editor = wb.update(cx, |wb, _| wb.active_editor().unwrap());
+        wait_for(cx, "the repository", |cx| wb.update(cx, |wb, cx| wb.scm.read(cx).git().is_some()));
+        let merge_open = |wb: &Entity<Workbench>, cx: &mut gpui::VisualTestContext| wb.update(cx, |wb, _| wb.tabs.iter().any(|t| matches!(t.page, Some(Page::Merge(_)))));
+
+        cx.dispatch_action(crate::actions::ToggleMergeEditor);
+        wait_for(cx, "the merge editor", |cx| merge_open(&wb, cx));
+        click(cx, "merge-close");
+        assert!(!merge_open(&wb, cx), "Close Merge Editor goes back to the plain editor");
+        cx.dispatch_action(crate::actions::ToggleMergeEditor);
+        wait_for(cx, "the merge editor again", |cx| merge_open(&wb, cx));
+        assert_eq!(editor.read_with(cx, |e, _| e.state.caret().line), 1, "on the first conflict");
+
+        click(cx, "merge-next");
+        assert!(editor.read_with(cx, |e, _| e.state.caret().line) > 5, "on the second conflict");
+        click(cx, "merge-incoming");
+        assert_eq!(editor.read_with(cx, |e, _| e.conflict_summary().0), 1);
+
+        // The caret on line 1, outside the conflict left: the button still resolves it.
+        editor.update(cx, |e, cx| e.go_to(bf_text::Point::new(0, 0), cx));
+        click(cx, "merge-current");
+        assert_eq!(editor.read_with(cx, |e, _| e.conflict_summary().0), 0, "Accept Current takes the next conflict");
+        let expected: String = (1..=12)
+            .map(|i| match i {
+                2 => "ours 2\n".to_owned(),
+                11 => "theirs 11\n".to_owned(),
+                _ => format!("line {i}\n"),
+            })
+            .collect();
+        assert_eq!(editor.read_with(cx, |e, _| e.state.buffer.text()), expected);
+
+        click(cx, "merge-resolve");
+        wait_for(cx, "the resolved file", |cx| !merge_open(&wb, cx));
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), expected);
+        assert_eq!(git(&repo, &["diff", "--name-only", "--diff-filter=U"]), "");
         drop(guard);
     }
 }
