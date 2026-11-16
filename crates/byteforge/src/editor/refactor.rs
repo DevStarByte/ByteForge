@@ -80,6 +80,11 @@ impl Refactoring {
     fn needs_selection(self) -> bool {
         matches!(self, Self::ExtractMethod | Self::ExtractLocalFunction)
     }
+
+    /// Whether the refactoring works on selected code (its hint asks for a selection).
+    fn works_on_selection(self) -> bool {
+        self.needs_selection() || matches!(self, Self::IntroduceVariable | Self::IntroduceConstant | Self::IntroduceField | Self::IntroduceParameter)
+    }
 }
 
 /// What the code-action menu lists.
@@ -166,6 +171,10 @@ impl EditorView {
     /// Keeps the server's actions this menu is about, in menu order. With one variant of a single
     /// refactoring, applies it right away and returns `None`.
     pub(super) fn filter_actions(&mut self, mode: MenuMode, mut items: Vec<bf_lsp::CodeAction>, cx: &mut Context<Self>) -> Option<(Vec<bf_lsp::CodeAction>, Option<String>)> {
+        // csharp-ls can offer the same action twice ("Remove unnecessary usings" for two unused usings):
+        // keep one, else the menu lists twins and a command that should apply its one variant asks which.
+        let mut seen = std::collections::HashSet::new();
+        items.retain(|a| seen.insert(a.display_title()));
         match mode {
             MenuMode::QuickFix => {
                 // Preferred fixes first, then other fixes, then refactorings and source actions.
@@ -197,17 +206,37 @@ impl EditorView {
                     self.sort_usings(cx);
                     return None;
                 }
-                Some((items, Some(format!("{} isn't available here. {}", r.label(), r.hint()))))
+                // "Select an expression" reads as wrong when one is selected (Roslyn makes a constant of
+                // `2`, not a field).
+                let message = if self.state.has_selection() && r.works_on_selection() {
+                    format!("{} isn't available for this selection.", r.label())
+                } else {
+                    format!("{} isn't available here. {}", r.label(), r.hint())
+                };
+                Some((items, Some(message)))
             }
         }
     }
 
+    /// The name at the caret, or the one right before it: a caret just after a name (where selecting it or
+    /// a refactoring's rename leaves it, e.g. `NewMethod|(`) is on it, as in Visual Studio. With a
+    /// selection, only when the selection is that name.
+    pub(super) fn name_at_caret(&self) -> Option<(Point, Point, String)> {
+        let caret = self.state.caret();
+        let is_name = |w: &str| w.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_') && w.chars().all(|c| c.is_alphanumeric() || c == '_');
+        let before = caret.col.checked_sub(1).map(|col| Point::new(caret.line, col));
+        let found = [Some(caret), before].into_iter().flatten().find_map(|p| {
+            let (start, end) = self.state.word_at(p);
+            let word = self.state.buffer.slice(start, end);
+            is_name(&word).then_some((start, end, word))
+        })?;
+        (!self.state.has_selection() || self.state.selection() == (found.0, found.1)).then_some(found)
+    }
+
     /// The Refactor menu's Rename entry, when the caret is on a name.
     fn rename_entry(&self) -> Option<bf_lsp::CodeAction> {
-        let (start, end) = self.state.word_at(self.state.caret());
-        let word = self.state.buffer.slice(start, end);
-        let is_name = word.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_') && word.chars().all(|c| c.is_alphanumeric() || c == '_');
-        is_name.then(|| bf_lsp::CodeAction {
+        let (_, _, word) = self.name_at_caret()?;
+        Some(bf_lsp::CodeAction {
             title: format!("Rename '{word}'…"),
             kind: Some(RENAME_KIND.into()),
             preferred: false,
@@ -471,5 +500,54 @@ mod tests {
         assert!(Refactoring::ExtractInterface.matches(&action("Extract interface...")));
         assert!(Refactoring::MoveTypeToFile.matches(&action("Move type to Foo.cs")));
         assert!(invents_name("Extract method") && invents_name("Introduce local for 'x'") && !invents_name("Inline temporary variable"));
+    }
+}
+
+#[cfg(test)]
+mod view_tests {
+    use super::*;
+    use gpui::AppContext as _;
+
+    fn editor(cx: &mut gpui::TestAppContext, text: &str) -> gpui::Entity<EditorView> {
+        cx.update(|cx| crate::theme::Theme::build(std::sync::Arc::new(bf_core::theme::ThemeData::default()), 0, cx).install(cx));
+        cx.new(|cx| EditorView::new(text, None, cx))
+    }
+
+    fn action(title: &str) -> bf_lsp::CodeAction {
+        bf_lsp::CodeAction { title: title.into(), kind: None, preferred: false, disabled: None, edit: None, command: None, raw: serde_json::Value::Null }
+    }
+
+    /// Where Extract Method's rename leaves the caret (`NewMethod|(`), and where it is after selecting a
+    /// name, F2 and the Refactor menu's Rename take the name; a selection of more than a name doesn't.
+    #[gpui::test]
+    fn the_caret_right_after_a_name_is_on_it(cx: &mut gpui::TestAppContext) {
+        let view = editor(cx, "        NewMethod(sum);\n");
+        view.update(cx, |v, _| {
+            let name = |v: &EditorView| v.name_at_caret().map(|(_, _, w)| w);
+            v.state.select(Point::new(0, 8), Point::new(0, 17));
+            assert_eq!(name(v).as_deref(), Some("NewMethod"));
+            v.state.set_caret(Point::new(0, 18), false);
+            assert_eq!(name(v).as_deref(), Some("sum"));
+            v.state.set_caret(Point::new(0, 8), false);
+            assert_eq!(name(v).as_deref(), Some("NewMethod"));
+            v.state.set_caret(Point::new(0, 2), false);
+            assert_eq!(name(v), None);
+            v.state.select(Point::new(0, 8), Point::new(0, 21));
+            assert_eq!(name(v), None);
+            assert!(v.rename_entry().is_none());
+        });
+    }
+
+    /// csharp-ls offered "Remove unnecessary usings" twice: Ctrl+R Ctrl+G listed both instead of applying.
+    #[gpui::test]
+    fn twin_actions_count_once(cx: &mut gpui::TestAppContext) {
+        let view = editor(cx, "using System.Text;\n");
+        let applied = view.update(cx, |v, cx| {
+            let twins = vec![action("Remove unnecessary usings"), action("Remove unnecessary usings")];
+            v.filter_actions(MenuMode::Only(Refactoring::RemoveAndSortUsings), twins, cx).is_none()
+        });
+        assert!(applied, "the one variant is applied without a menu");
+        let listed = view.update(cx, |v, cx| v.filter_actions(MenuMode::QuickFix, vec![action("Fix it"), action("Fix it"), action("Other")], cx));
+        assert_eq!(listed.map(|(items, _)| items.len()), Some(2));
     }
 }

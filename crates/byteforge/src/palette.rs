@@ -136,6 +136,16 @@ impl Palette {
         }
     }
 
+    #[cfg(test)]
+    pub fn input_text(&self, cx: &App) -> String {
+        self.input.read(cx).text().to_owned()
+    }
+
+    /// Selects the input's text, so typing replaces it.
+    pub fn select_input(&self, cx: &mut Context<Self>) {
+        self.input.update(cx, |i, cx| i.select_all_text(cx));
+    }
+
     pub fn focus_input(&self, window: &mut Window, cx: &App) {
         window.focus(&self.input.focus_handle(cx));
     }
