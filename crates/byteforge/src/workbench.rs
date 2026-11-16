@@ -340,6 +340,10 @@ pub struct Workbench {
     /// The open context menu of a module view's row.
     module_menu: Option<module_views::ModuleMenu>,
     activity_menu: Option<bars::ActivityMenu>,
+    /// A breadcrumb's open dropdown, and where the click that last closed one was (so that click,
+    /// on the same crumb, does not open it again).
+    crumb_menu: Option<editor_area::CrumbMenu>,
+    crumb_closed_at: Option<(usize, usize, gpui::Point<gpui::Pixels>)>,
     module_view: Option<String>,
     module_view_shown: Option<(String, String)>,
     output_tx: flume::Sender<String>,
@@ -593,6 +597,8 @@ impl Workbench {
             module_views: Vec::new(),
             module_menu: None,
             activity_menu: None,
+            crumb_menu: None,
+            crumb_closed_at: None,
             module_view: None,
             module_view_shown: None,
             output_tx,

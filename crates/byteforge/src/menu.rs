@@ -1,7 +1,7 @@
 //! The one look for every menu in the workbench: the menu bar's dropdowns, the Explorer's context menu and the
 //! context menus of module views all build on these pieces, so they share the `menu.*` theme keys.
 
-use gpui::{Div, ElementId, Hsla, SharedString, Stateful, div, prelude::*, px};
+use gpui::{AnyElement, Div, ElementId, Hsla, SharedString, Stateful, div, prelude::*, px};
 
 use crate::theme::Theme;
 
@@ -50,6 +50,23 @@ pub fn check_item(t: &Theme, id: impl Into<ElementId>, label: impl Into<SharedSt
         .cursor_pointer()
         .hover(move |s| s.bg(hover))
         .child(div().w(px(14.)).flex_none().when(checked, |d| d.child(crate::assets::icon("check", px(14.), t.c("menu.foreground")))))
+        .child(div().flex_1().whitespace_nowrap().child(label.into()))
+}
+
+/// An entry with an icon (a file's, for example) in front of the label. Attach `.on_click`.
+pub fn icon_item(t: &Theme, id: impl Into<ElementId>, icon: AnyElement, label: impl Into<SharedString>) -> Stateful<Div> {
+    let hover: Hsla = t.c("menu.selectionBackground");
+    div()
+        .id(id)
+        .flex()
+        .items_center()
+        .gap_2()
+        .px_3()
+        .py_1()
+        .rounded(px(4.))
+        .cursor_pointer()
+        .hover(move |s| s.bg(hover))
+        .child(div().flex_none().flex().items_center().child(icon))
         .child(div().flex_1().whitespace_nowrap().child(label.into()))
 }
 
