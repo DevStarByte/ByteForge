@@ -1,19 +1,23 @@
-//! The diff editor: two read-only editors side by side (old left, new right) whose rows line up and that
-//! scroll together, or one inline editor with the removed lines above the added ones. Both highlight the
-//! file's syntax, number the lines as in the files, and mark the changed words inside changed lines.
+//! The diff editor: two editors side by side (old left, new right) whose rows line up and that scroll
+//! together, or one read-only inline editor with the removed lines above the added ones. Both highlight
+//! the file's syntax, number the lines as in the files, and mark the changed words inside changed lines.
 //! A toolbar shows the change counts and steps through the changes (F7 / Shift+F7).
+//!
+//! Side by side, each editor holds its file's own text; the rows that keep the sides aligned are spacer
+//! rows, not text. So the working-tree side of a working-tree diff can be edited in place: the diff
+//! follows the typing, and Ctrl+S saves the file.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use bf_core::diff::{Diff, Pane, RowKind};
+use bf_core::diff::{Diff, Pane, RowKind, SideLayout};
 use bf_syntax::Language;
 use bf_text::Point;
-use gpui::{Context, Entity, EventEmitter, IntoElement, Render, Window, div, prelude::*, px};
+use gpui::{Context, Entity, EventEmitter, IntoElement, Render, Subscription, Window, div, prelude::*, px};
 
 use crate::actions::{DiffNextChange, DiffPreviousChange, DiffToggleInline};
 use crate::assets::icon;
-use crate::editor::{EditorView, ScrollLink};
+use crate::editor::{EditorEvent, EditorView, ScrollLink};
 use crate::theme::Theme;
 
 pub enum DiffEvent {
@@ -21,6 +25,8 @@ pub enum DiffEvent {
     OpenFile(PathBuf, Point),
     /// Stage, unstage or revert the change the toolbar is on, in this file.
     Change(ChangeAction, PathBuf, bf_core::diff::LineChange),
+    /// Inline can't show unsaved edits of the working-tree side: save the file, then switch to inline.
+    SaveThenInline,
 }
 
 /// What the two sides are, which decides what can be done with one change.
@@ -58,6 +64,13 @@ pub struct DiffView {
     kind: DiffKind,
     /// Long unchanged stretches are folded away ("Collapse Unchanged").
     collapsed: bool,
+    /// The texts compared (`new` follows the edits of the working-tree side).
+    old: String,
+    new: String,
+    /// The sides as their own lines with spacers (side by side).
+    left_layout: SideLayout,
+    right_layout: SideLayout,
+    _sub: Subscription,
 }
 
 impl EventEmitter<DiffEvent> for DiffView {}
@@ -76,12 +89,50 @@ impl DiffView {
                 e.set_language(language, cx);
             });
         }
-        Self { right, left, diff: Diff::default(), inline: false, current: None, labels: Default::default(), file: None, language, kind: DiffKind::ReadOnly, collapsed: false }
+        left.update(cx, |e, _| e.spacer_background = Some("diffEditor.diagonalFill"));
+        right.update(cx, |e, _| e.spacer_background = Some("diffEditor.diagonalFill"));
+        // Typing in the working-tree side: compare again.
+        let sub = cx.subscribe(&right, |v: &mut Self, _, event: &EditorEvent, cx| {
+            if matches!(event, EditorEvent::Edited) {
+                v.on_right_edited(cx);
+            }
+        });
+        Self {
+            right,
+            left,
+            diff: Diff::default(),
+            inline: false,
+            current: None,
+            labels: Default::default(),
+            file: None,
+            language,
+            kind: DiffKind::ReadOnly,
+            collapsed: false,
+            old: String::new(),
+            new: String::new(),
+            left_layout: SideLayout::default(),
+            right_layout: SideLayout::default(),
+            _sub: sub,
+        }
+    }
+
+    /// The working-tree side can be edited (side by side, in a working-tree diff of a file that exists).
+    fn editable(&self) -> bool {
+        self.kind == DiffKind::WorkingTree && self.file.is_some() && !self.inline
+    }
+
+    /// The file the new side is, while it can be edited (saving the tab writes it).
+    pub fn editable_file(&self) -> Option<&Path> {
+        self.file.as_deref().filter(|_| self.editable())
     }
 
     /// Shows the comparison of `old` and `new`; keeps the view mode (and the change, when there still is one).
+    /// Unsaved edits of the working-tree side stay: they're compared instead of `new`.
     pub fn set_texts(&mut self, old: &str, new: &str, labels: (String, String), file: Option<PathBuf>, kind: DiffKind, cx: &mut Context<Self>) {
-        self.diff = bf_core::diff::compare(old, new);
+        let keep_edits = self.editable() && kind == DiffKind::WorkingTree && self.right.read(cx).is_modified();
+        self.old = old.to_owned();
+        self.new = if keep_edits { self.right.read(cx).state.buffer.text() } else { new.to_owned() };
+        self.diff = bf_core::diff::compare(&self.old, &self.new);
         self.labels = labels;
         self.file = file;
         self.kind = kind;
@@ -100,21 +151,51 @@ impl DiffView {
         }
     }
 
-    /// Loads the panes into the editors for the current mode.
+    /// The working-tree side changed: compare its text again (keeping the change the toolbar is on).
+    fn on_right_edited(&mut self, cx: &mut Context<Self>) {
+        if !self.editable() {
+            return;
+        }
+        let text = self.right.read(cx).state.buffer.text();
+        if text == self.new {
+            return;
+        }
+        self.new = text;
+        self.diff = bf_core::diff::compare(&self.old, &self.new);
+        self.current = self.current.filter(|&c| c < self.diff.hunks.len());
+        self.refresh(cx);
+    }
+
+    /// Loads the texts and decorations into the editors for the current mode.
     fn refresh(&mut self, cx: &mut Context<Self>) {
-        let (left, right): (Option<&Pane>, &Pane) = if self.inline { (None, &self.diff.inline) } else { (Some(&self.diff.left), &self.diff.right) };
-        if let Some(pane) = left {
-            self.left.update(cx, |e, cx| show_pane(e, pane, cx));
+        let editable = self.editable();
+        self.right.update(cx, |e, _| e.read_only = !editable);
+        // The same unchanged stretches fold on both sides, so they stay in step.
+        let fold_rows = |kinds: &[RowKind]| if self.collapsed { bf_core::diff::unchanged_folds(kinds, 3) } else { Vec::new() };
+        if self.inline {
+            let pane = &self.diff.inline;
+            let folds = fold_rows(&pane.kinds);
+            self.right.update(cx, |e, cx| {
+                e.spacers = None;
+                show_pane(e, pane, cx);
+                e.folds.set_folded(folds);
+            });
+        } else {
+            self.left_layout = SideLayout::of(&self.diff.left);
+            self.right_layout = SideLayout::of(&self.diff.right);
+            let rows = fold_rows(&self.diff.left.kinds);
+            for (editor, text, layout) in [(&self.left, &self.old, &self.left_layout), (&self.right, &self.new, &self.right_layout)] {
+                let folds = layout.line_ranges(&rows);
+                editor.update(cx, |e, cx| {
+                    // Only when it differs: reloading drops the undo history and moves the caret.
+                    if e.state.buffer.text() != *text {
+                        e.reload_text(text, cx);
+                    }
+                    show_side(e, layout, cx);
+                    e.folds.set_folded(folds);
+                });
+            }
         }
-        self.right.update(cx, |e, cx| show_pane(e, right, cx));
-        // The same rows fold on both sides, so they stay in step.
-        let folds = |pane: &Pane| if self.collapsed { bf_core::diff::unchanged_folds(&pane.kinds, 3) } else { Vec::new() };
-        if let Some(pane) = left {
-            let f = folds(pane);
-            self.left.update(cx, |e, _| e.folds.set_folded(f));
-        }
-        let f = folds(right);
-        self.right.update(cx, |e, _| e.folds.set_folded(f));
         cx.notify();
     }
 
@@ -133,18 +214,20 @@ impl DiffView {
         cx.emit(DiffEvent::Change(action, file, change));
     }
 
-    fn hunk_rows(&self) -> &[usize] {
-        if self.inline { &self.diff.inline_hunks } else { &self.diff.hunks }
+    /// The line of the new side (the inline text, inline) each change starts on.
+    fn hunk_rows(&self) -> Vec<usize> {
+        if self.inline { self.diff.inline_hunks.clone() } else { self.diff.hunks.iter().map(|&r| self.right_layout.row_lines.get(r).copied().unwrap_or(0)).collect() }
     }
 
     fn go_to_change(&mut self, ix: usize, cx: &mut Context<Self>) {
-        let Some(&row) = self.hunk_rows().get(ix) else { return };
+        let Some(&line) = self.hunk_rows().get(ix) else { return };
         self.current = Some(ix);
-        let at = Point::new(row, 0);
         // Both sides follow: the scroll link moves the other one.
-        self.right.update(cx, |e, cx| e.go_to(at, cx));
+        self.right.update(cx, |e, cx| e.go_to(Point::new(line, 0), cx));
         if !self.inline {
-            self.left.update(cx, |e, _| e.state.set_caret(at, false));
+            let row = self.diff.hunks[ix];
+            let left = self.left_layout.row_lines.get(row).copied().unwrap_or(0);
+            self.left.update(cx, |e, _| e.state.set_caret(Point::new(left, 0), false));
         }
         cx.notify();
     }
@@ -161,6 +244,10 @@ impl DiffView {
     }
 
     pub fn toggle_inline(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.editable() && self.right.read(cx).is_modified() {
+            cx.emit(DiffEvent::SaveThenInline);
+            return;
+        }
         self.inline = !self.inline;
         self.refresh(cx);
         if let Some(c) = self.current {
@@ -174,6 +261,31 @@ impl DiffView {
         let line = self.current.and_then(|c| self.diff.hunk_lines.get(c).copied()).unwrap_or(0);
         cx.emit(DiffEvent::OpenFile(path, Point::new(line, 0)));
     }
+}
+
+/// One side, side by side: the file's own lines, spacers between them, its changes marked.
+fn show_side(e: &mut EditorView, layout: &SideLayout, cx: &mut Context<EditorView>) {
+    e.line_numbers = None;
+    e.spacers = Some(Arc::new(layout.spacers.clone()));
+    e.line_backgrounds = layout
+        .kinds
+        .iter()
+        .enumerate()
+        .filter_map(|(line, kind)| match kind {
+            RowKind::Removed => Some((line, "diffEditor.removedLineBackground")),
+            RowKind::Added => Some((line, "diffEditor.insertedLineBackground")),
+            _ => None,
+        })
+        .collect();
+    e.range_backgrounds = layout
+        .words
+        .iter()
+        .map(|&(line, s, end)| {
+            let key = if layout.kinds.get(line) == Some(&RowKind::Removed) { "diffEditor.removedTextBackground" } else { "diffEditor.insertedTextBackground" };
+            (Point::new(line, s), Point::new(line, end), key)
+        })
+        .collect();
+    cx.notify();
 }
 
 fn show_pane(e: &mut EditorView, pane: &Pane, cx: &mut Context<EditorView>) {
@@ -288,5 +400,11 @@ impl DiffView {
     pub(crate) fn state_for_test(&self, cx: &gpui::App) -> (usize, Option<usize>, usize) {
         let hidden = self.right.read(cx).folds.hidden_ranges().iter().map(|(s, e)| e + 1 - s).sum();
         (self.diff.changes.len(), self.current, hidden)
+    }
+
+    /// Spacer rows on (left, right), side by side.
+    pub(crate) fn spacer_rows_for_test(&self, cx: &gpui::App) -> (usize, usize) {
+        let sum = |e: &Entity<EditorView>| e.read(cx).spacers.as_ref().map_or(0, |s| s.iter().sum());
+        (sum(&self.left), sum(&self.right))
     }
 }

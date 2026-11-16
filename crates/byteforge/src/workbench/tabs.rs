@@ -47,8 +47,8 @@ impl Workbench {
     /// Edits in a file open in both groups go to its other view (as minimal edits, so that view's caret and
     /// scroll stay; the echo back is a no-op).
     pub(super) fn sync_file_views(&mut self, editor: &Entity<EditorView>, cx: &mut Context<Self>) {
-        let Some(path) = self.tabs.iter().find(|t| t.editor == *editor).and_then(|t| t.path.clone()) else { return };
-        let others: Vec<Entity<EditorView>> = self.tabs.iter().filter(|t| t.editor != *editor && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))).map(|t| t.editor.clone()).collect();
+        let Some(path) = self.tabs.iter().find(|t| t.editor == *editor).and_then(|t| t.save_path(cx)) else { return };
+        let others: Vec<Entity<EditorView>> = self.tabs.iter().filter(|t| t.editor != *editor && t.save_path(cx).is_some_and(|p| bf_core::paths::same_path(&p, &path))).map(|t| t.editor.clone()).collect();
         if others.is_empty() {
             return;
         }
@@ -152,7 +152,7 @@ impl Workbench {
         // files.autoSave "onFocusChange" (and "onWindowChange"): switching away saves the file left.
         if let Some(previous) = self.active.filter(|&p| p != ix && p < self.tabs.len())
             && matches!(self.autosave_mode(), AutoSave::OnFocusChange | AutoSave::OnWindowChange)
-            && self.tabs[previous].path.is_some()
+            && self.tabs[previous].save_path(cx).is_some()
             && self.tabs[previous].editor.read(cx).is_modified()
         {
             self.save_tab(previous, window, cx);
@@ -185,13 +185,15 @@ impl Workbench {
         if tab.editor.read(cx).read_only {
             return;
         }
-        let Some(path) = tab.path.clone() else {
+        let Some(path) = tab.save_path(cx) else {
             self.save_as(ix, window, cx);
             return;
         };
         let text = tab.editor.read(cx).save_path_text();
         let mut bytes = Vec::with_capacity(text.len() + 3);
-        if tab.bom {
+        // A diff tab doesn't know the file's BOM: keep what the file has.
+        let bom = if tab.path.is_some() { tab.bom } else { std::fs::read(&path).is_ok_and(|b| b.starts_with(&[0xEF, 0xBB, 0xBF])) };
+        if bom {
             bytes.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
         }
         bytes.extend_from_slice(text.as_bytes());
@@ -203,8 +205,9 @@ impl Workbench {
                     cx.notify();
                 });
                 // The same file open in the other group is saved too.
-                for other in self.tabs.iter().filter(|t| t.editor != tab.editor && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))) {
-                    other.editor.update(cx, |e, cx| {
+                let others: Vec<Entity<EditorView>> = self.tabs.iter().filter(|t| t.editor != tab.editor && t.save_path(cx).is_some_and(|p| bf_core::paths::same_path(&p, &path))).map(|t| t.editor.clone()).collect();
+                for other in others {
+                    other.update(cx, |e, cx| {
                         if e.save_path_text() == text {
                             e.state.buffer.mark_saved();
                             cx.notify();
@@ -288,7 +291,7 @@ impl Workbench {
             let _ = this.update_in(cx, |wb, window, cx| {
                 let Some(editor) = target.upgrade() else { return };
                 wb.autosave.remove(&editor.entity_id());
-                if let Some(ix) = wb.tabs.iter().position(|t| t.editor == editor && t.path.is_some())
+                if let Some(ix) = wb.tabs.iter().position(|t| t.editor == editor && t.save_path(cx).is_some())
                     && !editor.read(cx).read_only
                     && editor.read(cx).is_modified()
                 {
@@ -303,7 +306,7 @@ impl Workbench {
     pub(super) fn save_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         for ix in 0..self.tabs.len() {
             let tab = &self.tabs[ix];
-            if tab.path.is_some() && tab.editor.read(cx).is_modified() {
+            if tab.save_path(cx).is_some() && tab.editor.read(cx).is_modified() {
                 self.save_tab(ix, window, cx);
             }
         }

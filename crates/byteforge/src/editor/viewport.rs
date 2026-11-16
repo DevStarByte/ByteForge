@@ -40,7 +40,7 @@ impl EditorView {
         }
         let caret = self.state.caret();
         self.reveal(caret, false);
-        if self.wrap.is_some() {
+        if self.wrap_cols().is_some() {
             return; // nothing runs off to the right
         }
         let line = self.state.buffer.line(caret.line);
@@ -60,7 +60,7 @@ impl EditorView {
         let max_y = ((self.row_count() as f32 - 1.0) * lh).max(0.0);
         let content_w = self.max_line_chars as f32 * self.layout.char_width + self.layout.char_width * 8.0;
         let view_w = self.layout.text_width();
-        let max_x = if self.wrap.is_some() { 0.0 } else { (content_w - view_w).max(0.0) };
+        let max_x = if self.wrap_cols().is_some() { 0.0 } else { (content_w - view_w).max(0.0) };
         (v.0.clamp(0.0, max_x), v.1.clamp(0.0, max_y))
     }
 

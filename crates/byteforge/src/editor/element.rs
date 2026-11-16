@@ -519,7 +519,7 @@ impl Element for EditorElement {
         let origin_x = l.text_left - sx;
         let gutter_right = l.left + l.gutter;
         let line_top = |line: usize| px(l.top + view.row_of(line) as f32 * lh - sy);
-        let wrap_cols = view.wrap.as_ref().map(|w| w.0);
+        let wrap_cols = view.wrap.as_ref().and_then(|w| w.cols);
         // Where visual column `v` of `line` is drawn: (x, top of its row).
         let cell_at = |line: usize, v: usize| -> (f32, Pixels) {
             match wrap_cols {
@@ -587,6 +587,17 @@ impl Element for EditorElement {
             // Whole-line backgrounds (diff view).
             for &(line, key) in &view.line_backgrounds {
                 window.paint_quad(fill(Bounds::new(point(px(gutter_right), line_top(line)), size(width - px(l.gutter), line_h(line))), diff_background(&theme, key)));
+            }
+            // Spacer rows (the diff view's filler between aligned lines).
+            if let (Some(key), Some(super::wrap::WrapMap { starts, spacers, .. })) = (view.spacer_background, &view.wrap) {
+                for line in first..=(last + 1).min(spacers.len().saturating_sub(1)) {
+                    let n = spacers[line];
+                    if n == 0 {
+                        continue;
+                    }
+                    let top = px(l.top + (starts[line] - n) as f32 * lh - sy);
+                    window.paint_quad(fill(Bounds::new(point(px(gutter_right), top), size(width - px(l.gutter), px(n as f32 * lh))), diff_background(&theme, key)));
+                }
             }
 
             // Rulers.
@@ -1079,8 +1090,9 @@ struct Snap {
     inlays: Vec<super::inlays::Inlay>,
     /// Hidden line ranges (folds), folded regions and foldable regions starting on visible lines.
     hidden: Vec<(usize, usize)>,
-    /// Word wrap: columns per row and each line's first row.
-    wrap: Option<(usize, std::sync::Arc<Vec<usize>>)>,
+    /// Word wrap and spacers: columns per row (when wrapping), each line's first row, the spacers above each line.
+    wrap: Option<super::wrap::WrapMap>,
+    spacer_background: Option<&'static str>,
     folded: Vec<(usize, usize)>,
     regions: Vec<(usize, usize)>,
     row_count: usize,
@@ -1111,7 +1123,7 @@ impl Snap {
             minimap: v.minimap.clone(),
             minimap_left: v.minimap_left(),
             minimap_hover: v.minimap_hover,
-            caret_row: Some(v.folds.row_of(v.state.caret().line)),
+            caret_row: Some(v.row_of(v.state.caret().line)),
             selection_rows: super::minimap::selection_rows(v),
             find: v.find_matches().iter().filter(|(s, e)| e.line >= first && s.line <= last).copied().collect(),
             bracket_match: v.bracket_match,
@@ -1133,7 +1145,8 @@ impl Snap {
             folded: v.folds.folded().to_vec(),
             regions: if v.layout.fold_width > 0.0 { v.folds.cached_regions().iter().filter(|r| r.0 >= first && r.0 <= last).copied().collect() } else { Vec::new() },
             row_count: v.row_count(),
-            wrap: v.wrap.as_ref().map(|w| (w.cols, w.starts.clone())),
+            wrap: v.wrap.clone(),
+            spacer_background: v.spacer_background,
         }
     }
 
@@ -1145,8 +1158,8 @@ impl Snap {
     /// Rows `line` takes (more than one when it wraps).
     fn rows(&self, line: usize) -> usize {
         match &self.wrap {
-            Some((_, starts)) => starts.get(line + 1).zip(starts.get(line)).map_or(1, |(b, a)| (b - a).max(1)),
-            None => 1,
+            Some(w) if line + 1 < w.starts.len() => super::wrap::text_rows(&w.starts, &w.spacers, line).max(1),
+            _ => 1,
         }
     }
 
@@ -1159,7 +1172,7 @@ impl Snap {
 
     /// The screen row of `line` (see `Folds::row_of`; with word wrap, its first row).
     fn row_of(&self, line: usize) -> usize {
-        if let Some((_, starts)) = &self.wrap {
+        if let Some(super::wrap::WrapMap { starts, .. }) = &self.wrap {
             let i = self.hidden.partition_point(|h| h.1 < line);
             let line = match self.hidden.get(i) {
                 Some(h) if h.0 <= line => h.0.saturating_sub(1),

@@ -43,7 +43,7 @@ live, and modules written in any language can extend it.
 - **Solution and NuGet:** a Solution view with the projects of the `.sln`/`.slnx`, their packages and project
   references; search, add, update and remove NuGet packages, and see which ones have updates
 - **Git:** a Source Control view, change markers in the gutter, a diff editor (side by side or inline, syntax
-  highlighted, changed words marked, F7 / Shift+F7 between changes), blame of the current line, file history,
+  highlighted, changed words marked, F7 / Shift+F7 between changes, the working tree editable in place), blame of the current line, file history,
   merge-conflict resolution (accept current / incoming / both), branches, and pull / push / fetch
 - **Docker:** containers, images, volumes and Compose, plus Dockerfile generation for .NET projects (the Docker
   module, installed from the Modules view)

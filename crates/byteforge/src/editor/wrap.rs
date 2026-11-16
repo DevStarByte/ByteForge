@@ -6,18 +6,25 @@
 //! `v % cols`. The [`WrapMap`] keeps the first row of every line; everything that turns positions into
 //! screen coordinates (painting, clicks, the caret, scrolling, Up/Down) goes through it. Folded lines
 //! take no rows.
+//!
+//! The same map places spacer rows (empty rows that aren't text, see `EditorView::spacers`), with or
+//! without wrapping: they sit above their line, so its text starts that many rows further down.
 
 use std::sync::Arc;
 
 use super::*;
 
-/// The screen row each line starts on, for one text, width, set of folds and inlay hints.
+/// The screen row each line starts on, for one text, width, set of folds, inlay hints and spacers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct WrapMap {
-    pub cols: usize,
-    /// `starts[l]` is the first row of line `l`; `starts[line_count]` is the number of rows.
+    /// Columns per row while wrapping; `None` when only spacers need the map.
+    pub cols: Option<usize>,
+    /// `starts[l]` is the first row of line `l`'s text; `starts[line_count]` is the number of rows.
     pub starts: Arc<Vec<usize>>,
-    key: (u64, usize, u64),
+    /// The spacer rows above each line as laid out (none above folded lines); `line_count + 1` long, or
+    /// empty without spacers.
+    pub spacers: Arc<Vec<usize>>,
+    key: (u64, usize, u64, usize),
 }
 
 /// Rows a line of `visual_len` columns takes.
@@ -33,36 +40,45 @@ pub(crate) fn segment_of(v: usize, visual_len: usize, cols: usize) -> (usize, us
     (seg, v - seg * cols)
 }
 
-/// The first rows of lines that take `rows[l]` rows each.
-pub(crate) fn starts_from(rows: impl Iterator<Item = usize>) -> Vec<usize> {
-    let mut starts = vec![0];
-    let mut acc = 0;
-    for r in rows {
-        acc += r;
+/// The first rows of lines whose text takes `rows[l]` rows each, with `spacers[l]` rows above line `l`
+/// (`spacers[line_count]` below the last line; missing entries are 0).
+pub(crate) fn starts_from(rows: impl Iterator<Item = usize>, spacers: &[usize]) -> Vec<usize> {
+    let sp = |l: usize| spacers.get(l).copied().unwrap_or(0);
+    let mut acc = sp(0);
+    let mut starts = vec![acc];
+    for (l, r) in rows.enumerate() {
+        acc += r + sp(l + 1);
         starts.push(acc);
     }
     starts
 }
 
-/// The line and segment shown on `row`.
-pub(crate) fn line_at(starts: &[usize], row: usize) -> (usize, usize) {
+/// Rows of `line`'s own text (without the spacers below it).
+pub(crate) fn text_rows(starts: &[usize], spacers: &[usize], line: usize) -> usize {
+    let next = spacers.get(line + 1).copied().unwrap_or(0);
+    (starts[line + 1] - next).saturating_sub(starts[line])
+}
+
+/// The line and segment shown on `row`. A spacer row belongs to the last row of the line above it
+/// (the first line, for spacers above it).
+pub(crate) fn line_at(starts: &[usize], spacers: &[usize], row: usize) -> (usize, usize) {
     let lines = starts.len().saturating_sub(1);
     if lines == 0 {
         return (0, 0);
     }
     // The last line whose first row is at or before `row` (and that has rows: folded lines have none).
     let mut line = starts.partition_point(|&s| s <= row).saturating_sub(1).min(lines - 1);
-    while line > 0 && starts[line + 1] == starts[line] {
+    while line > 0 && text_rows(starts, spacers, line) == 0 {
         line -= 1;
     }
-    let seg = row.saturating_sub(starts[line]).min((starts[line + 1] - starts[line]).saturating_sub(1));
+    let seg = row.saturating_sub(starts[line]).min(text_rows(starts, spacers, line).saturating_sub(1));
     (line, seg)
 }
 
 impl EditorView {
     /// Columns per row while wrapping (`None` when word wrap is off or the size isn't known yet).
     pub(crate) fn wrap_cols(&self) -> Option<usize> {
-        self.wrap.as_ref().map(|w| w.cols)
+        self.wrap.as_ref().and_then(|w| w.cols)
     }
 
     /// A line's width in columns: tabs expanded, inlay hints included.
@@ -72,23 +88,38 @@ impl EditorView {
         bf_text::visual_col(&text, len, self.state.tab_size) + self.inlay_shift(line, len, false)
     }
 
-    /// Rebuilds the wrap map when wrapping and the text, width, folds or inlay hints changed (every frame).
+    /// Rebuilds the row map when wrapping (or showing spacers) and the text, width, folds, inlay hints or
+    /// spacers changed (every frame).
     pub(crate) fn update_wrap(&mut self) {
-        if !self.word_wrap || self.layout.char_width <= 0.0 || self.layout.width <= 0.0 {
+        let wrapping = self.word_wrap && self.layout.char_width > 0.0 && self.layout.width > 0.0;
+        let spacers = self.spacers.clone().filter(|s| s.iter().any(|&n| n > 0));
+        if !wrapping && spacers.is_none() {
             self.wrap = None;
             return;
         }
         // One column of slack so the caret at the end of a full row stays visible.
-        let cols = ((self.layout.text_width() / self.layout.char_width).floor() as usize).saturating_sub(1).max(10);
+        let cols = wrapping.then(|| ((self.layout.text_width() / self.layout.char_width).floor() as usize).saturating_sub(1).max(10));
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         std::hash::Hash::hash(&self.folds.hidden_ranges(), &mut hasher);
         std::hash::Hash::hash(&self.inlays, &mut hasher);
-        let key = (self.state.buffer.version(), cols, std::hash::Hasher::finish(&hasher));
+        let spacers_id = spacers.as_ref().map_or(0, |s| Arc::as_ptr(s) as usize);
+        let key = (self.state.buffer.version(), cols.unwrap_or(0), std::hash::Hasher::finish(&hasher), spacers_id);
         if self.wrap.as_ref().is_some_and(|w| w.key == key) {
             return;
         }
-        let rows = (0..self.state.buffer.line_count()).map(|l| if self.folds.is_hidden(l) { 0 } else { rows_for(self.visual_len(l), cols) });
-        self.wrap = Some(WrapMap { cols, starts: Arc::new(starts_from(rows)), key });
+        let lines = self.state.buffer.line_count();
+        // Spacers above a folded line fold away with it.
+        let laid_out: Vec<usize> = match &spacers {
+            Some(s) => (0..=lines).map(|l| if l < lines && self.folds.is_hidden(l) { 0 } else { s.get(l).copied().unwrap_or(0) }).collect(),
+            None => Vec::new(),
+        };
+        let rows = (0..lines).map(|l| match cols {
+            _ if self.folds.is_hidden(l) => 0,
+            Some(cols) => rows_for(self.visual_len(l), cols),
+            None => 1,
+        });
+        let starts = starts_from(rows, &laid_out);
+        self.wrap = Some(WrapMap { cols, starts: Arc::new(starts), spacers: Arc::new(laid_out), key });
     }
 
     /// The first screen row of `line` (a folded line shares the row of the line its fold starts on).
@@ -116,7 +147,7 @@ impl EditorView {
     /// The line (and its segment) on screen row `row`.
     pub(crate) fn line_at_row(&self, row: usize) -> (usize, usize) {
         match &self.wrap {
-            Some(w) => line_at(&w.starts, row),
+            Some(w) => line_at(&w.starts, &w.spacers, row),
             None => (self.folds.line_of(row).min(self.state.buffer.line_count() - 1), 0),
         }
     }
@@ -131,7 +162,7 @@ impl EditorView {
                 let (seg, x) = segment_of(v, self.visual_len(p.line), cols);
                 (self.row_of(p.line) + seg, x)
             }
-            None => (self.folds.row_of(p.line), v),
+            None => (self.row_of(p.line), v),
         }
     }
 
@@ -152,7 +183,7 @@ impl EditorView {
 
     /// Up/Down (and Page Up/Down): by screen rows while wrapping with one cursor, by lines otherwise.
     pub(super) fn vertical(&mut self, delta: isize, extend: bool, cx: &mut Context<Self>) {
-        if self.wrap.is_some() && !self.state.has_multiple_cursors() {
+        if self.wrap_cols().is_some() && !self.state.has_multiple_cursors() {
             self.move_rows(delta, extend, cx);
         } else {
             self.mv(cx, |s| s.move_vertical(delta, extend));
@@ -200,14 +231,27 @@ mod tests {
     #[test]
     fn rows_to_lines_with_folded_lines() {
         // Line 0: 1 row, line 1: 3 rows, line 2: folded (0 rows), line 3: 2 rows.
-        let starts = starts_from([1, 3, 0, 2].into_iter());
+        let starts = starts_from([1, 3, 0, 2].into_iter(), &[]);
         assert_eq!(starts, [0, 1, 4, 4, 6]);
-        assert_eq!(line_at(&starts, 0), (0, 0));
-        assert_eq!(line_at(&starts, 2), (1, 1));
-        assert_eq!(line_at(&starts, 3), (1, 2));
-        assert_eq!(line_at(&starts, 4), (3, 0));
-        assert_eq!(line_at(&starts, 5), (3, 1));
-        assert_eq!(line_at(&starts, 99), (3, 1));
+        assert_eq!(line_at(&starts, &[], 0), (0, 0));
+        assert_eq!(line_at(&starts, &[], 2), (1, 1));
+        assert_eq!(line_at(&starts, &[], 3), (1, 2));
+        assert_eq!(line_at(&starts, &[], 4), (3, 0));
+        assert_eq!(line_at(&starts, &[], 5), (3, 1));
+        assert_eq!(line_at(&starts, &[], 99), (3, 1));
+    }
+
+    #[test]
+    fn spacer_rows_push_lines_down() {
+        // One spacer above line 0, two above line 2, one below the last (line 2).
+        let spacers = [1, 0, 2, 1];
+        let starts = starts_from([1, 1, 1].into_iter(), &spacers);
+        assert_eq!(starts, [1, 2, 5, 7]);
+        assert_eq!(text_rows(&starts, &spacers, 1), 1);
+        assert_eq!(line_at(&starts, &spacers, 0), (0, 0), "a spacer above the first line belongs to it");
+        assert_eq!(line_at(&starts, &spacers, 3), (1, 0), "a spacer row belongs to the line above");
+        assert_eq!(line_at(&starts, &spacers, 5), (2, 0));
+        assert_eq!(line_at(&starts, &spacers, 6), (2, 0));
     }
 }
 

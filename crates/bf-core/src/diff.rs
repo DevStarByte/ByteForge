@@ -126,6 +126,43 @@ pub fn unchanged_folds(kinds: &[RowKind], context: usize) -> Vec<(usize, usize)>
     folds
 }
 
+/// One side of a side-by-side diff as the file's own lines plus spacer rows, so its text can stay the
+/// file's (and be edited): the filler rows of the [`Pane`] become spacers above the line after them.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SideLayout {
+    /// Spacer rows above each line; one more entry than lines (the last: below the last line).
+    pub spacers: Vec<usize>,
+    /// What each line is (never `Filler`).
+    pub kinds: Vec<RowKind>,
+    /// Changed words: `(line, start char, end char)`.
+    pub words: Vec<(usize, usize, usize)>,
+    /// The line each pane row is (a filler row: the line below it).
+    pub row_lines: Vec<usize>,
+}
+
+impl SideLayout {
+    pub fn of(pane: &Pane) -> Self {
+        let mut out = Self { spacers: vec![0], ..Default::default() };
+        for &kind in &pane.kinds {
+            let line = out.kinds.len();
+            out.row_lines.push(line);
+            if kind == RowKind::Filler {
+                out.spacers[line] += 1;
+            } else {
+                out.kinds.push(kind);
+                out.spacers.push(0);
+            }
+        }
+        out.words = pane.words.iter().map(|&(row, s, e)| (out.row_lines[row], s, e)).collect();
+        out
+    }
+
+    /// Pane row ranges (as from [`unchanged_folds`]) as line ranges of this side.
+    pub fn line_ranges(&self, rows: &[(usize, usize)]) -> Vec<(usize, usize)> {
+        rows.iter().filter_map(|&(s, e)| Some((*self.row_lines.get(s)?, *self.row_lines.get(e)?))).collect()
+    }
+}
+
 impl Diff {
     pub fn is_unchanged(&self) -> bool {
         self.hunks.is_empty()
@@ -365,5 +402,20 @@ mod tests {
         assert_eq!(d.right.kinds, [RowKind::Filler]);
         assert_eq!(d.hunk_lines, [0]);
         assert!(compare("same\n", "same\n").is_unchanged());
+    }
+
+    #[test]
+    fn a_side_as_its_own_lines_with_spacers() {
+        let d = compare("a\nb\nc\n", "a\nx\ny\nc\nz\n");
+        let left = SideLayout::of(&d.left);
+        let right = SideLayout::of(&d.right);
+        // Left: a, b (replaced by x y: one filler), c, then a filler for z.
+        assert_eq!(left.kinds, [RowKind::Unchanged, RowKind::Removed, RowKind::Unchanged]);
+        assert_eq!(left.spacers, [0, 0, 1, 1]);
+        assert_eq!(right.spacers, [0; 6]);
+        assert_eq!(right.kinds.len(), 5);
+        // Rows line up: every side has as many rows (lines + spacers) as the pane.
+        assert_eq!(left.kinds.len() + left.spacers.iter().sum::<usize>(), d.left.kinds.len());
+        assert_eq!(right.line_ranges(&[(0, 3)]), [(0, 3)]);
     }
 }

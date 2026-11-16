@@ -314,6 +314,11 @@ pub struct EditorView {
     /// The number shown in the gutter for each line instead of its own (`None`: no number). The diff view
     /// shows the file's line numbers, with none on the filler lines that keep both sides aligned.
     pub line_numbers: Option<Arc<Vec<Option<usize>>>>,
+    /// Empty rows that aren't text, drawn above each line (index `line_count`: below the last line). The
+    /// diff view keeps both sides aligned with them, so the text stays the file's own and can be edited.
+    pub spacers: Option<Arc<Vec<usize>>>,
+    /// The theme color key the spacer rows are filled with.
+    pub spacer_background: Option<&'static str>,
     /// Editors sharing one of these scroll together vertically (the two sides of a diff).
     pub(crate) scroll_link: Option<ScrollLink>,
     scroll_link_seen: u64,
@@ -431,6 +436,8 @@ impl EditorView {
             line_backgrounds: Vec::new(),
             range_backgrounds: Vec::new(),
             line_numbers: None,
+            spacers: None,
+            spacer_background: None,
             scroll_link: None,
             scroll_link_seen: 0,
             glyph_margin: false,

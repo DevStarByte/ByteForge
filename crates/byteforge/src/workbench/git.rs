@@ -77,10 +77,10 @@ impl Workbench {
         }
     }
 
-    /// Reloads unmodified editors whose file changed on disk.
+    /// Reloads unmodified editors whose file changed on disk (and the working-tree side of diffs).
     pub(super) fn reload_changed_tabs(&self, cx: &mut Context<Self>) {
         for tab in &self.tabs {
-            let Some(path) = &tab.path else { continue };
+            let Some(path) = &tab.save_path(cx) else { continue };
             let e = tab.editor.read(cx);
             if e.is_modified() || e.read_only {
                 continue;
@@ -129,6 +129,11 @@ impl Workbench {
             let _ = this.update_in(cx, |wb, window, cx| {
                 let file = path.exists().then(|| path.clone());
                 let language = bf_syntax::Language::from_path(&path);
+                // The working tree as it is in an open editor, unsaved edits included.
+                let new = match kind {
+                    DiffKind::WorkingTree => wb.tabs.iter().find(|t| t.is_document() && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))).map(|t| t.editor.read(cx).state.buffer.text()).unwrap_or(new),
+                    _ => new,
+                };
                 let existing = wb.tabs.iter().position(|t| t.title == title && matches!(t.page, Some(Page::Diff(_))));
                 if let Some(ix) = existing
                     && let Some(Page::Diff(diff)) = wb.tabs[ix].page.clone()
@@ -145,6 +150,12 @@ impl Workbench {
                 let sub = cx.subscribe_in(&diff, window, |wb: &mut Self, diff, event: &crate::diff_view::DiffEvent, window, cx| match event {
                     crate::diff_view::DiffEvent::OpenFile(path, at) => wb.open_file(path.clone(), Some(*at), window, cx),
                     crate::diff_view::DiffEvent::Change(action, path, change) => wb.diff_change(diff.clone(), *action, path.clone(), *change, window, cx),
+                    crate::diff_view::DiffEvent::SaveThenInline => {
+                        if let Some(ix) = wb.tabs.iter().position(|t| matches!(&t.page, Some(Page::Diff(d)) if d == diff)) {
+                            wb.save_tab(ix, window, cx);
+                        }
+                        diff.update(cx, |d, cx| d.toggle_inline(window, cx));
+                    }
                 });
                 wb.add_tab(editor, None, title, false, window, cx);
                 if let Some(tab) = wb.tabs.last_mut() {
@@ -162,6 +173,12 @@ impl Workbench {
     /// Stage, unstage or revert one change from the diff editor (Revert asks first), then show what's left.
     fn diff_change(&mut self, diff: Entity<crate::diff_view::DiffView>, action: ChangeAction, path: PathBuf, change: bf_core::diff::LineChange, window: &mut Window, cx: &mut Context<Self>) {
         let Some(git) = self.scm.read(cx).git().cloned() else { return };
+        // Stage and Revert work on the file on disk: unsaved edits in the diff go there first.
+        if let Some(ix) = self.tabs.iter().position(|t| matches!(&t.page, Some(Page::Diff(d)) if *d == diff))
+            && self.tabs[ix].editor.read(cx).is_modified()
+        {
+            self.save_tab(ix, window, cx);
+        }
         let staged = action == ChangeAction::Unstage;
         let apply = move |_: &mut Self, window: &mut Window, cx: &mut Context<Self>| {
             let (g, p) = (git.clone(), path.clone());
@@ -592,6 +609,72 @@ mod tests {
         assert!(staged.contains("+line three") && !staged.contains("thirty-six"), "{staged}");
         let unstaged = git(&repo, &["diff", "--unified=0"]);
         assert!(unstaged.contains("+line thirty-six") && !unstaged.contains("line three"), "{unstaged}");
+        drop(guard);
+    }
+
+    /// The working-tree side of a diff is the file's own text (spacer rows keep the sides aligned) and can
+    /// be edited: the diff follows, the file's open tab gets the edit, and saving the diff tab writes it.
+    #[gpui::test]
+    fn the_diff_editor_edits_the_working_tree(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "diff-edit");
+        let repo = guard.dir.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q", "-b", "main"]);
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+            git(&repo, &["config", k, v]);
+        }
+        let file = repo.join("A.cs");
+        std::fs::write(&file, "one\ntwo\nthree\n").unwrap();
+        git(&repo, &["add", "."]);
+        git(&repo, &["commit", "-qm", "first"]);
+        std::fs::write(&file, "one\nTWO\nthree\nfour\n").unwrap();
+
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(repo.clone(), window, cx);
+            wb.open_file(file.clone(), None, window, cx);
+        });
+        cx.run_until_parked();
+        let file_editor = wb.update(cx, |wb, _| wb.active_editor().unwrap());
+        let change = bf_core::git::FileChange { path: file.clone(), orig: None, index: '.', worktree: 'M', untracked: false, conflict: false };
+        wb.update_in(cx, |wb, window, cx| wb.open_diff(change, false, window, cx));
+        let mut found = None;
+        for _ in 0..100 {
+            cx.run_until_parked();
+            found = wb.update(cx, |wb, _| {
+                wb.tabs.iter().enumerate().find_map(|(ix, t)| match &t.page {
+                    Some(Page::Diff(d)) => Some((ix, d.clone(), t.editor.clone())),
+                    _ => None,
+                })
+            });
+            if found.as_ref().is_some_and(|(_, d, _)| d.read_with(cx, |d, cx| d.state_for_test(cx).0) == 2) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let (ix, diff, right) = found.expect("the diff tab opened");
+        assert_eq!(right.read_with(cx, |e, _| e.state.buffer.text()), "one\nTWO\nthree\nfour\n", "the file's own text, no filler lines");
+        assert_eq!(diff.read_with(cx, |d, cx| d.spacer_rows_for_test(cx)), (1, 0), "one spacer on the left, across from \"four\"");
+        assert!(!right.read_with(cx, |e, _| e.read_only));
+
+        // Undo the first change by typing on the right: one change left, the open tab has the edit.
+        right.update(cx, |e, cx| e.replace_text_minimal("one\ntwo\nthree\nfour\n", cx));
+        cx.run_until_parked();
+        assert_eq!(diff.read_with(cx, |d, cx| d.state_for_test(cx).0), 1);
+        assert_eq!(file_editor.read_with(cx, |e, _| e.state.buffer.text()), "one\ntwo\nthree\nfour\n");
+
+        // Ctrl+S on the diff tab writes the file; both views are saved.
+        wb.update_in(cx, |wb, window, cx| wb.save_tab(ix, window, cx));
+        cx.run_until_parked();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "one\ntwo\nthree\nfour\n");
+        assert!(!right.read_with(cx, |e, _| e.is_modified()));
+        assert!(!file_editor.read_with(cx, |e, _| e.is_modified()));
+
+        // Inline is read-only; back side by side the right is editable again.
+        wb.update_in(cx, |_, window, cx| diff.update(cx, |d, cx| d.toggle_inline(window, cx)));
+        assert!(right.read_with(cx, |e, _| e.read_only));
+        wb.update_in(cx, |_, window, cx| diff.update(cx, |d, cx| d.toggle_inline(window, cx)));
+        assert!(!right.read_with(cx, |e, _| e.read_only));
+        assert_eq!(right.read_with(cx, |e, _| e.state.buffer.text()), "one\ntwo\nthree\nfour\n");
         drop(guard);
     }
 

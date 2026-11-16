@@ -98,6 +98,14 @@ impl Tab {
         matches!(self.page, None | Some(Page::Merge(_)))
     }
 
+    /// The file saving the tab writes: its own, or the working-tree side of a diff being edited.
+    fn save_path(&self, cx: &App) -> Option<PathBuf> {
+        self.path.clone().or_else(|| match &self.page {
+            Some(Page::Diff(d)) => d.read(cx).editable_file().map(Path::to_path_buf),
+            _ => None,
+        })
+    }
+
     fn module_page(&self) -> Option<&str> {
         match &self.page {
             Some(Page::Module(id)) => Some(id),
