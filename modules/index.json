@@ -169,6 +169,23 @@
       ]
     },
     {
+      "id": "byteforge.lua",
+      "name": "Lua",
+      "version": "0.1.0",
+      "description": "Lua support: highlighting for .lua, .rockspec and .luacheckrc files (keywords, functions, locals, the standard library, strings and long strings, comments, numbers), a Lua file icon, \"Lua: Run File\" in a terminal, \"Lua: Check Syntax\" (goes to the error) and Format Document with StyLua. Runs files with lua, luajit or the interpreter in \"lua.interpreter\". Needs python3.",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
+      "category": "Languages",
+      "dir": "lua",
+      "files": [
+        "lua.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
       "id": "byteforge.resharper-format",
       "name": "ReSharper Formatter",
       "version": "1.0.0",

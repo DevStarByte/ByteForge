@@ -1,0 +1,62 @@
+{
+  // Lua for ByteForge: highlighting for .lua files, a Lua file icon, and commands to run a file, check its
+  // syntax and format it with StyLua.
+  "id": "byteforge.lua",
+  "name": "Lua",
+  "version": "0.1.0",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
+  "category": "Languages",
+  "description": "Lua support: highlighting for .lua, .rockspec and .luacheckrc files (keywords, functions, locals, the standard library, strings and long strings, comments, numbers), a Lua file icon, \"Lua: Run File\" in a terminal, \"Lua: Check Syntax\" (goes to the error) and Format Document with StyLua. Runs files with lua, luajit or the interpreter in \"lua.interpreter\". Needs python3.",
+  "command": "python3",
+  "args": ["lua.py"],
+  "fileIcons": [
+    {
+      "icon": "M6,2H14L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2Z M14,3.5V8H18.5Z M11,10A4,4 0 1,0 11,18A4,4 0 1,0 11,10Z M12.6,11.2A1.3,1.3 0 1,0 12.6,13.8A1.3,1.3 0 1,0 12.6,11.2Z M16.8,8.2A1.1,1.1 0 1,0 16.8,10.4A1.1,1.1 0 1,0 16.8,8.2Z",
+      "color": "#5b7fd6",
+      "extensions": ["lua", "rockspec"],
+      "names": [".luacheckrc", ".luarc.json"]
+    }
+  ],
+  "languages": [
+    {
+      "id": "lua",
+      "name": "Lua",
+      "extensions": ["lua", "rockspec"],
+      "names": [".luacheckrc"],
+      "lineComment": "--",
+      // Applied per line; where matches overlap, the earlier rule wins. Comments and strings come first so
+      // nothing inside them is highlighted as code. Long strings and block comments ([[ ]], --[[ ]]) are
+      // recognized on the line they start on.
+      "rules": [
+        {"match": "^(?:[^\"'\\[-]|\"(?:[^\"\\\\]|\\\\.)*\"|'(?:[^'\\\\]|\\\\.)*'|\\[[^\\[=]|-[^-])*?(--\\[=*\\[.*?(?:\\]=*\\]|$))", "group": 1, "token": "comment"},
+        {"match": "^(?:[^\"'\\[-]|\"(?:[^\"\\\\]|\\\\.)*\"|'(?:[^'\\\\]|\\\\.)*'|\\[[^\\[=]|-[^-])*(--(?:$|[^\\[]|\\[(?:$|[^\\[=])).*)$", "group": 1, "token": "comment"},
+        {"match": "\\[=*\\[.*?(?:\\]=*\\]|$)", "token": "string"},
+        {"match": "\\\\(?:x[0-9A-Fa-f]{2}|u\\{[0-9A-Fa-f]+\\}|z|\\d{1,3}|.)", "token": "string - escape character"},
+        {"match": "\"(?:[^\"\\\\]|\\\\.)*\"?", "token": "string"},
+        {"match": "'(?:[^'\\\\]|\\\\.)*'?", "token": "string"},
+        {"match": "::[A-Za-z_]\\w*::", "token": "label name"},
+        {"match": "\\b(if|then|else|elseif|end|for|while|repeat|until|do|break|return|goto|in)\\b", "group": 1, "token": "keyword - control"},
+        {"match": "\\b(local|function|and|or|not|nil|true|false)\\b", "group": 1, "token": "keyword"},
+        {"match": "<(const|close)>", "group": 1, "token": "keyword"},
+        {"match": "\\bself\\b", "token": "parameter name"},
+        {"match": "\\bfunction\\s+(?:[A-Za-z_]\\w*[.:])*([A-Za-z_]\\w*)", "group": 1, "token": "method name"},
+        {"match": "\\bfunction\\s+([A-Za-z_]\\w*)[.:]", "group": 1, "token": "class name"},
+        {"match": "\\bfunction\\s*(?:[\\w.:]+)?\\s*\\(([^)]*)\\)", "group": 1, "token": "parameter name"},
+        {"match": "\\blocal\\s+((?:[A-Za-z_]\\w*\\s*,\\s*)*[A-Za-z_]\\w*)", "group": 1, "token": "local name"},
+        {"match": "\\bfor\\s+([A-Za-z_][\\w\\s,]*?)\\s*(?:=|\\bin\\b)", "group": 1, "token": "local name"},
+        {"match": "\\b(string|table|math|io|os|coroutine|debug|utf8|package|bit32|jit|ffi)\\b", "group": 1, "token": "namespace name"},
+        {"match": "\\b(print|pairs|ipairs|next|type|tostring|tonumber|require|assert|error|pcall|xpcall|select|rawget|rawset|rawequal|rawlen|setmetatable|getmetatable|unpack|load|loadfile|dofile|collectgarbage)\\b", "group": 1, "token": "method name"},
+        {"match": "\\b(_G|_ENV|_VERSION|arg)\\b", "group": 1, "token": "local name"},
+        {"match": "\\b(__\\w+)\\b", "group": 1, "token": "property name"},
+        {"match": "[.:]([A-Za-z_]\\w*)\\s*[(\"'{]", "group": 1, "token": "method name"},
+        {"match": "\\b([A-Za-z_]\\w*)\\s*[(\"'{]", "group": 1, "token": "method name"},
+        {"match": "\\.([A-Za-z_]\\w*)", "group": 1, "token": "property name"},
+        {"match": "([A-Za-z_]\\w*)\\s*=[^=]", "group": 1, "token": "property name"},
+        {"match": "\\b0[xX][0-9A-Fa-f]*(?:\\.[0-9A-Fa-f]*)?(?:[pP][+-]?\\d+)?\\b|\\b\\d+(?:\\.\\d*)?(?:[eE][+-]?\\d+)?\\b|\\.\\d+(?:[eE][+-]?\\d+)?\\b", "token": "number"},
+        {"match": "\\.\\.\\.?|==|~=|<=|>=|<<|>>|//|[+\\-*/%^#&~|<>=]", "token": "operator"},
+        {"match": "[{}()\\[\\],;:.]", "token": "punctuation"}
+      ]
+    }
+  ]
+}
