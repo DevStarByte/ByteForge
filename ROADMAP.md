@@ -17,8 +17,9 @@ the git history.
       - A deleted secret's row disappears; Shift+F5 during a test run leaves no test "running".
       - Refactorings never applied in tests: Extract Local Function, Introduce Parameter variants, Sort Usings;
         and all of them with `"csharp.server": "roslyn"`.
-      Known, not fixed yet: Revert Change on an untracked file empties it instead of deleting it; saving secrets
-      drops comments in secrets.json; Run All stops at the first test project that fails to build.
+      Fixed since: Revert Change on an untracked file deletes it (and says so first); saving a secret edits only
+      that key, so comments and nesting in secrets.json stay; Run All goes on past a test project that doesn't
+      build (Shift+F5 ends the queue); every breadcrumb opens a dropdown (folder entries, siblings, symbols).
 - [ ] Branch picker: clicking a branch doesn't switch to it. Tests now click the real row and the branch switches;
       a switch git refuses (local changes in the way) asks, with "Stash Changes and Switch", and a switch while git
       is busy says so in the Output. Still to confirm in the app; if it happens again, the Output says why.
