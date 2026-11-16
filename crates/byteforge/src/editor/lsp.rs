@@ -32,6 +32,11 @@ impl EditorView {
         }));
     }
 
+    #[cfg(test)]
+    pub fn set_outline_for_test(&mut self, outline: Vec<bf_lsp::Symbol>) {
+        self.outline = outline;
+    }
+
     /// The symbols around the caret, outermost first (namespace, type, member): `(name, kind, where)`.
     pub fn symbol_path(&self) -> Vec<(String, &'static str, Point)> {
         let caret = self.lsp_position(self.state.caret());
@@ -449,11 +454,19 @@ impl EditorView {
         let start = self.state.buffer.char_to_point(prefix);
         let end = self.state.buffer.char_to_point(old.len() - suffix);
         let inserted: String = new[prefix..new.len() - suffix].iter().collect();
+        // A caret after the change moves with the text (an edit before it, e.g. typed in the file's other
+        // view, shifts it); one inside it (a formatter rewrote around it) keeps its line and column.
         let caret = self.state.caret();
+        let caret_char = self.state.buffer.point_to_char(caret);
+        let after = (caret_char >= old.len() - suffix).then(|| new.len() - suffix + (caret_char - (old.len() - suffix)));
         self.state.buffer.undo_stack().begin_group();
         self.state.buffer.replace(start, end, &inserted);
         self.state.buffer.undo_stack().end_group();
-        self.state.set_caret(self.state.buffer.clamp(caret), false);
+        let caret = match after {
+            Some(c) => self.state.buffer.char_to_point(c),
+            None => self.state.buffer.clamp(caret),
+        };
+        self.state.set_caret(caret, false);
         self.after_edit(cx);
     }
 

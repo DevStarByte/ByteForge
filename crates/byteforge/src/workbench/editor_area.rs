@@ -34,6 +34,7 @@ impl Workbench {
         let split = self.is_split();
         let tabs_at_bottom = lay.tabs_below_content();
         let show_tabs = lay.editor.iter().any(|p| p == "tabs");
+        let show_crumbs = lay.editor.iter().any(|p| p == "breadcrumbs");
         let drop_color = t.c("focusBorder");
         let mut content: Option<gpui::AnyElement> = Some(if split {
             // Two groups side by side, each with its own tab strip.
@@ -43,9 +44,12 @@ impl Workbench {
                     let shown = self.visible[g].and_then(|i| self.tabs.get(i)).map(|t| (t.editor.clone(), t.page.clone()));
                     let editor: Option<gpui::AnyElement> = shown.map(|(editor, page)| self.render_page(page, editor, cx));
                     let tabs = show_tabs.then(|| self.render_tabs(tabs_at_bottom, g, cx));
+                    // Each group has its own breadcrumbs, of the file it shows, right above its editor.
+                    let crumbs = if show_crumbs { self.render_breadcrumbs(self.visible[g], g, cx).map(|c| c.into_any_element()) } else { None };
                     // A tab dropped on a group's editor goes to the end of that group.
                     let body = div()
                         .id(SharedString::from(format!("editor-group-body-{g}")))
+                        .debug_selector(|| format!("editor-group-body-{g}"))
                         .flex_1()
                         .min_h_0()
                         .children(editor)
@@ -61,7 +65,7 @@ impl Workbench {
                         .when(g == 1, |d| d.border_l_1().border_color(border))
                         .map(|d| {
                             let tabs = tabs.map(|t| t.into_any_element());
-                            if tabs_at_bottom { d.child(body).children(tabs) } else { d.children(tabs).child(body) }
+                            if tabs_at_bottom { d.children(crumbs).child(body).children(tabs) } else { d.children(tabs).children(crumbs).child(body) }
                         })
                         .on_mouse_down(MouseButton::Left, cx.listener(move |wb, _, w, cx| {
                             if wb.focus_group != g {
@@ -82,7 +86,7 @@ impl Workbench {
         for part in &lay.editor {
             match part.as_str() {
                 "tabs" if !self.tabs.is_empty() && !split => col = col.child(self.render_tabs(tabs_at_bottom, 0, cx)),
-                "breadcrumbs" => col = col.children(self.render_breadcrumbs(cx)),
+                "breadcrumbs" if !split => col = col.children(self.render_breadcrumbs(self.active, 0, cx)),
                 "content" => {
                     if let Some(c) = content.take() {
                         col = col.child(self.content_drop_zone(split, c, cx));
@@ -103,7 +107,7 @@ impl Workbench {
 
     /// The editor content; with one group, a tab dropped on it opens a second group on the right.
     fn content_drop_zone(&self, split: bool, content: gpui::AnyElement, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let zone = div().id("editor-content").flex_1().min_h_0().child(content);
+        let zone = div().id("editor-content").debug_selector(|| "editor-content".into()).flex_1().min_h_0().child(content);
         if split {
             return zone.into_any_element();
         }
@@ -177,6 +181,7 @@ impl Workbench {
                 let border = t.edges("tab.borderThickness", 0.0);
                 div()
                     .id(SharedString::from(format!("tab-{i}")))
+                    .debug_selector(|| format!("tab-{group_ix}-{}", tab.title))
                     .group(SharedString::from(format!("tab-{i}")))
                     .relative()
                     .h_full()
@@ -221,6 +226,7 @@ impl Workbench {
             .collect();
         div()
             .id(SharedString::from(format!("tab-strip-{group}")))
+            .debug_selector(|| format!("tab-strip-{group}"))
             .flex_none()
             .h(t.m("tab.height", 35.0))
             .w_full()
@@ -253,9 +259,10 @@ impl Workbench {
             })
     }
 
-    pub(super) fn render_breadcrumbs(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
+    /// The breadcrumbs of tab `ix` (the one `group` shows).
+    pub(super) fn render_breadcrumbs(&self, ix: Option<usize>, group: usize, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
         let t = Theme::global(cx);
-        let tab = self.active.and_then(|i| self.tabs.get(i)).filter(|tab| tab.is_document())?;
+        let tab = ix.and_then(|i| self.tabs.get(i)).filter(|tab| tab.is_document())?;
         let path = tab.path.clone()?;
         let editor = tab.editor.clone();
         let symbols = editor.read(cx).symbol_path();
@@ -280,7 +287,8 @@ impl Workbench {
                 [
                     icon("chevronRight", icon_size, fg).into_any_element(),
                     div()
-                        .id(SharedString::from(format!("crumb-symbol-{i}")))
+                        .id(SharedString::from(format!("crumb-symbol-{group}-{i}")))
+                        .debug_selector(|| format!("crumb-{group}-{name}"))
                         .px(px(2.))
                         .rounded(px(3.))
                         .cursor_pointer()
