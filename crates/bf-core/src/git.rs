@@ -375,11 +375,19 @@ impl Git {
     pub fn revert_change(&self, path: &Path, change: &crate::diff::LineChange) -> anyhow::Result<()> {
         let rel = self.rel(path);
         let new = std::fs::read_to_string(path)?;
-        let mut old = self.raw_content(&format!(":{rel}")).or_else(|| self.raw_content(&format!("HEAD:{rel}"))).unwrap_or_default();
+        let tracked = self.raw_content(&format!(":{rel}")).or_else(|| self.raw_content(&format!("HEAD:{rel}")));
+        let untracked = tracked.is_none();
+        let mut old = tracked.unwrap_or_default();
         if new.contains("\r\n") && !old.contains("\r\n") {
             old = old.replace('\n', "\r\n");
         }
-        std::fs::write(path, crate::diff::revert_change(&old, &new, change))?;
+        let reverted = crate::diff::revert_change(&old, &new, change);
+        // git has no version of an untracked file: reverting all of it means the file goes, not an empty file.
+        if untracked && reverted.is_empty() {
+            std::fs::remove_file(path)?;
+        } else {
+            std::fs::write(path, reverted)?;
+        }
         Ok(())
     }
 
@@ -969,6 +977,12 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         repo.revert_change(&multi, &d.changes[0]).unwrap();
         assert_eq!(std::fs::read_to_string(&multi).unwrap(), "one\ntwo\nthree\nfour\nfive\nsix\n", "TWO is reverted, six stays");
         std::fs::write(&multi, "one\ntwo\nthree\nfour\nfive\n").unwrap();
+        // An untracked file is one change; reverting it deletes the file rather than emptying it.
+        let fresh = repo.root().join("Fresh.cs");
+        std::fs::write(&fresh, "class Fresh {}\n").unwrap();
+        let (old, new) = repo.diff_texts_of(&fresh, false);
+        repo.revert_change(&fresh, &crate::diff::compare(&old, &new).changes[0]).unwrap();
+        assert!(!fresh.exists(), "the untracked file is gone");
         run(repo.root(), &["checkout", "-q", "-"]).unwrap();
 
         // A real merge conflict, as git writes it: found and resolved.

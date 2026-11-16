@@ -175,6 +175,7 @@ impl Workbench {
     fn diff_change(&mut self, diff: Entity<crate::diff_view::DiffView>, action: ChangeAction, path: PathBuf, change: bf_core::diff::LineChange, window: &mut Window, cx: &mut Context<Self>) {
         let Some(git) = self.scm.read(cx).git().cloned() else { return };
         let staged = action == ChangeAction::Unstage;
+        let untracked = self.scm.read(cx).status().change_for(&path).is_some_and(|c| c.untracked);
         let apply = move |wb: &mut Self, window: &mut Window, cx: &mut Context<Self>| {
             // Stage and Revert work on the file on disk, and the change is one of the text the diff shows:
             // unsaved edits (in the diff, or in the file's tab the diff took its text from) go there first.
@@ -213,7 +214,8 @@ impl Workbench {
         if action != ChangeAction::Revert {
             return apply(self, window, cx);
         }
-        let rx = window.prompt(PromptLevel::Warning, "Revert this change?", Some("The lines go back to what git has; what you changed in them is lost."), &["Revert", "Cancel"], cx);
+        let detail = if untracked { "git has no version of this file, so reverting deletes it." } else { "The lines go back to what git has; what you changed in them is lost." };
+        let rx = window.prompt(PromptLevel::Warning, "Revert this change?", Some(detail), &["Revert", "Cancel"], cx);
         cx.spawn_in(window, async move |this, cx| {
             if let Ok(0) = rx.await {
                 let _ = this.update_in(cx, apply);
