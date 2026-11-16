@@ -14,6 +14,9 @@ pub(crate) struct Entry {
     pub id: u64,
     pub edits: Vec<Edit>,
     time: Instant,
+    /// An explicit group (a command, or an edit mirrored from the file's other view): typing after it
+    /// is a step of its own, so undo doesn't take both.
+    grouped: bool,
 }
 
 /// Undo history with typing coalescing and explicit groups for multi-edit commands.
@@ -66,7 +69,7 @@ impl UndoStack {
         if self.group_depth > 0 {
             if !self.group_open {
                 let id = self.new_id();
-                self.undo.push(Entry { id, edits: Vec::new(), time: Instant::now() });
+                self.undo.push(Entry { id, edits: Vec::new(), time: Instant::now(), grouped: true });
                 self.group_open = true;
             }
             self.undo.last_mut().expect("group entry").edits.push(edit);
@@ -75,6 +78,7 @@ impl UndoStack {
 
         let id = self.new_id();
         if let Some(last) = self.undo.last_mut()
+            && !last.grouped
             && last.edits.len() == 1
             && last.time.elapsed() < MERGE_WINDOW
             && let Some(merged) = merge(&last.edits[0], &edit)
@@ -85,7 +89,7 @@ impl UndoStack {
             return;
         }
 
-        self.undo.push(Entry { id, edits: vec![edit], time: Instant::now() });
+        self.undo.push(Entry { id, edits: vec![edit], time: Instant::now(), grouped: false });
         if self.undo.len() > MAX_ENTRIES {
             self.undo.remove(0);
         }
