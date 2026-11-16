@@ -281,6 +281,8 @@ pub struct EditorView {
     outline_task: Option<Task<()>>,
     /// Merge conflicts in the text.
     conflicts: Vec<bf_core::conflicts::Conflict>,
+    /// Where Accept Current / Incoming / Both are drawn on the conflicts' `<<<<<<<` lines, for clicks.
+    conflict_note_hits: Vec<merge::NoteHit>,
     /// The word a hover request is waiting for.
     hover_pending: Option<(Point, Point)>,
     hover_task: Option<Task<()>>,
@@ -410,6 +412,7 @@ impl EditorView {
             context_menu: None,
             blame: Default::default(),
             conflicts: Vec::new(),
+            conflict_note_hits: Vec::new(),
             outline: Vec::new(),
             outline_task: None,
             hover_pending: None,

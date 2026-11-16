@@ -387,7 +387,9 @@ impl EditorView {
         self.completion = None;
         self.context_menu = None;
         self.clear_hover(cx);
-        self.action_menu = Some(ActionMenu { at: start, items: None, selected: 0, mode, empty: None });
+        // The conflict's entries show (and work) at once; the server's join them when it answers.
+        let items = (!conflict.is_empty()).then(|| conflict.clone());
+        self.action_menu = Some(ActionMenu { at: start, items, selected: 0, mode, empty: None });
         let rx = lsp.code_actions(&path, range, &diagnostics);
         self.action_task = Some(cx.spawn(async move |this, cx| {
             let result = rx.recv_async().await;

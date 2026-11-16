@@ -166,10 +166,15 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &GitToggleBlameGutter, _, cx| {
                 // Per editor: the column for the file you're looking at.
                 if let Some(editor) = wb.active_editor() {
-                    editor.update(cx, |e, cx| {
+                    let shown = editor.update(cx, |e, cx| {
                         let on = !e.blame_gutter();
                         e.set_blame_gutter(on, cx);
+                        !on || e.blame_gutter()
                     });
+                    // Turned on, but there's nothing to blame (a diff, or a file outside the repository).
+                    if !shown {
+                        wb.log("Blame Gutter: this isn't a file in a git repository.");
+                    }
                 }
             }))
             .on_action(cx.listener(|wb, _: &GitOpenChanges, w, cx| {

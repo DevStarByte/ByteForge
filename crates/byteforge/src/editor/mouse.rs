@@ -40,6 +40,15 @@ impl EditorView {
             self.drag = if vertical { DragMode::VScroll(y) } else { DragMode::HScroll(x) };
             return;
         }
+        // "Accept Current · Accept Incoming · Accept Both" after a conflict's first line: clickable, like VS Code's.
+        if e.click_count == 1
+            && !e.modifiers.shift
+            && let Some((line, how)) = self.conflict_note_at(x, y)
+        {
+            self.state.set_caret(Point::new(line, 0), false);
+            self.accept_conflict(how, cx);
+            return;
+        }
         let p = self.point_at(x, y);
         if self.detect_links
             && (self.read_only || e.modifiers.secondary())

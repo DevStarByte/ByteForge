@@ -14,6 +14,20 @@ pub(super) const ACCEPT_KINDS: [(&str, &str, Resolution); 3] = [
     ("byteforge.merge.both", "Accept Both Changes", Resolution::Both),
 ];
 
+/// An action of a conflict's note: its line, where it is drawn (x from the start of the line), and what it does.
+pub(super) type NoteHit = (usize, f32, f32, Resolution);
+
+/// Where the actions are in the shaped `<<<<<<<` line `line` (the note is at its end).
+pub(super) fn note_hits(line: usize, shaped: &gpui::ShapedLine) -> Vec<NoteHit> {
+    [("Accept Current", Resolution::Current), ("Accept Incoming", Resolution::Incoming), ("Accept Both", Resolution::Both)]
+        .into_iter()
+        .filter_map(|(label, how)| {
+            let at = shaped.text.rfind(label)?;
+            Some((line, f32::from(shaped.x_for_index(at)), f32::from(shaped.x_for_index(at + label.len())), how))
+        })
+        .collect()
+}
+
 /// Blame of the open file and the task refreshing it.
 #[derive(Default)]
 pub(crate) struct BlameState {
@@ -159,6 +173,28 @@ impl EditorView {
         (self.conflicts.len(), self.conflicts.first().map(|c| (c.current_label.clone(), c.incoming_label.clone())))
     }
 
+    /// The conflict action drawn at `(x, y)` (a `<<<<<<<` line's "Accept Current" and so on), with its line.
+    pub(super) fn conflict_note_at(&self, x: f32, y: f32) -> Option<(usize, Resolution)> {
+        let l = &self.layout;
+        if self.read_only || self.conflict_note_hits.is_empty() || x < l.text_left {
+            return None;
+        }
+        let row = (((y - l.top) + self.scroll.1) / l.line_height.max(1.0)).floor().max(0.0) as usize;
+        let line = self.point_at(x, y).line;
+        // Only the line's first row: a wrapped line's note is cut off after it.
+        if row != self.row_of(line) {
+            return None;
+        }
+        let offset = x - (l.text_left - self.scroll.0);
+        let visible = |end: f32| self.wrap.as_ref().and_then(|w| w.cols).is_none_or(|cols| end <= cols as f32 * l.char_width);
+        self.conflict_note_hits.iter().find(|h| h.0 == line && h.1 <= offset && offset < h.2 && visible(h.2)).map(|h| (line, h.3))
+    }
+
+    /// Whether the caret is inside a merge conflict.
+    pub fn caret_in_conflict(&self) -> bool {
+        self.conflict_at_caret().is_some()
+    }
+
     /// The conflict around the caret.
     fn conflict_at_caret(&self) -> Option<&Conflict> {
         let line = self.state.caret().line;
@@ -256,5 +292,15 @@ impl EditorView {
             });
         })
         .detach();
+    }
+}
+
+#[cfg(test)]
+impl EditorView {
+    /// Where a conflict note's action is drawn (window coordinates; the first one shown), for tests.
+    pub(crate) fn conflict_note_point_for_test(&self, how: Resolution) -> Option<(f32, f32)> {
+        let h = self.conflict_note_hits.iter().find(|h| h.3 == how)?;
+        let l = &self.layout;
+        Some((l.text_left - self.scroll.0 + (h.1 + h.2) / 2.0, l.top + (self.row_of(h.0) as f32 + 0.5) * l.line_height - self.scroll.1))
     }
 }

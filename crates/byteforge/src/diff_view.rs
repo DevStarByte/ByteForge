@@ -58,6 +58,8 @@ pub struct DiffView {
     current: Option<usize>,
     /// What the sides are ("HEAD", "Working Tree", a commit).
     labels: (String, String),
+    /// The file compared (even when it no longer exists).
+    path: PathBuf,
     /// The file to open, when the new side is the working tree or a file that exists.
     file: Option<PathBuf>,
     language: Option<Language>,
@@ -67,6 +69,8 @@ pub struct DiffView {
     /// The texts compared (`new` follows the edits of the working-tree side).
     old: String,
     new: String,
+    /// The file the working-tree side is has CRLF line endings (the texts compared have `\n`s).
+    crlf: bool,
     /// The sides as their own lines with spacers (side by side).
     left_layout: SideLayout,
     right_layout: SideLayout,
@@ -77,7 +81,7 @@ impl EventEmitter<DiffEvent> for DiffView {}
 
 impl DiffView {
     /// `right` becomes the new side (the tab keeps it as its editor).
-    pub fn new(right: Entity<EditorView>, language: Option<Language>, cx: &mut Context<Self>) -> Self {
+    pub fn new(right: Entity<EditorView>, path: PathBuf, language: Option<Language>, cx: &mut Context<Self>) -> Self {
         let link: ScrollLink = Default::default();
         let left = cx.new(|cx| EditorView::new("", None, cx));
         for editor in [&left, &right] {
@@ -100,6 +104,7 @@ impl DiffView {
         Self {
             right,
             left,
+            path,
             diff: Diff::default(),
             inline: false,
             current: None,
@@ -109,6 +114,7 @@ impl DiffView {
             kind: DiffKind::ReadOnly,
             collapsed: false,
             old: String::new(),
+            crlf: false,
             new: String::new(),
             left_layout: SideLayout::default(),
             right_layout: SideLayout::default(),
@@ -119,6 +125,10 @@ impl DiffView {
     /// The working-tree side can be edited (side by side, in a working-tree diff of a file that exists).
     fn editable(&self) -> bool {
         self.kind == DiffKind::WorkingTree && self.file.is_some() && !self.inline
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 
     /// The file the new side is, while it can be edited (saving the tab writes it).
@@ -134,6 +144,8 @@ impl DiffView {
         self.new = if keep_edits { self.right.read(cx).state.buffer.text() } else { new.to_owned() };
         self.diff = bf_core::diff::compare(&self.old, &self.new);
         self.labels = labels;
+        // Saving the working-tree side writes the file's own line endings.
+        self.crlf = kind == DiffKind::WorkingTree && file.as_ref().is_some_and(|f| std::fs::read(f).is_ok_and(|b| b.windows(2).any(|w| w == b"\r\n")));
         self.file = file;
         self.kind = kind;
         self.current = self.current.filter(|&c| c < self.diff.hunks.len());
@@ -194,6 +206,10 @@ impl DiffView {
                     show_side(e, layout, cx);
                     e.folds.set_folded(folds);
                 });
+            }
+            if editable {
+                let ending = if self.crlf { bf_text::LineEnding::CrLf } else { bf_text::LineEnding::Lf };
+                self.right.update(cx, |e, _| e.state.buffer.set_line_ending(ending));
             }
         }
         cx.notify();
@@ -327,6 +343,7 @@ impl Render for DiffView {
         let button = |id: &'static str, glyph: &'static str, tip: &'static str| {
             div()
                 .id(id)
+                .debug_selector(|| id.into())
                 .p(px(3.))
                 .rounded(px(4.))
                 .cursor_pointer()
@@ -335,7 +352,7 @@ impl Render for DiffView {
                 .tooltip(crate::workbench::tooltip(tip))
         };
         let text_button = |id: &'static str, label: &'static str| {
-            div().id(id).px(px(6.)).py(px(1.)).rounded(px(4.)).cursor_pointer().hover(move |s| s.bg(hover)).child(label)
+            div().id(id).debug_selector(|| id.into()).px(px(6.)).py(px(1.)).rounded(px(4.)).cursor_pointer().hover(move |s| s.bg(hover)).child(label)
         };
         let position = match (self.current, n) {
             (_, 0) => "No changes".to_owned(),
