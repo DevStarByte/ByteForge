@@ -267,7 +267,7 @@ impl Workbench {
         let name = project.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let secrets = templates::read_secrets(file);
         let button = |id: &'static str, label: &'static str| {
-            div().id(id).px(px(10.)).py(px(4.)).rounded(px(5.)).border_1().border_color(rule).cursor_pointer().hover(move |s| s.bg(hover)).text_size(px(12.)).child(label)
+            div().id(id).debug_selector(move || id.into()).px(px(10.)).py(px(4.)).rounded(px(5.)).border_1().border_color(rule).cursor_pointer().hover(move |s| s.bg(hover)).text_size(px(12.)).child(label)
         };
         let (add_file, show_file, json_file) = (file.to_path_buf(), file.to_path_buf(), file.to_path_buf());
         let header = div()
@@ -310,6 +310,7 @@ impl Workbench {
                     let masked = if shown { value.clone() } else if value.is_empty() { String::new() } else { "\u{2022}".repeat(value.chars().count().clamp(6, 12)) };
                     div()
                         .id(SharedString::from(format!("secret-{i}")))
+                        .debug_selector(|| format!("secret-row-{key}"))
                         .group("secret-row")
                         .flex()
                         .items_center()
@@ -323,6 +324,7 @@ impl Workbench {
                         .child(
                             div()
                                 .id(SharedString::from(format!("secret-edit-{i}")))
+                                .debug_selector(|| format!("secret-edit-{key}"))
                                 .p(px(3.))
                                 .rounded(px(4.))
                                 .cursor_pointer()
@@ -334,6 +336,7 @@ impl Workbench {
                         .child(
                             div()
                                 .id(SharedString::from(format!("secret-delete-{i}")))
+                                .debug_selector(|| format!("secret-delete-{key}"))
                                 .p(px(3.))
                                 .rounded(px(4.))
                                 .cursor_pointer()
@@ -378,5 +381,147 @@ impl Workbench {
             let first = profiles.first()?.name.clone();
             Some(self.chosen_launch_profile(&project).unwrap_or(first))
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::workbench::settings_page::view_tests::workbench;
+
+    /// A secrets.json under a test-only id (the real secrets folder is in the user's home); its folder is
+    /// removed on drop.
+    struct SecretsFile(PathBuf);
+
+    impl Drop for SecretsFile {
+        fn drop(&mut self) {
+            if let Some(dir) = self.0.parent() {
+                let _ = std::fs::remove_dir_all(dir);
+            }
+        }
+    }
+
+    fn app(dir: &Path, secrets_id: Option<&str>) -> PathBuf {
+        let project = dir.join("App");
+        std::fs::create_dir_all(&project).unwrap();
+        let id = secrets_id.map(|id| format!("\n    <UserSecretsId>{id}</UserSecretsId>")).unwrap_or_default();
+        let csproj = format!("<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <OutputType>Exe</OutputType>\n    <TargetFramework>net11.0</TargetFramework>{id}\n  </PropertyGroup>\n</Project>\n");
+        std::fs::write(project.join("App.csproj"), csproj).unwrap();
+        std::fs::write(project.join("Program.cs"), "System.Console.WriteLine(\"hi\");\n").unwrap();
+        project
+    }
+
+    fn selector(name: String) -> &'static str {
+        Box::leak(name.into_boxed_str())
+    }
+
+    fn click(cx: &mut gpui::VisualTestContext, name: &str) {
+        cx.run_until_parked();
+        let bounds = cx.debug_bounds(selector(name.to_owned())).unwrap_or_else(|| panic!("{name} is drawn"));
+        cx.simulate_click(bounds.center(), gpui::Modifiers::none());
+        cx.run_until_parked();
+    }
+
+    /// Types into the open prompt and presses Enter.
+    fn answer(cx: &mut gpui::VisualTestContext, text: &str) {
+        cx.simulate_input(text);
+        cx.simulate_keystrokes("enter");
+        cx.run_until_parked();
+    }
+
+    fn shown(cx: &mut gpui::VisualTestContext, keys: &[&str]) -> Vec<bool> {
+        cx.run_until_parked();
+        keys.iter().map(|k| cx.debug_bounds(selector(format!("secret-row-{k}"))).is_some()).collect()
+    }
+
+    /// Manage User Secrets lists the secrets (nested ones as Section:Key) and adds, changes and deletes
+    /// them through the page's buttons, writing secrets.json.
+    #[gpui::test]
+    fn the_secrets_page_lists_adds_edits_and_deletes(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "secrets");
+        let id = format!("byteforge-test-{}", std::process::id());
+        let file = SecretsFile(templates::user_secrets_file(&id).unwrap());
+        std::fs::create_dir_all(file.0.parent().unwrap()).unwrap();
+        std::fs::write(&file.0, "{\n  // local only\n  \"Db\": { \"Password\": \"hunter2\" },\n  \"Token\": \"t\",\n}\n").unwrap();
+        let ws = guard.dir.join("ws");
+        let project = app(&ws, Some(&id));
+
+        wb.update_in(cx, |wb, window, cx| wb.open_folder(ws.clone(), window, cx));
+        cx.run_until_parked();
+        wb.update_in(cx, |wb, window, cx| wb.open_file(project.join("Program.cs"), None, window, cx));
+        cx.run_until_parked();
+        cx.dispatch_action(ManageUserSecrets);
+        cx.run_until_parked();
+        wb.read_with(cx, |wb, cx| {
+            let tabs: Vec<_> = wb.tabs.iter().map(|t| (t.title.clone(), t.page.is_some())).collect();
+            let page = wb.active.and_then(|ix| wb.tabs[ix].page.clone());
+            assert!(matches!(page, Some(Page::Secrets { .. })), "active {:?} of {tabs:?}; output:\n{}", wb.active, wb.output.read(cx).state.buffer.text());
+        });
+        assert_eq!(shown(cx, &["Db:Password", "Token"]), [true, true]);
+        let read = || templates::read_secrets(&file.0).unwrap();
+
+        // Add Secret: "Name = value" (the value may contain '=').
+        click(cx, "secret-add");
+        answer(cx, "ConnectionStrings:Default = Server=x;Database=Shop");
+        assert!(read().contains(&("ConnectionStrings:Default".into(), "Server=x;Database=Shop".into())), "{:?}", read());
+        assert_eq!(shown(cx, &["ConnectionStrings:Default"]), [true]);
+
+        // The pencil changes a value (the prompt starts with the old one), also to an empty one.
+        click(cx, "secret-edit-Token");
+        cx.simulate_keystrokes("backspace");
+        answer(cx, "");
+        assert!(read().contains(&("Token".into(), String::new())), "{:?}", read());
+        assert!(wb.read_with(cx, |wb, _| wb.palette.is_none()));
+        click(cx, "secret-edit-Token");
+        answer(cx, "new-token");
+        assert!(read().contains(&("Token".into(), "new-token".into())), "{:?}", read());
+
+        // The trash can asks, then deletes.
+        click(cx, "secret-delete-Db:Password");
+        cx.simulate_prompt_answer("Delete");
+        cx.run_until_parked();
+        assert_eq!(read().iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>(), ["Token", "ConnectionStrings:Default"]);
+        // (Not asserted on the drawing: GPUI's test frames never forget a debug selector once drawn.)
+
+        // Show Values toggles the masking.
+        click(cx, "secret-show");
+        assert!(wb.read_with(cx, |wb, _| wb.secrets_shown.contains(&file.0)));
+        drop(guard);
+    }
+
+    /// A project without a UserSecretsId gets one from `dotnet user-secrets init`, then the (empty) page
+    /// opens and the first secret creates secrets.json. Skips without the .NET SDK.
+    #[gpui::test]
+    fn a_project_without_secrets_is_initialized(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "secrets-init");
+        let ws = guard.dir.join("ws");
+        let project = app(&ws, None);
+        let csproj = project.join("App.csproj");
+        wb.update_in(cx, |wb, window, cx| wb.open_folder(ws.clone(), window, cx));
+        cx.run_until_parked();
+        wb.update_in(cx, |wb, window, cx| wb.open_file(project.join("Program.cs"), None, window, cx));
+        cx.run_until_parked();
+        cx.dispatch_action(ManageUserSecrets);
+        let mut id = None;
+        for _ in 0..300 {
+            cx.run_until_parked();
+            id = templates::user_secrets_id(&csproj);
+            if id.is_some() && !wb.read_with(cx, |wb, _| wb.dotnet.is_some()) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        let Some(id) = id else {
+            eprintln!("skipped: dotnet user-secrets init did not run (no .NET SDK?)");
+            return;
+        };
+        let file = SecretsFile(templates::user_secrets_file(&id).unwrap());
+        cx.run_until_parked();
+        assert!(wb.read_with(cx, |wb, _| matches!(wb.active.and_then(|ix| wb.tabs[ix].page.clone()), Some(Page::Secrets { .. }))), "the page opens after init");
+        click(cx, "secret-add");
+        answer(cx, "Api:Key = 42");
+        assert_eq!(templates::read_secrets(&file.0).unwrap(), [("Api:Key".to_owned(), "42".to_owned())]);
+        assert_eq!(shown(cx, &["Api:Key"]), [true]);
+        drop(guard);
     }
 }

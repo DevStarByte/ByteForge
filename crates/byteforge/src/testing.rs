@@ -119,6 +119,9 @@ pub struct TestView {
     expanded: HashSet<String>,
     /// Full names (tests) currently running; a project or class run marks all its tests.
     running: HashSet<String>,
+    /// A `dotnet test` is under way. Not the same as `running` being non-empty: the last test reports
+    /// before the process has written its results and exited.
+    in_run: bool,
     collapsed: HashSet<String>,
     entries: Vec<Entry>,
     discovered: bool,
@@ -137,6 +140,7 @@ impl TestView {
             live: HashMap::new(),
             expanded: HashSet::new(),
             running: HashSet::new(),
+            in_run: false,
             collapsed: HashSet::new(),
             entries: Vec::new(),
             discovered: false,
@@ -161,6 +165,7 @@ impl TestView {
         self.projects.clear();
         self.results.clear();
         self.running.clear();
+        self.in_run = false;
         self.discovered = false;
         self.rebuild();
         self.discover(cx);
@@ -194,7 +199,7 @@ impl TestView {
     }
 
     pub fn is_running(&self) -> bool {
-        !self.running.is_empty()
+        self.in_run
     }
 
     fn rebuild(&mut self) {
@@ -246,7 +251,7 @@ impl TestView {
         self.live.get(full_name).or_else(|| self.results.get(full_name))
     }
 
-    fn test_state(&self, full_name: &str) -> TestState {
+    pub(crate) fn test_state(&self, full_name: &str) -> TestState {
         if self.running.contains(full_name) {
             return TestState::Running;
         }
@@ -284,6 +289,41 @@ impl TestView {
             }
         }
         c
+    }
+
+    /// The line above the tree: what is running, else the counts of the last results.
+    pub(crate) fn summary_text(&self) -> String {
+        let (passed, failed, skipped, not_run) = self.counts();
+        if self.workspace.root().is_none() {
+            "Open a folder with a .NET test project.".to_owned()
+        } else if !self.discovered {
+            "Looking for tests…".to_owned()
+        } else if self.projects.is_empty() {
+            "No tests found. Test projects reference Microsoft.NET.Test.Sdk (xUnit, NUnit or MSTest).".to_owned()
+        } else if self.is_running() {
+            let mut text = match self.running.len() {
+                0 => "Finishing the test run…".to_owned(),
+                1 => "Running 1 test…".to_owned(),
+                n => format!("Running {n} tests…"),
+            };
+            let failed = self.live.values().filter(|s| s.outcome == Outcome::Failed).count();
+            if failed > 0 {
+                text.push_str(&format!(" {failed} failed so far"));
+            }
+            text
+        } else {
+            let mut parts = vec![format!("{passed} passed")];
+            if failed > 0 {
+                parts.push(format!("{failed} failed"));
+            }
+            if skipped > 0 {
+                parts.push(format!("{skipped} skipped"));
+            }
+            if not_run > 0 {
+                parts.push(format!("{not_run} not run"));
+            }
+            parts.join(" · ")
+        }
     }
 
     /// Gutter markers for a file: each test method and each test class with its state.
@@ -354,6 +394,7 @@ impl TestView {
 
     /// Marks the tests a run covers as running.
     pub fn start_run(&mut self, run: &TestRun, cx: &mut Context<Self>) {
+        self.in_run = true;
         for project in self.projects.iter().filter(|p| p.path == run.project) {
             for test in project.classes.iter().flat_map(|c| c.tests.iter()) {
                 let name = test.full_name();
@@ -397,6 +438,7 @@ impl TestView {
         self.results.extend(fresh);
         self.live.clear();
         self.running.clear();
+        self.in_run = false;
         self.rebuild();
         cx.emit(TestEvent::Changed);
         cx.notify();
@@ -406,6 +448,7 @@ impl TestView {
     pub fn cancel_run(&mut self, cx: &mut Context<Self>) {
         self.running.clear();
         self.live.clear();
+        self.in_run = false;
         self.rebuild();
         cx.emit(TestEvent::Changed);
         cx.notify();
@@ -469,6 +512,7 @@ impl Render for TestView {
         let tool = |id: &'static str, name: &'static str, tip: &'static str| {
             div()
                 .id(id)
+                .debug_selector(move || id.into())
                 .p(px(3.))
                 .rounded(px(4.))
                 .cursor_pointer()
@@ -476,28 +520,8 @@ impl Render for TestView {
                 .tooltip(tooltip(tip))
                 .child(icon(name, icon_size, t.c("icon.foreground")))
         };
-        let (passed, failed, skipped, not_run) = self.counts();
-        let summary = if self.workspace.root().is_none() {
-            "Open a folder with a .NET test project.".to_owned()
-        } else if !self.discovered {
-            "Looking for tests…".to_owned()
-        } else if self.projects.is_empty() {
-            "No tests found. Test projects reference Microsoft.NET.Test.Sdk (xUnit, NUnit or MSTest).".to_owned()
-        } else if self.is_running() {
-            format!("Running {} tests…", self.running.len())
-        } else {
-            let mut parts = vec![format!("{passed} passed")];
-            if failed > 0 {
-                parts.push(format!("{failed} failed"));
-            }
-            if skipped > 0 {
-                parts.push(format!("{skipped} skipped"));
-            }
-            if not_run > 0 {
-                parts.push(format!("{not_run} not run"));
-            }
-            parts.join(" · ")
-        };
+        let failed = self.counts().1;
+        let summary = self.summary_text();
 
         let entity = cx.entity();
         let row_h = t.n("list.itemHeight", 22.0);
@@ -744,6 +768,9 @@ mod view_tests {
             // NUnit-style short names are matched by method name.
             v.live_result(Outcome::Passed, "Positive(1)", cx);
             assert_eq!(v.test_state("Calc.MathTests.Positive"), TestState::Passed);
+            // Every test reported, but dotnet test is still writing its results: the run isn't over (Run
+            // All / Rerun Failed stay hidden; clicking them now would only say "already running").
+            assert!(v.is_running());
 
             v.finish_run(
                 vec![
@@ -754,6 +781,7 @@ mod view_tests {
                 cx,
             );
             // The TRX results replace the live ones.
+            assert!(!v.is_running());
             assert_eq!(v.test_state("Calc.MathTests.Adds"), TestState::Passed);
             assert_eq!(v.test_state("Calc.MathTests.Positive"), TestState::Failed);
             let cases = |v: &TestView| v.entries.iter().filter(|e| matches!(e, Entry::Case(..))).count();

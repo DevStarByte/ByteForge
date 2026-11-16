@@ -164,3 +164,133 @@ fn summary_line(label: &str, results: &[TestResult]) -> String {
     }
     line
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testing::TestState;
+    use crate::workbench::settings_page::view_tests::workbench;
+
+    const TESTS: &str = "namespace XT;
+
+public class CalcTests
+{
+    [Fact]
+    public void Adds() => Assert.Equal(4, 2 + 2);
+
+    [Fact]
+    public void Fails() => Assert.Equal(5, 2 + 2);
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Positive(int x) => Assert.True(x > 0);
+}
+
+// Another class runs in parallel: the CalcTests finish while this one still runs.
+public class SlowTests
+{
+    [Fact]
+    public void Slow() => Thread.Sleep(4000);
+}
+";
+
+    fn dotnet(dir: &Path, args: &[&str]) -> bool {
+        std::process::Command::new("dotnet").args(args).current_dir(dir).env("DOTNET_NOLOGO", "1").output().is_ok_and(|o| o.status.success())
+    }
+
+    fn click(cx: &mut gpui::VisualTestContext, name: &'static str) {
+        cx.run_until_parked();
+        let bounds = cx.debug_bounds(name).unwrap_or_else(|| panic!("{name} is drawn"));
+        cx.simulate_click(bounds.center(), gpui::Modifiers::none());
+        cx.run_until_parked();
+    }
+
+    fn output(wb: &Workbench, cx: &App) -> String {
+        wb.output.read(cx).state.buffer.text()
+    }
+
+    /// Polls until `done` (the run's `dotnet test` is a real process), at most two minutes.
+    fn wait(cx: &mut gpui::VisualTestContext, wb: &Entity<Workbench>, mut done: impl FnMut(&Workbench, &App) -> bool) {
+        for _ in 0..1200 {
+            cx.run_until_parked();
+            if wb.read_with(cx, |wb, cx| done(wb, cx)) {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        panic!("timed out; output:\n{}", wb.read_with(cx, |wb, cx| output(wb, cx)));
+    }
+
+    fn state(wb: &Workbench, cx: &App, test: &str) -> TestState {
+        wb.tests.read(cx).test_state(&format!("XT.{test}"))
+    }
+
+    fn summary(cx: &mut gpui::VisualTestContext, wb: &Entity<Workbench>) -> String {
+        wb.read_with(cx, |wb, cx| wb.tests.read(cx).summary_text())
+    }
+
+    /// The Testing view while a real `dotnet test` runs: tests turn running, then passed or failed one by
+    /// one, the counts add up at the end, Rerun Failed runs only the failure, and Run Test at Cursor the
+    /// test the caret is in. Needs the .NET SDK and the xunit template (run with --ignored).
+    #[gpui::test]
+    #[ignore = "runs dotnet test (about 20 seconds)"]
+    fn live_test_progress_in_the_testing_view(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "live-tests");
+        let ws = guard.dir.join("ws");
+        std::fs::create_dir_all(&ws).unwrap();
+        if !dotnet(&ws, &["new", "xunit", "-o", "XT", "-n", "XT"]) {
+            eprintln!("skipped: dotnet or the xunit template is not available");
+            return;
+        }
+        let file = ws.join("XT").join("UnitTest1.cs");
+        std::fs::write(&file, TESTS).unwrap();
+
+        wb.update_in(cx, |wb, window, cx| wb.open_folder(ws.clone(), window, cx));
+        cx.run_until_parked();
+        cx.dispatch_action(ShowTesting);
+        wait(cx, &wb, |wb, cx| wb.tests.read(cx).is_discovered());
+        assert_eq!(summary(cx, &wb), "0 passed · 4 not run");
+
+        // Run All: everything is running at first, then the fast class finishes while Slow still runs.
+        click(cx, "tests-run-all");
+        assert!(wb.read_with(cx, |wb, cx| ["CalcTests.Adds", "SlowTests.Slow"].iter().all(|t| state(wb, cx, t) == TestState::Running)));
+        wait(cx, &wb, |wb, cx| ["CalcTests.Adds", "CalcTests.Fails", "CalcTests.Positive"].iter().all(|t| state(wb, cx, t) != TestState::Running));
+        wb.read_with(cx, |wb, cx| {
+            assert_eq!(state(wb, cx, "CalcTests.Fails"), TestState::Failed);
+            assert_eq!(state(wb, cx, "CalcTests.Adds"), TestState::Passed);
+            assert_eq!(state(wb, cx, "SlowTests.Slow"), TestState::Running, "{}", output(wb, cx));
+        });
+        assert_eq!(summary(cx, &wb), "Running 1 test… 1 failed so far");
+        wait(cx, &wb, |wb, cx| !wb.tests.read(cx).is_running());
+        wb.read_with(cx, |wb, cx| {
+            assert_eq!(state(wb, cx, "CalcTests.Adds"), TestState::Passed);
+            assert_eq!(state(wb, cx, "CalcTests.Positive"), TestState::Passed);
+            assert_eq!(state(wb, cx, "SlowTests.Slow"), TestState::Passed);
+        });
+        assert_eq!(summary(cx, &wb), "3 passed · 1 failed");
+
+        // Rerun Failed (the button shows once something failed) runs only Fails.
+        click(cx, "tests-run-failed");
+        wb.read_with(cx, |wb, cx| {
+            assert_eq!(state(wb, cx, "CalcTests.Fails"), TestState::Running, "{}", output(wb, cx));
+            assert_eq!(state(wb, cx, "SlowTests.Slow"), TestState::Passed);
+        });
+        wait(cx, &wb, |wb, cx| !wb.tests.read(cx).is_running());
+        assert_eq!(summary(cx, &wb), "3 passed · 1 failed");
+
+        // Fix the test, put the caret inside it, Run Test at Cursor.
+        std::fs::write(&file, TESTS.replace("Assert.Equal(5, 2 + 2)", "Assert.Equal(4, 2 + 2)")).unwrap();
+        wb.update_in(cx, |wb, window, cx| wb.open_file(file.clone(), Some(Point::new(8, 20)), window, cx));
+        cx.run_until_parked();
+        cx.dispatch_action(RunTestAtCursor);
+        cx.run_until_parked();
+        wb.read_with(cx, |wb, cx| {
+            assert_eq!(state(wb, cx, "CalcTests.Fails"), TestState::Running);
+            assert_eq!(state(wb, cx, "CalcTests.Adds"), TestState::Passed);
+        });
+        wait(cx, &wb, |wb, cx| !wb.tests.read(cx).is_running());
+        assert_eq!(summary(cx, &wb), "4 passed");
+        drop(guard);
+    }
+}
