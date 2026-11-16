@@ -100,10 +100,17 @@ impl Workbench {
             PromptKind::WatchExpression => "Expression to watch, e.g. order.Items.Count (shown in the Debug view while paused)",
             PromptKind::SecretNew { .. } => "Name = value, e.g. ConnectionStrings:Default = Server=localhost;Database=Shop",
         };
+        // A symbol's new name is mostly typed from scratch (always after a refactoring made one up).
+        let select = matches!(kind, PromptKind::RenameSymbol { .. });
         self.prompt = Some(kind);
         let palette = cx.new(|cx| Palette::new(Mode::Prompt, Vec::new(), placeholder, initial, window, cx));
         let sub = cx.subscribe_in(&palette, window, Self::on_palette_event);
-        palette.update(cx, |p, cx| p.focus_input(window, cx));
+        palette.update(cx, |p, cx| {
+            p.focus_input(window, cx);
+            if select {
+                p.select_input(cx);
+            }
+        });
         self.palette = Some((palette, sub));
         cx.notify();
     }

@@ -386,4 +386,308 @@ mod tests {
         });
         drop(guard);
     }
+
+    /// The rename prompt opens with the old name selected: typing replaces it (it used to append, so
+    /// naming Extract Method's `NewMethod` "Print" made `NewMethodPrint`).
+    #[gpui::test]
+    fn typing_in_the_rename_prompt_replaces_the_old_name(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "rename-prompt");
+        let file = guard.dir.join("notes.txt");
+        std::fs::write(&file, "NewMethod\n").unwrap();
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_file(file.clone(), None, window, cx);
+            let editor = wb.active_editor().unwrap().downgrade();
+            wb.open_prompt(PromptKind::RenameSymbol { editor, at: Point::new(0, 0), old: "NewMethod".into() }, "NewMethod", window, cx);
+        });
+        cx.run_until_parked();
+        cx.simulate_input("Print");
+        let text = wb.read_with(cx, |wb, cx| wb.palette.as_ref().map(|(p, _)| p.read(cx).input_text(cx)));
+        assert_eq!(text.as_deref(), Some("Print"));
+        drop(guard);
+    }
+
+    // ───────────── the Refactor menu against csharp-ls ─────────────
+    // These start the real csharp-ls on a small project and drive the editor by its keys; they skip
+    // (pass) with a message when csharp-ls or the .NET SDK isn't installed.
+
+    const CALCULATOR: &str = "using System.Text;
+using System;
+using System.Linq;
+
+namespace Demo;
+
+public class Calculator
+{
+    public int Add(int left, int right)
+    {
+        var sum = left + right;
+        Console.WriteLine(sum);
+        return sum * 2;
+    }
+}
+";
+
+    /// Polls (letting the server work) until `done` holds or `secs` pass.
+    fn wait_for(cx: &mut gpui::VisualTestContext, wb: &Entity<Workbench>, secs: u64, mut done: impl FnMut(&Workbench, &App) -> bool) -> bool {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(secs);
+        loop {
+            cx.run_until_parked();
+            if wb.read_with(cx, |wb, cx| done(wb, cx)) {
+                return true;
+            }
+            if std::time::Instant::now() > deadline {
+                return false;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
+    fn editor_text(wb: &Workbench, cx: &App) -> String {
+        wb.active_editor().map(|e| e.read(cx).state.buffer.text()).unwrap_or_default()
+    }
+
+    fn menu_lines(wb: &Workbench, cx: &App) -> Option<Vec<String>> {
+        wb.active_editor()?.read(cx).action_menu_lines()
+    }
+
+    /// The menu once the server answered (not "Looking for …").
+    fn menu_after(cx: &mut gpui::VisualTestContext, wb: &Entity<Workbench>) -> Option<Vec<String>> {
+        wait_for(cx, wb, 30, |wb, cx| menu_lines(wb, cx).is_none_or(|l| !l.iter().any(|l| l.starts_with("Looking for"))));
+        wb.read_with(cx, menu_lines)
+    }
+
+    fn output_text(wb: &Workbench, cx: &App) -> String {
+        wb.output.read(cx).state.buffer.text()
+    }
+
+    /// Opens `files` as a restored C# project with `open` in the editor, and waits for csharp-ls to load it.
+    #[allow(clippy::type_complexity)]
+    fn csharp_project<'a>(
+        cx: &'a mut gpui::TestAppContext,
+        name: &str,
+        files: &[(&str, &str)],
+        open: &str,
+    ) -> Option<(crate::workbench::settings_page::view_tests::TestWorkbench, Entity<Workbench>, &'a mut gpui::VisualTestContext, PathBuf)> {
+        if bf_lsp::csharp_ls_command().is_none() || std::process::Command::new("dotnet").arg("--version").output().is_err() {
+            println!("SKIPPED: csharp-ls or the .NET SDK is not installed");
+            return None;
+        }
+        let (guard, wb, cx) = workbench(cx, name);
+        let dir = guard.dir.join("app");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Library</OutputType><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>").unwrap();
+        for (file, text) in files {
+            std::fs::write(dir.join(file), text).unwrap();
+        }
+        assert!(std::process::Command::new("dotnet").args(["restore", "-v", "q"]).current_dir(&dir).status().unwrap().success());
+        let file = dir.join(open);
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(dir.clone(), window, cx);
+            wb.open_file(file.clone(), None, window, cx);
+        });
+        let ready = wait_for(cx, &wb, 120, |wb, _| wb.lsp_status == "C#: ready");
+        assert!(ready, "csharp-ls didn't load the project (status: {})", wb.read_with(cx, |wb, _| wb.lsp_status.clone()));
+        Some((guard, wb, cx, file))
+    }
+
+    fn select(cx: &mut gpui::VisualTestContext, wb: &Entity<Workbench>, from: (usize, usize), to: (usize, usize)) {
+        wb.update_in(cx, |wb, window, cx| {
+            let editor = wb.active_editor().unwrap();
+            editor.update(cx, |e, cx| {
+                e.state.select(Point::new(from.0, from.1), Point::new(to.0, to.1));
+                cx.notify();
+            });
+            editor.read(cx).focus(window);
+        });
+    }
+
+    fn stop(cx: &mut gpui::VisualTestContext, wb: &Entity<Workbench>) {
+        wb.update(cx, |wb, _| {
+            if let Some(lsp) = wb.lsp.take() {
+                lsp.shutdown();
+            }
+        });
+    }
+
+    /// Clicks the menu row titled `title`.
+    fn click_row(cx: &mut gpui::VisualTestContext, wb: &Entity<Workbench>, title: &str) {
+        let lines = wb.read_with(cx, menu_lines).unwrap_or_default();
+        let ix = lines.iter().position(|l| l == title).unwrap_or_else(|| panic!("no '{title}' in {lines:?}"));
+        // debug_bounds wants a 'static name.
+        let row = cx.debug_bounds(Box::leak(format!("action-{ix}").into_boxed_str())).expect("the row is drawn");
+        cx.simulate_click(row.center(), gpui::Modifiers::none());
+    }
+
+    fn rename_prompt_open(wb: &Workbench) -> bool {
+        matches!(wb.prompt, Some(PromptKind::RenameSymbol { .. }))
+    }
+
+    /// Waits for the rename prompt, types `name` (over what it suggests) and presses Enter (and Apply, when
+    /// the rename changes `several_files`); waits for the rename.
+    fn answer_rename(cx: &mut gpui::VisualTestContext, wb: &Entity<Workbench>, name: &str, several_files: bool) {
+        assert!(wait_for(cx, wb, 30, |wb, _| rename_prompt_open(wb)), "the rename prompt opens");
+        let before = wb.read_with(cx, editor_text);
+        cx.simulate_input(name);
+        cx.simulate_keystrokes("enter");
+        if several_files {
+            apply_dialog(cx, wb);
+        }
+        let ok = wait_for(cx, wb, 30, |wb, cx| editor_text(wb, cx) != before);
+        assert!(ok, "renamed to {name}:\n{}\n{}", wb.read_with(cx, editor_text), wb.read_with(cx, output_text));
+    }
+
+    /// Waits for the dialog listing the files a refactoring changes and answers "Apply".
+    fn apply_dialog(cx: &mut gpui::VisualTestContext, wb: &Entity<Workbench>) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while !cx.has_pending_prompt() && std::time::Instant::now() < deadline {
+            wait_for(cx, wb, 0, |_, _| false);
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        assert!(cx.has_pending_prompt(), "asks before changing several files");
+        cx.simulate_prompt_answer("Apply");
+    }
+
+    fn tab_text(wb: &Workbench, path: &Path, cx: &App) -> Option<String> {
+        wb.tabs.iter().find(|t| t.path.as_deref() == Some(path)).map(|t| t.editor.read(cx).state.buffer.text())
+    }
+
+    /// The Refactor menu lists what fits the selection; picking an entry changes the file and asks for
+    /// the name the refactoring made up; a name with the caret right after it can be renamed.
+    #[gpui::test]
+    fn the_refactor_menu_lists_and_applies_refactorings(cx: &mut gpui::TestAppContext) {
+        let Some((guard, wb, cx, _)) = csharp_project(cx, "refactor-menu", &[("Calculator.cs", CALCULATOR)], "Calculator.cs") else { return };
+        // An expression: extract and introduce, no Rename, no fixes.
+        select(cx, &wb, (10, 18), (10, 30));
+        cx.simulate_keystrokes("ctrl-shift-r");
+        let menu = menu_after(cx, &wb).unwrap();
+        assert_eq!(menu[..3], ["Extract method", "Extract local function", "Introduce local for 'left + right'"], "{menu:?}");
+        assert!(menu.iter().all(|l| l.starts_with("Extract") || l.starts_with("Introduce")), "{menu:?}");
+        cx.simulate_keystrokes("escape");
+        // A class name: Rename first, then extracting an interface or a base class.
+        select(cx, &wb, (6, 15), (6, 15));
+        cx.simulate_keystrokes("ctrl-shift-r");
+        let menu = menu_after(cx, &wb).unwrap();
+        assert_eq!(menu[..3], ["Rename 'Calculator'…", "Extract interface...", "Extract base class..."], "{menu:?}");
+        cx.simulate_keystrokes("escape");
+        // The caret right after a name (before its parenthesis) is on it.
+        select(cx, &wb, (8, 18), (8, 18));
+        cx.simulate_keystrokes("ctrl-shift-r");
+        let menu = menu_after(cx, &wb).unwrap();
+        assert_eq!(menu.first().map(String::as_str), Some("Rename 'Add'…"), "{menu:?}");
+        click_row(cx, &wb, "Rename 'Add'…");
+        answer_rename(cx, &wb, "Sum", false);
+        assert!(wb.read_with(cx, editor_text).contains("    public int Sum(int left, int right)\n"));
+
+        // Picking Introduce Local introduces it and asks for its name.
+        select(cx, &wb, (10, 18), (10, 30));
+        cx.simulate_keystrokes("ctrl-shift-r");
+        menu_after(cx, &wb);
+        click_row(cx, &wb, "Introduce local for 'left + right'");
+        answer_rename(cx, &wb, "total", false);
+        let text = wb.read_with(cx, editor_text);
+        assert!(text.contains("total = left + right;") && text.contains("sum = total;"), "{text}");
+        stop(cx, &wb);
+        drop(guard);
+    }
+
+    /// Extract Method by its keys on a statement line (no selection): the method is made and named.
+    #[gpui::test]
+    fn extract_method_by_key_names_the_new_method(cx: &mut gpui::TestAppContext) {
+        let Some((guard, wb, cx, _)) = csharp_project(cx, "refactor-extract", &[("Calculator.cs", CALCULATOR)], "Calculator.cs") else { return };
+        select(cx, &wb, (11, 10), (11, 10));
+        cx.simulate_keystrokes("ctrl-r ctrl-m");
+        answer_rename(cx, &wb, "Print", false);
+        let text = wb.read_with(cx, editor_text);
+        assert!(text.contains("        Print(sum);\n") && text.contains("    private static void Print(int sum)\n    {\n        Console.WriteLine(sum);\n    }\n"), "{text}");
+        stop(cx, &wb);
+        drop(guard);
+    }
+
+    /// Inline takes the local back out; a refactoring that doesn't fit the caret says so and what to do.
+    #[gpui::test]
+    fn inline_and_unavailable_refactorings(cx: &mut gpui::TestAppContext) {
+        let Some((guard, wb, cx, _)) = csharp_project(cx, "refactor-inline", &[("Calculator.cs", CALCULATOR)], "Calculator.cs") else { return };
+        select(cx, &wb, (12, 15), (12, 15));
+        cx.dispatch_action(crate::actions::ExtractInterface);
+        assert_eq!(menu_after(cx, &wb), Some(vec!["Extract Interface isn't available here. Put the caret on the name of a class.".to_owned()]));
+        cx.simulate_keystrokes("escape");
+
+        select(cx, &wb, (10, 12), (10, 12));
+        cx.dispatch_action(crate::actions::InlineSymbol);
+        assert!(wait_for(cx, &wb, 30, |wb, cx| editor_text(wb, cx) != CALCULATOR));
+        let text = wb.read_with(cx, editor_text);
+        assert!(text.contains("    {\n        Console.WriteLine(left + right);\n        return (left + right) * 2;\n    }"), "{text}");
+        assert!(!wb.read_with(cx, |wb, _| rename_prompt_open(wb)), "inlining makes up no name");
+
+        // The `2`: no field (Roslyn makes constants of constants), but a constant, picked and named.
+        select(cx, &wb, (11, 32), (11, 33));
+        cx.dispatch_action(crate::actions::IntroduceField);
+        assert_eq!(menu_after(cx, &wb), Some(vec!["Introduce Field isn't available for this selection.".to_owned()]));
+        cx.simulate_keystrokes("escape");
+        cx.dispatch_action(crate::actions::IntroduceConstant);
+        menu_after(cx, &wb);
+        click_row(cx, &wb, "Introduce constant for '2'");
+        answer_rename(cx, &wb, "Factor", false);
+        let text = wb.read_with(cx, editor_text);
+        assert!(text.contains("const int Factor = 2;") && text.contains("return (left + right) * Factor;"), "{text}");
+        stop(cx, &wb);
+        drop(guard);
+    }
+
+    /// Extract Interface writes the interface to a new file after asking; Extract Base Class (one file)
+    /// applies at once. Both ask for the new type's name.
+    #[gpui::test]
+    fn extract_interface_and_base_class(cx: &mut gpui::TestAppContext) {
+        let Some((guard, wb, cx, file)) = csharp_project(cx, "refactor-types", &[("Calculator.cs", CALCULATOR)], "Calculator.cs") else { return };
+        select(cx, &wb, (6, 15), (6, 15));
+        cx.simulate_keystrokes("ctrl-r ctrl-i");
+        apply_dialog(cx, &wb);
+        let interface = file.with_file_name("ICalculator.cs");
+        answer_rename(cx, &wb, "IAdder", true);
+        let text = wb.read_with(cx, editor_text);
+        assert!(text.contains("public class Calculator : IAdder\n"), "{text}");
+        let interface_text = wb.read_with(cx, |wb, cx| tab_text(wb, &interface, cx));
+        assert!(interface_text.as_deref().is_some_and(|t| t.contains("public interface IAdder") && t.contains("int Add(int left, int right);")), "{interface_text:?}");
+
+        select(cx, &wb, (6, 15), (6, 15));
+        cx.dispatch_action(crate::actions::ExtractBaseClass);
+        answer_rename(cx, &wb, "AdderBase", false);
+        let text = wb.read_with(cx, editor_text);
+        assert!(text.contains("public class AdderBase\n{\n    public int Add(") && text.contains("public class Calculator : AdderBase, IAdder\n{\n}"), "{text}");
+        stop(cx, &wb);
+        drop(guard);
+    }
+
+    /// Remove and Sort Usings drops the unused ones (one variant: no menu) and sorts the rest.
+    #[gpui::test]
+    fn remove_and_sort_usings(cx: &mut gpui::TestAppContext) {
+        let text = CALCULATOR.replace("using System.Linq;", "using System.Linq;\nusing System.Collections.Generic;").replace("Console.WriteLine(sum);", "Console.WriteLine(new List<int> { sum }.Count);");
+        let Some((guard, wb, cx, _)) = csharp_project(cx, "refactor-usings", &[("Calculator.cs", &text)], "Calculator.cs") else { return };
+        // The unused usings come as diagnostics; the command needs them.
+        wait_for(cx, &wb, 30, |wb, cx| wb.active_editor().is_some_and(|e| e.read(cx).diagnostics.iter().any(|d| d.code.as_deref() == Some("CS8019"))));
+        select(cx, &wb, (0, 0), (0, 0));
+        cx.simulate_keystrokes("ctrl-r ctrl-g");
+        let ok = wait_for(cx, &wb, 30, |wb, cx| editor_text(wb, cx).starts_with("using System;\nusing System.Collections.Generic;\n\nnamespace Demo;"));
+        assert!(ok, "{}\n{:?}", wb.read_with(cx, editor_text), wb.read_with(cx, menu_lines));
+        stop(cx, &wb);
+        drop(guard);
+    }
+
+    /// Move Type to Matching File offers its variants; moving writes the type to its own file (after
+    /// asking, as two files change).
+    #[gpui::test]
+    fn move_type_to_its_own_file(cx: &mut gpui::TestAppContext) {
+        let shapes = "namespace Demo;\n\npublic class Circle\n{\n}\n\npublic class Square\n{\n    public int Side => 2;\n}\n";
+        let Some((guard, wb, cx, file)) = csharp_project(cx, "refactor-move", &[("Shapes.cs", shapes)], "Shapes.cs") else { return };
+        select(cx, &wb, (6, 15), (6, 15));
+        cx.dispatch_action(crate::actions::MoveTypeToFile);
+        assert_eq!(menu_after(cx, &wb), Some(vec!["Move type to Square.cs".to_owned(), "Rename file to Square.cs".to_owned(), "Rename type to Shapes".to_owned()]));
+        click_row(cx, &wb, "Move type to Square.cs");
+        apply_dialog(cx, &wb);
+        let square = file.with_file_name("Square.cs");
+        let moved = wait_for(cx, &wb, 30, |wb, cx| tab_text(wb, &square, cx).is_some_and(|t| t.contains("public class Square")) && tab_text(wb, &file, cx).is_some_and(|t| !t.contains("Square")));
+        assert!(moved, "{:?}\n{:?}", wb.read_with(cx, |wb, cx| tab_text(wb, &file, cx)), wb.read_with(cx, |wb, cx| tab_text(wb, &square, cx)));
+        stop(cx, &wb);
+        drop(guard);
+    }
 }

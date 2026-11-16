@@ -3,6 +3,22 @@
 use super::*;
 
 impl EditorView {
+    /// The lines the code-action menu shows: its entries, or the one line it shows instead of them.
+    #[cfg(test)]
+    pub(crate) fn action_menu_lines(&self) -> Option<Vec<String>> {
+        let menu = self.action_menu.as_ref()?;
+        let quick_fix = menu.mode == refactor::MenuMode::QuickFix;
+        Some(match &menu.items {
+            None if quick_fix => vec!["Looking for fixes…".into()],
+            None => vec!["Looking for refactorings…".into()],
+            Some(items) if items.is_empty() => {
+                let default = if quick_fix { "No fixes or refactorings available here" } else { "No refactorings available here" };
+                vec![menu.empty.clone().unwrap_or_else(|| default.into())]
+            }
+            Some(items) => items.iter().map(|a| a.display_title()).collect(),
+        })
+    }
+
     pub(super) fn render_action_menu(&self, cx: &mut Context<Self>) -> Option<impl IntoElement + use<>> {
         let menu = self.action_menu.as_ref()?;
         let t = Theme::global(cx);
@@ -34,6 +50,7 @@ impl EditorView {
                     let disabled = action.disabled.is_some();
                     div()
                         .id(gpui::SharedString::from(format!("action-{i}")))
+                        .debug_selector(|| format!("action-{i}"))
                         .h(px(row_h))
                         .px_2()
                         .flex()

@@ -206,13 +206,10 @@ impl EditorView {
             cx.emit(EditorEvent::Log("Rename Symbol needs the C# language server (open a .cs file in a project).".into()));
             return;
         }
-        let caret = self.state.caret();
-        let (start, end) = self.state.word_at(caret);
-        let symbol = self.state.buffer.slice(start, end);
-        if !symbol.chars().any(|c| c.is_alphanumeric() || c == '_') {
+        let Some((start, _, symbol)) = self.name_at_caret() else {
             cx.emit(EditorEvent::Log("Put the caret on a name to rename it.".into()));
             return;
-        }
+        };
         cx.emit(EditorEvent::RenameRequested { symbol, at: start });
     }
 
