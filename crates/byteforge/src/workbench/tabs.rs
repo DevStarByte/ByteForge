@@ -59,6 +59,10 @@ impl Workbench {
             let e = editor.read(cx);
             (e.state.buffer.text(), !e.is_modified())
         };
+        // "Unmodified" alone isn't saved: a diff view opened from a tab with unsaved edits starts clean
+        // with that tab's text. Only text that is what's on disk clears the other views' dirty marks.
+        let clean = clean
+            && std::fs::read_to_string(&path).is_ok_and(|disk| disk.trim_start_matches('\u{feff}').replace("\r\n", "\n") == text.replace("\r\n", "\n"));
         for other in others {
             other.update(cx, |e, cx| {
                 e.replace_text_minimal(&text, cx);
