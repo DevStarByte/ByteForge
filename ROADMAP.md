@@ -5,10 +5,24 @@ the git history.
 
 ## 1. Make what's there trustworthy
 
-- [ ] Dogfooding: use ByteForge for real work and fix what turns up. Built but never clicked through: the
-      Refactor menu, diff editor, blame, merge conflicts, breadcrumbs, tab dragging, one file in both groups,
-      the User Secrets page, live test progress.
-- [ ] Branch picker: clicking a branch doesn't switch to it. Tests now show picking a branch switches it, and a switch that git refuses (local changes in the way) used to fail silently into the Output log; it now asks, with "Stash Changes and Switch". Still to confirm in the app that this was the cause (the mouse click on the row itself isn't covered by a test).
+- [ ] Dogfooding: use ByteForge for real work and fix what turns up. Every feature below was clicked through headlessly
+      (real mouse and key events on the real workbench, against csharp-ls and dotnet where needed) and the bugs that
+      turned up are fixed with regression tests. Still to look at by hand, where tests can't see:
+      - Looks: diff spacer rows and stripes, merge editor's three panes, toolbars at narrow widths, blame gutter width,
+        the floating tab while dragging and the drop highlights, breadcrumbs per group with tabs at the bottom,
+        the Refactor popup's position and scrolling.
+      - Real dialogs: Revert Change, the two-file refactoring confirmation, deleting a secret (Enter/Escape).
+      - Clicking the "Accept Current · Incoming · Both" note after `<<<<<<<` (hit areas, with horizontal scroll).
+      - Ctrl+. in a conflict with csharp-ls running (server entries are appended while the menu is open).
+      - A deleted secret's row disappears; Shift+F5 during a test run leaves no test "running".
+      - Refactorings never applied in tests: Extract Local Function, Introduce Parameter variants, Sort Usings;
+        and all of them with `"csharp.server": "roslyn"`.
+      Known, not fixed yet: Revert Change on an untracked file empties it instead of deleting it; saving secrets
+      drops comments in secrets.json; Run All stops at the first test project that fails to build; breadcrumb
+      folder/file segments aren't clickable (no dropdowns).
+- [ ] Branch picker: clicking a branch doesn't switch to it. Tests now click the real row and the branch switches;
+      a switch git refuses (local changes in the way) asks, with "Stash Changes and Switch", and a switch while git
+      is busy says so in the Output. Still to confirm in the app; if it happens again, the Output says why.
 - [x] The Roslyn language server (the one VS Code's C# extension uses) next to csharp-ls: `"csharp.server": "roslyn"` or
       "C#: Install or Update Roslyn Language Server", which downloads it from Microsoft's NuGet feed, checks Microsoft's
       signature and switches to it. Opens the solution (or the projects), pulls diagnostics (analyzers included),

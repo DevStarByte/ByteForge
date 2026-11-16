@@ -4,6 +4,7 @@
 .idea/
 .vscode/
 .claude/settings.local.json
+.claude/worktrees/
 
 # makepkg output
 /packaging/arch/src/
