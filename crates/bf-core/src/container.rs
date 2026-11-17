@@ -152,10 +152,17 @@ pub fn download_debugger(arch: &str, cache: &Path) -> anyhow::Result<PathBuf> {
         "arm64" => "netcoredbg-linux-arm64.tar.gz",
         other => anyhow::bail!("there is no netcoredbg release for {other} containers"),
     };
-    std::fs::create_dir_all(&dir)?;
+    download_release(asset, &dir, &exe)?;
+    Ok(exe.parent().unwrap_or(&dir).to_path_buf())
+}
+
+/// Downloads the netcoredbg release `asset` (a `.tar.gz` or `.zip`) and unpacks it into `dir`; `exe` must
+/// exist afterwards.
+pub(crate) fn download_release(asset: &str, dir: &Path, exe: &Path) -> anyhow::Result<()> {
+    std::fs::create_dir_all(dir)?;
     let archive = dir.join(asset);
     let url = format!("https://github.com/Samsung/netcoredbg/releases/latest/download/{asset}");
-    let out = Command::new("curl")
+    let out = Command::new(system_tool("curl"))
         .args(["--silent", "--show-error", "--fail", "--location", "--max-time", "600", "--output"])
         .arg(&archive)
         .arg(&url)
@@ -165,13 +172,26 @@ pub fn download_debugger(arch: &str, cache: &Path) -> anyhow::Result<PathBuf> {
     if !out.status.success() {
         anyhow::bail!("downloading {url} failed: {}", String::from_utf8_lossy(&out.stderr).trim());
     }
-    // tar ships with Linux, macOS and Windows 10+.
-    let out = Command::new("tar").arg("-xzf").arg(&archive).arg("-C").arg(&dir).stdin(Stdio::null()).output().context("could not run tar")?;
+    // tar ships with Linux, macOS and Windows 10+; Windows' own (bsdtar) also unpacks .zip files.
+    let out = Command::new(system_tool("tar")).arg("-xf").arg(&archive).arg("-C").arg(dir).stdin(Stdio::null()).output().context("could not run tar")?;
     let _ = std::fs::remove_file(&archive);
     if !out.status.success() || !exe.exists() {
         anyhow::bail!("unpacking {asset} failed: {}", String::from_utf8_lossy(&out.stderr).trim());
     }
-    Ok(exe.parent().unwrap_or(&dir).to_path_buf())
+    Ok(())
+}
+
+/// On Windows the copy in System32 (a Git or MSYS `tar` earlier on PATH can't unpack .zip files), else the name.
+fn system_tool(name: &str) -> PathBuf {
+    if cfg!(windows) {
+        if let Some(root) = std::env::var_os("SystemRoot") {
+            let path = PathBuf::from(root).join("System32").join(format!("{name}.exe"));
+            if path.is_file() {
+                return path;
+            }
+        }
+    }
+    PathBuf::from(name)
 }
 
 /// Copies the netcoredbg folder `dir` into the container and checks that it runs there.

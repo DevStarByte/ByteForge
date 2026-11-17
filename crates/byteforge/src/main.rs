@@ -124,9 +124,14 @@ fn main() {
         #[cfg(target_os = "macos")]
         app_menu::install(cx);
 
-        let bounds = Bounds::centered(None, size(px(1400.), px(900.)), cx);
+        // The window's last place and size, while that is still on a screen.
+        let saved_window = bf_core::settings::State::load(paths.state_file())
+            .get(workbench::session::WINDOW_KEY)
+            .and_then(|t| serde_json::from_str::<workbench::session::SavedWindow>(&t).ok())
+            .and_then(|w| w.to_bounds(cx));
+        let bounds = saved_window.unwrap_or_else(|| WindowBounds::Windowed(Bounds::centered(None, size(px(1400.), px(900.)), cx)));
         let options = WindowOptions {
-            window_bounds: Some(WindowBounds::Windowed(bounds)),
+            window_bounds: Some(bounds),
             titlebar: Some(TitlebarOptions {
                 title: Some("ByteForge".into()),
                 appears_transparent: custom_titlebar,

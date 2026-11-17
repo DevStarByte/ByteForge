@@ -21,8 +21,14 @@ impl Workbench {
             let bom = bytes.starts_with(&[0xEF, 0xBB, 0xBF]);
             let body = if bom { &bytes[3..] } else { &bytes[..] };
             if body.iter().take(8000).any(|b| *b == 0) {
-                self.log(format!("{} looks like a binary file and was not opened.", path.display()));
-                self.show_panel(PanelView::Output, cx);
+                // Not text (a spreadsheet, image, PDF, …): hand it to the program the system has for it.
+                match bf_core::paths::open_in_default_app(&path) {
+                    Ok(()) => self.log(format!("{} isn't a text file; opened it in its default program.", path.display())),
+                    Err(e) => {
+                        self.log(format!("{} isn't a text file, and opening it in its default program failed: {e}", path.display()));
+                        self.show_panel(PanelView::Output, cx);
+                    }
+                }
                 return;
             }
             let text = String::from_utf8_lossy(body).into_owned();
@@ -138,6 +144,10 @@ impl Workbench {
                 cx.notify();
             }
             EditorEvent::BreakpointsChanged => self.on_editor_breakpoints_changed(editor, cx),
+            EditorEvent::CaretMoved => {
+                self.record_place(editor, cx);
+                cx.notify();
+            }
             EditorEvent::ApplyCodeAction(action, then) => self.apply_code_action((**action).clone(), *then, editor.downgrade(), window, cx),
             EditorEvent::Locations { title, locations } => self.show_references(title.clone(), locations, cx),
             EditorEvent::RenameRequested { symbol, at } => {

@@ -13,7 +13,7 @@ comments when the settings screen changes a value:
   "csharp.languageServer": "",                         // custom path to csharp-ls (optional)
   "dotnet.project": "src/MyApp/MyApp.csproj",          // build/run/debug target (optional)
   "dotnet.launchProfile": "https",                     // launchSettings.json profile (default: first "Project" one; "Select Launch Profile…" overrides it per project)
-  "debug.netcoredbgPath": "",                          // custom path to netcoredbg (optional)
+  "debug.netcoredbgPath": "",                          // custom path to netcoredbg (optional; else PATH, the usual folders, or a download)
   "debug.justMyCode": true, "debug.stopAtEntry": false, "debug.openBrowser": true,
   "debug.breakOnExceptions": ["user-unhandled"],       // or ["all"], or []
   "terminal.shell": "/usr/bin/fish", "terminal.args": [],  // default: your login shell ($SHELL); also set by

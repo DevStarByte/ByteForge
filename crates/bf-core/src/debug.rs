@@ -467,3 +467,44 @@ mod breakpoint_option_tests {
         assert_eq!(log_message_parts("plain"), [Text("plain".into())]);
     }
 }
+
+// ───────────── netcoredbg for this machine ─────────────
+
+/// The netcoredbg release for this OS and architecture, with the path of the executable inside it.
+/// `None` where Samsung ships none (Linux is covered by distribution packages, e.g. the AUR).
+fn host_release() -> Option<(&'static str, &'static str)> {
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("windows", "x86_64") => Some(("netcoredbg-win64.zip", "netcoredbg/netcoredbg.exe")),
+        ("macos", "x86_64") => Some(("netcoredbg-osx-amd64.tar.gz", "netcoredbg/netcoredbg")),
+        ("linux", "x86_64") => Some(("netcoredbg-linux-amd64.tar.gz", "netcoredbg/netcoredbg")),
+        ("linux", "aarch64") => Some(("netcoredbg-linux-arm64.tar.gz", "netcoredbg/netcoredbg")),
+        _ => None,
+    }
+}
+
+fn host_debugger_path(cache: &Path) -> Option<PathBuf> {
+    let (asset, exe) = host_release()?;
+    let folder = asset.trim_end_matches(".zip").trim_end_matches(".tar.gz");
+    Some(exe.split('/').fold(cache.join(folder), |path, part| path.join(part)))
+}
+
+/// netcoredbg as ByteForge downloaded it into `cache` earlier, if it did.
+pub fn cached_debugger(cache: &Path) -> Option<PathBuf> {
+    host_debugger_path(cache).filter(|p| p.is_file())
+}
+
+/// Whether [`download_debugger`] can fetch netcoredbg for this machine.
+pub fn can_download_debugger() -> bool {
+    host_release().is_some()
+}
+
+/// Downloads the netcoredbg release for this machine into `cache` (once) and returns the executable.
+pub fn download_debugger(cache: &Path) -> Result<PathBuf> {
+    let (asset, _) = host_release().ok_or_else(|| anyhow!("netcoredbg has no release for {} {}", std::env::consts::OS, std::env::consts::ARCH))?;
+    let exe = host_debugger_path(cache).ok_or_else(|| anyhow!("no netcoredbg release"))?;
+    if !exe.is_file() {
+        let dir = exe.parent().and_then(Path::parent).ok_or_else(|| anyhow!("bad cache path"))?;
+        crate::container::download_release(asset, dir, &exe)?;
+    }
+    Ok(exe)
+}

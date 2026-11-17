@@ -175,3 +175,24 @@ mod mac_path {
         after.lines().map(str::trim).find(|l| !l.is_empty()).map(str::to_owned)
     }
 }
+
+/// Opens `path` in the program the system has for it (Excel for `.xlsx`, a viewer for images, …).
+/// Windows: `explorer.exe` (no console window, any characters in the path); macOS: `open`; else `xdg-open`.
+pub fn open_in_default_app(path: &Path) -> std::io::Result<()> {
+    let program = if cfg!(windows) {
+        "explorer.exe"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    let mut child = std::process::Command::new(program)
+        .arg(path)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()?;
+    // Reap it when it ends (explorer.exe and xdg-open hand the file over and exit).
+    std::thread::spawn(move || child.wait());
+    Ok(())
+}

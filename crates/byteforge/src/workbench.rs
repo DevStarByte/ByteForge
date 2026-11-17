@@ -10,6 +10,7 @@ mod git;
 mod lsp;
 mod module_views;
 mod modules;
+mod navigation;
 mod nuget;
 mod palette;
 mod panel;
@@ -17,6 +18,7 @@ mod plugins;
 mod preview;
 mod references;
 mod render;
+pub(crate) mod session;
 mod settings_page;
 mod solution;
 mod symbols;
@@ -305,6 +307,10 @@ pub struct Workbench {
     build_problems: Vec<(PathBuf, crate::editor::Diagnostic)>,
     debug: Option<debug::DebugSession>,
     debug_generation: u64,
+    /// netcoredbg being downloaded because none was found (then F5 or the attach goes on).
+    debugger_download: Option<Task<()>>,
+    /// Go Back / Go Forward: where the caret was.
+    nav: navigation::NavHistory,
     /// Breakpoints of all files (open or not), sorted by line.
     breakpoints: BTreeMap<PathBuf, Vec<crate::editor::Breakpoint>>,
     /// The container "Start Debugging in Container" started; removed when the debug session ends.
@@ -573,6 +579,8 @@ impl Workbench {
             build_problems: Vec::new(),
             debug: None,
             debug_generation: 0,
+            debugger_download: None,
+            nav: Default::default(),
             breakpoints: BTreeMap::new(),
             watches: Vec::new(),
             autosave: HashMap::new(),
@@ -641,6 +649,7 @@ impl Workbench {
             let path = normalize_path(Path::new(&target));
             if path.is_dir() && !folder_opened {
                 wb.open_folder(path, window, cx);
+                wb.restore_session(window, cx);
                 folder_opened = true;
             } else if path.is_file() {
                 wb.open_file(path, None, window, cx);
@@ -765,6 +774,7 @@ impl Workbench {
     // ───────────── folders & files ─────────────
 
     fn open_folder(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        self.save_session(None, cx);
         let tx = self.event_sender_for_files(cx);
         if let Err(e) = self.workspace.open(path.clone(), move |_| {
             let _ = tx.send(AppEvent::FilesChanged);
@@ -818,6 +828,7 @@ impl Workbench {
     }
 
     fn should_close(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        self.save_session(Some(window), cx);
         if self.force_close {
             self.shutdown(cx);
             return true;

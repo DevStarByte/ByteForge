@@ -13,7 +13,7 @@ actions!(
         ToggleLineEnding, ReloadCSharp, InstallRoslyn, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
         GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
         FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup,
-        MarkdownOpenPreview, MarkdownOpenPreviewToSide, OpenInOtherGroup
+        MarkdownOpenPreview, MarkdownOpenPreviewToSide, OpenInOtherGroup, GoBack, GoForward
     ]
 );
 
@@ -208,6 +208,8 @@ fn builtin() -> Vec<Builtin> {
         ("view.commandPalette", "Command Palette", "View", Box::new(CommandPalette), Some("ctrl-shift-p")),
         ("view.quickOpen", "Go to File…", "Go", Box::new(QuickOpen), Some("ctrl-p")),
         ("edit.goToLine", "Go to Line…", "Go", Box::new(GoToLine), Some("ctrl-g")),
+        ("nav.back", "Go Back", "Go", Box::new(GoBack), Some("alt-left")),
+        ("nav.forward", "Go Forward", "Go", Box::new(GoForward), Some("alt-right")),
         ("view.toggleSideBar", "Toggle Side Bar", "View", Box::new(ToggleSideBar), Some("ctrl-b")),
         ("view.resetActivityBar", "Reset Activity Bar (Order and Hidden Items)", "View", Box::new(ResetActivityBarOrder), None),
         ("view.togglePanel", "Toggle Panel", "View", Box::new(TogglePanel), Some("ctrl-j")),
@@ -558,6 +560,9 @@ pub fn platform_keys(keys: &str) -> String {
 fn mac_chord(chord: &str) -> String {
     let special = match chord {
         // Word and document movement follow the macOS text conventions.
+        // Go Back / Go Forward: Alt+Left/Right move by word on macOS.
+        "alt-left" => "ctrl--",
+        "alt-right" => "ctrl-shift--",
         "ctrl-left" => "alt-left",
         "ctrl-right" => "alt-right",
         "ctrl-shift-left" => "alt-shift-left",

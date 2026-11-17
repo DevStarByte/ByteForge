@@ -126,6 +126,14 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &CommandPalette, w, cx| wb.open_palette(Mode::Commands, w, cx)))
             .on_action(cx.listener(|wb, _: &QuickOpen, w, cx| wb.open_palette(Mode::Files, w, cx)))
             .on_action(cx.listener(|wb, _: &GoToLine, w, cx| wb.open_palette(Mode::GoToLine, w, cx)))
+            .on_action(cx.listener(|wb, _: &GoBack, w, cx| wb.go_back(w, cx)))
+            .on_action(cx.listener(|wb, _: &GoForward, w, cx| wb.go_forward(w, cx)))
+            // The mouse's back and forward buttons, wherever the pointer is.
+            .capture_any_mouse_down(cx.listener(|wb, e: &MouseDownEvent, w, cx| match e.button {
+                MouseButton::Navigate(gpui::NavigationDirection::Back) => wb.go_back(w, cx),
+                MouseButton::Navigate(gpui::NavigationDirection::Forward) => wb.go_forward(w, cx),
+                _ => {}
+            }))
             .on_action(cx.listener(|wb, _: &GoToSymbolInEditor, w, cx| wb.open_palette(Mode::Symbols, w, cx)))
             .on_action(cx.listener(|wb, _: &GoToSymbolInWorkspace, w, cx| wb.open_palette(Mode::WorkspaceSymbols, w, cx)))
             .on_action(cx.listener(|wb, _: &SelectTheme, w, cx| wb.open_palette(Mode::Themes, w, cx)))

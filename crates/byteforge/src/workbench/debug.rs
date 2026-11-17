@@ -352,7 +352,13 @@ impl Workbench {
             self.show_panel(PanelView::Output, cx);
             return;
         };
-        let Some(adapter) = self.debug_adapter(cx) else { return };
+        self.with_debug_adapter(window, cx, move |wb, adapter, window, cx| wb.debug_build_and_launch(root, adapter, window, cx));
+    }
+
+    fn debug_build_and_launch(&mut self, root: PathBuf, adapter: String, window: &mut Window, cx: &mut Context<Self>) {
+        if self.debug.is_some() {
+            return;
+        }
         if self.dotnet_busy(cx) {
             return;
         }
@@ -391,18 +397,58 @@ impl Workbench {
         cx.notify();
     }
 
-    /// The netcoredbg executable, or logs how to install it.
-    fn debug_adapter(&mut self, cx: &mut Context<Self>) -> Option<String> {
+    /// The netcoredbg executable: the configured one, an installed one, or the one ByteForge downloaded.
+    fn find_debug_adapter(&self) -> Option<String> {
         let configured = self.settings.get_string("debug.netcoredbgPath");
-        let found = bf_dap::netcoredbg_command(configured.as_deref());
-        if found.is_none() {
+        bf_dap::netcoredbg_command(configured.as_deref())
+            .or_else(|| bf_core::debug::cached_debugger(&self.paths.cache_dir()).map(|p| p.to_string_lossy().into_owned()))
+    }
+
+    /// Calls `then` with the netcoredbg executable. When there is none, downloads the release for this
+    /// machine first (Windows, macOS, Linux x64/arm64), or logs how to install it.
+    fn with_debug_adapter(&mut self, window: &mut Window, cx: &mut Context<Self>, then: impl FnOnce(&mut Self, String, &mut Window, &mut Context<Self>) + 'static) {
+        if let Some(adapter) = self.find_debug_adapter() {
+            then(self, adapter, window, cx);
+            return;
+        }
+        if !bf_core::debug::can_download_debugger() {
             self.log(
-                "The .NET debugger netcoredbg was not found. Install it (Arch: the AUR package \"netcoredbg\"; elsewhere: unpack a \
-                 release from https://github.com/Samsung/netcoredbg/releases to ~/.local/share/netcoredbg), or set \"debug.netcoredbgPath\".",
+                "The .NET debugger netcoredbg was not found. Install it (Arch: the AUR package \"netcoredbg\"), \
+                 or set \"debug.netcoredbgPath\" to its executable.",
             );
             self.show_panel(PanelView::Output, cx);
+            return;
         }
-        found
+        if self.debugger_download.is_some() {
+            self.log("netcoredbg is still downloading…");
+            self.show_panel(PanelView::Output, cx);
+            return;
+        }
+        let cache = self.paths.cache_dir();
+        self.log(format!("netcoredbg was not found; downloading it from https://github.com/Samsung/netcoredbg/releases into {}…", cache.display()));
+        self.show_panel(PanelView::Output, cx);
+        let download = cx.background_spawn(async move { bf_core::debug::download_debugger(&cache) });
+        self.debugger_download = Some(cx.spawn_in(window, async move |this, cx| {
+            let result = download.await;
+            let _ = this.update_in(cx, |wb, window, cx| {
+                wb.debugger_download = None;
+                match result {
+                    Ok(exe) => {
+                        wb.log(format!("netcoredbg is ready: {}", exe.display()));
+                        then(wb, exe.to_string_lossy().into_owned(), window, cx);
+                    }
+                    Err(e) => {
+                        wb.log(format!(
+                            "Could not download netcoredbg: {e:#}. Unpack a release from https://github.com/Samsung/netcoredbg/releases \
+                             yourself and set \"debug.netcoredbgPath\" to netcoredbg{}.",
+                            std::env::consts::EXE_SUFFIX
+                        ));
+                        wb.show_panel(PanelView::Output, cx);
+                    }
+                }
+                cx.notify();
+            });
+        }));
     }
 
     fn debug_launch(&mut self, generation: u64, project: PathBuf, adapter: String, window: &mut Window, cx: &mut Context<Self>) {
@@ -439,7 +485,13 @@ impl Workbench {
             self.show_panel(PanelView::Output, cx);
             return;
         }
-        let Some(adapter) = self.debug_adapter(cx) else { return };
+        self.with_debug_adapter(window, cx, move |wb, adapter, window, cx| wb.debug_attach_with(pid, adapter, window, cx));
+    }
+
+    fn debug_attach_with(&mut self, pid: u32, adapter: String, window: &mut Window, cx: &mut Context<Self>) {
+        if self.debug.is_some() {
+            return;
+        }
         self.debug_generation += 1;
         let generation = self.debug_generation;
         self.debug = Some(DebugSession::new(generation, format!("process {pid}"), Phase::Starting));

@@ -23,6 +23,10 @@ live, and modules written in any language can extend it.
 
 - **Editor:** multiple cursors, folding, minimap, snippets, find & replace, and tree-sitter highlighting that
   runs in the background
+- **Sessions:** reopens the last folder with its open files (split included), each at its caret, in the window's
+  last place and size
+- **Go Back / Go Forward:** the mouse's back and forward buttons (or Alt+←/→, Ctrl+-/Ctrl+Shift+- on macOS)
+  return to where the caret was and forward again, across files
 - **C#:** completion, hover, go to definition, find references, rename, quick fixes and inlay hints, powered by
   `csharp-ls` (Roslyn)
 - **Refactoring:** a Refactor menu (Ctrl+Shift+R, the menu bar or right-click) with Extract Method, Extract Local
@@ -130,7 +134,8 @@ cargo run --release -p byteforge -- ~/code/my-project
 (`makepkg -si`), and on macOS `packaging/macos/bundle.sh` builds `dist/ByteForge.app` and a `.dmg`.
 
 **Optional:**
-- For debugging, install [netcoredbg](https://github.com/Samsung/netcoredbg) (AUR: `netcoredbg`).
+- Debugging uses [netcoredbg](https://github.com/Samsung/netcoredbg) (AUR: `netcoredbg`). When none is installed, ByteForge
+  downloads the release for your system (Windows, macOS, Linux x64/arm64) into its cache on the first F5.
 - For ASP.NET Core and Blazor projects, install the ASP.NET Core runtime and targeting pack.
 
 > [!NOTE]
