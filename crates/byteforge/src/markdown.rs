@@ -100,14 +100,40 @@ pub fn inlines(text: &str) -> Vec<Inline> {
                 continue;
             }
             '`' => {
-                // Inline code runs to the matching backtick; nothing inside is markup.
-                if let Some(len) = chars[i + 1..].iter().position(|&x| x == '`') {
+                // Inline code opens with a run of N backticks and closes at the next run of exactly
+                // N, so ``List`1`` holds a backtick (CommonMark). Nothing inside is markup.
+                let n = chars[i..].iter().take_while(|&&x| x == '`').count();
+                let start = i + n;
+                let mut j = start;
+                let mut close = None;
+                while j < chars.len() {
+                    if chars[j] == '`' {
+                        let run = chars[j..].iter().take_while(|&&x| x == '`').count();
+                        if run == n {
+                            close = Some(j);
+                            break;
+                        }
+                        j += run;
+                    } else {
+                        j += 1;
+                    }
+                }
+                if let Some(end) = close {
+                    let mut code = &chars[start..end];
+                    // One space of padding on both sides is stripped: `` `x` `` shows `x`.
+                    if code.len() >= 2 && code[0] == ' ' && code[code.len() - 1] == ' ' && code.iter().any(|&x| x != ' ') {
+                        code = &code[1..code.len() - 1];
+                    }
                     push(&mut out, &mut current, style);
-                    current.extend(&chars[i + 1..i + 1 + len]);
+                    current.extend(code);
                     push(&mut out, &mut current, Style { code: true, ..style });
-                    i += len + 2;
+                    i = end + n;
                     continue;
                 }
+                // No matching run: the backticks are text.
+                current.extend(&chars[i..start]);
+                i = start;
+                continue;
             }
             '*' | '_' if next == Some(c) => {
                 push(&mut out, &mut current, style);
@@ -263,5 +289,14 @@ mod tests {
         assert_eq!(inlines("a **b** _c_ d"), vec![plain("a "), Inline { text: "b".into(), style: bold }, plain(" "), Inline { text: "c".into(), style: italic }, plain(" d")]);
         assert_eq!(inlines("snake_case_name"), vec![plain("snake_case_name")]);
         assert_eq!(inlines("see [docs](https://x.y/z) now"), vec![plain("see docs now")]);
+    }
+
+    #[test]
+    fn code_spans_with_backticks_inside() {
+        let code = |t: &str| Inline { text: t.into(), style: Style { code: true, ..Style::default() } };
+        // Roslyn writes generic arity this way: <see cref="List`1"/>.
+        assert_eq!(inlines("the source ``System.Collections.Generic.List`1``."), vec![plain("the source "), code("System.Collections.Generic.List`1"), plain(".")]);
+        assert_eq!(inlines("`` `x` ``"), vec![code("`x`")]);
+        assert_eq!(inlines("a ``b` c"), vec![plain("a ``b` c")]);
     }
 }
