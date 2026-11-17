@@ -175,23 +175,34 @@ impl Workbench {
         let badge_size = t.n("activityBarBadge.size", 16.0);
         let badge_bg = t.bg("activityBarBadge.background");
         let badge_fg = t.c("activityBarBadge.foreground");
+        // The badge hangs off the icon's lower-right corner and grows to the right, so it never covers the icon
+        // glyph or the label under it. A ring in the bar colour separates it from the icon.
+        let label_px = if horizontal { 0.0 } else { t.n("activityBar.labelSize", 0.0) };
+        let content_h = f32::from(icon_size) + if label_px > 0.0 { 3.0 + label_px * 1.2 } else { 0.0 };
+        let icon_top = (f32::from(item_h) - content_h) / 2.0;
+        let item_inset = if horizontal { 0.0 } else { f32::from(t.m("activityBar.itemInset", 0.0)) };
+        let ring = t.c("activityBar.background");
         let badge = move |count: usize| {
             (count > 0).then(|| {
                 div()
                     .absolute()
-                    .bottom(px(f32::from(item_h) / 2.0 - f32::from(icon_size) / 2.0 - badge_size / 3.0))
-                    .right(px(f32::from(item_w) / 2.0 - f32::from(icon_size) / 2.0 - badge_size / 2.0))
+                    .top(px(icon_top + f32::from(icon_size) - badge_size * 0.7))
+                    .left(px(f32::from(item_w) / 2.0 - item_inset + f32::from(icon_size) / 2.0 - badge_size * 0.55))
                     .min_w(px(badge_size))
                     .h(px(badge_size))
-                    .px(px(3.))
-                    .rounded(px(badge_size / 2.0))
+                    .px(px(4.))
+                    .rounded_full()
+                    .border(px(1.5))
+                    .border_color(ring)
                     .bg(badge_bg)
                     .text_color(badge_fg)
-                    .text_size(px(badge_size * 0.62))
+                    .text_size(px(badge_size * 0.6))
+                    .line_height(px(badge_size * 0.6))
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(if count > 999 { "999+".to_owned() } else { count.to_string() })
+                    .child(if count > 99 { "99+".to_owned() } else { count.to_string() })
             })
         };
         // Optional text under each icon (vertical bar only) and a horizontal inset that turns full-width items

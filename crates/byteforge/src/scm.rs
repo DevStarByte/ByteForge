@@ -680,6 +680,7 @@ impl Render for ScmView {
                                 .group("scm-row")
                                 .w_full()
                                 .h(px(row_h))
+                                .relative()
                                 .pl(px(20.))
                                 .pr_3()
                                 .flex()
@@ -690,16 +691,12 @@ impl Render for ScmView {
                                 .hover(|s| s.bg(t.c("list.hoverBackground")))
                                 .child({
                                     let (icon_name, color_key) = crate::explorer::file_icon(&name, false, false);
-                                    icon(&icon_name, t.m("explorer.iconSize", 15.0), crate::explorer::file_icon_color(&t, &color_key))
+                                    div().flex_none().flex().child(icon(&icon_name, t.m("explorer.iconSize", 15.0), crate::explorer::file_icon_color(&t, &color_key)))
                                 })
-                                .child(div().whitespace_nowrap().text_color(color).when(deleted, |d| d.line_through()).child(name))
-                                .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_size(px(11.)).text_color(t.c("foreground.muted")).child(dir))
+                                .child(div().min_w(px(24.)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(color).when(deleted, |d| d.line_through()).child(name))
+                                .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_ellipsis().text_size(px(11.)).text_color(t.c("foreground.muted")).child(dir))
                                 .child(
-                                    div()
-                                        .flex()
-                                        .gap_1()
-                                        .invisible()
-                                        .group_hover("scm-row", |s| s.visible())
+                                    hover_actions(&t)
                                         .when(!deleted, |d| {
                                             d.child(small("open", "file", "Open File").on_click(move |_, _, cx| {
                                                 cx.stop_propagation();
@@ -727,7 +724,7 @@ impl Render for ScmView {
                                             })
                                         }),
                                 )
-                                .child(div().w(px(12.)).flex().justify_center().text_color(color).text_size(px(12.)).child(change.letter(staged).to_string()))
+                                .child(div().flex_none().w(px(12.)).flex().justify_center().text_color(color).text_size(px(12.)).child(change.letter(staged).to_string()))
                                 .on_click(move |_, _, cx| e3.update(cx, |_, cx| cx.emit(ScmEvent::OpenDiff(c3.clone(), staged))))
                                 .into_any_element()
                         }
@@ -819,6 +816,7 @@ impl Render for ScmView {
                                 .group("scm-row")
                                 .w_full()
                                 .h(px(row_h))
+                                .relative()
                                 .pl(px(40.))
                                 .pr_3()
                                 .flex()
@@ -830,17 +828,17 @@ impl Render for ScmView {
                                 .when_some(file.orig.as_ref(), |d, orig| d.tooltip(tooltip(format!("Renamed from {}", orig.strip_prefix(&root).unwrap_or(orig).display()))))
                                 .child({
                                     let (icon_name, color_key) = crate::explorer::file_icon(&name, false, false);
-                                    icon(&icon_name, t.m("explorer.iconSize", 15.0), crate::explorer::file_icon_color(&t, &color_key))
+                                    div().flex_none().flex().child(icon(&icon_name, t.m("explorer.iconSize", 15.0), crate::explorer::file_icon_color(&t, &color_key)))
                                 })
-                                .child(div().whitespace_nowrap().text_color(color).when(deleted, |d| d.line_through()).child(name))
-                                .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_size(px(11.)).text_color(t.c("foreground.muted")).child(dir))
+                                .child(div().min_w(px(24.)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(color).when(deleted, |d| d.line_through()).child(name))
+                                .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().text_ellipsis().text_size(px(11.)).text_color(t.c("foreground.muted")).child(dir))
                                 .when(!deleted, |d| {
-                                    d.child(div().invisible().group_hover("scm-row", |s| s.visible()).child(small("open", "file", "Open File").on_click(move |_, _, cx| {
+                                    d.child(hover_actions(&t).child(small("open", "file", "Open File").on_click(move |_, _, cx| {
                                         cx.stop_propagation();
                                         e1.update(cx, |_, cx| cx.emit(ScmEvent::OpenFile(path.clone())))
                                     })))
                                 })
-                                .child(div().w(px(12.)).flex().justify_center().text_color(color).text_size(px(12.)).child(file.status.to_string()))
+                                .child(div().flex_none().w(px(12.)).flex().justify_center().text_color(color).text_size(px(12.)).child(file.status.to_string()))
                                 .on_click(move |_, _, cx| e2.update(cx, |_, cx| cx.emit(ScmEvent::OpenCommitDiff(commit.clone(), file.clone()))))
                                 .into_any_element()
                         }
@@ -895,7 +893,17 @@ impl Render for ScmView {
                     .items_center()
                     .gap_1()
                     .child(icon("sourceControl", icon_size, t.c("icon.foreground")))
-                    .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().child(branch).child(div().text_size(px(11.)).text_color(muted).child(sync)))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .items_baseline()
+                            .gap(px(6.))
+                            .whitespace_nowrap()
+                            .child(div().min_w_0().overflow_hidden().text_ellipsis().child(branch))
+                            .child(div().flex_none().text_size(px(11.)).text_color(muted).child(sync)),
+                    )
                     .child(tool("scm-refresh", "refresh", "Refresh").on_click(cx.listener(|v, _, _, cx| v.refresh(cx)))),
             )
             .child(div().px_3().child(self.message.clone()))
@@ -913,6 +921,24 @@ impl Render for ScmView {
             .child(list)
             .into_any_element()
     }
+}
+
+/// Row action buttons, shown over the right end of a row (left of the status letter) only while it is hovered,
+/// so they never take space away from the file name.
+fn hover_actions(t: &Theme) -> gpui::Div {
+    div()
+        .absolute()
+        .top_0()
+        .bottom_0()
+        .right(px(30.))
+        .bg(t.bg("sideBar.background"))
+        .child(div().absolute().inset_0().bg(t.bg("list.hoverBackground")))
+        .flex()
+        .items_center()
+        .gap_1()
+        .px_1()
+        .invisible()
+        .group_hover("scm-row", |s| s.visible())
 }
 
 /// Pull / push / fetch buttons for the HISTORY header (like the Graph header in VS Code), with the number of
