@@ -781,7 +781,8 @@ mod tests {
         keystroke_bytes(&Keystroke::parse(key).unwrap(), false)
     }
 
-    /// The visible text of the terminal grid.
+    /// The visible text of the terminal grid (for the Unix shell test).
+    #[cfg(unix)]
     fn screen(spawned: &Spawned) -> String {
         let term = spawned.term.lock();
         let content = term.renderable_content();

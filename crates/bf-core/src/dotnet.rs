@@ -77,7 +77,8 @@ pub enum RunEvent {
 #[derive(Clone)]
 pub struct DotnetProcess {
     child: Arc<Mutex<Option<Child>>>,
-    /// The process id, which on Unix is also the id of the process group the process leads.
+    /// The process id: on Windows the root of the tree `taskkill /T` ends, on Unix also the id of the process
+    /// group the process leads.
     pid: u32,
 }
 
@@ -171,7 +172,7 @@ impl DotnetProcess {
         #[cfg(windows)]
         if let Some(child) = self.child.lock().as_mut() {
             // Kill the whole tree.
-            let _ = Command::new("taskkill").args(["/T", "/F", "/PID", &child.id().to_string()]).output();
+            let _ = Command::new("taskkill").args(["/T", "/F", "/PID", &self.pid.to_string()]).output();
             let _ = child.kill();
         }
     }
