@@ -960,6 +960,8 @@ fn initialize_params(config: &ServerConfig, workspace_folder: &Value) -> Value {
     json!({
         "processId": std::process::id(),
         "clientInfo": { "name": "ByteForge", "version": env!("CARGO_PKG_VERSION") },
+        // ByteForge is English: servers that localize (Roslyn: hovers, code action titles) use this, not the system language.
+        "locale": "en",
         "rootUri": workspace_folder["uri"],
         "rootPath": config.root.to_string_lossy(),
         "workspaceFolders": [workspace_folder],

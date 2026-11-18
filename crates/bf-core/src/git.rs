@@ -77,6 +77,36 @@ pub struct Branch {
     pub remote: bool,
 }
 
+/// One entry of the stash.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Stash {
+    /// 0 is the newest (`stash@{0}`).
+    pub index: usize,
+    /// "On main: message" / "WIP on main: 1a2b3c subject".
+    pub message: String,
+    /// When it was stashed, relative ("2 hours ago").
+    pub when: String,
+}
+
+/// What to do with a stash entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StashOp {
+    Pop,
+    Apply,
+    Drop,
+}
+
+fn parse_stashes(text: &str) -> Vec<Stash> {
+    text.lines()
+        .filter_map(|line| {
+            let mut parts = line.split('\0');
+            let reference = parts.next()?;
+            let index = reference.strip_prefix("stash@{")?.strip_suffix('}')?.parse().ok()?;
+            Some(Stash { index, message: parts.next().unwrap_or_default().to_owned(), when: parts.next().unwrap_or_default().to_owned() })
+        })
+        .collect()
+}
+
 /// One commit of the history list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Commit {
@@ -186,6 +216,9 @@ fn git(dir: &Path) -> Command {
         .args(["-c", "core.quotepath=false", "-c", "color.ui=false"])
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_OPTIONAL_LOCKS", "0")
+        // English messages, like the rest of ByteForge (some, like "would be overwritten", are matched).
+        .env("LANG", "en_US.UTF-8")
+        .env("LANGUAGE", "en")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -413,6 +446,81 @@ impl Git {
     /// Puts the uncommitted changes (untracked files included) on the stash.
     pub fn stash_push(&self, message: &str) -> anyhow::Result<String> {
         run_verbose(&self.root, &["stash", "push", "--include-untracked", "-m", message])
+    }
+
+    /// The stash, newest first.
+    pub fn stashes(&self) -> anyhow::Result<Vec<Stash>> {
+        let text = run(&self.root, &["stash", "list", "--format=%gd%x00%gs%x00%cr"])?;
+        Ok(parse_stashes(&text))
+    }
+
+    /// `pop` (apply and drop), `apply` or `drop` the stash entry `index` (0 is the newest).
+    pub fn stash_op(&self, op: StashOp, index: usize) -> anyhow::Result<String> {
+        let entry = format!("stash@{{{index}}}");
+        let verb = match op {
+            StashOp::Pop => "pop",
+            StashOp::Apply => "apply",
+            StashOp::Drop => "drop",
+        };
+        // --index brings staged changes back staged (pop and apply only).
+        if op == StashOp::Drop { run_verbose(&self.root, &["stash", verb, &entry]) } else { run_verbose(&self.root, &["stash", verb, "--index", &entry]) }
+    }
+
+    /// "Undo Last Commit": HEAD goes back one commit and its changes stay, staged. Returns the commit's
+    /// message (to edit and commit again). The first commit is undone by removing the branch ref.
+    pub fn undo_last_commit(&self) -> anyhow::Result<String> {
+        let message = run(&self.root, &["log", "-1", "--format=%B", "HEAD"])?.trim().to_owned();
+        if run(&self.root, &["rev-parse", "--verify", "-q", "HEAD~1"]).is_ok() {
+            run(&self.root, &["reset", "--soft", "HEAD~1"])?;
+        } else {
+            run(&self.root, &["update-ref", "-d", "HEAD"])?;
+        }
+        Ok(message)
+    }
+
+    /// The last commit's full message.
+    pub fn last_commit_message(&self) -> anyhow::Result<String> {
+        Ok(run(&self.root, &["log", "-1", "--format=%B", "HEAD"])?.trim().to_owned())
+    }
+
+    /// Adds the staged changes to the last commit; with an empty `message` it keeps the old one.
+    pub fn amend(&self, message: &str) -> anyhow::Result<String> {
+        if message.trim().is_empty() { run_verbose(&self.root, &["commit", "--amend", "--no-edit"]) } else { self.commit(message, true) }
+    }
+
+    /// Whether a merge is in progress (stopped at conflicts).
+    pub fn is_merging(&self) -> bool {
+        run(&self.root, &["rev-parse", "-q", "--verify", "MERGE_HEAD"]).is_ok()
+    }
+
+    /// Merges `branch` into the current branch (a merge commit with git's default message when needed).
+    pub fn merge(&self, branch: &str) -> anyhow::Result<String> {
+        run_verbose(&self.root, &["merge", "--no-edit", branch])
+    }
+
+    pub fn abort_merge(&self) -> anyhow::Result<String> {
+        run_verbose(&self.root, &["merge", "--abort"])
+    }
+
+    /// Renames the current branch.
+    pub fn rename_branch(&self, name: &str) -> anyhow::Result<String> {
+        run_verbose(&self.root, &["branch", "-m", name])
+    }
+
+    /// A lightweight tag `name` at `at` (a commit id), or at HEAD.
+    pub fn create_tag(&self, name: &str, at: Option<&str>) -> anyhow::Result<String> {
+        let mut args = vec!["tag", name];
+        args.extend(at);
+        run_verbose(&self.root, &args)
+    }
+
+    pub fn push_tags(&self) -> anyhow::Result<String> {
+        run_verbose(&self.root, &["push", "--tags"])
+    }
+
+    /// A new commit that undoes `id` (the history keeps both).
+    pub fn revert_commit(&self, id: &str) -> anyhow::Result<String> {
+        run_verbose(&self.root, &["revert", "--no-edit", id])
     }
 
     pub fn create_branch(&self, name: &str) -> anyhow::Result<String> {
@@ -1006,6 +1114,109 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         assert_eq!((ours.as_deref(), theirs.as_deref()), (Some("class A { int current; }\n"), Some("class A { int incoming; }\n")));
         let both = crate::conflicts::apply(&text, &conflicts[0], crate::conflicts::Resolution::Both);
         assert_eq!(both, "class A { int current; }\nclass A { int incoming; }\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn stash_list_parses() {
+        let text = "stash@{0}\0On main: wip\03 minutes ago\nstash@{1}\0WIP on main: 1a2b3c first\02 days ago\n";
+        let stashes = parse_stashes(text);
+        assert_eq!(stashes.len(), 2);
+        assert_eq!((stashes[0].index, stashes[0].message.as_str(), stashes[0].when.as_str()), (0, "On main: wip", "3 minutes ago"));
+        assert_eq!(stashes[1].index, 1);
+    }
+
+    /// The commands of the Source Control "…" menu, on a real repository.
+    #[test]
+    fn undo_amend_stash_merge_tag_and_revert() {
+        if Command::new("git").arg("--version").output().is_err() {
+            eprintln!("git not installed; skipping");
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("bf-git-ops-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let repo = Git::init(&dir).unwrap();
+        for (k, v) in [("user.name", "Test"), ("user.email", "test@example.com"), ("commit.gpgsign", "false"), ("core.autocrlf", "false"), ("tag.gpgsign", "false")] {
+            run(repo.root(), &["config", k, v]).unwrap();
+        }
+        let file = repo.root().join("A.cs");
+        let commit = |text: &str, message: &str| {
+            std::fs::write(&file, text).unwrap();
+            repo.stage_all().unwrap();
+            repo.commit(message, false).unwrap();
+        };
+        let subjects = || repo.log(50, 0).unwrap().into_iter().map(|c| c.subject).collect::<Vec<_>>();
+
+        // Undo the first commit: no commits left, the file stays staged.
+        commit("one\n", "first");
+        assert_eq!(repo.undo_last_commit().unwrap(), "first");
+        let s = repo.status().unwrap();
+        assert!(!s.has_commits && s.change_for(&file).unwrap().is_staged());
+        repo.commit("first", false).unwrap();
+
+        // Undo a later commit: back one, its change staged, the message returned.
+        commit("two\n", "second\n\nwith a body");
+        assert_eq!(repo.undo_last_commit().unwrap(), "second\n\nwith a body");
+        assert_eq!(subjects(), ["first"]);
+        assert!(repo.status().unwrap().change_for(&file).unwrap().is_staged());
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "two\n", "the change stays in the file");
+
+        // Amend: keeps the message when none is given, takes a new one otherwise.
+        repo.amend("").unwrap();
+        assert_eq!(subjects(), ["first"]);
+        assert!(repo.status().unwrap().changes.is_empty());
+        assert_eq!(repo.content_at("HEAD", &file).as_deref(), Some("two\n"));
+        repo.amend("first, amended").unwrap();
+        assert_eq!(repo.last_commit_message().unwrap(), "first, amended");
+
+        // Stash: push, list, apply (kept), drop, pop (removed).
+        std::fs::write(&file, "stashed\n").unwrap();
+        repo.stash_push("mine").unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "two\n");
+        let stashes = repo.stashes().unwrap();
+        assert_eq!(stashes.len(), 1);
+        assert!(stashes[0].message.ends_with("mine"), "{:?}", stashes[0]);
+        repo.stash_op(StashOp::Apply, 0).unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "stashed\n");
+        assert_eq!(repo.stashes().unwrap().len(), 1, "apply keeps the entry");
+        repo.discard(&repo.status().unwrap().changes).unwrap();
+        repo.stash_op(StashOp::Pop, 0).unwrap();
+        assert!(repo.stashes().unwrap().is_empty(), "pop removes it");
+        repo.stash_push("again").unwrap();
+        repo.stash_op(StashOp::Drop, 0).unwrap();
+        assert!(repo.stashes().unwrap().is_empty() && repo.status().unwrap().changes.is_empty());
+
+        // Rename the branch; merge another one, then a conflicting merge that is aborted.
+        repo.rename_branch("trunk").unwrap();
+        assert_eq!(repo.status().unwrap().branch.as_deref(), Some("trunk"));
+        repo.create_branch("side").unwrap();
+        let other = repo.root().join("B.cs");
+        std::fs::write(&other, "b\n").unwrap();
+        repo.stage_all().unwrap();
+        repo.commit("side work", false).unwrap();
+        run(repo.root(), &["switch", "-q", "trunk"]).unwrap();
+        repo.merge("side").unwrap();
+        assert!(other.exists() && !repo.is_merging());
+        run(repo.root(), &["switch", "-q", "side"]).unwrap();
+        commit("side\n", "side change");
+        run(repo.root(), &["switch", "-q", "trunk"]).unwrap();
+        commit("trunk\n", "trunk change");
+        assert!(repo.merge("side").is_err(), "conflict");
+        assert!(repo.is_merging());
+        repo.abort_merge().unwrap();
+        assert!(!repo.is_merging());
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "trunk\n");
+
+        // Tags, at HEAD and at an older commit; revert makes a new commit that undoes one.
+        repo.create_tag("v1", None).unwrap();
+        let log = repo.log(50, 0).unwrap();
+        repo.create_tag("v0", Some(&log[1].id)).unwrap();
+        let tags = run(repo.root(), &["tag", "--list"]).unwrap();
+        assert!(tags.contains("v0") && tags.contains("v1"), "{tags}");
+        repo.revert_commit(&log[0].id).unwrap();
+        assert!(subjects()[0].starts_with("Revert \"trunk change\""), "{:?}", subjects());
+        assert_ne!(std::fs::read_to_string(&file).unwrap(), "trunk\n");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

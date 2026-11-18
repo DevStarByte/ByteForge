@@ -163,6 +163,33 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &GitSync, _, cx| wb.scm.update(cx, |s, cx| s.sync(cx))))
             .on_action(cx.listener(|wb, _: &GitCheckout, w, cx| wb.open_branch_picker(w, cx)))
             .on_action(cx.listener(|wb, _: &GitCreateBranch, w, cx| wb.open_prompt(PromptKind::CreateBranch, "", w, cx)))
+            .on_action(cx.listener(|wb, _: &GitUndoLastCommit, w, cx| wb.scm.update(cx, |s, cx| s.undo_last_commit(w, cx))))
+            .on_action(cx.listener(|wb, _: &GitCommitAmend, w, cx| {
+                wb.show_side(SideView::SourceControl, cx);
+                wb.scm.update(cx, |s, cx| s.commit_amend(w, cx))
+            }))
+            .on_action(cx.listener(|wb, _: &GitRevertCommit, w, cx| wb.open_revert_picker(w, cx)))
+            .on_action(cx.listener(|wb, a: &GitRevertCommitId, w, cx| wb.revert_commit(a.id.clone(), a.subject.clone(), w, cx)))
+            .on_action(cx.listener(|wb, _: &GitDiscardAll, w, cx| wb.scm.update(cx, |s, cx| s.discard_all(w, cx))))
+            .on_action(cx.listener(|wb, _: &GitStash, w, cx| wb.open_prompt(PromptKind::StashMessage, "", w, cx)))
+            .on_action(cx.listener(|wb, _: &GitStashPopLatest, _, cx| wb.scm.update(cx, |s, cx| s.stash_entry(bf_core::git::StashOp::Pop, 0, cx))))
+            .on_action(cx.listener(|wb, _: &GitStashPop, w, cx| wb.open_stash_picker("pop", w, cx)))
+            .on_action(cx.listener(|wb, _: &GitStashApply, w, cx| wb.open_stash_picker("apply", w, cx)))
+            .on_action(cx.listener(|wb, _: &GitStashDrop, w, cx| wb.open_stash_picker("drop", w, cx)))
+            .on_action(cx.listener(|wb, a: &GitStashEntry, w, cx| wb.stash_entry(a, w, cx)))
+            .on_action(cx.listener(|wb, _: &GitMergeBranch, w, cx| wb.open_merge_picker(w, cx)))
+            .on_action(cx.listener(|wb, a: &GitMergeWith, _, cx| {
+                let branch = a.branch.clone();
+                wb.scm.update(cx, |s, cx| s.merge(branch, cx))
+            }))
+            .on_action(cx.listener(|wb, _: &GitAbortMerge, w, cx| wb.scm.update(cx, |s, cx| s.abort_merge(w, cx))))
+            .on_action(cx.listener(|wb, _: &GitRenameBranch, w, cx| {
+                let current = wb.scm.read(cx).branch().unwrap_or_default().to_owned();
+                wb.open_prompt(PromptKind::RenameBranch, &current, w, cx)
+            }))
+            .on_action(cx.listener(|wb, _: &GitCreateTag, w, cx| wb.open_prompt(PromptKind::CreateTag { at: None }, "", w, cx)))
+            .on_action(cx.listener(|wb, a: &GitCreateTagAt, w, cx| wb.open_prompt(PromptKind::CreateTag { at: Some(a.id.clone()) }, "", w, cx)))
+            .on_action(cx.listener(|wb, _: &GitPushTags, _, cx| wb.scm.update(cx, |s, cx| s.push_tags(cx))))
             .on_action(cx.listener(|wb, _: &GitInit, _, cx| {
                 wb.show_side(SideView::SourceControl, cx);
                 wb.scm.update(cx, |s, cx| s.init(cx))

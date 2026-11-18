@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use bf_core::Workspace;
 use bf_core::git::{Commit, CommitFile, FileChange, Git, GitStatus};
-use gpui::{App, Context, Entity, EventEmitter, FocusHandle, Focusable, PromptLevel, Subscription, Task, Window, div, prelude::*, px, uniform_list};
+use gpui::{App, Context, Entity, EventEmitter, FocusHandle, Focusable, MouseButton, MouseDownEvent, Pixels, Point, PromptLevel, Subscription, Task, Window, div, prelude::*, px, uniform_list};
 
 use crate::assets::icon;
 use crate::text_input::{InputEvent, TextInput};
@@ -70,11 +70,18 @@ pub struct ScmView {
     history: History,
     refresh_task: Option<Task<()>>,
     op_task: Option<Task<()>>,
+    /// The "…" menu, open at this position.
+    more_menu: Option<Point<Pixels>>,
+    /// A commit's right-click menu in HISTORY.
+    commit_menu: Option<(Commit, Point<Pixels>)>,
     _poll: Task<()>,
     _sub: Subscription,
 }
 
 impl EventEmitter<ScmEvent> for ScmView {}
+
+/// What to do with a successful operation's output.
+type OpDone = Box<dyn FnOnce(&mut ScmView, String, &mut Context<ScmView>)>;
 
 impl Focusable for ScmView {
     fn focus_handle(&self, cx: &App) -> FocusHandle {
@@ -177,6 +184,8 @@ impl ScmView {
             history: History { open: true, ..Default::default() },
             refresh_task: None,
             op_task: None,
+            more_menu: None,
+            commit_menu: None,
             _poll: poll,
             _sub: sub,
         }
@@ -351,6 +360,11 @@ impl ScmView {
     }
 
     fn run_op(&mut self, label: &'static str, clear_message: bool, op: impl FnOnce(&Git) -> anyhow::Result<String> + Send + 'static, cx: &mut Context<Self>) {
+        self.run_op_with(label, clear_message, op, None, cx);
+    }
+
+    /// [`Self::run_op`]; on success `done` gets the operation's output (which isn't logged then).
+    fn run_op_with(&mut self, label: &'static str, clear_message: bool, op: impl FnOnce(&Git) -> anyhow::Result<String> + Send + 'static, done: Option<OpDone>, cx: &mut Context<Self>) {
         let Some(git) = self.git.clone() else { return };
         if self.busy.is_some() {
             return;
@@ -364,11 +378,13 @@ impl ScmView {
                 v.busy = None;
                 match result {
                     Ok(out) => {
-                        if !out.trim().is_empty() {
-                            cx.emit(ScmEvent::Log(format!("git {label}: {}", out.trim())));
-                        }
                         if clear_message {
                             v.message.update(cx, |m, cx| m.set_text("", cx));
+                        }
+                        if let Some(done) = done {
+                            done(v, out, cx);
+                        } else if !out.trim().is_empty() {
+                            cx.emit(ScmEvent::Log(format!("git {label}: {}", out.trim())));
                         }
                     }
                     Err(e) => {
@@ -536,6 +552,191 @@ impl ScmView {
 
     pub fn create_branch(&mut self, name: String, cx: &mut Context<Self>) {
         self.run_op("switch -c", false, move |g| g.create_branch(&name), cx);
+    }
+
+    /// Whether HEAD is already on the remote branch (undoing or amending it rewrites published history).
+    fn head_is_pushed(&self) -> bool {
+        self.status.upstream.is_some() && self.status.ahead == 0 && self.status.has_commits
+    }
+
+    /// Asks first when `pushed` (the commit is on the remote already), then runs `then`.
+    fn confirm_rewrite(&mut self, pushed: bool, what: &str, then: impl FnOnce(&mut Self, &mut Context<Self>) + 'static, window: &mut Window, cx: &mut Context<Self>) {
+        if !pushed {
+            return then(self, cx);
+        }
+        let detail = "It is already pushed: the remote branch keeps it, so pushing afterwards needs a force push, and others who pulled it are affected.";
+        let rx = window.prompt(PromptLevel::Warning, &format!("{what} a pushed commit?"), Some(detail), &[what, "Cancel"], cx);
+        cx.spawn(async move |this, cx| {
+            if let Ok(0) = rx.await {
+                let _ = this.update(cx, then);
+            }
+        })
+        .detach();
+    }
+
+    /// "Undo Last Commit": HEAD goes back one commit; its changes stay staged and its message goes back
+    /// into the message box, so it can be fixed and committed again.
+    pub fn undo_last_commit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.status.has_commits {
+            cx.emit(ScmEvent::Log("There is no commit to undo.".into()));
+            return;
+        }
+        let pushed = self.head_is_pushed();
+        self.confirm_rewrite(
+            pushed,
+            "Undo",
+            |v, cx| {
+                v.run_op_with(
+                    "reset --soft",
+                    false,
+                    |g| g.undo_last_commit(),
+                    Some(Box::new(|v, message, cx| {
+                        let subject = message.lines().next().unwrap_or_default().to_owned();
+                        cx.emit(ScmEvent::Log(format!("Undid the commit \"{subject}\": its changes are staged again.")));
+                        // The message box is one line: it gets the subject; a body goes to the log, not lost.
+                        let body = message.split_once("\n\n").map(|(_, b)| b.trim()).unwrap_or_default();
+                        if !body.is_empty() {
+                            cx.emit(ScmEvent::Log(format!("Its message went on:\n{body}")));
+                        }
+                        v.message.update(cx, |m, cx| m.set_text(subject, cx));
+                    })),
+                    cx,
+                )
+            },
+            window,
+            cx,
+        );
+    }
+
+    /// "Commit (Amend)": the staged changes go into the last commit; the message box's text replaces its
+    /// message (left empty, the message stays).
+    pub fn commit_amend(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.status.has_commits {
+            self.error = Some("There is no commit to amend yet.".into());
+            cx.notify();
+            return;
+        }
+        let message = self.message.read(cx).text().trim().to_owned();
+        if message.is_empty() && !self.status.changes.iter().any(FileChange::is_staged) {
+            self.error = Some("Stage changes, or type a new message, to amend the last commit.".into());
+            cx.notify();
+            return;
+        }
+        let pushed = self.head_is_pushed();
+        self.confirm_rewrite(pushed, "Amend", move |v, cx| v.run_op("commit --amend", true, move |g| g.amend(&message), cx), window, cx);
+    }
+
+    /// Puts the changes (untracked files too) on the stash; `message` names the entry.
+    pub fn stash(&mut self, message: String, cx: &mut Context<Self>) {
+        if self.status.changes.is_empty() {
+            cx.emit(ScmEvent::Log("There are no changes to stash.".into()));
+            return;
+        }
+        let message = if message.trim().is_empty() { "ByteForge stash".to_owned() } else { message };
+        self.run_op("stash", false, move |g| g.stash_push(&message), cx);
+    }
+
+    /// Pops, applies or drops stash entry `index`.
+    pub fn stash_entry(&mut self, op: bf_core::git::StashOp, index: usize, cx: &mut Context<Self>) {
+        let label = match op {
+            bf_core::git::StashOp::Pop => "stash pop",
+            bf_core::git::StashOp::Apply => "stash apply",
+            bf_core::git::StashOp::Drop => "stash drop",
+        };
+        self.run_op(label, false, move |g| g.stash_op(op, index), cx);
+    }
+
+    /// Discards every unstaged change (asks first; untracked files are deleted).
+    pub fn discard_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let changes: Vec<FileChange> = self.status.changes.iter().filter(|c| c.is_unstaged()).cloned().collect();
+        if changes.is_empty() {
+            cx.emit(ScmEvent::Log("There are no unstaged changes to discard.".into()));
+            return;
+        }
+        self.discard(changes, window, cx);
+    }
+
+    /// Merges `branch` into the current branch. Stopping at conflicts is reported with what to do next.
+    pub fn merge(&mut self, branch: String, cx: &mut Context<Self>) {
+        self.run_op(
+            "merge",
+            false,
+            move |g| {
+                g.merge(&branch).map_err(|e| {
+                    if g.is_merging() {
+                        anyhow::anyhow!("{branch} has conflicting changes. Resolve the conflicts (Merge Editor), stage the files and commit, or Git: Abort Merge.\n{e}")
+                    } else {
+                        e
+                    }
+                })
+            },
+            cx,
+        );
+    }
+
+    /// Stops a merge that stopped at conflicts, back to before it (asks first).
+    pub fn abort_merge(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(git) = self.git.clone() else { return };
+        if !git.is_merging() {
+            cx.emit(ScmEvent::Log("No merge is in progress.".into()));
+            return;
+        }
+        let rx = window.prompt(PromptLevel::Warning, "Abort the merge?", Some("The files go back to how they were before the merge; conflict resolutions made so far are lost."), &["Abort Merge", "Cancel"], cx);
+        cx.spawn(async move |this, cx| {
+            if let Ok(0) = rx.await {
+                let _ = this.update(cx, |v, cx| v.run_op("merge --abort", false, |g| g.abort_merge(), cx));
+            }
+        })
+        .detach();
+    }
+
+    pub fn rename_branch(&mut self, name: String, cx: &mut Context<Self>) {
+        self.run_op("branch -m", false, move |g| g.rename_branch(&name), cx);
+    }
+
+    /// A tag at `at` (a commit id) or at HEAD.
+    pub fn create_tag(&mut self, name: String, at: Option<String>, cx: &mut Context<Self>) {
+        self.run_op_with(
+            "tag",
+            false,
+            move |g| g.create_tag(&name, at.as_deref()).map(|_| name),
+            Some(Box::new(|v, name, cx| {
+                cx.emit(ScmEvent::Log(format!("Created the tag {name}. \"Git: Push Tags\" publishes it.")));
+                v.load_history(false, cx);
+            })),
+            cx,
+        );
+    }
+
+    pub fn push_tags(&mut self, cx: &mut Context<Self>) {
+        self.run_op("push --tags", false, |g| g.push_tags(), cx);
+    }
+
+    /// A new commit that undoes `id`.
+    pub fn revert_commit(&mut self, id: String, cx: &mut Context<Self>) {
+        self.run_op("revert", false, move |g| g.revert_commit(&id), cx);
+    }
+
+    #[cfg(test)]
+    pub fn message_text(&self, cx: &App) -> String {
+        self.message.read(cx).text().to_owned()
+    }
+
+    #[cfg(test)]
+    pub fn menu_open(&self) -> bool {
+        self.more_menu.is_some() || self.commit_menu.is_some()
+    }
+
+    /// Opens a commit's right-click menu (what a right-click on its HISTORY row does).
+    #[cfg(test)]
+    pub fn open_commit_menu(&mut self, commit: Commit, cx: &mut Context<Self>) {
+        self.commit_menu = Some((commit, gpui::point(px(40.), px(200.))));
+        cx.notify();
+    }
+
+    /// The current branch (for Rename Branch's prompt).
+    pub fn branch(&self) -> Option<&str> {
+        self.status.branch.as_deref()
     }
 }
 
@@ -801,6 +1002,17 @@ impl Render for ScmView {
                                     )
                                 })
                                 .child(div().flex_none().whitespace_nowrap().text_size(px(11.)).text_color(muted).child(short_age(&commit.when)))
+                                .on_mouse_down(MouseButton::Right, {
+                                    let (e, c) = (e.clone(), c.clone());
+                                    move |ev: &MouseDownEvent, _, cx| {
+                                        cx.stop_propagation();
+                                        e.update(cx, |v, cx| {
+                                            v.more_menu = None;
+                                            v.commit_menu = Some((c.clone(), ev.position));
+                                            cx.notify();
+                                        })
+                                    }
+                                })
                                 .on_click(move |_, _, cx| e.update(cx, |v, cx| v.toggle_commit(c.clone(), cx)))
                                 .into_any_element()
                         }
@@ -904,7 +1116,16 @@ impl Render for ScmView {
                             .child(div().min_w_0().overflow_hidden().text_ellipsis().child(branch))
                             .child(div().flex_none().text_size(px(11.)).text_color(muted).child(sync)),
                     )
-                    .child(tool("scm-refresh", "refresh", "Refresh").on_click(cx.listener(|v, _, _, cx| v.refresh(cx)))),
+                    .child(tool("scm-refresh", "refresh", "Refresh").on_click(cx.listener(|v, _, _, cx| v.refresh(cx))))
+                    .child(tool("scm-more", "more", "More Actions… (undo commit, stash, merge, tags)").debug_selector(|| "scm-more".into()).on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|v, ev: &MouseDownEvent, _, cx| {
+                            cx.stop_propagation();
+                            v.commit_menu = None;
+                            v.more_menu = if v.more_menu.is_some() { None } else { Some(ev.position) };
+                            cx.notify();
+                        }),
+                    )),
             )
             .child(div().px_3().child(self.message.clone()))
             .child(
@@ -919,7 +1140,95 @@ impl Render for ScmView {
             .when_some(self.busy.clone(), |d, b| d.child(div().px_3().child(message(format!("git {b}…")))))
             .when_some(self.error.clone(), |d, e| d.child(div().px_3().text_size(px(12.)).text_color(t.c("errorForeground")).child(e)))
             .child(list)
+            .children(self.render_menus(cx))
             .into_any_element()
+    }
+}
+
+impl ScmView {
+    /// The "…" menu and a commit's right-click menu. Entries run the same actions as the command palette.
+    fn render_menus(&mut self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        use crate::actions::*;
+        let t = Theme::global(cx);
+        let muted = t.c("foreground.muted");
+        let entry = |id: &'static str, label: &'static str, action: Box<dyn gpui::Action>, cx: &mut Context<Self>| {
+            crate::menu::item(&t, id, label, None).debug_selector(move || id.into()).on_click(cx.listener(move |v, _, window, cx| {
+                v.more_menu = None;
+                v.commit_menu = None;
+                cx.notify();
+                window.dispatch_action(action.boxed_clone(), cx);
+            }))
+        };
+        let section = |label: &'static str| div().px_3().pt_1().text_size(px(11.)).text_color(muted).child(label);
+        let close = cx.listener(|v, _, _, cx| {
+            v.more_menu = None;
+            v.commit_menu = None;
+            cx.notify();
+        });
+
+        if let Some(pos) = self.more_menu {
+            let panel = crate::menu::panel(&t, 220.)
+                .id("scm-more-menu")
+                .on_mouse_down_out(close)
+                .child(section("Commit"))
+                .child(entry("m-commit", "Commit", Box::new(GitCommit), cx))
+                .child(entry("m-amend", "Commit (Amend)", Box::new(GitCommitAmend), cx))
+                .child(entry("m-undo", "Undo Last Commit", Box::new(GitUndoLastCommit), cx))
+                .child(entry("m-revert", "Revert Commit…", Box::new(GitRevertCommit), cx))
+                .child(crate::menu::separator(&t))
+                .child(section("Changes"))
+                .child(entry("m-stage-all", "Stage All Changes", Box::new(GitStageAll), cx))
+                .child(entry("m-unstage-all", "Unstage All Changes", Box::new(GitUnstageAll), cx))
+                .child(entry("m-discard-all", "Discard All Changes", Box::new(GitDiscardAll), cx))
+                .child(crate::menu::separator(&t))
+                .child(section("Stash"))
+                .child(entry("m-stash", "Stash Changes…", Box::new(GitStash), cx))
+                .child(entry("m-stash-pop-latest", "Pop Latest Stash", Box::new(GitStashPopLatest), cx))
+                .child(entry("m-stash-pop", "Pop Stash…", Box::new(GitStashPop), cx))
+                .child(entry("m-stash-apply", "Apply Stash…", Box::new(GitStashApply), cx))
+                .child(entry("m-stash-drop", "Drop Stash…", Box::new(GitStashDrop), cx))
+                .child(crate::menu::separator(&t))
+                .child(section("Branch"))
+                .child(entry("m-checkout", "Checkout to…", Box::new(GitCheckout), cx))
+                .child(entry("m-create-branch", "Create Branch…", Box::new(GitCreateBranch), cx))
+                .child(entry("m-rename-branch", "Rename Branch…", Box::new(GitRenameBranch), cx))
+                .child(entry("m-merge", "Merge Branch…", Box::new(GitMergeBranch), cx))
+                .child(entry("m-abort-merge", "Abort Merge", Box::new(GitAbortMerge), cx))
+                .child(crate::menu::separator(&t))
+                .child(section("Remote"))
+                .child(entry("m-pull", "Pull", Box::new(GitPull), cx))
+                .child(entry("m-push", "Push", Box::new(GitPush), cx))
+                .child(entry("m-fetch", "Fetch", Box::new(GitFetch), cx))
+                .child(entry("m-sync", "Sync (Pull, then Push)", Box::new(GitSync), cx))
+                .child(crate::menu::separator(&t))
+                .child(section("Tags"))
+                .child(entry("m-tag", "Create Tag…", Box::new(GitCreateTag), cx))
+                .child(entry("m-push-tags", "Push Tags", Box::new(GitPushTags), cx));
+            return Some(gpui::deferred(gpui::anchored().position(pos).snap_to_window().child(panel)).with_priority(1).into_any_element());
+        }
+
+        let (commit, pos) = self.commit_menu.clone()?;
+        let is_head = self.status.head.as_deref() == Some(commit.id.as_str());
+        let (id1, id2, id3) = (commit.id.clone(), commit.id.clone(), commit.id.clone());
+        let subject = commit.subject.clone();
+        let panel = crate::menu::panel(&t, 200.)
+            .id("scm-commit-menu")
+            .on_mouse_down_out(close)
+            .child(crate::menu::item(&t, "c-copy-id", "Copy Commit ID", None).on_click(cx.listener(move |v, _, _, cx| {
+                v.commit_menu = None;
+                cx.write_to_clipboard(gpui::ClipboardItem::new_string(id1.clone()));
+                cx.notify();
+            })))
+            .child(crate::menu::item(&t, "c-copy-message", "Copy Commit Message", None).on_click(cx.listener(move |v, _, _, cx| {
+                v.commit_menu = None;
+                cx.write_to_clipboard(gpui::ClipboardItem::new_string(subject.clone()));
+                cx.notify();
+            })))
+            .child(crate::menu::separator(&t))
+            .child(entry("c-tag", "Create Tag Here…", Box::new(GitCreateTagAt { id: id2 }), cx))
+            .child(entry("c-revert", "Revert Commit", Box::new(GitRevertCommitId { id: id3, subject: commit.subject.clone() }), cx))
+            .when(is_head, |d| d.child(entry("c-undo", "Undo Commit", Box::new(GitUndoLastCommit), cx)));
+        Some(gpui::deferred(gpui::anchored().position(pos).snap_to_window().child(panel)).with_priority(1).into_any_element())
     }
 }
 

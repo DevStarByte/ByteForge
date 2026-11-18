@@ -456,6 +456,163 @@ impl Workbench {
         })
         .detach();
     }
+
+    /// Shows `items` in the palette as a pick list titled `placeholder`.
+    fn show_pick_list(&mut self, items: Vec<PaletteItem>, placeholder: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.menu_open = None;
+        let palette = cx.new(|cx| Palette::new(Mode::Pick, items, placeholder, "", window, cx));
+        let sub = cx.subscribe_in(&palette, window, Self::on_palette_event);
+        palette.update(cx, |p, cx| p.focus_input(window, cx));
+        self.palette = Some((palette, sub));
+        cx.notify();
+    }
+
+    /// "Pop / Apply / Drop Stash…": the stash entries to pick from (`op`: pop, apply or drop).
+    pub(super) fn open_stash_picker(&mut self, op: &'static str, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(git) = self.scm.read(cx).git().cloned() else {
+            self.log("The opened folder is not a git repository.");
+            return;
+        };
+        let task = cx.background_spawn(async move { git.stashes() });
+        cx.spawn_in(window, async move |this, cx| {
+            let stashes = task.await;
+            let _ = this.update_in(cx, |wb, window, cx| {
+                let stashes = match stashes {
+                    Ok(s) if !s.is_empty() => s,
+                    Ok(_) => {
+                        wb.log("The stash is empty.");
+                        return;
+                    }
+                    Err(e) => {
+                        wb.log(format!("Could not list the stash: {e}"));
+                        return;
+                    }
+                };
+                let items = stashes
+                    .into_iter()
+                    .map(|st| {
+                        let action = GitStashEntry { op: op.to_owned(), index: st.index, message: st.message.clone() };
+                        let mut item = PaletteItem::new(st.message.clone(), PaletteAction::Command(Box::new(action)));
+                        item.detail = Some(format!("stash@{{{}}} \u{2022} {}", st.index, st.when));
+                        item
+                    })
+                    .collect();
+                let title = match op {
+                    "pop" => "Pick a stash to pop (apply, then remove it)",
+                    "apply" => "Pick a stash to apply (it stays on the stash)",
+                    _ => "Pick a stash to drop (delete)",
+                };
+                wb.show_pick_list(items, title, window, cx);
+            });
+        })
+        .detach();
+    }
+
+    /// A picked stash entry: pop and apply run right away, drop asks first.
+    pub(super) fn stash_entry(&mut self, entry: &GitStashEntry, window: &mut Window, cx: &mut Context<Self>) {
+        use bf_core::git::StashOp;
+        let (op, index) = match entry.op.as_str() {
+            "pop" => (StashOp::Pop, entry.index),
+            "apply" => (StashOp::Apply, entry.index),
+            _ => (StashOp::Drop, entry.index),
+        };
+        if op != StashOp::Drop {
+            self.scm.update(cx, |s, cx| s.stash_entry(op, index, cx));
+            return;
+        }
+        let rx = window.prompt(PromptLevel::Warning, "Drop this stash?", Some(&format!("\"{}\" is deleted with its changes. This cannot be undone.", entry.message)), &["Drop", "Cancel"], cx);
+        cx.spawn_in(window, async move |this, cx| {
+            if let Ok(0) = rx.await {
+                let _ = this.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.stash_entry(op, index, cx)));
+            }
+        })
+        .detach();
+    }
+
+    /// "Merge Branch…": the other branches, to merge into the current one.
+    pub(super) fn open_merge_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(git) = self.scm.read(cx).git().cloned() else {
+            self.log("The opened folder is not a git repository.");
+            return;
+        };
+        let current = self.scm.read(cx).branch().unwrap_or_default().to_owned();
+        let task = cx.background_spawn(async move { git.branches() });
+        cx.spawn_in(window, async move |this, cx| {
+            let branches = task.await;
+            let _ = this.update_in(cx, |wb, window, cx| {
+                let branches = match branches {
+                    Ok(b) => b,
+                    Err(e) => {
+                        wb.log(format!("Could not list branches: {e}"));
+                        return;
+                    }
+                };
+                let items: Vec<PaletteItem> = branches
+                    .into_iter()
+                    .filter(|b| !b.current)
+                    .map(|b| {
+                        let mut item = PaletteItem::new(b.name.clone(), PaletteAction::Command(Box::new(GitMergeWith { branch: b.name.clone() })));
+                        item.hint = Some(if b.remote { "remote branch".into() } else { "branch".into() });
+                        item
+                    })
+                    .collect();
+                if items.is_empty() {
+                    wb.log("There is no other branch to merge.");
+                    return;
+                }
+                wb.show_pick_list(items, &format!("Pick a branch to merge into {current}"), window, cx);
+            });
+        })
+        .detach();
+    }
+
+    /// "Revert Commit…": the recent commits of the current branch.
+    pub(super) fn open_revert_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(git) = self.scm.read(cx).git().cloned() else {
+            self.log("The opened folder is not a git repository.");
+            return;
+        };
+        let task = cx.background_spawn(async move { git.log(200, 0) });
+        cx.spawn_in(window, async move |this, cx| {
+            let log = task.await;
+            let _ = this.update_in(cx, |wb, window, cx| {
+                let commits = match log {
+                    Ok(c) if !c.is_empty() => c,
+                    Ok(_) => {
+                        wb.log("There are no commits yet.");
+                        return;
+                    }
+                    Err(e) => {
+                        wb.log(format!("Could not read the history: {e}"));
+                        return;
+                    }
+                };
+                let items = commits
+                    .into_iter()
+                    .map(|c| {
+                        let mut item = PaletteItem::new(c.subject.clone(), PaletteAction::Command(Box::new(GitRevertCommitId { id: c.id.clone(), subject: c.subject.clone() })));
+                        item.detail = Some(format!("{} \u{2022} {}, {}", c.short(), c.author, c.when));
+                        item.search = Some(format!("{} {} {}", c.subject, c.author, c.short()));
+                        item
+                    })
+                    .collect();
+                wb.show_pick_list(items, "Pick a commit to revert (a new commit undoes its changes)", window, cx);
+            });
+        })
+        .detach();
+    }
+
+    /// Reverts a commit after asking: a new commit undoes its changes; the history keeps both.
+    pub(super) fn revert_commit(&mut self, id: String, subject: String, window: &mut Window, cx: &mut Context<Self>) {
+        let detail = "A new commit undoes its changes; the commit itself stays in the history. If later commits changed the same lines, git stops at conflicts to resolve.";
+        let rx = window.prompt(PromptLevel::Info, &format!("Revert \"{subject}\"?"), Some(detail), &["Revert", "Cancel"], cx);
+        cx.spawn_in(window, async move |this, cx| {
+            if let Ok(0) = rx.await {
+                let _ = this.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.revert_commit(id, cx)));
+            }
+        })
+        .detach();
+    }
 }
 
 #[cfg(test)]
@@ -1237,6 +1394,169 @@ mod tests {
         wait_for(cx, "the resolved file", |cx| !merge_open(&wb, cx));
         assert_eq!(std::fs::read_to_string(&file).unwrap(), expected);
         assert_eq!(git(&repo, &["diff", "--name-only", "--diff-filter=U"]), "");
+        drop(guard);
+    }
+
+    // ───────────── the "…" menu: undo, stash, merge, tags, revert ─────────────
+
+    /// A repository with two commits of `A.cs`, opened, with the Source Control view showing.
+    fn two_commits(guard: &crate::workbench::settings_page::view_tests::TestWorkbench, wb: &Entity<Workbench>, cx: &mut gpui::VisualTestContext) -> PathBuf {
+        let repo = repo_with(guard, &[("A.cs", "one\n")]);
+        std::fs::write(repo.join("A.cs"), "two\n").unwrap();
+        git(&repo, &["commit", "-qam", "second commit\n\nwith a body"]);
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(repo.clone(), window, cx);
+            wb.show_side(SideView::SourceControl, cx);
+        });
+        wait_for(cx, "git status", |cx| wb.update(cx, |wb, cx| wb.scm.read(cx).status().has_commits));
+        repo
+    }
+
+    fn commit_count(repo: &Path) -> usize {
+        git(repo, &["rev-list", "--count", "HEAD"]).parse().unwrap()
+    }
+
+    /// "…" → Undo Last Commit: HEAD goes back one, the change stays staged, the message is back in the box.
+    #[gpui::test]
+    fn undo_last_commit_from_the_more_menu(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "git-undo");
+        let repo = two_commits(&guard, &wb, cx);
+        click(cx, "scm-more");
+        assert!(wb.update(cx, |wb, cx| wb.scm.read(cx).menu_open()), "the menu opened");
+        click(cx, "m-undo");
+        wait_for(cx, "the commit undone", |_| commit_count(&repo) == 1);
+        // The one-line box gets the subject; the body goes to the Output.
+        wait_for(cx, "the message back", |cx| wb.update(cx, |wb, cx| wb.scm.read(cx).message_text(cx) == "second commit"));
+        wait_for(cx, "the body logged", |cx| wb.update(cx, |wb, cx| wb.output.read(cx).state.buffer.text().contains("with a body")));
+        assert!(!wb.update(cx, |wb, cx| wb.scm.read(cx).menu_open()), "the menu closed");
+        assert_eq!(git(&repo, &["diff", "--cached", "--name-only"]), "A.cs", "the change is staged");
+        assert_eq!(std::fs::read_to_string(repo.join("A.cs")).unwrap(), "two\n");
+        drop(guard);
+    }
+
+    /// Undoing a commit that is already pushed asks first; Cancel leaves it.
+    #[gpui::test]
+    fn undoing_a_pushed_commit_asks_first(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "git-undo-pushed");
+        let repo = two_commits(&guard, &wb, cx);
+        let remote = guard.dir.join("remote.git");
+        git(&guard.dir, &["init", "-q", "--bare", &remote.to_string_lossy()]);
+        git(&repo, &["remote", "add", "origin", &remote.to_string_lossy()]);
+        git(&repo, &["push", "-q", "-u", "origin", "HEAD:main"]);
+        wb.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.refresh(cx)));
+        wait_for(cx, "the upstream", |cx| wb.update(cx, |wb, cx| wb.scm.read(cx).status().upstream.is_some()));
+
+        cx.dispatch_action(crate::actions::GitUndoLastCommit);
+        wait_for(cx, "the question", |cx| cx.has_pending_prompt());
+        cx.simulate_prompt_answer("Cancel");
+        cx.run_until_parked();
+        assert_eq!(commit_count(&repo), 2, "Cancel keeps the commit");
+
+        cx.dispatch_action(crate::actions::GitUndoLastCommit);
+        wait_for(cx, "the question", |cx| cx.has_pending_prompt());
+        cx.simulate_prompt_answer("Undo");
+        wait_for(cx, "the commit undone", |_| commit_count(&repo) == 1);
+        drop(guard);
+    }
+
+    /// Stash Changes… (with a message), Pop Latest Stash, and Drop Stash… (which asks first).
+    #[gpui::test]
+    fn stash_pop_and_drop(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "git-stash");
+        let repo = two_commits(&guard, &wb, cx);
+        let file = repo.join("A.cs");
+        std::fs::write(&file, "work in progress\n").unwrap();
+        wb.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.refresh(cx)));
+        wait_for(cx, "the change", |cx| wb.update(cx, |wb, cx| !wb.scm.read(cx).status().changes.is_empty()));
+
+        cx.dispatch_action(crate::actions::GitStash);
+        cx.run_until_parked();
+        assert!(wb.update(cx, |wb, _| matches!(wb.prompt, Some(PromptKind::StashMessage))), "asks for a message");
+        wb.update_in(cx, |wb, window, cx| {
+            let kind = wb.prompt.take().unwrap();
+            wb.close_palette(window, cx);
+            wb.complete_prompt(kind, "my wip".into(), window, cx);
+        });
+        wait_for(cx, "stashed", |_| std::fs::read_to_string(&file).unwrap() == "two\n");
+        assert!(git(&repo, &["stash", "list"]).contains("my wip"));
+
+        cx.dispatch_action(crate::actions::GitStashPopLatest);
+        wait_for(cx, "popped", |_| std::fs::read_to_string(&file).unwrap() == "work in progress\n");
+        assert_eq!(git(&repo, &["stash", "list"]), "", "pop removes the entry");
+
+        // The picker lists the entries; dropping one asks first.
+        git(&repo, &["stash", "push", "-q", "-m", "throw away"]);
+        cx.dispatch_action(crate::actions::GitStashDrop);
+        wait_for(cx, "the stash picker", |cx| wb.update(cx, |wb, _| wb.palette.is_some()));
+        wb.update_in(cx, |wb, window, cx| wb.close_palette(window, cx));
+        cx.dispatch_action(crate::actions::GitStashEntry { op: "drop".into(), index: 0, message: "On main: throw away".into() });
+        wait_for(cx, "the question", |cx| cx.has_pending_prompt());
+        cx.simulate_prompt_answer("Drop");
+        wait_for(cx, "dropped", |_| git(&repo, &["stash", "list"]).is_empty());
+        drop(guard);
+    }
+
+    /// A merge that stops at conflicts, then Abort Merge (which asks first) puts everything back.
+    #[gpui::test]
+    fn merge_with_conflicts_then_abort(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "git-merge");
+        let repo = two_commits(&guard, &wb, cx);
+        git(&repo, &["switch", "-qc", "side"]);
+        std::fs::write(repo.join("A.cs"), "side\n").unwrap();
+        git(&repo, &["commit", "-qam", "side change"]);
+        git(&repo, &["switch", "-q", "main"]);
+        std::fs::write(repo.join("A.cs"), "main\n").unwrap();
+        git(&repo, &["commit", "-qam", "main change"]);
+        wb.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.refresh(cx)));
+        cx.run_until_parked();
+
+        cx.dispatch_action(crate::actions::GitMergeWith { branch: "side".into() });
+        let merging = |repo: &Path| std::process::Command::new("git").args(["rev-parse", "-q", "--verify", "MERGE_HEAD"]).current_dir(repo).output().unwrap().status.success();
+        wait_for(cx, "the merge stopped at conflicts", |_| merging(&repo));
+        cx.dispatch_action(crate::actions::GitAbortMerge);
+        wait_for(cx, "the question", |cx| cx.has_pending_prompt());
+        cx.simulate_prompt_answer("Abort Merge");
+        wait_for(cx, "the merge aborted", |_| !merging(&repo));
+        assert_eq!(std::fs::read_to_string(repo.join("A.cs")).unwrap(), "main\n");
+        drop(guard);
+    }
+
+    /// A commit's right-click menu: Create Tag Here… and Revert Commit (which asks first).
+    #[gpui::test]
+    fn tag_and_revert_from_a_commits_menu(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "git-commit-menu");
+        let repo = two_commits(&guard, &wb, cx);
+        let first = git(&repo, &["rev-parse", "HEAD~1"]);
+        let commit = |id: &str, subject: &str| bf_core::git::Commit {
+            id: id.into(),
+            parents: Vec::new(),
+            author: String::new(),
+            email: String::new(),
+            when: String::new(),
+            date: String::new(),
+            refs: String::new(),
+            subject: subject.into(),
+        };
+
+        wb.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.open_commit_menu(commit(&first, "first"), cx)));
+        click(cx, "c-tag");
+        assert!(wb.update(cx, |wb, _| matches!(&wb.prompt, Some(PromptKind::CreateTag { at: Some(at) }) if *at == first)));
+        wb.update_in(cx, |wb, window, cx| {
+            let kind = wb.prompt.take().unwrap();
+            wb.close_palette(window, cx);
+            wb.complete_prompt(kind, "v 1".into(), window, cx);
+        });
+        wait_for(cx, "the tag", |_| git(&repo, &["tag", "--list"]) == "v-1");
+        assert_eq!(git(&repo, &["rev-list", "-n", "1", "v-1"]), first, "the tag is at the picked commit");
+
+        let head = git(&repo, &["rev-parse", "HEAD"]);
+        wb.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.open_commit_menu(commit(&head, "second commit"), cx)));
+        click(cx, "c-revert");
+        wait_for(cx, "the question", |cx| cx.has_pending_prompt());
+        cx.simulate_prompt_answer("Revert");
+        wait_for(cx, "the revert commit", |_| commit_count(&repo) == 3);
+        assert!(git(&repo, &["log", "-1", "--format=%s"]).starts_with("Revert \"second commit\""));
+        assert_eq!(std::fs::read_to_string(repo.join("A.cs")).unwrap(), "one\n");
         drop(guard);
     }
 }

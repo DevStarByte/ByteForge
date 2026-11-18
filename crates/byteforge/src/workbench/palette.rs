@@ -84,6 +84,10 @@ impl Workbench {
             PromptKind::Rename(_) => "New name",
             PromptKind::CustomizeTheme => "Name for your theme (inherits everything from the current theme)",
             PromptKind::CreateBranch => "New branch name (created from the current HEAD and checked out)",
+            PromptKind::StashMessage => "Stash message (optional; Enter to stash the changes)",
+            PromptKind::RenameBranch => "New name for the current branch",
+            PromptKind::CreateTag { at: None } => "Tag name (at the current commit, e.g. v1.2.0)",
+            PromptKind::CreateTag { at: Some(_) } => "Tag name (at the selected commit, e.g. v1.2.0)",
             PromptKind::Template(t) if t.project => "Project name (a folder with this name is created)",
             PromptKind::Template(t) => {
                 template_title = format!("{} name", t.title);
@@ -182,8 +186,8 @@ impl Workbench {
 
     pub(super) fn complete_prompt(&mut self, kind: PromptKind, text: String, window: &mut Window, cx: &mut Context<Self>) {
         let text = text.trim().to_owned();
-        // An emptied secret is a value too (an optional setting left blank).
-        if text.is_empty() && !matches!(kind, PromptKind::SecretValue { .. }) {
+        // An emptied secret is a value too (an optional setting left blank); a stash needs no message.
+        if text.is_empty() && !matches!(kind, PromptKind::SecretValue { .. } | PromptKind::StashMessage) {
             return;
         }
         let result: anyhow::Result<()> = (|| {
@@ -236,6 +240,15 @@ impl Workbench {
                 PromptKind::CreateBranch => {
                     let name = text.replace(' ', "-");
                     self.scm.update(cx, |s, cx| s.create_branch(name, cx));
+                }
+                PromptKind::StashMessage => self.scm.update(cx, |s, cx| s.stash(text.to_owned(), cx)),
+                PromptKind::RenameBranch => {
+                    let name = text.replace(' ', "-");
+                    self.scm.update(cx, |s, cx| s.rename_branch(name, cx));
+                }
+                PromptKind::CreateTag { at } => {
+                    let name = text.replace(' ', "-");
+                    self.scm.update(cx, |s, cx| s.create_tag(name, at, cx));
                 }
                 PromptKind::CustomizeTheme => {
                     let current = Theme::global(cx).data.clone();

@@ -168,6 +168,12 @@ enum PromptKind {
     Rename(PathBuf),
     CustomizeTheme,
     CreateBranch,
+    /// The message of a new stash entry (may stay empty).
+    StashMessage,
+    /// A new name for the current branch.
+    RenameBranch,
+    /// A tag's name, at this commit (or HEAD).
+    CreateTag { at: Option<String> },
     /// Name for a new project or item from this template.
     Template(crate::actions::UseTemplate),
     RenameSymbol { editor: gpui::WeakEntity<EditorView>, at: Point, old: String },
@@ -909,6 +915,11 @@ impl Workbench {
     }
 
     fn show_panel(&mut self, view: PanelView, cx: &mut Context<Self>) {
+        // A command that shows the Output wants its newest lines seen: without this, output scrolled up
+        // (or clicked into earlier) stays put and the new lines land out of view.
+        if matches!(view, PanelView::Output) {
+            self.output.update(cx, |o, cx| o.scroll_to_end(cx));
+        }
         self.panel = view;
         self.panel_visible = true;
         cx.notify();

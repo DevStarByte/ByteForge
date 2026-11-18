@@ -342,6 +342,36 @@ mod tests {
     use super::*;
     use crate::workbench::settings_page::view_tests::workbench;
 
+    /// A command that logs and shows the Output (like "C#: Install or Update Roslyn Language Server")
+    /// brings its new lines into view, also when the Output was scrolled up or clicked into before.
+    #[gpui::test]
+    fn showing_the_output_follows_new_lines(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "output-follow");
+        wb.update(cx, |wb, cx| {
+            for i in 0..200 {
+                wb.log(format!("earlier line {i}"));
+            }
+            wb.show_panel(PanelView::Output, cx);
+        });
+        cx.run_until_parked();
+        // The user scrolls up / clicks at the top of the Output: it stops following.
+        wb.update(cx, |wb, cx| wb.output.update(cx, |o, _| o.state.set_caret(bf_text::Point::default(), false)));
+        // What install_roslyn does first.
+        wb.update(cx, |wb, cx| {
+            wb.log("Looking for the newest Roslyn language server on Microsoft's NuGet feed…");
+            wb.show_panel(PanelView::Output, cx);
+        });
+        cx.run_until_parked();
+        wb.read_with(cx, |wb, cx| {
+            assert!(wb.panel_visible && matches!(wb.panel, PanelView::Output));
+            let output = wb.output.read(cx);
+            let last = output.state.buffer.line_count() - 1;
+            assert!(output.state.buffer.text().contains("Looking for the newest Roslyn"));
+            assert!(output.state.caret().line + 1 >= last, "the Output follows the new line (caret on {} of {last})", output.state.caret().line);
+        });
+        drop(guard);
+    }
+
     /// With "csharp.server": "roslyn", opening a C# folder starts the installed Roslyn server on its
     /// project, and an open file gets its diagnostics. Needs the server installed in a cache folder: set
     /// BF_ROSLYN_CACHE (as `cargo test -p bf-core --test roslyn_install -- --ignored` leaves it); skips
@@ -381,6 +411,12 @@ mod tests {
         let status = wb.update(cx, |wb, _| wb.lsp_status.clone());
         assert!(found, "no CS0029 in the editor (status: {status})");
         assert_eq!(status, "C#: ready");
+        // English whatever the system's language ("locale": "en" in initialize).
+        let message = wb.update(cx, |wb, cx| {
+            let editor = wb.active_editor().unwrap();
+            editor.read(cx).diagnostics.iter().find(|d| d.code.as_deref() == Some("CS0029")).map(|d| d.message.clone()).unwrap_or_default()
+        });
+        assert!(message.contains("Cannot implicitly convert"), "{message}");
         wb.update(cx, |wb, _| {
             if let Some(lsp) = wb.lsp.take() {
                 lsp.shutdown();

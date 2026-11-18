@@ -916,6 +916,14 @@ impl EditorView {
         cx.notify();
     }
 
+    /// Moves the caret to the end and scrolls there, so appended output follows again.
+    pub fn scroll_to_end(&mut self, cx: &mut Context<Self>) {
+        let end = self.state.buffer.end();
+        self.state.set_caret(end, false);
+        self.reveal(end, false);
+        cx.notify();
+    }
+
     pub fn save_path_text(&self) -> String {
         self.state.buffer.text_for_save()
     }

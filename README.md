@@ -48,7 +48,10 @@ live, and modules written in any language can extend it.
   references; search, add, update and remove NuGet packages, and see which ones have updates
 - **Git:** a Source Control view, change markers in the gutter, a diff editor (side by side or inline, syntax
   highlighted, changed words marked, F7 / Shift+F7 between changes, the working tree editable in place), blame of the current line, file history,
-  merge-conflict resolution (accept current / incoming / both), branches, and pull / push / fetch
+  merge-conflict resolution (accept current / incoming / both), branches, and pull / push / fetch. The view's "…" menu
+  (also in the command palette) has Undo Last Commit, Commit (Amend), Revert Commit, the stash (stash, pop, apply,
+  drop), Discard All, Merge Branch / Abort Merge, Rename Branch and tags; right-click a commit in HISTORY to tag,
+  revert or copy it
 - **Docker:** containers, images, volumes and Compose, plus Dockerfile generation for .NET projects (the Docker
   module, installed from the Modules view)
 - **Terminal:** your own shell on a real PTY, with true color and several tabs

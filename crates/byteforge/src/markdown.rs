@@ -99,6 +99,17 @@ pub fn inlines(text: &str) -> Vec<Inline> {
                 i += 2;
                 continue;
             }
+            '&' => {
+                // HTML entities (Roslyn keeps words together with &nbsp;); unknown ones stay as written.
+                if let Some(semi) = chars[i + 1..].iter().take(10).position(|&x| x == ';') {
+                    let name: String = chars[i + 1..i + 1 + semi].iter().collect();
+                    if let Some(decoded) = entity(&name) {
+                        current.push(decoded);
+                        i += semi + 2;
+                        continue;
+                    }
+                }
+            }
             '`' => {
                 // Inline code opens with a run of N backticks and closes at the next run of exactly
                 // N, so ``List`1`` holds a backtick (CommonMark). Nothing inside is markup.
@@ -170,6 +181,24 @@ pub fn inlines(text: &str) -> Vec<Inline> {
     }
     push(&mut out, &mut current, style);
     out
+}
+
+/// The character an HTML entity (`nbsp`, `lt`, `#160`, `#xA0`, without `&` and `;`) stands for.
+fn entity(name: &str) -> Option<char> {
+    let numeric = |digits: &str, radix: u32| u32::from_str_radix(digits, radix).ok().and_then(char::from_u32).filter(|&c| c != '\0');
+    match name {
+        "nbsp" => Some('\u{a0}'),
+        "lt" => Some('<'),
+        "gt" => Some('>'),
+        "amp" => Some('&'),
+        "quot" => Some('"'),
+        "apos" => Some('\''),
+        _ => match name.strip_prefix('#') {
+            Some(hex) if hex.starts_with(['x', 'X']) => numeric(&hex[1..], 16),
+            Some(dec) => numeric(dec, 10),
+            None => None,
+        },
+    }
 }
 
 /// Renders Markdown with the theme's fonts and token colors.
@@ -298,5 +327,16 @@ mod tests {
         assert_eq!(inlines("the source ``System.Collections.Generic.List`1``."), vec![plain("the source "), code("System.Collections.Generic.List`1"), plain(".")]);
         assert_eq!(inlines("`` `x` ``"), vec![code("`x`")]);
         assert_eq!(inlines("a ``b` c"), vec![plain("a ``b` c")]);
+    }
+
+    #[test]
+    fn html_entities_are_decoded_outside_code() {
+        // Roslyn's hover for string.Length.
+        assert_eq!(inlines("the current&nbsp;string&nbsp;object."), vec![plain("the current\u{a0}string\u{a0}object.")]);
+        assert_eq!(inlines("&lt;T&gt; &amp; &#65;&#x42; &quot;q&quot;"), vec![plain("<T> & AB \"q\"")]);
+        // Not entities: kept as written; and code spans are literal.
+        assert_eq!(inlines("a & b, &unknown; &#0; R&D"), vec![plain("a & b, &unknown; &#0; R&D")]);
+        let code = Inline { text: "&nbsp;".into(), style: Style { code: true, ..Style::default() } };
+        assert_eq!(inlines("`&nbsp;`"), vec![code]);
     }
 }

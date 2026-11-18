@@ -125,6 +125,46 @@ pub struct GitShowFileAtCommit {
     pub file: bf_core::git::CommitFile,
 }
 
+// The Source Control "…" menu (also in the command palette).
+actions!(
+    git,
+    [
+        GitUndoLastCommit, GitCommitAmend, GitStash, GitStashPopLatest, GitStashPop, GitStashApply, GitStashDrop, GitDiscardAll,
+        GitMergeBranch, GitAbortMerge, GitRenameBranch, GitCreateTag, GitPushTags, GitRevertCommit
+    ]
+);
+
+/// Pops, applies or drops stash entry `index` (picked in the stash list): `op` is pop, apply or drop.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = git, no_json)]
+pub struct GitStashEntry {
+    pub op: String,
+    pub index: usize,
+    pub message: String,
+}
+
+/// Merges `branch` into the current one (picked in the branch list).
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = git, no_json)]
+pub struct GitMergeWith {
+    pub branch: String,
+}
+
+/// Reverts a commit (picked in the history list, or from a commit's menu in HISTORY).
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = git, no_json)]
+pub struct GitRevertCommitId {
+    pub id: String,
+    pub subject: String,
+}
+
+/// Creates a tag at a commit (from a commit's menu in HISTORY); asks for the name.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = git, no_json)]
+pub struct GitCreateTagAt {
+    pub id: String,
+}
+
 // Refactorings (handled by the editor; most go through the language server's code actions).
 actions!(
     refactor,
@@ -245,6 +285,20 @@ fn builtin() -> Vec<Builtin> {
         ("view.scm", "Source Control", "View", Box::new(ShowSourceControl), Some("ctrl-shift-g")),
         ("git.refresh", "Refresh", "Git", Box::new(GitRefresh), None),
         ("git.commit", "Commit", "Git", Box::new(GitCommit), None),
+        ("git.commitAmend", "Commit (Amend)", "Git", Box::new(GitCommitAmend), None),
+        ("git.undoLastCommit", "Undo Last Commit", "Git", Box::new(GitUndoLastCommit), None),
+        ("git.revertCommit", "Revert Commit…", "Git", Box::new(GitRevertCommit), None),
+        ("git.discardAll", "Discard All Changes", "Git", Box::new(GitDiscardAll), None),
+        ("git.stash", "Stash Changes…", "Git", Box::new(GitStash), None),
+        ("git.stashPopLatest", "Pop Latest Stash", "Git", Box::new(GitStashPopLatest), None),
+        ("git.stashPop", "Pop Stash…", "Git", Box::new(GitStashPop), None),
+        ("git.stashApply", "Apply Stash…", "Git", Box::new(GitStashApply), None),
+        ("git.stashDrop", "Drop Stash…", "Git", Box::new(GitStashDrop), None),
+        ("git.merge", "Merge Branch…", "Git", Box::new(GitMergeBranch), None),
+        ("git.abortMerge", "Abort Merge", "Git", Box::new(GitAbortMerge), None),
+        ("git.renameBranch", "Rename Branch…", "Git", Box::new(GitRenameBranch), None),
+        ("git.createTag", "Create Tag…", "Git", Box::new(GitCreateTag), None),
+        ("git.pushTags", "Push Tags", "Git", Box::new(GitPushTags), None),
         ("git.stageAll", "Stage All Changes", "Git", Box::new(GitStageAll), None),
         ("git.unstageAll", "Unstage All Changes", "Git", Box::new(GitUnstageAll), None),
         ("git.pull", "Pull", "Git", Box::new(GitPull), None),

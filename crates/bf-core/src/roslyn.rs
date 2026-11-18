@@ -99,6 +99,8 @@ fn verify_and_unpack(package: &Path, target: &Path) -> anyhow::Result<PathBuf> {
         .args(["nuget", "verify", "--all", "-v", "normal"])
         .arg(package)
         .env("DOTNET_NOLOGO", "1")
+        // signed_by_microsoft reads the English output (a German system would say "erfolgreich überprüft")
+        .env("DOTNET_CLI_UI_LANGUAGE", "en")
         .stdin(Stdio::null())
         .output()
         .context("could not run dotnet to check the package signature (is the .NET SDK installed?)")?;
