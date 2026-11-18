@@ -23,7 +23,7 @@ comments when the settings screen changes a value:
   "editor.wordWrap": "off",                            // "on": long lines continue on the next rows (Alt+Z)
   "files.autoSave": "off",                             // or "afterDelay", "onFocusChange", "onWindowChange"
   "files.autoSaveDelay": 1000,                         // ms of quiet before "afterDelay" saves (no formatting)
-  "editor.formatOnSave": false, "editor.defaultFormatter": "csharpier",   // or "csharp-ls"
+  "editor.formatOnSave": false, "editor.defaultFormatter": "resharper",   // or "csharp-ls", "csharpier"
   "refactor.previewMultiFileChanges": true,            // ask (listing the files) before a rename or refactoring changes several files
   "refactor.renameGenerated": true,                    // after Extract Method / Introduce Local / Extract Interface, rename what it made up
   "git.blame.currentLine": true,                       // who last changed the caret's line, shown after it

@@ -55,7 +55,7 @@ live, and modules written in any language can extend it.
 - **Docker:** containers, images, volumes and Compose, plus Dockerfile generation for .NET projects (the Docker
   module, installed from the Modules view)
 - **Terminal:** your own shell on a real PTY, with true color and several tabs
-- **Formatting:** CSharpier by default, or Roslyn
+- **Formatting:** ReSharper's formatter (the one Rider uses) by default, or Roslyn; CSharpier from the Modules view
 
 ## Install
 

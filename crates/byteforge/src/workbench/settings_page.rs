@@ -73,7 +73,7 @@ pub(super) fn all_settings() -> Vec<SettingInfo> {
         s!("Editor", "editor.smoothScrolling", "Smooth scrolling", Bool, true, "Scrolling glides instead of jumping."),
         s!("Editor", "editor.cursorBlinking", "Blinking cursor", Bool, true, "The caret blinks."),
         s!("Editor", "editor.formatOnSave", "Format on save", Bool, false, "Ctrl+S formats the file first."),
-        s!("Editor", "editor.defaultFormatter", "Default formatter", Text, "", "csharpier or csharp-ls (empty: the first that handles the file)."),
+        s!("Editor", "editor.defaultFormatter", "Default formatter", Text, "", "resharper, csharp-ls or csharpier (empty: the first that handles the file)."),
         s!("Files", "files.autoSave", "Auto save", choice(&["off", "afterDelay", "onFocusChange", "onWindowChange"]), "off", "Save by yourself, after a pause in typing, when switching tabs, or also when leaving the window."),
         s!("Files", "files.autoSaveDelay", "Auto save delay", Number, 1000, "Milliseconds of quiet before \"afterDelay\" saves."),
         s!("Files", "files.exclude", "Excluded folders", List, ["bin", "obj", ".git", "node_modules", "target"], "Folder and file names left out of the Explorer, search and Go to File."),

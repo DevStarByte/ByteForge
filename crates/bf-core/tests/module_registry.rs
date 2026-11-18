@@ -67,13 +67,17 @@ fn preinstalls_bundled_modules_once() {
     let modules = root.join("modules");
 
     let done = preinstall(&bundled, &modules, &[]);
-    assert_eq!(done, ["byteforge.csharpier"], "only CSharpier is preinstalled");
-    assert!(modules.join("csharpier/csharpier.py").exists());
+    assert_eq!(done, ["byteforge.resharper-format"], "only the ReSharper formatter is preinstalled");
+    assert!(modules.join("resharper-format/resharper_format.py").exists());
 
     // Uninstalled later: not copied again.
-    std::fs::remove_dir_all(modules.join("csharpier")).unwrap();
+    std::fs::remove_dir_all(modules.join("resharper-format")).unwrap();
     assert!(preinstall(&bundled, &modules, &done).is_empty());
-    assert!(!modules.join("csharpier").exists());
+    assert!(!modules.join("resharper-format").exists());
+
+    // Someone who had CSharpier preinstalled by an older version gets the ReSharper formatter added once.
+    let older = root.join("older");
+    assert_eq!(preinstall(&bundled, &older, &["byteforge.csharpier".to_owned()]), ["byteforge.resharper-format"]);
     let _ = std::fs::remove_dir_all(&root);
 }
 

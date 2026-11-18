@@ -8,7 +8,8 @@ opens its details (full description, version, requirements, the file types it fo
 
 | Module | What it does |
 |---|---|
-| **CSharpier** | C# / MSBuild formatter, **preinstalled** (copied into your modules folder on first start; uninstall it like any other) |
+| **ReSharper Formatter** | formats C# with JetBrains' ReSharper command line tools (`jb cleanupcode`, the engine of Rider and ReSharper), following `.editorconfig` and the solution's `.DotSettings`; **preinstalled** (copied into your modules folder on first start; uninstall it like any other) |
+| **CSharpier** | C# / MSBuild formatter; install it from the Modules view |
 | **Docker** | the Docker view, Docker commands, Dockerfile highlighting and Docker file icons; install it from the Modules view |
 | **Aspire** | the Aspire view: AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and run / new / init / add / publish / deploy commands; needs the [Aspire CLI](https://aspire.dev); install it from the Modules view |
 | **SQL** | the Database view: connections from `"sql.connections"` in settings, appsettings.json `ConnectionStrings` and SQLite files, with their tables, views and columns; "SQL: Run File" (Ctrl+Shift+Enter), Select Top 100, a shell per connection, SQL highlighting and a keyword-case formatter. SQLite needs only Python; PostgreSQL, MySQL / MariaDB and SQL Server use `psql`, `mysql` and `sqlcmd`; install it from the Modules view |
@@ -22,10 +23,12 @@ The registry is the `modules/` folder of the `packages` branch (`modules/index.j
 their files; a workflow regenerates it). `"modules.registry"` in settings points ByteForge at another one (also
 `file://`). Downloads use `curl`; installed modules live in `~/.config/byteforge/modules/<name>/`.
 
-Only CSharpier is preinstalled: `<install dir>/modules/csharpier` is copied into the user's modules folder once,
-and isn't copied again after it's uninstalled. Every other module comes from the registry. The CSharpier module uses a
-version pinned in the project's dotnet tool manifest (`dotnet tool install csharpier` in the repository), else a
-global one. Without either, the status bar offers to run `dotnet tool install -g csharpier`. It needs `python3`.
+Only the ReSharper Formatter is preinstalled: `<install dir>/modules/resharper-format` is copied into the user's
+modules folder once, and isn't copied again after it's uninstalled. Every other module comes from the registry
+(CSharpier, preinstalled before 0.10.0, stays installed for those who have it). The ReSharper module uses a version
+of the tools pinned in the project's dotnet tool manifest (`dotnet tool install JetBrains.ReSharper.GlobalTools` in
+the repository), else a global one; "ReSharper: Install" installs them globally. `"resharper.profile"` picks the
+cleanup profile (default `Built-in: Reformat Code`). It needs `python3` and the .NET SDK.
 
 The SQL module's settings: `"sql.connections"` (a list of `{ "name", "driver", "connectionString" }`, or
 `host`, `port`, `database`, `user`, `password`, `file` for SQLite, `integratedSecurity` and

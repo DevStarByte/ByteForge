@@ -148,7 +148,7 @@ pub fn uninstall(modules_dir: &Path, module_dir: &Path) -> anyhow::Result<()> {
 }
 
 /// The bundled modules that are preinstalled; the others are installed from the Modules view.
-pub const PREINSTALLED: &[&str] = &["byteforge.csharpier"];
+pub const PREINSTALLED: &[&str] = &["byteforge.resharper-format"];
 
 /// Copies the [`PREINSTALLED`] modules bundled with ByteForge (`<install dir>/modules`) into the user's
 /// modules folder, once per module: ids in `done` were preinstalled before (and may have been uninstalled

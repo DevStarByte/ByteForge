@@ -17,4 +17,4 @@ sed "s|Exec=byteforge|Exec=$PREFIX/bin/byteforge|" "$ROOT/packaging/linux/bytefo
 
 echo "Installed. Run 'byteforge [folder]' (make sure $PREFIX/bin is on PATH)."
 command -v csharp-ls >/dev/null 2>&1 || echo "Tip: install the C# language server: dotnet tool install -g csharp-ls"
-command -v csharpier >/dev/null 2>&1 || echo "Tip: install the default formatter: dotnet tool install -g csharpier"
+command -v jb >/dev/null 2>&1 || echo "Tip: install the default formatter: dotnet tool install -g JetBrains.ReSharper.GlobalTools"
