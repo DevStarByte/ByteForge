@@ -60,6 +60,8 @@ pub enum EditorEvent {
     OutlineChanged,
     DiagnosticsChanged,
     Navigate(PathBuf, Point),
+    /// The highlighting language changed (detected from the text of an untitled editor).
+    LanguageChanged,
     /// Breakpoints were toggled, or edits moved them.
     BreakpointsChanged,
     /// A code action (quick fix, refactoring) was picked; the workbench resolves and applies it, then does
@@ -333,6 +335,8 @@ pub struct EditorView {
     /// Underlines file references (`File.cs(12,5)`, `path:line`) and opens them on click (Ctrl+Click in
     /// editable views). Relative paths resolve against `link_root`.
     pub detect_links: bool,
+    /// Guess the language from the text while the buffer has no file (an untitled editor).
+    pub auto_language: bool,
     pub link_root: Option<PathBuf>,
     /// File references per line text, so the file system is only asked once per distinct line.
     pub(crate) link_cache: std::collections::HashMap<String, Arc<Vec<bf_core::links::FileLink>>>,
@@ -447,6 +451,7 @@ impl EditorView {
             breakpoints: Vec::new(),
             exec_line: None,
             detect_links: false,
+            auto_language: false,
             link_root: None,
             link_cache: Default::default(),
         };
@@ -591,6 +596,13 @@ impl EditorView {
                 .collect();
             lsp.did_change(path, self.lsp_version, lsp_changes);
         }
+        if self.auto_language && self.path.is_none() {
+            let language = Language::detect(&self.text_head());
+            if language != self.language {
+                self.set_language(language, cx);
+                cx.emit(EditorEvent::LanguageChanged);
+            }
+        }
         self.schedule_highlight(cx);
         self.schedule_semantic(Duration::from_millis(350), cx);
         self.schedule_inlay_hints(Duration::from_millis(600), cx);
@@ -701,8 +713,18 @@ impl EditorView {
     /// Re-detects the language from the file name (a module's language appeared or went away) and
     /// re-highlights when it changed.
     pub fn redetect_language(&mut self, cx: &mut Context<Self>) {
-        let language = self.path.as_deref().and_then(Language::from_path);
+        let language = match self.path.as_deref() {
+            Some(path) => Language::from_path(path),
+            None if self.auto_language => Language::detect(&self.text_head()),
+            None => self.language,
+        };
         self.set_language(language, cx);
+    }
+
+    /// The start of the text, as much as [`Language::detect`] looks at; a big buffer stays cheap.
+    fn text_head(&self) -> String {
+        let rope = self.state.buffer.rope();
+        rope.slice(..rope.len_chars().min(16 * 1024)).to_string()
     }
 
     /// Highlights the text as `language` (for views without a file, like the sides of a diff).

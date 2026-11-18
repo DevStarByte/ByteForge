@@ -9,7 +9,7 @@ use gpui::{
     div, prelude::*, px, uniform_list,
 };
 
-use crate::actions::RenameEntry;
+use crate::actions::{DeleteEntry, RenameEntry};
 use crate::assets::icon;
 use crate::theme::Theme;
 
@@ -77,6 +77,8 @@ pub struct Explorer {
     menu: Option<(PathBuf, Point<Pixels>)>,
     /// Git decorations: letter and theme color key per path (folders get '•').
     decorations: HashMap<PathBuf, (char, &'static str)>,
+    /// Set by a row's mouse down so the list behind it knows the press was not on empty space.
+    row_pressed: bool,
 }
 
 impl EventEmitter<ExplorerEvent> for Explorer {}
@@ -100,6 +102,7 @@ impl Explorer {
             focus: cx.focus_handle(),
             menu: None,
             decorations: HashMap::new(),
+            row_pressed: false,
         };
         e.refresh(cx);
         e
@@ -371,6 +374,7 @@ impl Render for Explorer {
                         let drop_dir = if row.is_dir { Some(row.path.clone()) } else { row.path.parent().map(Path::to_path_buf) };
                         let dragged = DraggedEntry { path: row.path.clone(), name: row.name.clone(), is_dir: row.is_dir };
                         let e3 = entity.clone();
+                        let e4 = entity.clone();
                         let drop_highlight = t.c("list.hoverBackground");
                         div()
                             .id(ix)
@@ -410,6 +414,7 @@ impl Render for Explorer {
                                     .child(row.name.clone()),
                             )
                             .when_some(deco, |d, (letter, key)| d.child(div().flex_none().text_size(px(11.)).text_color(t.c(key)).child(letter.to_string())))
+                            .on_mouse_down(MouseButton::Left, move |_, _, cx| e4.update(cx, |e, _| e.row_pressed = true))
                             .on_click(move |ev: &ClickEvent, window, cx| {
                                 e1.update(cx, |e, cx| {
                                     window.focus(&e.focus);
@@ -436,6 +441,22 @@ impl Render for Explorer {
             }
         })
         .track_scroll(self.scroll.clone())
+        // Double click on empty space below the rows: new file in the workspace root.
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |e, ev: &MouseDownEvent, window, cx| {
+                if std::mem::take(&mut e.row_pressed) || ev.click_count != 2 {
+                    return;
+                }
+                window.focus(&e.focus);
+                e.selected = None;
+                e.menu = None;
+                if let Some(root) = e.workspace.root() {
+                    cx.emit(ExplorerEvent::NewFile(root));
+                }
+                cx.notify();
+            }),
+        )
         .flex_1();
 
         let menu = self.menu.clone().map(|(path, pos)| {
@@ -494,6 +515,11 @@ impl Render for Explorer {
             .on_action(cx.listener(|e, _: &RenameEntry, _, cx| {
                 if let Some(path) = e.selected.clone() {
                     cx.emit(ExplorerEvent::Rename(path));
+                }
+            }))
+            .on_action(cx.listener(|e, _: &DeleteEntry, _, cx| {
+                if let Some(path) = e.selected.clone().filter(|p| p.exists()) {
+                    cx.emit(ExplorerEvent::Delete(path));
                 }
             }))
             // Dropped outside any row (empty space, header): move to the workspace root.

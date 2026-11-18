@@ -144,6 +144,11 @@ impl Workbench {
                 cx.notify();
             }
             EditorEvent::BreakpointsChanged => self.on_editor_breakpoints_changed(editor, cx),
+            // Snippets and the status bar follow the detected language.
+            EditorEvent::LanguageChanged => {
+                editor.update(cx, |e, _| self.configure_editor(e));
+                cx.notify();
+            }
             EditorEvent::CaretMoved => {
                 self.record_place(editor, cx);
                 cx.notify();
@@ -203,7 +208,10 @@ impl Workbench {
     pub(super) fn new_file(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.untitled += 1;
         let editor = cx.new(|cx| EditorView::new("", None, cx));
-        editor.update(cx, |e, _| self.configure_editor(e));
+        editor.update(cx, |e, _| {
+            e.auto_language = true;
+            self.configure_editor(e);
+        });
         let title = format!("Untitled-{}", self.untitled);
         self.add_tab(editor, None, title, false, window, cx);
     }

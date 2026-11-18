@@ -4,7 +4,7 @@
   // SQL highlighting; and a formatter for .sql files (keyword case, trailing whitespace).
   "id": "byteforge.sql",
   "name": "SQL",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Languages",
@@ -36,6 +36,17 @@
       "name": "SQL",
       "extensions": ["sql", "psql", "pgsql", "tsql", "mysql"],
       "lineComment": "--",
+      // Recognizes SQL in an untitled editor: each pattern that matches counts once.
+      "detect": [
+        "(?i)^\\s*select\\b.*\\bfrom\\b",
+        "(?i)^\\s*(insert\\s+into|delete\\s+from|merge\\s+into)\\b",
+        "(?i)^\\s*update\\s+\\S+\\s+set\\b",
+        "(?i)^\\s*(create|alter|drop)\\s+(or\\s+replace\\s+)?(table|view|index|unique\\s+index|procedure|proc|function|trigger|database|schema|sequence)\\b",
+        "(?i)^\\s*(from|where|group\\s+by|order\\s+by|having|(inner|left|right|full|cross)\\s+(outer\\s+)?join)\\b.*$",
+        "(?i)^\\s*(begin\\s+tran(saction)?|commit|rollback|go)\\s*;?\\s*$",
+        "(?i)^\\s*(declare\\s+@|set\\s+nocount\\b|pragma\\s+\\w+|use\\s+\\[?\\w+\\]?\\s*;?\\s*$)",
+        "^\\s*--\\s"
+      ],
       // Applied per line; where matches overlap, the earlier rule wins. Block comments are only
       // recognized on the line they start on.
       "rules": [

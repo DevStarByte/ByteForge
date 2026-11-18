@@ -241,10 +241,22 @@ impl Workbench {
             })
             .border_color(t.c("editorGroupHeader.border"))
             .children(tab_els)
+            // Double click on the empty space after the tabs: a new untitled editor in this group.
+            .child(div().flex_1().h_full().on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |wb, ev: &MouseDownEvent, w, cx| {
+                    if ev.click_count == 2 {
+                        if wb.focus_group != group_ix {
+                            wb.focus_group(group_ix, w, cx);
+                        }
+                        wb.new_file(w, cx);
+                    }
+                }),
+            ))
             // Empty space of the strip: to the end of this group.
             .on_drop(cx.listener(move |wb, d: &DraggedTab, w, cx| wb.move_tab(d.index, group_ix, None, w, cx)))
             .when(markdown_source, |d| {
-                d.child(div().flex_1()).child(div().flex_none().h_full().flex().items_center().child(
+                d.child(div().flex_none().h_full().flex().items_center().child(
                     div()
                         .id(SharedString::from(format!("md-preview-button-{group}")))
                         .mx_2()
@@ -494,7 +506,23 @@ impl Workbench {
     pub(super) fn render_welcome(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let t = Theme::global(cx);
         let commands = cx.global::<Commands>();
-        let mut page = div().size_full().flex().flex_col().items_center().justify_center().gap(t.m("welcome.spacing", 8.0)).bg(t.bg("editor.background"));
+        let mut page = div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .items_center()
+            .justify_center()
+            .gap(t.m("welcome.spacing", 8.0))
+            .bg(t.bg("editor.background"))
+            // Double click on the empty editor area: a new untitled editor.
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|wb, ev: &MouseDownEvent, w, cx| {
+                    if ev.click_count == 2 {
+                        wb.new_file(w, cx);
+                    }
+                }),
+            );
         for part in &t.layout.welcome {
             match part.as_str() {
                 "logo" => page = page.child(icon("logo", t.m("welcome.logoSize", 96.0), t.c("welcome.logo"))),
@@ -523,6 +551,8 @@ impl Workbench {
                                 .hover(|s| s.text_color(t.c("welcome.titleForeground")))
                                 .child(div().w(t.m("welcome.columnWidth", 160.0)).flex().justify_end().child(cmd.title.clone()))
                                 .child(div().w(t.m("welcome.columnWidth", 160.0)).child(key))
+                                // A double click on a shortcut runs it; it does not also open an editor.
+                                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                                 .on_click(move |_, w, cx| w.dispatch_action(action.boxed_clone(), cx)),
                         );
                     }

@@ -398,7 +398,7 @@ impl Workbench {
 
 /// A module's language, compiled for the highlighter (invalid rules are skipped and logged).
 pub(crate) fn module_language(l: &bf_core::plugins::LanguageContribution) -> bf_syntax::module_lang::ModuleLanguage {
-    use bf_syntax::module_lang::{ModuleLanguage, RegexRule, intern};
+    use bf_syntax::module_lang::{ModuleLanguage, RegexRule, detect_pattern, intern};
     let files = l.clone();
     ModuleLanguage {
         id: intern(&l.id),
@@ -406,6 +406,7 @@ pub(crate) fn module_language(l: &bf_core::plugins::LanguageContribution) -> bf_
         line_comment: l.line_comment.as_deref().map(intern),
         matches: Box::new(move |name: &str| files.matches(name)),
         rules: l.rules.iter().filter_map(|r| RegexRule::new(&r.pattern, r.group, &r.token)).collect(),
+        detect: l.detect.iter().filter_map(|p| detect_pattern(p)).collect(),
     }
 }
 
@@ -466,6 +467,43 @@ mod tests {
         assert_eq!(kind("50", 0), Some("number"));
         assert_eq!(kind("/* note */", 0), Some("comment"));
         assert_eq!(kind(">", 0), Some("operator"));
+        bf_syntax::module_lang::set_module_languages(Vec::new());
+    }
+
+    /// The bundled SQL and Azure modules recognize their languages in an untitled editor, and leave other
+    /// text to the built-in guesses.
+    #[test]
+    fn bundled_modules_detect_their_languages() {
+        let _turn = LANGUAGES.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
+        let modules = bf_core::plugins::discover(&dir);
+        let languages: Vec<_> = ["byteforge.sql", "byteforge.azure"]
+            .iter()
+            .flat_map(|id| modules.iter().find(|m| m.id == *id).expect("bundled module").languages.iter())
+            .map(|l| {
+                let compiled = super::module_language(l);
+                assert_eq!(compiled.detect.len(), l.detect.len(), "every detect pattern of {} compiles", l.id);
+                assert!(!compiled.detect.is_empty(), "{} has detect patterns", l.id);
+                compiled
+            })
+            .collect();
+        bf_syntax::module_lang::set_module_languages(languages);
+        let detect = |text: &str| Language::detect(text).map(Language::id);
+
+        assert_eq!(detect("SELECT * FROM users;"), Some("sql"));
+        assert_eq!(detect("select id, name\nfrom users\nwhere id = 1\norder by name;"), Some("sql"));
+        assert_eq!(detect("CREATE TABLE users (\n  id INT PRIMARY KEY,\n  name NVARCHAR(50)\n);"), Some("sql"));
+        assert_eq!(detect("-- cleanup\nDELETE FROM sessions WHERE expires < now();"), Some("sql"));
+        assert_eq!(detect("param location string = resourceGroup().location"), Some("bicep"));
+        assert_eq!(
+            detect("targetScope = 'resourceGroup'\n@description('Name')\nparam name string\nresource sa 'Microsoft.Storage/storageAccounts@2023-05-01' = {\n  name: name\n}"),
+            Some("bicep")
+        );
+        // Not theirs: built-in languages and plain text.
+        assert_eq!(detect("using System.Linq;\nvar adults = from p in people\n    where p.Age > 17\n    select p;"), Some("csharp"));
+        assert_eq!(detect("{\"select\": \"from\"}"), Some("json"));
+        assert_eq!(detect("services:\n  db:\n    image: postgres"), Some("yaml"));
+        assert_eq!(detect("just some notes"), None);
         bf_syntax::module_lang::set_module_languages(Vec::new());
     }
 

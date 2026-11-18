@@ -53,6 +53,10 @@ To publish it, add the folder to `modules/` on the `packages` branch.
 - **`languages`**: an `id`, `name`, the files (`names`, `patterns`, `extensions`), a `lineComment` and highlighting
   `rules`: `{ "match": "<regex>", "token": "keyword", "group": 1 }`. Rules apply per line; where matches overlap, the
   earlier rule wins. `token` is a theme token name (`keyword`, `string`, `comment`, `number`, `class name`, …).
+  `detect` lists regexes that recognize the language in an untitled editor, which has no file name to go by
+  (`^` and `$` match at every line; add `(?i)` to ignore case). Each pattern that matches the start of the text
+  counts once: two or more win over the built-in guesses (C#, JSON, XML, Razor, YAML, INI, .env), a single one
+  counts when nothing else fits. `modules/sql` and `modules/azure` have examples.
 - **`views`**: side bar views (`id`, `title`, `icon`: a built-in icon name or path data). Each gets an activity bar
   item; the module fills it with `setTree`.
 

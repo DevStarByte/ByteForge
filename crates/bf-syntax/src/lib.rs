@@ -104,6 +104,99 @@ impl Language {
         }
     }
 
+    /// Guesses the language from the text itself, for a buffer without a file name (an untitled editor).
+    /// Looks only at the start of the text, so it is cheap enough to run on every edit. `None`: plain text.
+    ///
+    /// Module languages take part through their `detect` patterns: two or more matching patterns win over
+    /// the built-in guesses, a single one counts when nothing else fits.
+    pub fn detect(text: &str) -> Option<Language> {
+        let mut end = text.len().min(16 * 1024);
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        let sample = text[..end].trim_start_matches('\u{feff}').trim_start();
+        if sample.is_empty() {
+            return None;
+        }
+        let module = module_lang::detect(sample);
+        if let Some((index, hits)) = module
+            && hits >= 2
+        {
+            return Some(Language::Module(index));
+        }
+        Self::detect_builtin(sample).or(module.map(|(index, _)| Language::Module(index)))
+    }
+
+    /// The built-in guesses of [`Language::detect`], on its trimmed sample.
+    fn detect_builtin(sample: &str) -> Option<Language> {
+        let first = sample.chars().next()?;
+        let lines = || sample.lines().map(str::trim).filter(|l| !l.is_empty()).take(200);
+
+        const RAZOR: &[&str] = &[
+            "@page", "@model ", "@using ", "@inject ", "@code", "@{", "@if ", "@if(", "@foreach", "@namespace ", "@inherits ", "@attribute ", "@layout ",
+        ];
+        if lines().any(|l| RAZOR.iter().any(|d| l.starts_with(d))) {
+            return Some(Language::Razor);
+        }
+        if first == '<' {
+            return Some(Language::Xml);
+        }
+        if first == '{' || first == '[' {
+            let after = sample[1..].trim_start();
+            let json = match after.chars().next() {
+                None => false,
+                Some(c) if first == '{' => c == '"' || c == '}',
+                Some(c) => matches!(c, '{' | '[' | '"' | ']' | '-' | '0'..='9') || ["true", "false", "null"].iter().any(|w| after.starts_with(w)),
+            };
+            if json {
+                return Some(Language::Json);
+            }
+        }
+
+        const CSHARP_STARTS: &[&str] = &[
+            "using ", "namespace ", "public ", "private ", "protected ", "internal ", "static ", "class ", "record ", "struct ", "interface ",
+            "enum ", "var ", "return ", "if (", "else", "foreach (", "for (", "while (", "switch (", "await ", "async ", "Console.", "#region",
+            "#nullable", "[assembly:", "///", "throw ", "try", "catch", "new ", "void ", "string ", "int ", "bool ", "const ", "readonly ",
+        ];
+        let mut csharp = 0;
+        for l in lines() {
+            if CSHARP_STARTS.iter().any(|k| l.starts_with(k)) {
+                csharp += 2;
+            }
+            if l.ends_with(';') || l.ends_with("=>") || l == "{" || l == "}" {
+                csharp += 1;
+            }
+        }
+        if csharp >= 3 {
+            return Some(Language::CSharp);
+        }
+
+        // Line by line: INI sections, `key=value` assignments (all-caps keys: a .env file), YAML keys and list items.
+        let (mut sections, mut assignments, mut env_like, mut yaml, mut other) = (0, 0, 0, 0, 0);
+        for l in lines().filter(|l| !l.starts_with('#') && !l.starts_with(';')) {
+            if l.starts_with('[') && l.ends_with(']') && !l.contains(',') {
+                sections += 1;
+            } else if let Some(key) = l.split_once('=').map(|(k, _)| k.trim().trim_start_matches("export ")).filter(|k| is_config_key(k)) {
+                assignments += 1;
+                if key.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_') {
+                    env_like += 1;
+                }
+            } else if is_yaml_line(l) {
+                yaml += 1;
+            } else {
+                other += 1;
+            }
+        }
+        if sample.starts_with("---") || (yaml > 0 && yaml >= assignments + sections && yaml > other) {
+            return Some(Language::Yaml);
+        }
+        if assignments + sections == 0 || assignments + sections <= other {
+            return None;
+        }
+        let id = if sections == 0 && env_like == assignments { "dotenv" } else { "ini" };
+        builtin_lang::find_id(id).map(Language::Builtin)
+    }
+
     /// The language for a fenced code block's tag or a language id ("csharp", "json", a module's id, …).
     pub fn from_id(id: &str) -> Option<Language> {
         match id.to_ascii_lowercase().as_str() {
@@ -174,6 +267,29 @@ impl Language {
             Language::Yaml => YAML_QUERY,
             Language::Module(_) | Language::Builtin(_) => "",
         }
+    }
+}
+
+/// A key of an INI or .env assignment: `name`, `section.key`, `KEY_1`.
+fn is_config_key(key: &str) -> bool {
+    !key.is_empty() && key.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '.'))
+}
+
+/// A YAML mapping or list line: `key: value`, `key:`, `- item`, `- key: value`.
+fn is_yaml_line(line: &str) -> bool {
+    if line == "-" {
+        return true;
+    }
+    let (item, line) = match line.strip_prefix("- ") {
+        Some(rest) => (true, rest.trim_start()),
+        None => (false, line),
+    };
+    match line.split_once(':') {
+        Some((key, rest)) => {
+            let key = key.trim_matches(|c| c == '"' || c == '\'');
+            !key.is_empty() && key.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '-' | '.' | ' ' | '/')) && (rest.is_empty() || rest.starts_with(' '))
+        }
+        None => item,
     }
 }
 

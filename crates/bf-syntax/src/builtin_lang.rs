@@ -116,6 +116,7 @@ fn languages() -> &'static [ModuleLanguage] {
                 line_comment: d.line_comment,
                 matches: Box::new(d.matches),
                 rules: d.rules.iter().filter_map(|&(pattern, group, token)| RegexRule::new(pattern, group, token)).collect(),
+                detect: Vec::new(),
             })
             .collect()
     })

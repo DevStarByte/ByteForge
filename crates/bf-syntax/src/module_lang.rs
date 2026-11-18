@@ -14,6 +14,21 @@ pub struct ModuleLanguage {
     pub line_comment: Option<&'static str>,
     pub matches: Box<dyn Fn(&str) -> bool + Send + Sync>,
     pub rules: Vec<RegexRule>,
+    /// Patterns that recognize the language in a buffer without a file name ([`detect_pattern`]); each one
+    /// that matches the start of the text counts once.
+    pub detect: Vec<regex::Regex>,
+}
+
+/// Compiles a `detect` pattern: multi-line, so `^` and `$` match at every line. `None` (and a log line)
+/// when the pattern is invalid.
+pub fn detect_pattern(pattern: &str) -> Option<regex::Regex> {
+    match regex::RegexBuilder::new(pattern).multi_line(true).build() {
+        Ok(regex) => Some(regex),
+        Err(e) => {
+            log::warn!("invalid detect pattern {pattern:?}: {e}");
+            None
+        }
+    }
 }
 
 /// Matches of `regex` (or of its capture group `group`) get the theme token `token`.
@@ -50,6 +65,19 @@ pub(crate) fn get(index: u16) -> Option<Arc<ModuleLanguage>> {
 /// The first module language for a file name, as its index.
 pub(crate) fn find(file_name: &str) -> Option<u16> {
     LANGUAGES.read().unwrap_or_else(|e| e.into_inner()).iter().position(|l| (l.matches)(file_name)).map(|i| i as u16)
+}
+
+/// The module language whose `detect` patterns match `sample` most often, with that count (ties: the first).
+pub(crate) fn detect(sample: &str) -> Option<(u16, usize)> {
+    let languages = LANGUAGES.read().unwrap_or_else(|e| e.into_inner());
+    let mut best: Option<(u16, usize)> = None;
+    for (i, language) in languages.iter().enumerate() {
+        let hits = language.detect.iter().filter(|r| r.is_match(sample)).count();
+        if hits > 0 && best.is_none_or(|(_, b)| hits > b) {
+            best = Some((i as u16, hits));
+        }
+    }
+    best
 }
 
 pub(crate) fn find_id(id: &str) -> Option<u16> {

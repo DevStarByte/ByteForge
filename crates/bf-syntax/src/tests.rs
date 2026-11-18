@@ -483,6 +483,7 @@ fn xml_kinds() {
 #[test]
 fn module_languages_detect_files_and_highlight_with_regexes() {
     use crate::module_lang::{ModuleLanguage, RegexRule, set_module_languages};
+    let _guard = MODULE_LANGUAGES.lock().unwrap_or_else(|e| e.into_inner());
     set_module_languages(vec![ModuleLanguage {
         id: "dockerfile",
         name: "Dockerfile",
@@ -494,6 +495,7 @@ fn module_languages_detect_files_and_highlight_with_regexes() {
             RegexRule::new(r#""[^"]*""#, 0, "string").unwrap(),
             RegexRule::new(r"\b(AS)\b", 1, "keyword").unwrap(),
         ],
+        detect: Vec::new(),
     }]);
     let lang = Language::from_path(Path::new("src/Api/Dockerfile")).expect("module language");
     assert_eq!((lang.id(), lang.name(), lang.line_comment()), ("dockerfile", "Dockerfile", Some("#")));
@@ -595,4 +597,53 @@ fn builtin_language_kinds() {
     assert_eq!(kind_of(&spans, text, "# note", 0), Some("comment"));
     assert_eq!(kind_of(&spans, text, "${HOST}", 0), Some("local name"));
     assert_eq!(kind_of(&spans, text, "'$NOPE'", 0), Some("string"));
+}
+
+/// Tests that register module languages (a global list) take turns.
+static MODULE_LANGUAGES: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[test]
+fn detects_the_language_from_the_text() {
+    let _guard = MODULE_LANGUAGES.lock().unwrap_or_else(|e| e.into_inner());
+    let detect = |text: &str| Language::detect(text).map(Language::id);
+    assert_eq!(detect(""), None);
+    assert_eq!(detect("hello world\nsome notes"), None);
+    assert_eq!(detect("using System;\n\nConsole.WriteLine(\"hi\");"), Some("csharp"));
+    assert_eq!(detect("namespace Demo;\n\npublic class Foo\n{\n}"), Some("csharp"));
+    assert_eq!(detect("var x = 1;\nreturn x;"), Some("csharp"));
+    assert_eq!(detect("{\n  \"name\": \"demo\",\n  \"version\": 1\n}"), Some("json"));
+    assert_eq!(detect("[1, 2, 3]"), Some("json"));
+    assert_eq!(detect("[{\"a\": 1}]"), Some("json"));
+    assert_eq!(detect("<?xml version=\"1.0\"?>\n<root />"), Some("xml"));
+    assert_eq!(detect("<Project Sdk=\"Microsoft.NET.Sdk\">\n</Project>"), Some("xml"));
+    assert_eq!(detect("@page \"/counter\"\n<h1>Counter</h1>\n@code {\n}"), Some("razor"));
+    assert_eq!(detect("name: demo\nservices:\n  web:\n    image: nginx\n    ports:\n      - \"80:80\""), Some("yaml"));
+    assert_eq!(detect("---\nfoo"), Some("yaml"));
+    assert_eq!(detect("[core]\nautocrlf = true\neditor=vim"), Some("ini"));
+    assert_eq!(detect("DATABASE_URL=postgres://x\nPORT=8080"), Some("dotenv"));
+}
+
+#[test]
+fn module_languages_detect_their_text() {
+    use crate::module_lang::{ModuleLanguage, detect_pattern, set_module_languages};
+    let _guard = MODULE_LANGUAGES.lock().unwrap_or_else(|e| e.into_inner());
+    set_module_languages(vec![ModuleLanguage {
+        id: "sql",
+        name: "SQL",
+        line_comment: Some("--"),
+        matches: Box::new(|name: &str| name.ends_with(".sql")),
+        rules: Vec::new(),
+        detect: [r"(?i)^\s*select\b.*\bfrom\b", r"(?i)^\s*(from|where|order\s+by)\b.*$", r"(?i)^\s*(insert\s+into|delete\s+from)\b"]
+            .iter()
+            .filter_map(|p| detect_pattern(p))
+            .collect(),
+    }]);
+    let detect = |text: &str| Language::detect(text).map(Language::id);
+    // One match is enough when nothing built-in fits; two win over the built-in guesses.
+    assert_eq!(detect("SELECT * FROM users;"), Some("sql"));
+    assert_eq!(detect("select id, name\nfrom users\nwhere id = 1;"), Some("sql"));
+    assert_eq!(detect("SELECT * FROM users;\nDELETE FROM users;\nINSERT INTO users VALUES (1);"), Some("sql"));
+    // C# with a LINQ query stays C#.
+    assert_eq!(detect("using System.Linq;\nvar adults = from p in people\n    where p.Age > 17\n    select p;"), Some("csharp"));
+    set_module_languages(Vec::new());
 }

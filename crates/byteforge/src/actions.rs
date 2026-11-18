@@ -57,7 +57,7 @@ pub struct EfCommand {
     pub arg: String,
 }
 
-actions!(explorer, [RenameEntry]);
+actions!(explorer, [RenameEntry, DeleteEntry]);
 
 actions!(terminal, [ToggleTerminal, NewTerminal, KillTerminal, TerminalCopy, TerminalPaste, SelectDefaultShell]);
 
@@ -499,7 +499,10 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         ]);
     }
 
-    cx.bind_keys([kb("f2", RenameEntry, Some(EXPLORER))]);
+    cx.bind_keys([kb("f2", RenameEntry, Some(EXPLORER)), kb("delete", DeleteEntry, Some(EXPLORER))]);
+    if cfg!(target_os = "macos") {
+        cx.bind_keys([KeyBinding::new("cmd-backspace", DeleteEntry, Some(EXPLORER))]);
+    }
     cx.bind_keys([kb("f7", DiffNextChange, Some("DiffView")), kb("shift-f7", DiffPreviousChange, Some("DiffView"))]);
 
     let term = Some(TERMINAL);

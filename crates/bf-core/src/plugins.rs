@@ -81,6 +81,9 @@ pub struct LanguageContribution {
     pub line_comment: Option<String>,
     #[serde(default)]
     pub rules: Vec<HighlightRule>,
+    /// Regexes that recognize the language in an untitled editor (multi-line: `^`/`$` match per line).
+    #[serde(default)]
+    pub detect: Vec<String>,
 }
 
 impl LanguageContribution {
