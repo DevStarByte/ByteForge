@@ -11,8 +11,13 @@ pub struct AppPaths {
 }
 
 impl AppPaths {
+    /// The config folder is `<OS config dir>/byteforge`, or `BYTEFORGE_CONFIG_DIR` when set (a second,
+    /// separate setup: trying a theme or a build without touching your settings, or a portable install).
     pub fn detect() -> Self {
-        let config_dir = dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("byteforge");
+        let config_dir = std::env::var_os("BYTEFORGE_CONFIG_DIR")
+            .filter(|d| !d.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("byteforge"));
         let install_dir = std::env::current_exe()
             .ok()
             .and_then(|exe| exe.parent().map(Path::to_path_buf))

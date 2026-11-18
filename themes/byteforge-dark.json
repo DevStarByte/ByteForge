@@ -484,8 +484,9 @@
     // "panel.visible": false,
     // "panel.tabs": ["problems", "output", "debugConsole"],
 
-    // Title bar zones. Parts: logo, menu, title, commandCenter, branch, layoutControls (= toggleSideBar,
-    // togglePanel, themePicker), windowControls, spacer, commands. The center zone stays centered.
+    // Title bar zones. Parts: logo, menu, title, commandCenter, branch, project, launchProfile, run, debug,
+    // layoutControls (= toggleSideBar, togglePanel, themePicker), windowControls, spacer, commands. The center
+    // zone stays centered.
     // "titleBar.left": ["logo", "menu"],
     // "titleBar.center": ["commandCenter"],
     // "titleBar.right": ["layoutControls", "windowControls"],
@@ -495,7 +496,7 @@
     // id of a module's view (e.g. "docker"); module views not listed go before the first spacer.
     // "activityBar.items": ["explorer", "search", "scm", "debug", "testing", "solution", "modules", "spacer", "settings"],
 
-    // Status bar zones. Parts: branch, sync, problems (errors + warnings), errors, warnings, run, modules
+    // Status bar zones. Parts: branch, sync, file, path, problems (errors + warnings), errors, warnings, run, modules
     // (module items, placed by their alignment), position, indent, encoding, eol, language, lsp, spacer, commands.
     // "statusBar.left": ["branch", "sync", "problems", "run", "launchProfile", "modules"],
     // "statusBar.center": [],

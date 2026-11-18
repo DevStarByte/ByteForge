@@ -21,6 +21,7 @@ from the base theme.
 | Forge Midnight | a short partial theme: a few overrides plus a right-hand side bar |
 | Neovim | Neovim's default colors and look: lualine-style status line with a NORMAL block, buffer tabs, no activity bar, block cursor, monospace UI |
 | Flipside | layout showcase: activity bar inside the side bar, tabs at the bottom, panel as a right column, centered menus |
+| Rider Dark | JetBrains Rider's new UI: project badge, branch and run configuration with green Run and Debug in the toolbar, an icon-only tool window stripe, the file's path in the status bar, Rider's syntax colors |
 
 ## Theme sections
 
@@ -76,11 +77,20 @@ comma-separated strings:
 ```
 
 - **Title bar parts:** logo, menu, title, commandCenter, branch, layoutControls (toggleSideBar, togglePanel,
-  themePicker), windowControls, spacer.
-- **Status bar parts:** branch, sync, file, problems, errors, warnings, run, launchProfile, update, modules, position, indent, encoding,
-  eol, language, lsp, spacer, and `text:<anything>` for fixed text. Each part can have its own colors and weight:
+  themePicker), windowControls, spacer, and the widgets:
+  - `project`: the opened folder as a badge with its initials (colored by its name; `projectBadge.background1..8`
+    pick the colors, `projectBadge.size/radius/fontSize` in metrics) plus its name; it opens Open Folder.
+  - `launchProfile`: the launch profile with ▾ (it picks another one); `run`: Run, or Stop while running, colored
+    `titleBar.runForeground` / `titleBar.stopForeground`; `debug`: Start Debugging in `titleBar.debugForeground`.
+  - `titleBar.branchChevron: 1` (metrics) adds ▾ to `branch`; `titleWidget.paddingX/spacing` (metrics) and
+    `titleWidget.weight` (fonts) style the widgets.
+- **Status bar parts:** branch, sync, file, path (the file's folder › subfolders › file), problems, errors, warnings,
+  run, launchProfile, update, modules, position, indent, encoding, eol, language, lsp, spacer, and `text:<anything>`
+  for fixed text. Each part can have its own colors and weight:
   `statusBarItem.<part>.background/foreground` (colors) and `statusBarItem.<part>.weight` (fonts).
   `statusBar.positionFormat` sets the cursor position text (`{line}`, `{col}`, `{lines}`).
+- **Capitals:** side bar titles and the Explorer's folder header are in capitals; `sideBarTitle.textTransform` and
+  `sideBarSectionHeader.textTransform` (fonts) set to `none` keep them as written.
 - **Any command anywhere:** the title bar, activity bar and status bar all accept any command:
   `"command:dotnet.build:build"` (command id plus an icon name), `"command:git.pull"` or just `"git.pull"`.
 - **Safety rules:** the editor and the side bar's content can be moved but not removed. A custom title bar always

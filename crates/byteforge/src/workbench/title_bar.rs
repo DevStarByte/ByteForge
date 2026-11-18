@@ -1,6 +1,7 @@
 //! Title bar, command center and menu bar.
 
 use super::*;
+use gpui::{Div, Hsla};
 
 impl Workbench {
     pub(super) fn render_title_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement + use<> {
@@ -126,6 +127,7 @@ impl Workbench {
                                 .tooltip(tooltip("Checkout branch…"))
                                 .child(icon("sourceControl", icon_size, fg))
                                 .child(branch)
+                                .when(t.n("titleBar.branchChevron", 0.0) > 0.0, |d| d.child(icon("chevronDown", px(12.), fg)))
                                 .on_click(cx.listener(|wb, _, w, cx| wb.open_branch_picker(w, cx)))
                                 .into_any_element(),
                         );
@@ -147,6 +149,73 @@ impl Workbench {
                     if self.custom_titlebar && !cfg!(target_os = "macos") {
                         out.push(render_window_controls(window, cx).into_any_element());
                     }
+                }
+                // The opened folder as a widget: a badge with its initials (colored by its name) and the name.
+                "project" => {
+                    let name = self.workspace.root().and_then(|r| r.file_name().map(|n| n.to_string_lossy().into_owned()));
+                    let label = name.clone().unwrap_or_else(|| "Open Folder…".into());
+                    let badge = name.as_deref().map(|n| {
+                        let palette = ["#3574f0", "#55a76a", "#c94f4f", "#c77d55", "#955ae0", "#21a3a3", "#d6ae58", "#e0679d"];
+                        let key = format!("projectBadge.background{}", 1 + project_color_index(n, palette.len()));
+                        let bg = if t.has(&key) { t.c(&key) } else { crate::theme::parse_color(palette[project_color_index(n, palette.len())]).unwrap_or(fg) };
+                        div()
+                            .flex_none()
+                            .size(t.m("projectBadge.size", 20.0))
+                            .rounded(t.radius("projectBadge.radius", 4.0))
+                            .bg(bg)
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_size(t.m("projectBadge.fontSize", 10.0))
+                            .font_weight(gpui::FontWeight::BOLD)
+                            .text_color(t.c_or("projectBadge.foreground", 0xffffffff))
+                            .child(project_initials(n))
+                    });
+                    out.push(
+                        title_widget(&t, id, fg, hover)
+                            .children(badge)
+                            .child(label)
+                            .child(icon("chevronDown", px(12.), fg))
+                            .tooltip(tooltip(format!("Open Folder… ({})", crate::actions::key_label("ctrl-shift-o"))))
+                            .on_click(|_, w, cx| w.dispatch_action(Box::new(OpenFolder), cx))
+                            .into_any_element(),
+                    );
+                }
+                // The startup project's launch profile, then Run and Debug: the run configuration widget.
+                "launchProfile" => {
+                    if let Some(profile) = self.status_profile.clone() {
+                        out.push(
+                            title_widget(&t, id, fg, hover)
+                                .child(icon("layers", icon_size, fg))
+                                .child(profile)
+                                .child(icon("chevronDown", px(12.), fg))
+                                .tooltip(tooltip("Launch profile for F5 and Run (click to change)"))
+                                .on_click(cx.listener(|wb, _, w, cx| wb.open_launch_profile_picker(w, cx)))
+                                .into_any_element(),
+                        );
+                    }
+                }
+                "run" => {
+                    let running = self.dotnet.as_ref().is_some_and(DotnetProcess::is_running) || self.debug.is_some();
+                    let (name, color_key, tip) = if running {
+                        ("stop", "titleBar.stopForeground", "Stop (Shift+F5)".to_owned())
+                    } else {
+                        ("play", "titleBar.runForeground", format!("Run without debugging ({})", crate::actions::key_label("ctrl-f5")))
+                    };
+                    let color = if t.has(color_key) { t.c(color_key) } else { fg };
+                    out.push(
+                        colored_title_icon(&t, id, name, color, tip, hover)
+                            .on_click(move |_, w, cx| if running { w.dispatch_action(Box::new(Stop), cx) } else { w.dispatch_action(Box::new(Run), cx) })
+                            .into_any_element(),
+                    );
+                }
+                "debug" => {
+                    let color = if t.has("titleBar.debugForeground") { t.c("titleBar.debugForeground") } else { fg };
+                    out.push(
+                        colored_title_icon(&t, id, "debug", color, format!("Start debugging ({})", crate::actions::key_label("f5")), hover)
+                            .on_click(|_, w, cx| w.dispatch_action(Box::new(StartDebugging), cx))
+                            .into_any_element(),
+                    );
                 }
                 "spacer" => out.push(div().flex_1().into_any_element()),
                 other => {
@@ -305,4 +374,86 @@ pub(super) fn render_window_controls(window: &Window, cx: &App) -> impl IntoElem
                 .child(icon("windowClose", wc_icon, wc_fg).group_hover("wc-close", move |s| s.text_color(close_fg)))
                 .on_click(|_, window, cx| window.dispatch_action(Box::new(Quit), cx)),
         )
+}
+
+/// A clickable title bar widget (project, launch profile): icon, text and ▾ in a row.
+fn title_widget(t: &Theme, id: SharedString, fg: Hsla, hover: Hsla) -> gpui::Stateful<Div> {
+    div()
+        .id(id)
+        .occlude()
+        .flex_none()
+        .px(t.m("titleWidget.paddingX", 8.0))
+        .py(px(3.))
+        .flex()
+        .items_center()
+        .gap(t.m("titleWidget.spacing", 6.0))
+        .rounded(t.radius("titleIcon.radius", 4.0))
+        .text_size(t.m("titleBar.titleFontSize", 12.0))
+        .font_weight(t.weight("titleWidget.weight", gpui::FontWeight::NORMAL))
+        .text_color(fg)
+        .cursor_pointer()
+        .hover(move |s| s.bg(hover))
+}
+
+/// An icon button in its own color (Run in green, Stop in red).
+fn colored_title_icon(t: &Theme, id: SharedString, name: &str, color: Hsla, tip: String, hover: Hsla) -> gpui::Stateful<Div> {
+    div()
+        .id(id)
+        .occlude()
+        .flex_none()
+        .p(t.edges("titleIcon.padding", 5.0).top)
+        .rounded(t.radius("titleIcon.radius", 4.0))
+        .cursor_pointer()
+        .hover(move |s| s.bg(hover))
+        .tooltip(tooltip(tip))
+        .child(icon(name, t.m("titleBar.iconSize", 16.0), color))
+}
+
+/// Up to two letters for a project badge: the first letters of its first two words (camelCase humps and
+/// separators split words), else its first two letters. "ByteForge" → "BF", "my-app" → "MA", "api" → "AP".
+fn project_initials(name: &str) -> String {
+    let mut words: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut prev_lower = false;
+    for c in name.chars() {
+        if !c.is_alphanumeric() {
+            if !current.is_empty() {
+                words.push(std::mem::take(&mut current));
+            }
+            prev_lower = false;
+            continue;
+        }
+        if c.is_uppercase() && prev_lower && !current.is_empty() {
+            words.push(std::mem::take(&mut current));
+        }
+        prev_lower = c.is_lowercase() || c.is_numeric();
+        current.push(c);
+    }
+    if !current.is_empty() {
+        words.push(current);
+    }
+    let initials: String = match words.as_slice() {
+        [] => "?".into(),
+        [one] => one.chars().take(2).collect(),
+        [a, b, ..] => a.chars().take(1).chain(b.chars().take(1)).collect(),
+    };
+    initials.to_uppercase()
+}
+
+/// A stable color slot for a project name (the same project always gets the same badge color).
+fn project_color_index(name: &str, slots: usize) -> usize {
+    name.bytes().fold(0u32, |h, b| h.wrapping_mul(31).wrapping_add(b as u32)) as usize % slots
+}
+
+#[cfg(test)]
+mod title_tests {
+    #[test]
+    fn project_badges() {
+        assert_eq!(super::project_initials("ByteForge"), "BF");
+        assert_eq!(super::project_initials("my-app"), "MA");
+        assert_eq!(super::project_initials("api"), "AP");
+        assert_eq!(super::project_initials("Web.Api.Tests"), "WA");
+        assert_eq!(super::project_initials("x"), "X");
+        assert_eq!(super::project_color_index("ByteForge", 8), super::project_color_index("ByteForge", 8));
+    }
 }

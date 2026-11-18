@@ -339,6 +339,25 @@ impl Workbench {
                         })
                         .into_iter()
                         .collect(),
+                    // Where the active file is: the folder › subfolders › file (Rider's navigation bar).
+                    "path" => self
+                        .active
+                        .and_then(|i| self.tabs.get(i))
+                        .map(|tab| {
+                            let root = self.workspace.root();
+                            let parts: Vec<String> = match (&tab.path, &root) {
+                                (Some(path), Some(root)) if path.starts_with(root) => root
+                                    .file_name()
+                                    .map(|n| n.to_string_lossy().into_owned())
+                                    .into_iter()
+                                    .chain(path.strip_prefix(root).unwrap_or(path).components().map(|c| c.as_os_str().to_string_lossy().into_owned()))
+                                    .collect(),
+                                _ => vec![tab.title.clone()],
+                            };
+                            item(name, id("p"), None, parts.join("  \u{203a}  ")).into_any_element()
+                        })
+                        .into_iter()
+                        .collect(),
                     other if other.starts_with("text:") => vec![item(name, id("t"), None, other["text:".len()..].to_owned()).into_any_element()],
                     other => command_button(other, cx)
                         .map(|(action, title, icon_name)| {

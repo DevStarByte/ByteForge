@@ -147,7 +147,8 @@ cargo run --release -p byteforge -- ~/code/my-project
 
 Start it from a terminal with `byteforge .` (or a folder or file path). On Linux and macOS it detaches: the
 prompt comes back right away, and closing the terminal leaves ByteForge running. `byteforge --foreground`
-stays attached and shows the log output.
+stays attached and shows the log output. `BYTEFORGE_CONFIG_DIR=<folder>` starts it with its own settings,
+themes and modules in that folder (to try a theme or a build without touching your setup, or as a portable install).
 
 ## Customize
 

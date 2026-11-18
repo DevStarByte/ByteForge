@@ -369,16 +369,17 @@ impl Workbench {
     /// The side bar; `sideBar.order` arranges header, content and (optionally) a horizontal activity bar.
     pub(super) fn render_side_bar(&mut self, right: bool, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let t = Theme::global(cx);
-        let title: SharedString = match self.side {
-            SideView::Explorer => "EXPLORER".into(),
-            SideView::Search => "SEARCH".into(),
-            SideView::SourceControl => "SOURCE CONTROL".into(),
-            SideView::Debug => "RUN AND DEBUG".into(),
-            SideView::Testing => "TESTING".into(),
-            SideView::Solution => "SOLUTION".into(),
-            SideView::Module => self.module_views.iter().find(|v| Some(&v.id) == self.module_view.as_ref()).map_or("MODULE".into(), |v| v.title.to_uppercase().into()),
-            SideView::Modules => "MODULES".into(),
+        let title: String = match self.side {
+            SideView::Explorer => "Explorer".into(),
+            SideView::Search => "Search".into(),
+            SideView::SourceControl => "Source Control".into(),
+            SideView::Debug => "Run and Debug".into(),
+            SideView::Testing => "Testing".into(),
+            SideView::Solution => "Solution".into(),
+            SideView::Module => self.module_views.iter().find(|v| Some(&v.id) == self.module_view.as_ref()).map_or("Module".into(), |v| v.title.clone()),
+            SideView::Modules => "Modules".into(),
         };
+        let title: SharedString = t.transform("sideBarTitle", &title).into();
         let mut content: Option<gpui::AnyElement> = Some(match self.side {
             SideView::Explorer => self.explorer.clone().into_any_element(),
             SideView::Search => self.search.clone().into_any_element(),

@@ -263,6 +263,15 @@ impl Theme {
         self.data.fonts.get(key).or_else(|| self.data.metrics.get(key)).and_then(|v| parse_weight(v)).unwrap_or(default)
     }
 
+    /// `text` as the theme writes it for `key` (a fonts key `<key>.textTransform`: `uppercase`, the default,
+    /// or `none`).
+    pub fn transform(&self, key: &str, text: &str) -> String {
+        match self.data.fonts.get(&format!("{key}.textTransform")).map(|v| v.to_ascii_lowercase()).as_deref() {
+            Some("none") => text.to_owned(),
+            _ => text.to_uppercase(),
+        }
+    }
+
     pub fn italic(&self, key: &str) -> bool {
         self.data.fonts.get(key).is_some_and(|v| v.eq_ignore_ascii_case("italic"))
     }

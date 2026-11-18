@@ -613,7 +613,7 @@ impl Render for Explorer {
             t.c_or("tab.activeBorderTop", 0x0078d4ff)
         };
         let indicator_w = t.n("list.activeFileIndicatorWidth", 2.0);
-        let header_name = root.file_name().map(|n| n.to_string_lossy().to_uppercase()).unwrap_or_default();
+        let header_name = root.file_name().map(|n| t.transform("sideBarSectionHeader", &n.to_string_lossy())).unwrap_or_default();
         let header_button = |id: &'static str, name: &'static str, title: &'static str| {
             div().id(id).p(px(3.)).rounded(px(4.)).cursor_pointer().hover(|s| s.bg(t.c("toolbar.hoverBackground"))).tooltip(crate::workbench::tooltip(title)).child(icon(name, px(14.), t.c("icon.foreground")))
         };
