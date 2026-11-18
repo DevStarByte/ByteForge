@@ -905,6 +905,8 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         run(repo.root(), &["config", "user.name", "Test"]).unwrap();
         run(repo.root(), &["config", "user.email", "test@example.com"]).unwrap();
         run(repo.root(), &["config", "commit.gpgsign", "false"]).unwrap();
+        // the files below are LF; with a global core.autocrlf=true, git would check them out as CRLF
+        run(repo.root(), &["config", "core.autocrlf", "false"]).unwrap();
         let file = repo.root().join("Program.cs");
         std::fs::write(&file, "class A {}\n").unwrap();
 

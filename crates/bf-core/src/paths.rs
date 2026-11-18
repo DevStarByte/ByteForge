@@ -90,9 +90,14 @@ impl AppPaths {
     }
 }
 
-/// Paths compare case-insensitively on Windows and macOS.
+/// Paths compare case-insensitively on Windows and macOS; on Windows `/` and `\` are the same separator
+/// (`repo.join("a/P.cs")` is `repo\a/P.cs`, which git reports as `repo\a\P.cs`).
 pub fn same_path(a: &Path, b: &Path) -> bool {
-    if cfg!(any(windows, target_os = "macos")) {
+    if cfg!(windows) {
+        let (a, b) = (a.to_string_lossy(), b.to_string_lossy());
+        let sep = |c: u8| c == b'/' || c == b'\\';
+        a.len() == b.len() && a.bytes().zip(b.bytes()).all(|(x, y)| x.eq_ignore_ascii_case(&y) || (sep(x) && sep(y)))
+    } else if cfg!(target_os = "macos") {
         a.to_string_lossy().eq_ignore_ascii_case(&b.to_string_lossy())
     } else {
         a == b
@@ -195,4 +200,19 @@ pub fn open_in_default_app(path: &Path) -> std::io::Result<()> {
     // Reap it when it ends (explorer.exe and xdg-open hand the file over and exit).
     std::thread::spawn(move || child.wait());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    #[test]
+    fn same_path_ignores_case_and_separators_where_the_system_does() {
+        if cfg!(windows) {
+            assert!(super::same_path(Path::new(r"C:\Repo\a/P.cs"), Path::new(r"c:\repo\a\P.cs")));
+            assert!(!super::same_path(Path::new(r"C:\repo\a\P.cs"), Path::new(r"C:\repo\b\P.cs")));
+        } else {
+            assert!(!super::same_path(Path::new("/repo/a/P.cs"), Path::new("/repo/b/P.cs")));
+        }
+    }
 }

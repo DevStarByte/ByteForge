@@ -12,8 +12,8 @@
 //! `format {requestId,path,text}`.
 //! Modules can be written in any language and cannot crash the IDE.
 //!
-//! A module can also contribute file icons declaratively (`"fileIcons"` in `module.json`); a module with
-//! only icons leaves out `"command"` and isn't started.
+//! A module can also contribute file icons and settings declaratively (`"fileIcons"` and `"settings"` in
+//! `module.json`); a module with only declarations leaves out `"command"` and isn't started.
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -51,6 +51,9 @@ pub struct ModuleManifest {
     /// File icons the module adds while it's installed and turned on.
     #[serde(default, rename = "fileIcons")]
     pub file_icons: Vec<FileIconRule>,
+    /// Settings the module reads, listed under Extensions on the settings screen.
+    #[serde(default)]
+    pub settings: Vec<SettingContribution>,
     #[serde(skip)]
     pub dir: PathBuf,
 }
@@ -63,6 +66,24 @@ pub struct ViewContribution {
     /// A built-in icon name or SVG path data (24×24 view box, even-odd fill).
     #[serde(default)]
     pub icon: String,
+}
+
+/// A setting declared in `module.json`: shown on the settings screen, stored in settings.json under `key`.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct SettingContribution {
+    pub key: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    /// `boolean`, `number`, `string`, `list` (of strings) or `json` (edited in settings.json); a `string`
+    /// with `choices` is picked from them.
+    #[serde(default, rename = "type")]
+    pub kind: String,
+    #[serde(default)]
+    pub choices: Vec<String>,
+    #[serde(default)]
+    pub default: Value,
 }
 
 /// A language declared in `module.json`: which files it's for, its line comment and highlighting rules.
@@ -298,10 +319,39 @@ pub struct PluginHandle {
     child: Arc<Mutex<Option<Child>>>,
 }
 
+/// The program to start for a module's `command`, with arguments to put first. Windows has no `python3`
+/// unless Python came from the Microsoft Store: a python.org install has `python` and the `py` launcher,
+/// and `WindowsApps\python3.exe` is only a placeholder that opens the Store. So there `python3` and
+/// `python` become a real interpreter on PATH, else `py -3`. Elsewhere, and for other commands, the
+/// command as written.
+pub fn resolve_program(command: &str) -> (String, Vec<String>) {
+    if cfg!(windows) && matches!(command, "python3" | "python") {
+        let dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+        let real = ["python3.exe", "python.exe"]
+            .iter()
+            .find_map(|exe| dirs.iter().filter(|d| !is_store_alias_dir(d)).map(|d| d.join(exe)).find(|p| p.is_file()));
+        if let Some(python) = real {
+            return (python.to_string_lossy().into_owned(), Vec::new());
+        }
+        if let Some(py) = dirs.iter().map(|d| d.join("py.exe")).find(|p| p.is_file()) {
+            return (py.to_string_lossy().into_owned(), vec!["-3".to_owned()]);
+        }
+    }
+    (command.to_owned(), Vec::new())
+}
+
+/// `%LOCALAPPDATA%\Microsoft\WindowsApps`: app execution aliases, among them the Store's Python placeholders.
+fn is_store_alias_dir(dir: &Path) -> bool {
+    let s = dir.to_string_lossy().to_lowercase().replace('/', r"\");
+    s.trim_end_matches('\\').ends_with(r"\microsoft\windowsapps")
+}
+
 impl PluginHandle {
     pub fn start(manifest: ModuleManifest, events: flume::Sender<PluginMessage>) -> anyhow::Result<Self> {
-        let mut command = Command::new(&manifest.command);
-        command.args(&manifest.args).current_dir(&manifest.dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        let (program, mut args) = resolve_program(&manifest.command);
+        args.extend(manifest.args.iter().cloned());
+        let mut command = Command::new(&program);
+        command.args(&args).current_dir(&manifest.dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -481,6 +531,16 @@ mod tests {
     }
 
     #[test]
+    fn python_is_found_where_windows_puts_it() {
+        assert!(super::is_store_alias_dir(std::path::Path::new(r"C:\Users\me\AppData\Local\Microsoft\WindowsApps\")));
+        assert!(!super::is_store_alias_dir(std::path::Path::new(r"C:\Python314")));
+        assert_eq!(super::resolve_program("node"), ("node".to_owned(), Vec::new()));
+        if !cfg!(windows) {
+            assert_eq!(super::resolve_program("python3"), ("python3".to_owned(), Vec::new()));
+        }
+    }
+
+    #[test]
     fn file_icon_rules_match_names_patterns_and_extensions() {
         let rule = super::FileIconRule {
             icon: "M0,0Z".into(),
@@ -521,6 +581,11 @@ mod tests {
         let m: super::ModuleManifest = json5::from_str(r#"{ id: "x.icons", name: "Icons", fileIcons: [{ icon: "M0,0Z", names: ["a"] }] }"#).unwrap();
         assert!(m.command.is_empty());
         assert_eq!(m.file_icons.len(), 1);
+        let m: super::ModuleManifest = json5::from_str(
+            r#"{ id: "x.s", name: "S", settings: [{ key: "x.case", title: "Case", type: "string", choices: ["upper", "lower"], default: "upper" }] }"#,
+        )
+        .unwrap();
+        assert_eq!((m.settings[0].key.as_str(), m.settings[0].kind.as_str(), m.settings[0].choices.len()), ("x.case", "string", 2));
     }
 
     use super::*;

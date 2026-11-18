@@ -299,6 +299,10 @@ pub struct Workbench {
     dotnet_task: Option<Task<()>>,
     /// The settings screen's search box.
     settings_search: Option<Entity<TextInput>>,
+    /// The settings screen's list, which its column on the left scrolls.
+    settings_scroll: gpui::ScrollHandle,
+    /// The section last picked in that column.
+    settings_nav_clicked: Option<usize>,
     /// User-secrets pages showing their values (hidden by default).
     secrets_shown: std::collections::HashSet<PathBuf>,
     /// The project the running (or last) `dotnet watch` was started for, so it can be restarted.
@@ -576,6 +580,8 @@ impl Workbench {
             watch_target: None,
             secrets_shown: Default::default(),
             settings_search: None,
+            settings_scroll: gpui::ScrollHandle::new(),
+            settings_nav_clicked: None,
             build_problems: Vec::new(),
             debug: None,
             debug_generation: 0,

@@ -59,6 +59,11 @@ To publish it, add the folder to `modules/` on the `packages` branch.
   counts when nothing else fits. `modules/sql` and `modules/azure` have examples.
 - **`views`**: side bar views (`id`, `title`, `icon`: a built-in icon name or path data). Each gets an activity bar
   item; the module fills it with `setTree`.
+- **`settings`**: the settings the module reads, listed on the settings screen (Ctrl+,) under **Extensions**, one
+  group per module: `{ "key", "title", "description", "type", "default" }` with `type` `boolean`, `number`,
+  `string`, `list` (of strings, edited comma-separated) or `json` (edited in settings.json); a `string` with
+  `"choices": [...]` is picked from them. Values live in settings.json like any other setting and reach the module
+  with `activate` and `settingsChanged`. A key ByteForge already has isn't listed again. `modules/sql` has examples.
 
 A module that only declares things leaves out `"command"` and isn't started. Everything a module adds shows while
 it's installed and turned on. `modules/docker` uses all of it.

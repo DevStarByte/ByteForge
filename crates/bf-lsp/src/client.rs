@@ -109,6 +109,7 @@ impl LspClient {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        command.envs(config.env.iter().map(|(k, v)| (k, v)));
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt as _;

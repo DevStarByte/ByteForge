@@ -94,6 +94,8 @@ impl DotnetProcess {
     /// Starts any program the same way (`docker build`, …): output streamed, stoppable as a group.
     pub fn start_program(program: &str, root: &Path, args: Vec<String>, env: &[(String, String)]) -> anyhow::Result<(Self, flume::Receiver<RunEvent>)> {
         let mut command = Command::new(program);
+        // English output: build errors and test progress are read from it (the env passed in can change it).
+        command.env("DOTNET_CLI_UI_LANGUAGE", "en");
         command
             .args(&args)
             .envs(env.iter().map(|(k, v)| (k, v)))

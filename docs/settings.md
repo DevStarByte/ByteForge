@@ -1,6 +1,8 @@
 # Settings and keybindings
 
-**Preferences → Settings** (Ctrl+,) lists the settings with switches and choices. They live in
+**Preferences → Settings** (Ctrl+,) lists the settings with switches and choices. The column on the left jumps to
+a group; the settings that installed, turned-on modules declare come last, under **Extensions**, one entry per
+module. They live in
 `~/.config/byteforge/settings.json` (**Preferences → Open Settings (JSON)**), which reloads live and keeps its
 comments when the settings screen changes a value:
 

@@ -28,7 +28,9 @@ impl Workbench {
                     self.log("csharp-ls not found. Install it with: dotnet tool install -g csharp-ls (or set \"csharp.languageServer\"), or use the Roslyn server (\"csharp.server\": \"roslyn\").");
                     return;
                 };
-                ServerConfig::new(command, Vec::new(), root, "csharp")
+                let mut config = ServerConfig::new(command, Vec::new(), root, "csharp");
+                config.env = bf_lsp::dotnet_server_env();
+                config
             }
         };
         match LspClient::start(config) {

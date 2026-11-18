@@ -15,8 +15,9 @@ impl Drop for TempDir {
     }
 }
 
+/// Runs dotnet like DotnetProcess does (English output, which the parsers read).
 fn dotnet(dir: &std::path::Path, args: &[&str], env: &[(&str, &str)]) -> Option<String> {
-    let out = Command::new("dotnet").args(args).current_dir(dir).envs(env.iter().copied()).env("DOTNET_NOLOGO", "1").output().ok()?;
+    let out = Command::new("dotnet").args(args).current_dir(dir).env("DOTNET_CLI_UI_LANGUAGE", "en").envs(env.iter().copied()).env("DOTNET_NOLOGO", "1").output().ok()?;
     Some(format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr)))
 }
 

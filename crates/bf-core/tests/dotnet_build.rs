@@ -38,7 +38,9 @@ fn temp_project(name: &str, files: &[(&str, String)]) -> TempProject {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, text).unwrap();
     }
-    TempProject(std::fs::canonicalize(&dir).unwrap())
+    // The long path (TEMP can be an 8.3 short name), without Windows' `\\?\` prefix, which MSBuild can't use.
+    let dir = std::fs::canonicalize(&dir).unwrap();
+    TempProject(PathBuf::from(dir.to_string_lossy().trim_start_matches(r"\\?\")))
 }
 
 #[test]

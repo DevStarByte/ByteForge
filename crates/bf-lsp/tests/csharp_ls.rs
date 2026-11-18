@@ -113,8 +113,10 @@ fn csharp_ls_end_to_end() {
     println!("[{:>6.1?}] dotnet restore done", t0.elapsed());
 
     let t0 = Instant::now();
-    let (client, events) = LspClient::start(ServerConfig::new(command, vec![], dir.clone(), "csharp"))
-    .expect("start csharp-ls");
+    // As ByteForge starts it: English code action titles whatever the system's language.
+    let mut config = ServerConfig::new(command, vec![], dir.clone(), "csharp");
+    config.env = bf_lsp::dotnet_server_env();
+    let (client, events) = LspClient::start(config).expect("start csharp-ls");
     // Issued before Ready: must be queued and delivered after the handshake.
     client.did_open(&program, 1, PROGRAM);
 

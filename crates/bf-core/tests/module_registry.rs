@@ -99,3 +99,21 @@ fn real_registry_installs_every_package() {
         assert_eq!(m.version.as_deref(), Some(p.version.as_str()), "{}: index and module.json versions differ", p.id);
     }
 }
+
+/// Every module in the repository's `modules/` folder parses (a broken `module.json` is skipped silently
+/// at runtime), and the settings they declare are well formed.
+#[test]
+fn bundled_modules_parse_with_their_settings() {
+    let bundled = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
+    let folders = std::fs::read_dir(&bundled).unwrap().flatten().filter(|e| e.path().join("module.json").is_file()).count();
+    let modules = discover(&bundled);
+    assert_eq!(modules.len(), folders, "a module.json didn't parse");
+    let sql = modules.iter().find(|m| m.id == "byteforge.sql").expect("the SQL module");
+    assert!(sql.settings.iter().any(|s| s.key == "sql.format.keywordCase" && s.choices.contains(&"upper".to_owned())));
+    for m in &modules {
+        for s in &m.settings {
+            assert!(s.key.contains('.') && !s.title.is_empty(), "{}: setting {:?}", m.id, s.key);
+            assert!(s.choices.is_empty() || s.default.as_str().is_some_and(|d| s.choices.iter().any(|c| c == d)), "{}: {} default isn't a choice", m.id, s.key);
+        }
+    }
+}

@@ -36,12 +36,14 @@ pub struct ServerConfig {
     /// Answers to `workspace/configuration` by section name (missing sections get `null`, the server's
     /// default). `None`: an empty object for every section (csharp-ls).
     pub configuration: Option<serde_json::Map<String, serde_json::Value>>,
+    /// Environment variables for the server process, on top of ByteForge's own.
+    pub env: Vec<(String, String)>,
 }
 
 impl ServerConfig {
     /// A server started with `command args`, for `language_id` files under `root`.
     pub fn new(command: impl Into<String>, args: Vec<String>, root: PathBuf, language_id: impl Into<String>) -> Self {
-        ServerConfig { command: command.into(), args, root, language_id: language_id.into(), after_initialized: Vec::new(), pull_diagnostics: false, configuration: None }
+        ServerConfig { command: command.into(), args, root, language_id: language_id.into(), after_initialized: Vec::new(), pull_diagnostics: false, configuration: None, env: Vec::new() }
     }
 }
 
@@ -330,9 +332,13 @@ pub enum LspEvent {
     ApplyEdit(WorkspaceEdit),
 }
 
-/// How to start Microsoft's Roslyn language server (the one VS Code's C# extension uses), from its
-/// `Microsoft.CodeAnalysis.LanguageServer.dll`, for the folder `root`: it opens `solution` when there is
-/// one, else `projects`. Diagnostics are pulled (it doesn't publish them) and its log goes to `log_dir`.
+/// Environment for the .NET language servers: English output (csharp-ls takes its locale from
+/// `DOTNET_CLI_UI_LANGUAGE`), so code action titles ("Extract method", "Move type to …") are English
+/// whatever the system's display language is. ByteForge is English and tells the refactorings apart by them.
+pub fn dotnet_server_env() -> Vec<(String, String)> {
+    vec![("DOTNET_CLI_UI_LANGUAGE".to_owned(), "en".to_owned())]
+}
+
 pub fn roslyn_config(dll: &std::path::Path, root: PathBuf, log_dir: &std::path::Path, solution: Option<&std::path::Path>, projects: &[PathBuf]) -> ServerConfig {
     let args = vec![
         dll.to_string_lossy().into_owned(),
@@ -349,6 +355,7 @@ pub fn roslyn_config(dll: &std::path::Path, root: PathBuf, log_dir: &std::path::
     let mut config = ServerConfig::new("dotnet", args, root, "csharp");
     config.after_initialized = vec![open];
     config.pull_diagnostics = true;
+    config.env = dotnet_server_env();
     // Inlay hints (types and parameter names, as with csharp-ls) and completion from namespaces that
     // aren't imported yet; everything else as the server has it.
     let on = [

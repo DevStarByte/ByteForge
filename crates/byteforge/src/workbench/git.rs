@@ -476,7 +476,7 @@ mod tests {
         let repo = guard.dir.join("repo");
         std::fs::create_dir_all(&repo).unwrap();
         git(&repo, &["init", "-q", "-b", "main"]);
-        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false"), ("core.autocrlf", "false")] {
             git(&repo, &["config", k, v]);
         }
         std::fs::write(repo.join("a.txt"), "a\n").unwrap();
@@ -517,7 +517,7 @@ mod tests {
         let repo = guard.dir.join("repo");
         std::fs::create_dir_all(&repo).unwrap();
         git(&repo, &["init", "-q", "-b", "main"]);
-        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false"), ("core.autocrlf", "false")] {
             git(&repo, &["config", k, v]);
         }
         std::fs::write(repo.join("a.txt"), "a\n").unwrap();
@@ -551,7 +551,7 @@ mod tests {
         let repo = guard.dir.join("repo");
         std::fs::create_dir_all(&repo).unwrap();
         git(&repo, &["init", "-q", "-b", "main"]);
-        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false"), ("core.autocrlf", "false")] {
             git(&repo, &["config", k, v]);
         }
         std::fs::write(repo.join("a.txt"), "a\n").unwrap();
@@ -599,7 +599,7 @@ mod tests {
         let repo = guard.dir.join("repo");
         std::fs::create_dir_all(&repo).unwrap();
         git(&repo, &["init", "-q", "-b", "main"]);
-        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false"), ("core.autocrlf", "false")] {
             git(&repo, &["config", k, v]);
         }
         let file = repo.join("Big.cs");
@@ -660,7 +660,7 @@ mod tests {
         let repo = guard.dir.join("repo");
         std::fs::create_dir_all(&repo).unwrap();
         git(&repo, &["init", "-q", "-b", "main"]);
-        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false"), ("core.autocrlf", "false")] {
             git(&repo, &["config", k, v]);
         }
         let file = repo.join("A.cs");
@@ -773,7 +773,7 @@ mod tests {
         let repo = guard.dir.join("repo");
         std::fs::create_dir_all(&repo).unwrap();
         git(&repo, &["init", "-q", "-b", "main"]);
-        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false")] {
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false"), ("core.autocrlf", "false")] {
             git(&repo, &["config", k, v]);
         }
         let file = repo.join("A.cs");
