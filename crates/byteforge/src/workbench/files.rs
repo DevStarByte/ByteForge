@@ -108,7 +108,7 @@ impl Workbench {
                 return;
             }
             let targets = paths.clone();
-            let result = cx.background_executor().spawn(async move { trash::delete_all(&targets) }).await;
+            let result = move_to_trash(targets).await;
             let _ = this.update_in(cx, |wb, window, cx| match result {
                 Ok(()) => wb.explorer.update(cx, |e, cx| e.refresh(cx)),
                 Err(e) => {
@@ -236,6 +236,20 @@ impl Workbench {
         })
         .detach();
     }
+}
+
+/// Moves files or folders to the Recycle Bin / Trash on a thread of its own: on Windows `trash` sets up COM
+/// for that thread (single-threaded, as the shell's file operations want), which panics on gpui's pool
+/// threads because they are already set up multi-threaded.
+async fn move_to_trash(paths: Vec<PathBuf>) -> Result<(), String> {
+    let (tx, rx) = flume::bounded(1);
+    let spawned = std::thread::Builder::new().name("bf-trash".into()).spawn(move || {
+        let _ = tx.send(trash::delete_all(&paths).map_err(|e| e.to_string()));
+    });
+    if let Err(e) = spawned {
+        return Err(e.to_string());
+    }
+    rx.recv_async().await.unwrap_or_else(|_| Err("the trash operation stopped unexpectedly".into()))
 }
 
 /// "'name'" for one item, "3 items" for more (for confirmations).
