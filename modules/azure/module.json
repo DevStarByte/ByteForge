@@ -3,7 +3,7 @@
   // so there's no process to run.
   "id": "byteforge.azure",
   "name": "Azure",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Languages",
@@ -21,6 +21,16 @@
       "name": "Bicep",
       "extensions": ["bicep", "bicepparam"],
       "lineComment": "//",
+      // Recognizes Bicep in an untitled editor: each pattern that matches counts once.
+      "detect": [
+        "^\\s*targetScope\\s*=\\s*'",
+        "^\\s*param\\s+[A-Za-z_]\\w*\\s+(string|int|bool|object|array|[A-Za-z_]\\w*)\\b",
+        "^\\s*resource\\s+[A-Za-z_]\\w*\\s+'[\\w.]+/[\\w./]+@\\d{4}-\\d{2}-\\d{2}(-preview)?'",
+        "^\\s*module\\s+[A-Za-z_]\\w*\\s+'",
+        "^\\s*output\\s+[A-Za-z_]\\w*\\s+\\w+\\s*=",
+        "^\\s*@(description|secure|allowed|minLength|maxLength|minValue|maxValue|metadata)\\(",
+        "^\\s*using\\s+'[^']+\\.bicep'"
+      ],
       // Applied per line; where matches overlap, the earlier rule wins. Comments and strings come first so
       // nothing inside them is highlighted as code.
       "rules": [
