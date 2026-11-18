@@ -58,6 +58,9 @@ impl Workbench {
         let dir = self.paths.user_modules();
         let updating = self.modules.iter().any(|m| m.id == package.id);
         self.module_busy = Some(package.id.clone());
+        // The running module goes first: on Windows its folder can't be replaced while it runs in it.
+        let was_running = self.plugins.iter().any(|p| p.manifest.id == package.id);
+        self.stop_module(&package.id, cx);
         cx.notify();
         let p = package.clone();
         let task = cx.background_spawn(async move { registry::install(&url, &p, &dir) });
@@ -67,7 +70,6 @@ impl Workbench {
                 wb.module_busy = None;
                 match result {
                     Ok(_) => {
-                        wb.stop_module(&package.id, cx);
                         wb.modules = discover(&wb.paths.user_modules());
                         let disabled: Vec<String> = wb.settings.get("modules.disabled", Vec::new());
                         if let Some(m) = wb.modules.iter().find(|m| m.id == package.id).cloned()
@@ -86,6 +88,11 @@ impl Workbench {
                     Err(e) => {
                         wb.log(format!("Could not install '{}': {e:#}", package.name));
                         wb.show_panel(PanelView::Output, cx);
+                        // The installed version is unchanged: it runs again as before.
+                        if was_running && let Some(m) = wb.modules.iter().find(|m| m.id == package.id).cloned() {
+                            wb.start_module(m);
+                            wb.refresh_module_contributions(cx);
+                        }
                     }
                 }
                 cx.notify();

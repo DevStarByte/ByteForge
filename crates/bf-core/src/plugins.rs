@@ -431,9 +431,12 @@ impl PluginHandle {
         self.send(json!({ "type": "event", "name": name, "path": path }));
     }
 
+    /// Ends the module's process and waits for it (a kill takes effect at once; waiting lets go of its
+    /// folder, which an update replaces next).
     pub fn stop(&self) {
         if let Some(mut child) = self.child.lock().take() {
             let _ = child.kill();
+            let _ = child.wait();
         }
     }
 }

@@ -117,3 +117,51 @@ fn bundled_modules_parse_with_their_settings() {
         }
     }
 }
+
+/// Updating a module while a program runs in its folder (the module itself, or a helper it started): on
+/// Windows the folder can't be moved then. The update fails and the installed version stays whole (it used
+/// to be half deleted); once the program is gone, the update goes through.
+#[test]
+fn an_update_while_the_module_runs_never_breaks_it() {
+    if std::process::Command::new("curl").arg("--version").output().is_err() {
+        println!("SKIPPED: curl not found");
+        return;
+    }
+    let root = std::env::temp_dir().join(format!("bf-registry-busy-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let (registry, modules) = (root.join("registry"), root.join("modules"));
+    let publish = |version: &str| {
+        write(&registry.join("index.json"), &format!(r#"{{"modules":[{{"id":"me.busy","name":"Busy","version":"{version}","dir":"busy","files":["module.json","run.py"]}}]}}"#));
+        write(&registry.join("busy/module.json"), &format!(r#"{{ "id": "me.busy", "name": "Busy", "version": "{version}", "command": "python3", "args": ["run.py"] }}"#));
+        write(&registry.join("busy/run.py"), &format!("print('{version}')\n"));
+    };
+    let base = format!("file://{}", registry.display());
+    publish("1.0.0");
+    let dir = install(&base, &fetch_index(&base).unwrap()[0], &modules).unwrap();
+
+    // A process working in the module's folder, like the running module.
+    let mut busy = if cfg!(windows) {
+        std::process::Command::new("ping").args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).current_dir(&dir).spawn().unwrap()
+    } else {
+        std::process::Command::new("sleep").arg("30").current_dir(&dir).spawn().unwrap()
+    };
+    publish("1.1.0");
+    let package = fetch_index(&base).unwrap().remove(0);
+    let result = install(&base, &package, &modules);
+    if cfg!(windows) {
+        let error = format!("{:#}", result.expect_err("the folder is in use"));
+        assert!(error.contains("in use"), "{error}");
+        assert_eq!(std::fs::read_to_string(dir.join("run.py")).unwrap(), "print('1.0.0')\n", "the installed version is whole");
+        assert_eq!(discover(&modules)[0].version.as_deref(), Some("1.0.0"));
+    } else {
+        result.unwrap(); // nothing stops a rename elsewhere
+    }
+    let _ = busy.kill();
+    let _ = busy.wait();
+
+    install(&base, &package, &modules).unwrap();
+    assert_eq!(std::fs::read_to_string(dir.join("run.py")).unwrap(), "print('1.1.0')\n");
+    let names: Vec<String> = std::fs::read_dir(&modules).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+    assert_eq!(names, ["busy"], "no staging or old folder left behind");
+    let _ = std::fs::remove_dir_all(&root);
+}

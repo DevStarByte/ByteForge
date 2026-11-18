@@ -54,11 +54,17 @@ pub fn parse_index(text: &str) -> anyhow::Result<Vec<PackageInfo>> {
 
 /// Downloads and parses the registry index.
 pub fn fetch_index(base: &str) -> anyhow::Result<Vec<PackageInfo>> {
-    let tmp = std::env::temp_dir().join(format!("byteforge-index-{}.json", std::process::id()));
-    download(&format!("{}/index.json", base.trim_end_matches('/')), &tmp)?;
-    let text = std::fs::read_to_string(&tmp);
-    let _ = std::fs::remove_file(&tmp);
-    parse_index(&text?)
+    // Read from curl's output: a temp file (named per process) was shared by fetches running at the same time.
+    let url = format!("{}/index.json", base.trim_end_matches('/'));
+    let output = Command::new("curl")
+        .args(["--fail", "--silent", "--show-error", "--location", "--max-time", "60"])
+        .arg(&url)
+        .output()
+        .context("could not run curl")?;
+    if !output.status.success() {
+        bail!("{url}: {}", String::from_utf8_lossy(&output.stderr).trim());
+    }
+    parse_index(&String::from_utf8_lossy(&output.stdout))
 }
 
 /// Installs (or updates) a package into `modules_dir/<dir>`: downloads every file into a staging folder,
@@ -84,17 +90,52 @@ pub fn install(base: &str, package: &PackageInfo, modules_dir: &Path) -> anyhow:
         if manifest.get("id").and_then(|v| v.as_str()) != Some(package.id.as_str()) {
             bail!("module.json of {} has a different id", package.id);
         }
+        // Swap by renaming, never by deleting first: deleting can stop halfway (a file in use on Windows)
+        // and leave a broken module. A rename either happens or changes nothing.
         let target = modules_dir.join(&package.dir);
-        if target.exists() {
-            std::fs::remove_dir_all(&target).with_context(|| format!("removing the old {}", target.display()))?;
+        let old = modules_dir.join(format!(".old-{}", package.dir));
+        let _ = std::fs::remove_dir_all(&old);
+        let had_old = target.exists();
+        if had_old {
+            rename_retrying(&target, &old).with_context(|| {
+                format!("{} is in use (is the module, or a program it started, still running?); the installed version is unchanged", target.display())
+            })?;
         }
-        std::fs::rename(&staging, &target)?;
+        if let Err(e) = rename_retrying(&staging, &target) {
+            if had_old {
+                let _ = std::fs::rename(&old, &target); // the old version back
+            }
+            return Err(e).with_context(|| format!("moving the new version to {}", target.display()));
+        }
+        // Best effort: a leftover (a file still held) goes with the next install; discover skips it.
+        let _ = std::fs::remove_dir_all(&old);
         Ok(target)
     })();
     if result.is_err() {
         let _ = std::fs::remove_dir_all(&staging);
     }
     result
+}
+
+/// Renames `from` to `to`, trying again for up to two seconds: a module that was just stopped (and a helper it
+/// started) can hold its folder for a moment on Windows.
+fn rename_retrying(from: &Path, to: &Path) -> std::io::Result<()> {
+    let mut tries = 0;
+    loop {
+        match std::fs::rename(from, to) {
+            Err(e) if tries < 20 && held_by_a_process(&e) => {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            result => return result,
+        }
+    }
+}
+
+/// Windows' "used by another process" (ERROR_SHARING_VIOLATION, 32) or "access denied" (5): a process still
+/// has the folder (as its working directory, or a file in it) open.
+fn held_by_a_process(e: &std::io::Error) -> bool {
+    matches!(e.raw_os_error(), Some(32) | Some(5)) || e.kind() == std::io::ErrorKind::PermissionDenied
 }
 
 /// Deletes an installed module's folder (only folders directly inside `modules_dir`).
