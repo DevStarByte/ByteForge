@@ -115,9 +115,9 @@ shell, so tools installed through Homebrew or `~/.dotnet/tools` are found even w
 
 ### Updates
 
-On Windows (installed with the setup) and macOS, ByteForge checks for a new release once a day and offers to
+On Windows (installed with the setup) and macOS, ByteForge checks for a new release every time it starts and offers to
 install it: it downloads the update, closes, installs and starts again. "Check for Updates…" (Help menu, or the
-app menu on macOS) checks right away. Turn the daily check off with `"update.checkAutomatically": false`, or get
+app menu on macOS) checks right away. Turn the check off with `"update.checkAutomatically": false`, or get
 betas too with `"update.includePrereleases": true`. The portable zip and Linux packages only point you to the
 new release.
 

@@ -28,7 +28,7 @@ comments when the settings screen changes a value:
   "refactor.renameGenerated": true,                    // after Extract Method / Introduce Local / Extract Interface, rename what it made up
   "git.blame.currentLine": true,                       // who last changed the caret's line, shown after it
   "explorer.autoReveal": true,                         // expand and scroll the tree to the file you switch to
-  "update.checkAutomatically": true,                   // daily update check (default: on for Windows and macOS)
+  "update.checkAutomatically": true,                   // update check at every start (default: on for Windows and macOS)
   "update.includePrereleases": false,                  // also offer betas
   "explorer.nativeIcons": true,                        // macOS: Finder's file and folder icons (false: the theme's)
   "keybindings": { "view.quickOpen": "ctrl-e", "theme.select": "" },   // "" unbinds

@@ -93,7 +93,7 @@ pub(super) fn all_settings() -> Vec<SettingInfo> {
         s!("Git", "git.blame.currentLine", "Blame of the current line", Bool, true, "Who last changed the caret's line, shown after it."),
         s!("Terminal", "terminal.shell", "Shell", Text, "", "The terminal's program (empty: your login shell)."),
         s!("Terminal", "terminal.args", "Shell arguments", List, Vec::<String>::new(), "Arguments for the shell, comma-separated."),
-        s!("Updates", "update.checkAutomatically", "Check for updates", Bool, true, "Look for a new version once a day (Windows and macOS)."),
+        s!("Updates", "update.checkAutomatically", "Check for updates", Bool, true, "Look for a new version every time ByteForge starts (Windows and macOS)."),
         s!("Updates", "update.includePrereleases", "Include betas", Bool, false, "Offer beta versions too."),
         s!("Keyboard", "keybindings", "Key bindings", Special, json!({}), "Change a command's key in settings.json, e.g. \"view.quickOpen\": \"ctrl-e\" (\"\" unbinds)."),
     ]

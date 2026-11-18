@@ -1,8 +1,8 @@
-//! The updater in the workbench: a daily check a few seconds after startup ("update.checkAutomatically"),
+//! The updater in the workbench: a check a few seconds after every start ("update.checkAutomatically"),
 //! "Check for Updates…", the question dialog, the download and the status bar item. The installer starts
 //! when ByteForge closes (see `shutdown`), so unsaved files still get their prompt.
 
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use bf_core::update::{self, InstallKind, Release, Version};
 
@@ -14,8 +14,6 @@ pub const VERSION: &str = match option_env!("BYTEFORGE_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-const CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
-
 pub(super) enum UpdateState {
     Idle,
     Checking,
@@ -25,20 +23,12 @@ pub(super) enum UpdateState {
     Ready { version: Version, file: PathBuf },
 }
 
-fn now() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or_default()
-}
-
 impl Workbench {
-    /// Schedules the automatic check (once a day, on by default on Windows and macOS where updates can
+    /// Schedules the automatic check, at every start (on by default on Windows and macOS where updates can
     /// install themselves; Linux packages update through pacman).
     pub(super) fn schedule_update_check(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let default_on = cfg!(any(windows, target_os = "macos"));
         if !self.settings.get("update.checkAutomatically", default_on) {
-            return;
-        }
-        let last: u64 = self.state.get("update.lastCheck").and_then(|s| s.parse().ok()).unwrap_or(0);
-        if now().saturating_sub(last) < CHECK_EVERY.as_secs() {
             return;
         }
         self.update_task = Some(cx.spawn_in(window, async move |this, cx| {
@@ -65,7 +55,6 @@ impl Workbench {
         self.update_task = Some(cx.spawn_in(window, async move |this, cx| {
             let result = cx.background_executor().spawn(async move { update::check(&current, betas) }).await;
             let _ = this.update_in(cx, |wb, window, cx| {
-                wb.state.set("update.lastCheck", Some(&now().to_string()));
                 wb.update = UpdateState::Idle;
                 match result {
                     Ok(Some(release)) => {

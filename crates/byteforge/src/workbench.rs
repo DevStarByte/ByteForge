@@ -517,7 +517,6 @@ impl Workbench {
                         AppEvent::FilesChanged => {
                             wb.explorer.update(cx, |e, cx| e.refresh(cx));
                             wb.refresh_status_profile();
-        wb.schedule_update_check(window, cx);
                             for p in &wb.plugins {
                                 p.event("filesChanged", None);
                             }
@@ -669,6 +668,10 @@ impl Workbench {
         }
         window.focus(&wb.focus);
         wb.log(format!("ByteForge started (theme: {})", Theme::global(cx).data.name));
+        // Every start looks for a new version (a few seconds in, so starting stays fast). Tests don't.
+        if !cfg!(test) {
+            wb.schedule_update_check(window, cx);
+        }
         wb
     }
 
