@@ -1,23 +1,11 @@
 {
   "id": "byteforge.discord",
   "name": "Discord Rich Presence",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Social",
-  "description": "Shows what you're working on in your Discord status: the file you're editing, its language, the project and how long you've been at it. Works with the Discord desktop app, and with Discord in the browser through the web bridge (turn on \"discord.webBridge\"; needs Node.js and the Vencord or Equicord browser extension with its WebRichPresence (arRPC) plugin). File and project names can be hidden in the settings.",
+  "description": "Shows what you're working on in your Discord status: the file you're editing, its language, the project and how long you've been at it. Needs the Discord desktop app. File and project names can be hidden in the settings.",
   "command": "python3",
-  "args": ["discord_presence.py"],
-  "settings": [
-    {"key": "discord.webBridge", "title": "Discord in the browser", "type": "boolean", "default": false,
-     "description": "When the desktop app isn't running, start arRPC (installed once; needs Node.js) so Discord in the browser shows your activity. The browser needs the Vencord or Equicord extension with its WebRichPresence (arRPC) plugin."},
-    {"key": "discord.showFileName", "title": "Show the file name", "type": "boolean", "default": true,
-     "description": "Off: \"Editing a C# file\" instead of the file's name."},
-    {"key": "discord.showProject", "title": "Show the project", "type": "boolean", "default": true,
-     "description": "Off: the opened folder's name isn't shown."},
-    {"key": "discord.clientId", "title": "Application ID", "type": "string", "default": "",
-     "description": "Your own Discord application's ID, to use instead of ByteForge's (empty: ByteForge's)."},
-    {"key": "discord.largeImage", "title": "Large image", "type": "string", "default": "",
-     "description": "An art asset key of your application, or an image URL (empty: the ByteForge logo)."}
-  ]
+  "args": ["discord_presence.py"]
 }

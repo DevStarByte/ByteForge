@@ -3,27 +3,18 @@
 Talks to the Discord desktop app over its local IPC socket (no Discord library needed) and sets your activity
 to what you're doing in ByteForge: the file, its language, the project and the elapsed time.
 
-Discord in a browser has no local socket. With "discord.webBridge" on, the module starts arRPC
-(github.com/OpenAsar/arrpc, an open-source stand-in for the desktop app's socket) when no desktop app is
-running; the Vencord or Equicord browser extension, with its "WebRichPresence (arRPC)" plugin, passes the
-activity on to discord.com. arRPC is installed once into this module's folder (needs Node.js) and stops
-with the module.
-
 Settings (in ByteForge's settings.json):
   "discord.clientId":     optional: your own Discord application's ID, to use instead of ByteForge's.
   "discord.showFileName": false shows "Editing a C# file" instead of the file name (default true).
   "discord.showProject":  false hides the project name (default true).
   "discord.largeImage":   an art asset key of your application, or an image URL (default: the ByteForge logo).
-  "discord.webBridge":    true: Discord in the browser via arRPC, when the desktop app isn't running (default false).
 """
 
 import json
 import os
 import re
-import shutil
 import socket
 import struct
-import subprocess
 import sys
 import threading
 import time
@@ -34,10 +25,6 @@ CLIENT_ID = "1569037494551322826"  # The ByteForge application on Discord.
 LOGO = "https://raw.githubusercontent.com/DevStarByte/ByteForge/packages/modules/discord/byteforge.png"
 MIN_INTERVAL = 4.0  # Discord allows 5 activity updates per 20 seconds.
 RETRY = 15.0
-ARRPC_VERSION = "3.6.0"  # Pinned: the bridge runs code from npm, so only this reviewed version.
-ARRPC_USER_ID = "1045800378228281345"  # The user arRPC reports in READY (the desktop app reports yours).
-WEB_HINT = ("Open Discord in your browser with the Vencord or Equicord extension and its "
-            "\"WebRichPresence (arRPC)\" plugin turned on.")
 
 LANGUAGES = {
     "cs": "C#", "csx": "C#", "csproj": "MSBuild", "props": "MSBuild", "targets": "MSBuild", "sln": "Visual Studio",
@@ -111,7 +98,6 @@ class Ipc:
         self.client_id = client_id
         self.conn = None
         self.pipe = None
-        self.is_arrpc = False  # connected to arRPC (Discord in the browser), not the desktop app
 
     def connect(self):
         for path in socket_candidates():
@@ -138,8 +124,6 @@ class Ipc:
                 message = (data.get("data") or {}).get("message") or data.get("message") or "Discord refused the connection"
                 self.close()
                 raise DiscordError(message)
-            user = ((data.get("data") or {}).get("user") or {}) if isinstance(data, dict) else {}
-            self.is_arrpc = user.get("id") == ARRPC_USER_ID
             return True
         return False
 
@@ -192,121 +176,6 @@ class Ipc:
             except OSError:
                 pass
         self.conn = self.pipe = None
-
-
-# ───────────── the web bridge (arRPC) ─────────────
-
-class BridgeError(Exception):
-    pass
-
-
-ANSI = re.compile(r"\x1b\[[0-9;]*m")
-# Runs arRPC and exits when its stdin closes, i.e. when this module ends, even if it is killed: no stray
-# arRPC keeps the socket and port 1337 after ByteForge is gone.
-WRAPPER = ("process.stdin.on('end',()=>process.exit(0));process.stdin.on('error',()=>process.exit(0));"
-           "process.stdin.resume();import(require('url').pathToFileURL(process.argv[1]).href);")
-
-
-class WebBridge:
-    def __init__(self, folder):
-        self.folder = folder
-        self.proc = None
-        self.browser = False  # a browser tab with the arRPC plugin is connected
-        self.lock = threading.Lock()
-
-    def script(self):
-        return self.folder / "node_modules" / "arrpc" / "src" / "index.js"
-
-    def installed_version(self):
-        try:
-            return json.loads((self.folder / "node_modules" / "arrpc" / "package.json").read_text(encoding="utf-8")).get("version")
-        except (OSError, ValueError):
-            return None
-
-    def install(self):
-        """Installs the pinned arRPC into the module's folder (once; again after a version change)."""
-        if self.installed_version() == ARRPC_VERSION and self.script().is_file():
-            return
-        npm = shutil.which("npm")
-        if not npm:
-            raise BridgeError("the web bridge needs Node.js (npm wasn't found on PATH; nodejs.org)")
-        log(f"installing arRPC {ARRPC_VERSION} for Discord in the browser (once)…")
-        self.folder.mkdir(parents=True, exist_ok=True)
-        args = [npm, "install", "--prefix", str(self.folder), f"arrpc@{ARRPC_VERSION}", "--ignore-scripts",
-                "--no-audit", "--no-fund", "--no-update-notifier", "--omit=dev", "--loglevel=error"]
-        # npm's output goes to a file, not a pipe: on Windows a process npm leaves behind can hold a pipe
-        # open, and reading it would wait long after the install is done.
-        output = self.folder / "install.log"
-        try:
-            with open(output, "w", encoding="utf-8") as out:
-                proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, **hidden_window())
-                code = proc.wait(timeout=300)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            raise BridgeError("installing arRPC took too long (is npm's registry reachable?)")
-        except OSError as e:
-            raise BridgeError(f"installing arRPC failed: {e}")
-        if code != 0 or not self.script().is_file():
-            text = output.read_text(encoding="utf-8", errors="replace").strip()
-            raise BridgeError(f"installing arRPC failed: {text[-400:] or f'npm exited with {code}'}")
-        log("arRPC is installed.")
-
-    def running(self):
-        return self.proc is not None and self.proc.poll() is None
-
-    def start(self):
-        with self.lock:
-            if self.running():
-                return
-            self.install()
-            node = shutil.which("node")
-            if not node:
-                raise BridgeError("the web bridge needs Node.js (node wasn't found on PATH; nodejs.org)")
-            env = dict(os.environ, ARRPC_NO_PROCESS_SCANNING="1")  # it would look for running games otherwise
-            try:
-                self.proc = subprocess.Popen([node, "-e", WRAPPER, str(self.script())], cwd=str(self.folder), env=env,
-                                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                             text=True, encoding="utf-8", errors="replace", **hidden_window())
-            except OSError as e:
-                raise BridgeError(f"could not start arRPC: {e}")
-            self.browser = False
-            threading.Thread(target=self.follow, args=(self.proc,), daemon=True).start()
-            log("started arRPC, the bridge to Discord in the browser.")
-
-    def follow(self, proc):
-        """Reads arRPC's log: whether a browser is connected, and why it failed if it does."""
-        for line in proc.stdout:
-            text = ANSI.sub("", line).strip()
-            if "web connected" in text:
-                self.browser = True
-                update()
-            elif "web disconnected" in text:
-                self.browser = False
-                update()
-            elif "EADDRINUSE" in text or "Error" in text:
-                log(f"arRPC: {text}")
-        if proc is self.proc:
-            self.browser = False
-            log(f"arRPC stopped (exit code {proc.wait()}).")
-            update(retry=True)
-
-    def stop(self):
-        with self.lock:
-            if self.running():
-                try:
-                    self.proc.stdin.close()  # the wrapper exits on this
-                    self.proc.wait(timeout=3)
-                except (OSError, subprocess.TimeoutExpired):
-                    self.proc.kill()
-            self.proc = None
-
-
-def hidden_window():
-    """No console window flashing up on Windows for npm and node."""
-    return {"creationflags": 0x08000000} if os.name == "nt" else {}
-
-
-bridge = WebBridge(Path(__file__).resolve().parent / ".arrpc")
 
 
 # ───────────── presence ─────────────
@@ -368,17 +237,9 @@ def worker():
             state["retry"] = False
         settings = read_settings()
         client_id = str(settings.get("discord.clientId") or "").strip() or CLIENT_ID
-        web = settings.get("discord.webBridge") is True
         if ipc and connected_id != client_id:
             ipc.close()
             ipc = None
-        if not web and bridge.running():
-            # Turned off: stop the bridge (and leave it, if that's what we're connected to).
-            if ipc and ipc.is_arrpc:
-                ipc.close()
-                ipc = None
-            bridge.stop()
-            log("stopped arRPC (\"discord.webBridge\" is off).")
         if ipc is None:
             now = time.time()
             if not wake_retry and now - last_try < RETRY:
@@ -386,20 +247,9 @@ def worker():
             last_try = now
             candidate = Ipc(client_id)
             try:
-                connected = candidate.connect()
-                if not connected and web:
-                    connected = connect_through_bridge(candidate)
-                if not connected:
-                    if not web:
-                        status("Discord: offline", "The Discord app isn't running. ByteForge connects when it starts. "
-                               "Discord in the browser: turn on \"discord.webBridge\" in the settings.", "discord.reconnect")
+                if not candidate.connect():
+                    status("Discord: offline", "The Discord app isn't running. ByteForge connects when it starts.", "discord.reconnect")
                     continue
-            except BridgeError as e:
-                if str(e) != last_error:
-                    log(f"{e}.")
-                    last_error = str(e)
-                status("Discord: web bridge failed", f"{e}. Click to retry.", "discord.reconnect")
-                continue
             except DiscordError as e:
                 if str(e) != last_error:
                     log(f"Discord refused the connection: {e}. Check \"discord.clientId\" in settings.json.")
@@ -424,8 +274,6 @@ def worker():
             last_sent = time.time()
             if paused:
                 status("Discord: paused", "Not sharing your activity. Click to resume.", "discord.toggle")
-            elif ipc.is_arrpc and bridge.running() and not bridge.browser:
-                status("Discord: open it in the browser", f"The web bridge (arRPC) is running, but no browser is connected. {WEB_HINT}", "discord.reconnect")
             else:
                 status("", None)  # Connected and sharing: nothing to say in the status bar.
         except (OSError, DiscordError, ValueError) as e:
@@ -434,19 +282,6 @@ def worker():
             ipc = None
             with state_lock:
                 state["dirty"] = True
-
-
-def connect_through_bridge(candidate):
-    """No desktop app: start arRPC (installing it the first time) and connect to its socket."""
-    status("Discord: starting the web bridge…", "Starting arRPC for Discord in the browser.", None)
-    bridge.start()
-    for _ in range(40):  # arRPC opens its socket within a second or two
-        if candidate.connect():
-            return True
-        if not bridge.running():
-            break
-        time.sleep(0.25)
-    raise BridgeError("arRPC started but its socket didn't open")
 
 
 def update(**changes):
@@ -497,10 +332,7 @@ if __name__ == "__main__":
                     update(path=path)
             elif name == "folderOpened":
                 update(workspace=message.get("path"), path=None, start=int(time.time()))
-            elif name in ("fileSaved", "settingsChanged"):
-                update(retry=True)  # Picks up changed settings (the web bridge turned on or off, …).
+            elif name == "fileSaved":
+                update(retry=True)  # A cheap moment to pick up changed settings.
         elif kind == "executeCommand" and message.get("id") in COMMANDS:
             COMMANDS[message["id"]][1]()
-
-    # ByteForge closed the module: the bridge goes too (it would also exit on its own once we're gone).
-    bridge.stop()
