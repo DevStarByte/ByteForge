@@ -57,7 +57,31 @@ pub struct EfCommand {
     pub arg: String,
 }
 
-actions!(explorer, [RenameEntry, DeleteEntry]);
+actions!(
+    explorer,
+    [
+        RenameEntry,
+        DeleteEntry,
+        DeleteEntryPermanently,
+        CopyEntry,
+        CutEntry,
+        PasteEntry,
+        SelectPreviousEntry,
+        SelectNextEntry,
+        SelectFirstEntry,
+        SelectLastEntry,
+        CollapseEntry,
+        ExpandEntry,
+        OpenEntry,
+        PreviewEntry,
+        ExtendSelectionUp,
+        ExtendSelectionDown,
+        ExtendSelectionToFirst,
+        ExtendSelectionToLast,
+        SelectAllEntries,
+        ClearEntrySelection
+    ]
+);
 
 actions!(terminal, [ToggleTerminal, NewTerminal, KillTerminal, TerminalCopy, TerminalPaste, SelectDefaultShell]);
 
@@ -499,9 +523,37 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         ]);
     }
 
-    cx.bind_keys([kb("f2", RenameEntry, Some(EXPLORER)), kb("delete", DeleteEntry, Some(EXPLORER))]);
+    let x = Some(EXPLORER);
+    cx.bind_keys([
+        kb("f2", RenameEntry, x),
+        kb("delete", DeleteEntry, x),
+        kb("shift-delete", DeleteEntryPermanently, x),
+        kb("ctrl-c", CopyEntry, x),
+        kb("ctrl-insert", CopyEntry, x),
+        kb("ctrl-x", CutEntry, x),
+        kb("ctrl-v", PasteEntry, x),
+        kb("shift-insert", PasteEntry, x),
+        kb("up", SelectPreviousEntry, x),
+        kb("down", SelectNextEntry, x),
+        kb("home", SelectFirstEntry, x),
+        kb("end", SelectLastEntry, x),
+        kb("left", CollapseEntry, x),
+        kb("right", ExpandEntry, x),
+        kb("enter", OpenEntry, x),
+        kb("space", PreviewEntry, x),
+        kb("shift-up", ExtendSelectionUp, x),
+        kb("shift-down", ExtendSelectionDown, x),
+        kb("shift-home", ExtendSelectionToFirst, x),
+        kb("shift-end", ExtendSelectionToLast, x),
+        kb("ctrl-a", SelectAllEntries, x),
+        kb("escape", ClearEntrySelection, x),
+    ]);
     if cfg!(target_os = "macos") {
-        cx.bind_keys([KeyBinding::new("cmd-backspace", DeleteEntry, Some(EXPLORER))]);
+        cx.bind_keys([
+            KeyBinding::new("cmd-backspace", DeleteEntry, x),
+            KeyBinding::new("cmd-alt-backspace", DeleteEntryPermanently, x),
+            KeyBinding::new("cmd-down", OpenEntry, x),
+        ]);
     }
     cx.bind_keys([kb("f7", DiffNextChange, Some("DiffView")), kb("shift-f7", DiffPreviousChange, Some("DiffView"))]);
 

@@ -65,3 +65,7 @@ conventions: Ctrl+Space, Ctrl+Tab, Ctrl+G, Ctrl+F5 and Ctrl+\` stay on ⌃; Repl
 | Ctrl+R Ctrl+G | Remove and sort usings | F7 / Shift+F7 | Next / previous change (diff editor) |
 | Ctrl+K | Color theme | Ctrl+Tab | Next editor |
 | Ctrl+Shift+G | Source Control | Alt+\\ | Go to symbol in editor |
+| F2 (Explorer) | Rename file or folder | Delete / Shift+Delete (Explorer) | To Recycle Bin / Trash, delete permanently |
+| Ctrl+C / Ctrl+X / Ctrl+V (Explorer) | Copy / cut / paste file or folder | ↑/↓, Home/End (Explorer) | Move the selection |
+| ←/→ (Explorer) | Close folder or go to parent / open folder or go to first child | Enter / Space (Explorer) | Open (Enter moves to the editor) |
+| Ctrl+Click, Shift+Click, Shift+↑/↓ (Explorer) | Select several files and folders | Ctrl+A / Escape (Explorer) | Select all / keep only the current one |
