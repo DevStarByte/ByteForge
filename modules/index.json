@@ -68,7 +68,7 @@
     {
       "id": "byteforge.discord",
       "name": "Discord Rich Presence",
-      "version": "1.2.1",
+      "version": "1.3.0",
       "description": "Shows what you're working on in your Discord status: the file you're editing, its language, the project and how long you've been at it. Needs the Discord desktop app. File and project names can be hidden in the settings.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",

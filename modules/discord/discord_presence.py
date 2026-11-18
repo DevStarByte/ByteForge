@@ -3,11 +3,11 @@
 Talks to the Discord desktop app over its local IPC socket (no Discord library needed) and sets your activity
 to what you're doing in ByteForge: the file, its language, the project and the elapsed time.
 
+It always shows as ByteForge's Discord application with the ByteForge logo.
+
 Settings (in ByteForge's settings.json):
-  "discord.clientId":     optional: your own Discord application's ID, to use instead of ByteForge's.
   "discord.showFileName": false shows "Editing a C# file" instead of the file name (default true).
   "discord.showProject":  false hides the project name (default true).
-  "discord.largeImage":   an art asset key of your application, or an image URL (default: the ByteForge logo).
 """
 
 import json
@@ -217,7 +217,7 @@ def build_activity(settings):
     activity = {
         "details": clip(details),
         "timestamps": {"start": state["start"]},
-        "assets": {"large_image": settings.get("discord.largeImage") or LOGO, "large_text": "ByteForge"},
+        "assets": {"large_image": LOGO, "large_text": "ByteForge"},
     }
     if show_project and project:
         activity["state"] = clip(f"In {project}")
@@ -229,34 +229,30 @@ def build_activity(settings):
 
 
 def worker():
-    ipc, connected_id, last_sent, last_try, last_error = None, None, 0.0, 0.0, None
+    ipc, last_sent, last_try, last_error = None, 0.0, 0.0, None
     while True:
         with state_lock:
             state_lock.wait(timeout=RETRY)
             wake_retry = state["retry"]
             state["retry"] = False
         settings = read_settings()
-        client_id = str(settings.get("discord.clientId") or "").strip() or CLIENT_ID
-        if ipc and connected_id != client_id:
-            ipc.close()
-            ipc = None
         if ipc is None:
             now = time.time()
             if not wake_retry and now - last_try < RETRY:
                 continue
             last_try = now
-            candidate = Ipc(client_id)
+            candidate = Ipc(CLIENT_ID)
             try:
                 if not candidate.connect():
                     status("Discord: offline", "The Discord app isn't running. ByteForge connects when it starts.", "discord.reconnect")
                     continue
             except DiscordError as e:
                 if str(e) != last_error:
-                    log(f"Discord refused the connection: {e}. Check \"discord.clientId\" in settings.json.")
+                    log(f"Discord refused the connection: {e}.")
                     last_error = str(e)
                 status("Discord: error", f"Discord refused the connection: {e}. Click to retry.", "discord.reconnect")
                 continue
-            ipc, connected_id, last_error = candidate, client_id, None
+            ipc, last_error = candidate, None
             with state_lock:
                 state["dirty"] = True
         with state_lock:
