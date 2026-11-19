@@ -568,7 +568,6 @@ dependencies = [
  "flume",
  "log",
  "parking_lot",
- "serde",
  "serde_json",
 ]
 

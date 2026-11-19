@@ -8,7 +8,6 @@ description = "Minimal thread-based Language Server Protocol client for ByteForg
 [dependencies]
 anyhow = { workspace = true }
 flume = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
 parking_lot = { workspace = true }
 log = { workspace = true }

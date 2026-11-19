@@ -186,7 +186,7 @@ mod tests {
         // that shell alive instead of letting it exec into sleep.
         let script = format!("sh -c 'sleep 120; true' {marker} & wait");
         let (process, events) = DotnetProcess::start_program("sh", Path::new("."), vec!["-c".into(), script], &[]).unwrap();
-        let running = || Command::new("pgrep").args(["-f", &marker]).output().is_ok_and(|o| o.status.success());
+        let running = || std::process::Command::new("pgrep").args(["-f", &marker]).output().is_ok_and(|o| o.status.success());
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         while !running() {
             assert!(std::time::Instant::now() < deadline, "child never started");

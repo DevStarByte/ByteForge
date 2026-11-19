@@ -124,7 +124,7 @@ pub fn import_login_shell_path() {
 mod mac_path {
     use std::io::{IsTerminal, Read};
     use std::path::PathBuf;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
     use std::time::{Duration, Instant};
 
     const MARKER: &str = "__BYTEFORGE_PATH__";
