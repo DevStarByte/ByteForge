@@ -186,8 +186,10 @@ mod tests {
     #[test]
     fn kill_stops_child_processes() {
         let marker = format!("bf-kill-test-{}", std::process::id());
-        // Like `dotnet run`: a parent that waits on a child doing the real work.
-        let script = format!("sh -c 'exec -a {marker} sleep 120' & wait");
+        // Like `dotnet run`: a parent that waits on a child doing the real work. The marker is the
+        // child shell's $0 (`exec -a` is bash-only; dash as /bin/sh lacks it), and `; true` keeps
+        // that shell alive instead of letting it exec into sleep.
+        let script = format!("sh -c 'sleep 120; true' {marker} & wait");
         let (process, events) = DotnetProcess::start_program("sh", Path::new("."), vec!["-c".into(), script], &[]).unwrap();
         let running = || Command::new("pgrep").args(["-f", &marker]).output().is_ok_and(|o| o.status.success());
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);

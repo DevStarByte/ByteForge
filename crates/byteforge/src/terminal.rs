@@ -98,10 +98,12 @@ impl Focusable for TerminalView {
 }
 
 /// Shells listed in `/etc/shells` (restricted and special-purpose ones left out), one entry per real
-/// program, preferring `/usr/bin` paths.
+/// program and name (a second `bash`, e.g. Homebrew's next to macOS's, is left out), preferring
+/// `/usr/bin` paths, then `/etc/shells` order.
 pub fn installed_shells() -> Vec<String> {
     let text = std::fs::read_to_string("/etc/shells").unwrap_or_default();
     let mut seen = std::collections::HashSet::new();
+    let mut names = std::collections::HashSet::new();
     let mut shells: Vec<String> = Vec::new();
     let mut lines: Vec<&str> = text.lines().map(str::trim).filter(|l| l.starts_with('/')).collect();
     lines.sort_by_key(|l| !l.starts_with("/usr/bin/"));
@@ -111,7 +113,8 @@ pub fn installed_shells() -> Vec<String> {
             continue;
         }
         let real = std::fs::canonicalize(line).unwrap_or_else(|_| PathBuf::from(line));
-        if real.is_file() && seen.insert(real) {
+        if real.is_file() && !names.contains(name) && seen.insert(real) {
+            names.insert(name.to_owned());
             shells.push(line.to_owned());
         }
     }

@@ -1010,9 +1010,9 @@ impl EditorState {
             self.buffer.replace(end, end, &format!("\n{above}"));
         }
         self.buffer.undo_stack().end_group();
-        let shift = |p: Point| Point::new(if down { p.line + 1 } else { p.line - 1 }, p.col);
-        self.caret = shift(caret);
-        self.anchor = anchor.map(shift);
+        let line = |p: Point| if down { p.line + 1 } else { p.line - 1 };
+        self.caret = Point::new(line(caret), caret.col);
+        self.anchor = anchor.map(|p| Point::new(line(p), p.col));
     }
 
     pub fn duplicate_lines(&mut self) {

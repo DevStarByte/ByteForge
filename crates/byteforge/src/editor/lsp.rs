@@ -565,6 +565,10 @@ pub(crate) fn hover_expression(line: &str, col: usize) -> Option<String> {
     Some(expr)
 }
 
+fn contains(r: &bf_lsp::Range, p: &bf_lsp::Position) -> bool {
+    (r.start.line, r.start.character) <= (p.line, p.character) && (p.line, p.character) <= (r.end.line, r.end.character)
+}
+
 #[cfg(test)]
 mod hover_expression_tests {
     use super::hover_expression;
@@ -580,8 +584,4 @@ mod hover_expression_tests {
         assert_eq!(hover_expression("x = 1.5;", 4), None);
         assert_eq!(hover_expression("this.name", 6).as_deref(), Some("this.name"));
     }
-}
-
-fn contains(r: &bf_lsp::Range, p: &bf_lsp::Position) -> bool {
-    (r.start.line, r.start.character) <= (p.line, p.character) && (p.line, p.character) <= (r.end.line, r.end.character)
 }

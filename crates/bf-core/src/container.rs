@@ -183,12 +183,12 @@ pub(crate) fn download_release(asset: &str, dir: &Path, exe: &Path) -> anyhow::R
 
 /// On Windows the copy in System32 (a Git or MSYS `tar` earlier on PATH can't unpack .zip files), else the name.
 fn system_tool(name: &str) -> PathBuf {
-    if cfg!(windows) {
-        if let Some(root) = std::env::var_os("SystemRoot") {
-            let path = PathBuf::from(root).join("System32").join(format!("{name}.exe"));
-            if path.is_file() {
-                return path;
-            }
+    if cfg!(windows)
+        && let Some(root) = std::env::var_os("SystemRoot")
+    {
+        let path = PathBuf::from(root).join("System32").join(format!("{name}.exe"));
+        if path.is_file() {
+            return path;
         }
     }
     PathBuf::from(name)

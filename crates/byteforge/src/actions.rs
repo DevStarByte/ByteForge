@@ -174,7 +174,7 @@ actions!(
     ]
 );
 
-actions!(input, [Confirm, InputBackspace, InputDelete, InputLeft, InputRight, InputSelectLeft, InputSelectRight, InputHome, InputEnd, InputSelectAll, InputCopy, InputCut, InputPaste, InputUp, InputDown, InputCancel, InputPageUp, InputPageDown]);
+actions!(input, [Confirm, InputSubmit, InputBackspace, InputDelete, InputLeft, InputRight, InputSelectLeft, InputSelectRight, InputHome, InputEnd, InputSelectAll, InputCopy, InputCut, InputPaste, InputUp, InputDown, InputCancel, InputPageUp, InputPageDown]);
 
 // The macOS application and Window menus.
 actions!(app, [HideApp, HideOtherApps, ShowAllApps, MinimizeWindow, ZoomWindow]);
@@ -627,6 +627,7 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
     let i = Some(INPUT);
     cx.bind_keys([
         kb("enter", Confirm, i),
+        kb("ctrl-enter", InputSubmit, i),
         kb("backspace", InputBackspace, i),
         kb("delete", InputDelete, i),
         kb("left", InputLeft, i),

@@ -156,9 +156,13 @@ pub fn decorations(status: &GitStatus, root: &Path) -> HashMap<PathBuf, (char, &
     map
 }
 
+/// The keys that commit from the message box.
+const COMMIT_KEY: &str = if cfg!(target_os = "macos") { "⌘Enter" } else { "Ctrl+Enter" };
+
 impl ScmView {
     pub fn new(workspace: Workspace, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let message = cx.new(|cx| TextInput::new("Message (Enter to commit)", cx));
+        // Like VS Code's: Enter starts a new line (subject, blank line, body), Ctrl+Enter commits.
+        let message = cx.new(|cx| TextInput::multiline(format!("Message ({COMMIT_KEY} to commit)"), 10, cx));
         let sub = cx.subscribe_in(&message, window, |this, _, event, window, cx| {
             if let InputEvent::Confirmed = event {
                 this.commit(window, cx);
@@ -593,12 +597,8 @@ impl ScmView {
                     Some(Box::new(|v, message, cx| {
                         let subject = message.lines().next().unwrap_or_default().to_owned();
                         cx.emit(ScmEvent::Log(format!("Undid the commit \"{subject}\": its changes are staged again.")));
-                        // The message box is one line: it gets the subject; a body goes to the log, not lost.
-                        let body = message.split_once("\n\n").map(|(_, b)| b.trim()).unwrap_or_default();
-                        if !body.is_empty() {
-                            cx.emit(ScmEvent::Log(format!("Its message went on:\n{body}")));
-                        }
-                        v.message.update(cx, |m, cx| m.set_text(subject, cx));
+                        // The whole message (subject and body) goes back into the box.
+                        v.message.update(cx, |m, cx| m.set_text(message.trim_end(), cx));
                     })),
                     cx,
                 )
@@ -715,6 +715,12 @@ impl ScmView {
     /// A new commit that undoes `id`.
     pub fn revert_commit(&mut self, id: String, cx: &mut Context<Self>) {
         self.run_op("revert", false, move |g| g.revert_commit(&id), cx);
+    }
+
+    #[cfg(test)]
+    #[cfg(test)]
+    pub fn message_input(&self) -> Entity<TextInput> {
+        self.message.clone()
     }
 
     #[cfg(test)]
@@ -1113,8 +1119,9 @@ impl Render for ScmView {
                             .items_baseline()
                             .gap(px(6.))
                             .whitespace_nowrap()
-                            .child(div().min_w_0().overflow_hidden().text_ellipsis().child(branch))
-                            .child(div().flex_none().text_size(px(11.)).text_color(muted).child(sync)),
+                            // The branch name gives way last: the sync note shortens first.
+                            .child(div().flex_shrink_0().max_w_full().overflow_hidden().text_ellipsis().child(branch))
+                            .child(div().min_w_0().overflow_hidden().text_ellipsis().text_size(px(11.)).text_color(muted).child(sync)),
                     )
                     .child(tool("scm-refresh", "refresh", "Refresh").on_click(cx.listener(|v, _, _, cx| v.refresh(cx))))
                     .child(tool("scm-more", "more", "More Actions… (undo commit, stash, merge, tags)").debug_selector(|| "scm-more".into()).on_mouse_down(
@@ -1127,13 +1134,14 @@ impl Render for ScmView {
                         }),
                     )),
             )
-            .child(div().px_3().child(self.message.clone()))
+            .child(div().px_3().flex().flex_col().debug_selector(|| "scm-message".into()).child(self.message.clone()))
             .child(
-                div().px_3().child(
+                div().px_3().flex().flex_col().child(
                     button("scm-commit", if self.busy.is_some() { "Working…" } else { "✓ Commit" })
+                        .debug_selector(|| "scm-commit".into())
                         .w_full()
                         .when(self.busy.is_some(), |d| d.opacity(0.6))
-                        .tooltip(tooltip("Commit the staged changes (Enter in the message box)"))
+                        .tooltip(tooltip(format!("Commit the staged changes ({COMMIT_KEY} in the message box)")))
                         .on_click(cx.listener(|v, _, window, cx| v.commit(window, cx))),
                 ),
             )

@@ -5,24 +5,19 @@ the git history.
 
 ## 1. Make what's there trustworthy
 
-- [ ] Dogfooding: use ByteForge for real work and fix what turns up. Every feature below was clicked through headlessly
-      (real mouse and key events on the real workbench, against csharp-ls and dotnet where needed) and the bugs that
-      turned up are fixed with regression tests. Still to look at by hand, where tests can't see:
-      - Looks: diff spacer rows and stripes, merge editor's three panes, toolbars at narrow widths, blame gutter width,
-        the floating tab while dragging and the drop highlights, breadcrumbs per group with tabs at the bottom,
-        the Refactor popup's position and scrolling, the breadcrumb dropdowns (position, width, the marked entry).
-      - Real dialogs: Revert Change, the two-file refactoring confirmation, deleting a secret (Enter/Escape).
-      - Clicking the "Accept Current · Incoming · Both" note after `<<<<<<<` (hit areas, with horizontal scroll).
-      - Ctrl+. in a conflict with csharp-ls running (server entries are appended while the menu is open).
-      - A deleted secret's row disappears; Shift+F5 during a test run leaves no test "running".
-      - Refactorings never applied in tests: Extract Local Function, Introduce Parameter variants, Sort Usings;
-        and all of them with `"csharp.server": "roslyn"`.
+- [ ] Dogfooding: use ByteForge for real work and fix what turns up. Every feature was clicked through headlessly
+      (real mouse and key events on the real workbench, against csharp-ls and dotnet where needed), and checked by
+      hand in the app (0.11.0): the diff and merge editors, conflict notes and Ctrl+. in a conflict, the blame
+      gutter, tab dragging, breadcrumbs and their dropdowns, toolbars at narrow widths, the Refactor popup, the
+      refactorings (Roslyn server too) and their two-file confirmation, Revert Change, deleting a user secret,
+      stopping a test run, and the multi-line commit box. Nothing is left to check by hand; what stays open is
+      using it for real work.
       Fixed since: Revert Change on an untracked file deletes it (and says so first); saving a secret edits only
       that key, so comments and nesting in secrets.json stay; Run All goes on past a test project that doesn't
-      build (Shift+F5 ends the queue); every breadcrumb opens a dropdown (folder entries, siblings, symbols).
-- [ ] Branch picker: clicking a branch doesn't switch to it. Tests now click the real row and the branch switches;
-      a switch git refuses (local changes in the way) asks, with "Stash Changes and Switch", and a switch while git
-      is busy says so in the Output. Still to confirm in the app; if it happens again, the Output says why.
+      build (Shift+F5 ends the queue); every breadcrumb opens a dropdown (folder entries, siblings, symbols); the
+      commit message box spans the side bar and takes several lines; text boxes scroll to the caret.
+- [x] Branch picker: clicking a branch doesn't switch to it. Confirmed working in the app (and the status bar follows). A switch git refuses (local changes in the way) asks, with
+      "Stash Changes and Switch", and a switch while git is busy says so in the Output.
 - [x] The Roslyn language server (the one VS Code's C# extension uses) next to csharp-ls: `"csharp.server": "roslyn"` or
       "C#: Install or Update Roslyn Language Server", which downloads it from Microsoft's NuGet feed, checks Microsoft's
       signature and switches to it. Opens the solution (or the projects), pulls diagnostics (analyzers included),
@@ -51,9 +46,24 @@ the git history.
 Not possible with today's tools: Change Signature with csharp-ls (needs a dialog it doesn't have; see
 the Roslyn server above), and debugging in Alpine (musl) images (netcoredbg has no musl release).
 
-## 4. Later
+## 4. First stable release (1.0)
+
+Section 1 above is what still has to be checked by hand; this is what the release itself needs.
+
+- [x] CI: clippy (warnings fail) and the whole test suite on Linux, Windows and macOS for every push and pull
+      request (`.github/workflows/ci.yml`), so a tag never ships an untested build.
+- [x] Privacy statement (docs/code-signing.md) lists every connection: the update check at start, modules,
+      netcoredbg and the Roslyn server downloads.
+- [x] CHANGELOG.md, with what changed per version; the 1.0 notes come from it.
+- [ ] Windows: SignPath Foundation approval, then the `SIGNPATH_*` secret and variables (docs/code-signing.md).
+      Until then SmartScreen warns.
+- [ ] macOS: notarization (needs an Apple Developer ID); until then the README's right-click → Open note stays.
+- [x] Release notes: known limits (no Razor IntelliSense with the Roslyn server, no Change Signature, no
+      debugging in Alpine images), in CHANGELOG.md under 1.0.0.
+- [x] Tag `v1.0.0`. Signing (SignPath) and notarization follow in a later release.
+
+## 5. Later
 
 - [ ] Code coverage in the gutter.
-- [ ] Git stash.
 - [ ] Sticky scroll (the current type and member pinned at the top of the editor).
 - [ ] An AI assistant panel.

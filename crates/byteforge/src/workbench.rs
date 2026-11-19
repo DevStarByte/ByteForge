@@ -59,6 +59,7 @@ use crate::scm::{ScmEvent, ScmView};
 use crate::search::{SearchEvent, SearchView};
 use crate::theme::Theme;
 
+#[allow(clippy::enum_variant_names)]
 pub enum AppEvent {
     ThemeFilesChanged,
     SettingsChanged,
@@ -943,7 +944,7 @@ impl Workbench {
         for (path, d) in &self.build_problems {
             let open = self.tabs.iter().any(|t| t.path.as_ref() == Some(path));
             let csharp = path.extension().is_some_and(|e| e == "cs");
-            if !open && !(lsp && csharp) {
+            if !(open || (lsp && csharp)) {
                 out.push((path.clone(), d.clone()));
             }
         }

@@ -23,8 +23,14 @@ signed. Every signing request is approved by hand in SignPath.
 
 ByteForge sends no telemetry and collects no personal data. It connects to the internet only:
 
+- to look for a new release on GitHub (`api.github.com`), every time it starts and when you pick
+  "Check for Updates…", and to download the release you choose to install. Turn the check at start
+  off with `"update.checkAutomatically": false`;
 - to fetch the module index and download modules from this repository (or a module registry you
   configure), when you open the Modules view or install or update a module;
+- to download [netcoredbg](https://github.com/Samsung/netcoredbg) from GitHub on the first debug
+  session when none is installed, and the Roslyn language server from Microsoft's NuGet feed when
+  you install or update it;
 - through the tools you run from it, such as `dotnet` (NuGet restore), `git` and `docker`, which
   follow their own privacy policies.
 

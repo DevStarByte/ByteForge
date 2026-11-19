@@ -667,6 +667,53 @@ mod tests {
         drop(guard);
     }
 
+    /// The commit message box and the Commit button span the side bar; they don't shrink to their content
+    /// (the message box collapsed to its caret, with the placeholder spilling out of it).
+    #[gpui::test]
+    fn message_box_and_commit_button_fill_the_side_bar(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "scm-width");
+        let repo = guard.dir.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q", "-b", "main"]);
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(repo.clone(), window, cx);
+            wb.show_side(SideView::SourceControl, cx);
+        });
+        for _ in 0..50 {
+            cx.run_until_parked();
+            if cx.debug_bounds("scm-message").is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        // Every built-in theme: their metrics and layouts differ.
+        let builtin = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../themes");
+        let themes = bf_core::ThemeService::new(builtin, guard.dir.join("user-themes"), || {});
+        let names: Vec<String> = themes.available().into_iter().map(|t| t.name).collect();
+        assert!(names.len() > 5, "the built-in themes are found: {names:?}");
+        for (version, name) in names.iter().enumerate() {
+            let data = themes.apply(name).unwrap();
+            cx.update(|_, cx| Theme::build(data, 100 + version, cx).install(cx));
+            wb.update(cx, |wb, cx| {
+                wb.side_width = Theme::global(cx).n("sideBar.width", 280.0);
+                cx.notify();
+            });
+            cx.run_until_parked();
+            let side = wb.read_with(cx, |wb, _| wb.side_width);
+            let input = wb.read_with(cx, |wb, cx| wb.scm.read(cx).message_input());
+            let text = input.read_with(cx, |i, _| i.bounds_for_test()).expect("the message box is drawn");
+            let mut widths = vec![("message text", f32::from(text.size.width))];
+            for selector in ["scm-message", "scm-commit"] {
+                let bounds = cx.debug_bounds(selector).unwrap_or_else(|| panic!("{selector} is not on screen"));
+                widths.push((selector, f32::from(bounds.size.width)));
+            }
+            for (what, width) in widths {
+                assert!(width > side * 0.7, "{name}: {what} is {width}px wide in a {side}px side bar");
+            }
+        }
+        drop(guard);
+    }
+
     /// A real mouse click on the branch's row in the picker switches to it (and closes the picker).
     #[gpui::test]
     fn clicking_a_branch_row_switches_to_it(cx: &mut gpui::TestAppContext) {
@@ -697,6 +744,15 @@ mod tests {
         }
         assert_eq!(git(&repo, &["branch", "--show-current"]), "feature");
         assert!(wb.read_with(cx, |wb, _| wb.palette.is_none()), "the picker closes");
+        // The status bar (and the Source Control header) show the new branch.
+        for _ in 0..50 {
+            cx.run_until_parked();
+            if wb.read_with(cx, |wb, cx| wb.scm.read(cx).status().branch.as_deref() == Some("feature")) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        assert_eq!(wb.read_with(cx, |wb, cx| wb.scm.read(cx).status().branch.clone()).as_deref(), Some("feature"), "the status shows the new branch");
         drop(guard);
     }
 
@@ -1425,12 +1481,45 @@ mod tests {
         assert!(wb.update(cx, |wb, cx| wb.scm.read(cx).menu_open()), "the menu opened");
         click(cx, "m-undo");
         wait_for(cx, "the commit undone", |_| commit_count(&repo) == 1);
-        // The one-line box gets the subject; the body goes to the Output.
-        wait_for(cx, "the message back", |cx| wb.update(cx, |wb, cx| wb.scm.read(cx).message_text(cx) == "second commit"));
-        wait_for(cx, "the body logged", |cx| wb.update(cx, |wb, cx| wb.output.read(cx).state.buffer.text().contains("with a body")));
+        // The whole message, body included, is back in the (multi-line) box.
+        wait_for(cx, "the message back", |cx| wb.update(cx, |wb, cx| wb.scm.read(cx).message_text(cx) == "second commit\n\nwith a body"));
         assert!(!wb.update(cx, |wb, cx| wb.scm.read(cx).menu_open()), "the menu closed");
         assert_eq!(git(&repo, &["diff", "--cached", "--name-only"]), "A.cs", "the change is staged");
         assert_eq!(std::fs::read_to_string(repo.join("A.cs")).unwrap(), "two\n");
+        drop(guard);
+    }
+
+    /// The message box is multi-line like VS Code's: Enter starts a new line, Ctrl+Enter commits the
+    /// subject and body; Up and Home move within the text.
+    #[gpui::test]
+    fn the_message_box_takes_several_lines_and_ctrl_enter_commits(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "git-multiline");
+        let repo = two_commits(&guard, &wb, cx);
+        git(&repo, &["reset", "-q", "--soft", "HEAD~1"]);
+        wb.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.refresh(cx)));
+        click(cx, "scm-message");
+        cx.simulate_input("Subject");
+        let height = |cx: &mut gpui::VisualTestContext| wb.update(cx, |wb, cx| wb.scm.read(cx).message_input().read(cx).bounds_for_test()).expect("drawn").size.height;
+        let one_row = height(cx);
+        cx.simulate_keystrokes("enter enter");
+        cx.simulate_input("Body");
+        assert_eq!(commit_count(&repo), 1, "Enter doesn't commit");
+        assert_eq!(wb.update(cx, |wb, cx| wb.scm.read(cx).message_text(cx)), "Subject\n\nBody");
+        // Up twice and Home: the start of the subject; typing goes there.
+        cx.simulate_keystrokes("up up home");
+        cx.simulate_input("The ");
+        assert_eq!(wb.update(cx, |wb, cx| wb.scm.read(cx).message_text(cx)), "The Subject\n\nBody");
+        // The box grew with the text: three rows.
+        let three_rows = height(cx);
+        assert!(three_rows > one_row * 2.5, "three rows ({three_rows:?}) against one ({one_row:?})");
+        cx.simulate_keystrokes("ctrl-enter");
+        wait_for(cx, "the commit", |_| commit_count(&repo) == 2);
+        assert_eq!(git(&repo, &["log", "-1", "--format=%B"]), "The Subject\n\nBody");
+        // A long line wraps onto more rows instead of running on.
+        wait_for(cx, "the box emptied", |cx| wb.update(cx, |wb, cx| wb.scm.read(cx).message_text(cx).is_empty()));
+        cx.simulate_input(&"word ".repeat(40));
+        cx.run_until_parked();
+        assert!(height(cx) > one_row * 2.5, "the long line wraps ({:?} against one row {one_row:?})", height(cx));
         drop(guard);
     }
 

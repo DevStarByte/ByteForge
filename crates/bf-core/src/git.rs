@@ -1119,7 +1119,7 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
 
     #[test]
     fn stash_list_parses() {
-        let text = "stash@{0}\0On main: wip\03 minutes ago\nstash@{1}\0WIP on main: 1a2b3c first\02 days ago\n";
+        let text = "stash@{0}\0On main: wip\x003 minutes ago\nstash@{1}\0WIP on main: 1a2b3c first\x002 days ago\n";
         let stashes = parse_stashes(text);
         assert_eq!(stashes.len(), 2);
         assert_eq!((stashes[0].index, stashes[0].message.as_str(), stashes[0].when.as_str()), (0, "On main: wip", "3 minutes ago"));

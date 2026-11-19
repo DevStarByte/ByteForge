@@ -227,7 +227,7 @@ public class SlowTests
             }
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
-        panic!("timed out; output:\n{}", wb.read_with(cx, |wb, cx| output(wb, cx)));
+        panic!("timed out; output:\n{}", wb.read_with(cx, output));
     }
 
     fn state(wb: &Workbench, cx: &App, test: &str) -> TestState {
@@ -260,7 +260,7 @@ public class SlowTests
 
         cx.dispatch_action(RunAllTests);
         wait(cx, &wb, |wb, cx| wb.tests.read(cx).test_state("Good.UnitTest1.Test1") == TestState::Passed);
-        let out = wb.read_with(cx, |wb, cx| output(wb, cx));
+        let out = wb.read_with(cx, output);
         assert!(out.contains("no results for ABroken"), "{out}");
         drop(guard);
     }

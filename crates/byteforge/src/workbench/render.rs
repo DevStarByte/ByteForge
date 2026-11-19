@@ -266,7 +266,7 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &OpenInOtherGroup, w, cx| wb.open_in_other_group(w, cx)))
             .on_action(cx.listener(|wb, _: &ToggleWordWrap, _, cx| {
                 // Alt+Z: word wrap on or off for every editor (setting editor.wordWrap).
-                let on = !wb.settings.get_string("editor.wordWrap").is_some_and(|w| w == "on");
+                let on = wb.settings.get_string("editor.wordWrap").is_none_or(|w| w != "on");
                 wb.settings.set("editor.wordWrap", json!(if on { "on" } else { "off" }));
                 for tab in &wb.tabs {
                     tab.editor.update(cx, |e, cx| {
