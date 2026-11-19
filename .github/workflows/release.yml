@@ -6,8 +6,8 @@
 #
 # The tag (without its "-beta.N" part) must match the version in Cargo.toml.
 # Clippy and the whole test suite run first; a failure stops the builds and the release.
-# Pushes to master that touch the code (and runs started by hand) build the
-# downloads as workflow artifacts without publishing anything.
+# Only version tags start it; plain pushes to master run nothing. A run started by hand
+# (Actions → Release → Run workflow) builds the downloads as workflow artifacts without publishing.
 #
 # Downloads:
 #   ByteForge-<ver>-windows-x64-setup.exe   installer (current user, no admin needed)
@@ -21,15 +21,6 @@ name: Release
 on:
   push:
     tags: ["v*"]
-    branches: [master]
-    paths:
-      - "crates/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "themes/**"
-      - "modules/**"
-      - "packaging/**"
-      - ".github/workflows/release.yml"
   workflow_dispatch:
 
 permissions:
