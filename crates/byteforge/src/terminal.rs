@@ -491,6 +491,8 @@ pub fn keystroke_bytes(keystroke: &Keystroke, app_cursor: bool) -> Option<Vec<u8
         "f11" => tilde(23),
         "f12" => tilde(24),
         "space" if m.control => vec![0],
+        // The key name isn't the character here, and Windows sends no key_char for it.
+        "space" => alt(b" ".to_vec()),
         key if m.control => {
             let mut chars = key.chars();
             let (Some(c), None) = (chars.next(), chars.next()) else { return None };
@@ -844,5 +846,8 @@ mod tests {
         assert_eq!(bytes("delete"), Some(b"\x1b[3~".to_vec()));
         assert_eq!(bytes("alt-b"), Some(b"\x1bb".to_vec()));
         assert_eq!(bytes("a"), Some(b"a".to_vec()));
+        assert_eq!(bytes("space"), Some(b" ".to_vec()));
+        assert_eq!(bytes("shift-space"), Some(b" ".to_vec()));
+        assert_eq!(bytes("ctrl-space"), Some(vec![0]));
     }
 }

@@ -3,6 +3,10 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.0.4
+
+- Terminal: Space types a space again (Windows delivered it as a named key without a character, so it was dropped).
+
 ## 1.0.3
 
 - Windows: no more console windows popping up. Every program ByteForge starts runs without one, also the
