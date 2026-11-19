@@ -300,6 +300,8 @@ pub struct Workbench {
     lsp: Option<LspClient>,
     lsp_status: String,
     lsp_task: Option<Task<()>>,
+    /// The Roslyn server's checks, running in the background before it starts.
+    lsp_setup: Option<Task<()>>,
     dotnet: Option<DotnetProcess>,
     /// The running dotnet process was stopped with Shift+F5 (a test queue ends there instead of going on).
     dotnet_stopped: bool,
@@ -580,6 +582,7 @@ impl Workbench {
             lsp: None,
             lsp_status: String::new(),
             lsp_task: None,
+            lsp_setup: None,
             dotnet: None,
             dotnet_stopped: false,
             dotnet_task: None,

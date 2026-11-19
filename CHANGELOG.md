@@ -3,6 +3,14 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.0.1
+
+- Settings screen: the search box spans the page and shows its "Search settings" hint again. Before, it
+  was a narrow sliver with only the caret visible. Text boxes now fill their box wherever they are placed.
+- Faster start with the Roslyn server (`"csharp.server": "roslyn"`): its checks (installed version, .NET
+  runtime, the solution to open) run in the background. Before, the window froze for several seconds
+  right after it opened.
+
 ## 1.0.0
 
 The first stable release: everything on the roadmap is in, tested headlessly and by hand on the real app.

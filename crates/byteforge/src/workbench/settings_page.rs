@@ -381,7 +381,8 @@ impl Workbench {
                     .flex_col()
                     .gap_3()
                     .child(header)
-                    .children(self.settings_search.clone().map(|input| div().border_1().border_color(rule).rounded(px(5.)).px_2().py_1().child(input))),
+                    // the input draws its own themed box, full width
+                    .children(self.settings_search.clone()),
             );
         let count = sections.len();
         let mut row = 0usize;

@@ -11,28 +11,49 @@ impl Workbench {
             }
             old.shutdown();
         }
+        // a Roslyn setup still running for the previous folder is dropped (and so cancelled)
+        self.lsp_setup = None;
         let has_csharp = self.workspace.files().iter().any(|f| matches!(f.extension().and_then(|e| e.to_str()), Some("cs" | "csproj" | "sln" | "slnx")));
         if !has_csharp {
             self.lsp_status = String::new();
             return;
         }
-        let config = match self.settings.get_string("csharp.server").as_deref() {
-            Some("roslyn") => match self.roslyn_server_config(&root, cx) {
-                Some(config) => config,
-                None => return,
-            },
-            _ => {
-                let command = self.settings.get_string("csharp.languageServer").or_else(bf_lsp::csharp_ls_command);
-                let Some(command) = command else {
-                    self.lsp_status = "C#: no server".into();
-                    self.log("csharp-ls not found. Install it with: dotnet tool install -g csharp-ls (or set \"csharp.languageServer\"), or use the Roslyn server (\"csharp.server\": \"roslyn\").");
-                    return;
-                };
-                let mut config = ServerConfig::new(command, Vec::new(), root, "csharp");
-                config.env = bf_lsp::dotnet_server_env();
-                config
-            }
+        if self.settings.get_string("csharp.server").as_deref() == Some("roslyn") {
+            // Its checks run `dotnet` and look through the folder, which can take seconds: off the UI thread,
+            // so the window stays responsive while ByteForge starts.
+            self.lsp_status = "C#: starting…".into();
+            let cache = self.paths.cache_dir();
+            self.lsp_setup = Some(cx.spawn(async move |this, cx| {
+                let setup = cx.background_executor().spawn(async move { roslyn_setup(&cache, &root) }).await;
+                let _ = this.update(cx, |wb, cx| match setup {
+                    Ok((version, config)) => {
+                        wb.log(format!("C#: Roslyn language server {version}"));
+                        wb.launch_lsp(config, cx);
+                    }
+                    Err(missing) => {
+                        wb.lsp_status = missing.status().into();
+                        wb.log(missing.message());
+                        wb.show_panel(PanelView::Output, cx);
+                        cx.notify();
+                    }
+                });
+            }));
+            cx.notify();
+            return;
+        }
+        let command = self.settings.get_string("csharp.languageServer").or_else(bf_lsp::csharp_ls_command);
+        let Some(command) = command else {
+            self.lsp_status = "C#: no server".into();
+            self.log("csharp-ls not found. Install it with: dotnet tool install -g csharp-ls (or set \"csharp.languageServer\"), or use the Roslyn server (\"csharp.server\": \"roslyn\").");
+            return;
         };
+        let mut config = ServerConfig::new(command, Vec::new(), root, "csharp");
+        config.env = bf_lsp::dotnet_server_env();
+        self.launch_lsp(config, cx);
+    }
+
+    /// Starts the language server and attaches it to the open C# files.
+    fn launch_lsp(&mut self, config: ServerConfig, cx: &mut Context<Self>) {
         match LspClient::start(config) {
             Ok((client, events)) => {
                 self.lsp_status = "C#: starting…".into();
@@ -89,31 +110,6 @@ impl Workbench {
     }
 
     // ───────────── the Roslyn language server ─────────────
-
-    /// How to start the installed Roslyn server for `root` (its solution, else its projects). Offers to
-    /// install it when it isn't, and says what's missing.
-    fn roslyn_server_config(&mut self, root: &Path, cx: &mut Context<Self>) -> Option<ServerConfig> {
-        let cache = self.paths.cache_dir();
-        let Some((version, dll)) = bf_core::roslyn::installed(&cache).into_iter().next() else {
-            self.lsp_status = "C#: Roslyn not installed".into();
-            self.log("The Roslyn language server isn't installed. Run \"C#: Install or Update Roslyn Language Server\" (it downloads it from Microsoft's NuGet feed), or set \"csharp.server\" back to \"csharp-ls\".");
-            self.show_panel(PanelView::Output, cx);
-            return None;
-        };
-        if !bf_core::roslyn::runtime_available() {
-            self.lsp_status = "C#: needs .NET 10".into();
-            self.log("The Roslyn language server needs the .NET 10 runtime or newer (dotnet --list-runtimes).");
-            self.show_panel(PanelView::Output, cx);
-            return None;
-        }
-        let logs = cache.join("roslyn-logs");
-        let _ = std::fs::create_dir_all(&logs);
-        let target = bf_core::dotnet::find_target(root, None, false);
-        let solution = target.as_deref().filter(|t| matches!(t.extension().and_then(|e| e.to_str()), Some("sln" | "slnx")));
-        let projects = if solution.is_some() { Vec::new() } else { bf_core::dotnet::projects(root) };
-        self.log(format!("C#: Roslyn language server {version}"));
-        Some(bf_lsp::roslyn_config(&dll, root.to_path_buf(), &logs, solution, &projects))
-    }
 
     /// "C#: Install or Update Roslyn Language Server": the newest version from Microsoft's feed, checked
     /// against Microsoft's signature; then switches to it (setting csharp.server) and restarts.
@@ -335,6 +331,45 @@ impl Workbench {
     }
 
     // ───────────── dotnet ─────────────
+}
+
+/// What keeps the Roslyn server from starting.
+enum RoslynMissing {
+    NotInstalled,
+    Runtime,
+}
+
+impl RoslynMissing {
+    fn status(&self) -> &'static str {
+        match self {
+            Self::NotInstalled => "C#: Roslyn not installed",
+            Self::Runtime => "C#: needs .NET 10",
+        }
+    }
+
+    fn message(&self) -> &'static str {
+        match self {
+            Self::NotInstalled => {
+                "The Roslyn language server isn't installed. Run \"C#: Install or Update Roslyn Language Server\" (it downloads it from Microsoft's NuGet feed), or set \"csharp.server\" back to \"csharp-ls\"."
+            }
+            Self::Runtime => "The Roslyn language server needs the .NET 10 runtime or newer (dotnet --list-runtimes).",
+        }
+    }
+}
+
+/// How to start the installed Roslyn server for `root` (its solution, else its projects), with its
+/// version. Blocking (runs `dotnet` and looks through the folder); run it off the UI thread.
+fn roslyn_setup(cache: &Path, root: &Path) -> Result<(String, ServerConfig), RoslynMissing> {
+    let (version, dll) = bf_core::roslyn::installed(cache).into_iter().next().ok_or(RoslynMissing::NotInstalled)?;
+    if !bf_core::roslyn::runtime_available() {
+        return Err(RoslynMissing::Runtime);
+    }
+    let logs = cache.join("roslyn-logs");
+    let _ = std::fs::create_dir_all(&logs);
+    let target = bf_core::dotnet::find_target(root, None, false);
+    let solution = target.as_deref().filter(|t| matches!(t.extension().and_then(|e| e.to_str()), Some("sln" | "slnx")));
+    let projects = if solution.is_some() { Vec::new() } else { bf_core::dotnet::projects(root) };
+    Ok((version, bf_lsp::roslyn_config(&dll, root.to_path_buf(), &logs, solution, &projects)))
 }
 
 #[cfg(test)]

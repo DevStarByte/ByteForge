@@ -445,6 +445,8 @@ impl Render for TextInput {
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::mouse_up))
             .on_mouse_move(cx.listener(Self::mouse_move))
             .w_full()
+            // a row, so the text grows to fill the box even where a percentage width can't resolve
+            .flex()
             .overflow_hidden()
             .bg(t.bg("input.background"))
             .text_color(t.c("input.foreground"))
@@ -493,6 +495,8 @@ impl Element for InputElement {
     fn request_layout(&mut self, _: Option<&GlobalElementId>, _: Option<&gpui::InspectorElementId>, window: &mut Window, cx: &mut App) -> (LayoutId, ()) {
         let mut style = Style::default();
         style.size.width = relative(1.).into();
+        style.flex_grow = 1.;
+        style.min_size.width = px(0.).into();
         style.size.height = window.line_height().into();
         (window.request_layout(style, [], cx), ())
     }
@@ -630,6 +634,8 @@ impl Element for MultiLineElement {
         let line_height = window.line_height();
         let mut style = Style::default();
         style.size.width = relative(1.).into();
+        style.flex_grow = 1.;
+        style.min_size.width = px(0.).into();
         let id = window.request_measured_layout(style, move |known, available, window, _| {
             let width = known.width.or(match available.width {
                 AvailableSpace::Definite(w) => Some(w),
