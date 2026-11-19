@@ -78,7 +78,12 @@ Section 1 above is what still has to be checked by hand; this is what the releas
       server: it's installed from nuget.org (`roslyn-language-server.<platform>`), whose package carries the Razor
       extension; the server serves Razor files itself (cohosting). Its HTML requests (`razor/updateHtml` and
       forwarded `textDocument/*`) are answered without HTML results, as there is no HTML language server yet.
-- [ ] Blazor WebAssembly debugging.
+- [x] Blazor WebAssembly debugging: F5 on a standalone WebAssembly app (`Microsoft.NET.Sdk.BlazorWebAssembly`)
+      uses ByteForge's own debug adapter (`byteforge --blazor-wasm-adapter`, DAP like netcoredbg): it runs the
+      app, opens it in Edge/Chrome/Chromium with remote debugging, and talks the DevTools protocol through
+      Microsoft's WebAssembly debug proxy (BrowserDebugHost, from the WebAssembly SDK pack of the app's .NET
+      version; .NET 11's gateway no longer starts it). Breakpoints in .razor and .cs, stepping, call stack,
+      locals, watch and hover, Console output. Still open: the WebAssembly part of a Blazor Web App.
 - [x] Git pull that isn't fast-forward only: diverged branches are merged, or rebased with `pull.rebase` (or
       `branch.<name>.rebase`); `pull.ff = only` is honored. A pull that stops at conflicts says what to do next;
       mid-rebase, Commit (or Git: Continue Rebase) goes on once the files are resolved, Git: Abort Rebase goes back.

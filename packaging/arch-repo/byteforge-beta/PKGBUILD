@@ -1,0 +1,59 @@
+# Maintainer: DevStarByte <devstarbyte@protonmail.com>
+#
+# byteforge-beta in the [devstarbyte] pacman repo (DevStarByte/arch-repo): the newest ByteForge build,
+# pre-release (v*-beta.N) or stable (vX.Y.Z), whichever is newer. It replaces an installed byteforge package.
+# Source of truth: packaging/arch-repo/byteforge-beta/PKGBUILD in DevStarByte/ByteForge. The release
+# workflow copies it to arch-repo's pkgs/byteforge-beta/ with pkgver set to the tag on every version tag,
+# and arch-repo builds, signs and publishes it. Edit it in ByteForge, not in arch-repo.
+# Keep depends/optdepends in sync with packaging/arch/PKGBUILD.
+# pacman versions can't hold "-", so v1.1.0-beta.4 becomes 1.1.0beta.4, which sorts before 1.1.0.
+pkgname=byteforge-beta
+pkgver=1.1.0beta.4  # set by the release workflow
+pkgrel=1
+_tag="v${pkgver/beta/-beta}"
+pkgdesc="A modular, themeable IDE for C# built with Rust and GPUI (pre-release)"
+provides=("byteforge=$pkgver")
+conflicts=('byteforge')
+arch=('x86_64')
+url="https://github.com/DevStarByte/ByteForge"
+license=('GPL-2.0-only')
+depends=('vulkan-icd-loader' 'libxkbcommon' 'libxkbcommon-x11' 'wayland' 'libx11' 'libxcb'
+         'fontconfig' 'freetype2' 'alsa-lib' 'dotnet-sdk' 'curl')
+makedepends=('git' 'rust' 'cmake' 'clang' 'pkgconf')
+optdepends=('ttf-jetbrains-mono: default editor font'
+            'netcoredbg: debugger (AUR)'
+            'aspnet-runtime: run ASP.NET Core, Razor and Blazor projects'
+            'aspnet-targeting-pack: build ASP.NET Core, Razor and Blazor projects'
+            'docker: Docker view'
+            'docker-compose: Compose up/down'
+            'python: CSharpier formatter module'
+            'vulkan-radeon: AMD Vulkan driver'
+            'vulkan-intel: Intel Vulkan driver'
+            'nvidia-utils: NVIDIA Vulkan driver')
+# makepkg's LTO flags turn the C parts (tree-sitter grammars) into GCC LTO objects rust-lld can't link.
+options=('!lto' '!debug')
+source=("byteforge::git+$url.git#tag=$_tag")
+sha256sums=('SKIP')
+
+prepare() {
+  cd byteforge
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd byteforge
+  # the updater compares against the release version, beta suffix included
+  BYTEFORGE_VERSION="${_tag#v}" cargo build --release --frozen -p byteforge
+}
+
+package() {
+  cd byteforge
+  install -Dm755 target/release/byteforge "$pkgdir/usr/lib/byteforge/byteforge"
+  install -dm755 "$pkgdir/usr/lib/byteforge/themes"
+  install -m644 themes/*.json "$pkgdir/usr/lib/byteforge/themes/"
+  cp -r --no-preserve=ownership modules "$pkgdir/usr/lib/byteforge/modules"
+  install -dm755 "$pkgdir/usr/bin"
+  ln -s /usr/lib/byteforge/byteforge "$pkgdir/usr/bin/byteforge"
+  install -Dm644 packaging/linux/byteforge.desktop "$pkgdir/usr/share/applications/byteforge.desktop"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/byteforge/README.md"
+}

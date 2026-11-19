@@ -362,8 +362,19 @@ impl Shared {
     }
 }
 
-/// SIGKILLs every process below `pid` (Linux; elsewhere killing the adapter is all we can do).
+/// Kills every process below `pid`: SIGKILL on Linux, `taskkill /T` on Windows (it ends the adapter too;
+/// the Blazor WebAssembly adapter starts the app, a debug proxy and a browser, which must not outlive it).
 fn kill_descendants(pid: u32) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        let _ = Command::new("taskkill")
+            .args(["/T", "/F", "/PID", &pid.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+            .status();
+    }
     #[cfg(target_os = "linux")]
     {
         let mut parents: HashMap<u32, Vec<u32>> = HashMap::new();
@@ -382,7 +393,7 @@ fn kill_descendants(pid: u32) {
             let _ = Command::new("kill").args(["-KILL", &p.to_string()]).stderr(Stdio::null()).status();
         }
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", windows)))]
     let _ = pid;
 }
 

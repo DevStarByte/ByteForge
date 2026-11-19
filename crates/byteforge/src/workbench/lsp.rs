@@ -132,18 +132,20 @@ impl Workbench {
 
     // ───────────── the Roslyn language server ─────────────
 
-    /// "C#: Install or Update Roslyn Language Server": the newest version from Microsoft's feed, checked
-    /// against Microsoft's signature; then switches to it (setting csharp.server) and restarts.
+    /// "C#: Install or Update Roslyn Language Server": the newest version from nuget.org, checked against
+    /// Microsoft's signature; then switches to it (setting csharp.server) and restarts.
     pub(super) fn install_roslyn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let cache = self.paths.cache_dir();
         self.lsp_status = "C#: getting Roslyn…".into();
-        self.log("Looking for the newest Roslyn language server on Microsoft's NuGet feed…");
+        self.log("Looking for the newest Roslyn language server on nuget.org…");
         self.show_panel(PanelView::Output, cx);
         let task = cx.background_spawn(async move {
+            bf_core::roslyn::remove_partial_installs(&cache);
             let (base, version) = bf_core::roslyn::latest()?;
             let installed = bf_core::roslyn::installed(&cache);
-            if installed.first().is_some_and(|(v, _)| *v == version) {
-                return Ok((version, false));
+            if !bf_core::roslyn::is_newer_than_installed(&version, &installed) {
+                // Up to date (an installed version can even be newer than what the feed offers).
+                return Ok((installed.first().map(|(v, _)| v.clone()).unwrap_or(version), false));
             }
             bf_core::roslyn::install(&cache, &base, &version)?;
             // Older versions aren't needed anymore.

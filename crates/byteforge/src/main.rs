@@ -88,7 +88,16 @@ fn detach_from_terminal() {
     }
 }
 
+/// Starts the Blazor WebAssembly debug adapter instead of the IDE (the IDE's debugger starts its own
+/// executable with it, so nothing extra ships).
+pub const WASM_ADAPTER_FLAG: &str = "--blazor-wasm-adapter";
+
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some(WASM_ADAPTER_FLAG) {
+        bf_core::paths::import_login_shell_path();
+        bf_dap::wasm::run_stdio();
+        return;
+    }
     #[cfg(unix)]
     detach_from_terminal();
     bf_core::paths::import_login_shell_path();

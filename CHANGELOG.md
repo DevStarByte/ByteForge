@@ -13,6 +13,18 @@ Released as betas while section 1 of the roadmap (everyday use) is finished; the
   Razor extension; run "C#: Install or Update Roslyn Language Server" once to get it. HTML in Razor files has no
   completion of its own yet.
 - The Roslyn server runs with its telemetry off.
+- Blazor WebAssembly debugging: F5 on a standalone Blazor WebAssembly app builds and runs it, opens it in Edge,
+  Chrome or Chromium (`"debug.browser"` picks one) and stops at breakpoints in `.razor` and `.cs` files, with
+  stepping, the call stack, locals, watch and hover values, and the app's Console output in the Debug Console.
+  Works with .NET 11's new gateway too. Shift+F5 (or closing the browser) ends it and stops the app.
+- Markdown preview: it can be used now, not only read. It scrolls with the wheel and the keyboard (arrows, Page
+  Up/Down, Home/End, Space), text can be selected with the mouse and copied (Ctrl+C, Ctrl+A, double click for a
+  block), links open (and `#heading` links jump to the heading), and task list checkboxes tick or clear the
+  source. The preview keeps its scroll position when you switch tabs.
+- "Install or Update Roslyn Language Server" no longer fails with "directory not empty" when an older version is
+  still in use, and never goes back to an older version than the one installed.
+- Windows: stopping a debug session also ends what the debugger started (the app, a browser), not only the
+  debugger.
 - Git pull isn't fast-forward only any more. When your branch and the remote both have new commits, Pull (and
   Sync) merges them, or rebases yours on top when `pull.rebase` (or `branch.<name>.rebase`) is set; `pull.ff =
   only` is still honored. A pull that stops at conflicting changes says what to do next: resolve them in the

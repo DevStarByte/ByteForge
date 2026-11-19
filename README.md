@@ -71,13 +71,13 @@ Add the DevStarByte repo to `/etc/pacman.conf` (one repo for all DevStarByte pro
 ```ini
 [devstarbyte]
 SigLevel = Required
-Server = https://raw.githubusercontent.com/DevStarByte/arch-repo/main/$arch
+Server = https://raw.githubusercontent.com/DevStarByte/arch-repo/master/$arch
 ```
 
 and trust its signing key once:
 
 ```sh
-curl -sL https://raw.githubusercontent.com/DevStarByte/arch-repo/main/devstarbyte.asc | sudo pacman-key --add -
+curl -sL https://raw.githubusercontent.com/DevStarByte/arch-repo/master/devstarbyte.asc | sudo pacman-key --add -
 sudo pacman-key --lsign-key 2F59DCCF36A08B6C4BB5556DF8E225736ED216F0
 ```
 
@@ -179,8 +179,9 @@ themes and modules in that folder (to try a theme or a build without touching yo
   server (`"csharp.server": "roslyn"`); with csharp-ls their errors show up after a build. HTML in them has no
   completion or hover of its own (there is no HTML language server).
 - No Change Signature refactoring: neither csharp-ls nor the Roslyn server offers it outside Visual Studio.
-- Blazor WebAssembly can't be debugged, and neither can apps in Alpine (musl) containers (netcoredbg has no
-  musl release).
+- Apps in Alpine (musl) containers can't be debugged (netcoredbg has no musl release). Blazor WebAssembly apps
+  are debugged in Edge, Chrome or Chromium (Firefox isn't supported); a Blazor Web App's server project is
+  debugged as usual, its WebAssembly client part not yet.
 - Windows downloads aren't code-signed yet and the macOS app isn't notarized (see [Install](#install)).
 - Very large solutions take a while before diagnostics appear.
 

@@ -12,6 +12,8 @@ serde_json = { workspace = true }
 parking_lot = { workspace = true }
 log = { workspace = true }
 bf-lsp = { workspace = true }
+# The Blazor WebAssembly adapter talks to the app's debug proxy over a local ws:// WebSocket (no TLS).
+tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 
 [dev-dependencies]
 bf-core = { workspace = true }

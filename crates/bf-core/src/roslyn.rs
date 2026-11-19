@@ -131,16 +131,40 @@ fn verify_and_unpack(package: &Path, target: &Path) -> anyhow::Result<PathBuf> {
     if !out.status.success() || !signed_by_microsoft(&text) {
         bail!("the downloaded package isn't signed by Microsoft, so it wasn't installed:\n{}", text.trim());
     }
-    let _ = std::fs::remove_dir_all(target);
-    let partial = target.with_extension("partial");
+    if target.exists() && std::fs::remove_dir_all(target).is_err() {
+        bail!("{} is in use (a server from it is still running); restart ByteForge and try again", target.display());
+    }
+    // Not with_extension: that would cut the version's last part ("5.4.0-2.26179.14" → "5.4.0-2.26179.partial").
+    let partial = partial_dir(target);
     let _ = std::fs::remove_dir_all(&partial);
     unpack(package, &partial)?;
-    std::fs::rename(&partial, target)?;
+    std::fs::rename(&partial, target).with_context(|| format!("could not move the server into {}", target.display()))?;
     let dll = target.join(DLL);
     if !dll.is_file() {
         bail!("the package has no {DLL}");
     }
     Ok(dll)
+}
+
+/// Where a version is unpacked before it's moved into place: `<version>.partial` next to it.
+fn partial_dir(target: &Path) -> PathBuf {
+    let mut name = target.file_name().unwrap_or_default().to_os_string();
+    name.push(".partial");
+    target.with_file_name(name)
+}
+
+/// Whether `latest` is newer than every installed version (an update never goes back to an older one).
+pub fn is_newer_than_installed(latest: &str, installed: &[(String, PathBuf)]) -> bool {
+    installed.iter().all(|(v, _)| crate::nuget::compare_versions(latest, v) == std::cmp::Ordering::Greater)
+}
+
+/// Removes what interrupted installs left behind (`*.partial` folders).
+pub fn remove_partial_installs(cache: &Path) {
+    for entry in std::fs::read_dir(cache.join("roslyn")).into_iter().flatten().flatten() {
+        if entry.file_name().to_string_lossy().ends_with(".partial") {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
 }
 
 /// The path of a package entry inside the tool's folder, `tools/<framework>/<rid>/` (whatever the
@@ -205,6 +229,16 @@ mod tests {
         assert!(signed_by_microsoft(ok));
         assert!(!signed_by_microsoft("Subject Name: CN=Someone Else\nSuccessfully verified package 'X'."));
         assert!(!signed_by_microsoft("Subject Name: CN=Microsoft Corporation\nerror: NU3008: The package integrity check failed."));
+    }
+
+    #[test]
+    fn installs_only_go_forward() {
+        let installed = vec![("5.13.0-1.26514.10".to_owned(), PathBuf::new()), ("5.4.0-2.26179.14".to_owned(), PathBuf::new())];
+        assert!(!is_newer_than_installed("5.13.0-1.26514.10", &installed), "same version");
+        assert!(!is_newer_than_installed("5.4.0-2.26179.14", &installed), "older than one installed");
+        assert!(is_newer_than_installed("5.14.0-1.26600.1", &installed));
+        assert!(is_newer_than_installed("5.4.0-2.26179.14", &[]));
+        assert_eq!(partial_dir(Path::new("/c/roslyn/5.4.0-2.26179.14")), PathBuf::from("/c/roslyn/5.4.0-2.26179.14.partial"));
     }
 
     #[test]

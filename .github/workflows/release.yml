@@ -15,7 +15,9 @@
 #   byteforge-<pkgver>-1-x86_64.pkg.tar.zst Arch package (`sudo pacman -U <file>`)
 #   ByteForge-<ver>-macos-arm64.dmg         macOS app, Apple Silicon (ad-hoc signed, not notarized)
 #   ByteForge-<ver>-macos-x64.dmg           macOS app, Intel (ad-hoc signed, not notarized)
-# The signed [devstarbyte] pacman repo is still built by DevStarByte/arch-repo.
+#
+# After the release, the arch-repo job hands the version to the signed [devstarbyte] pacman repo
+# (DevStarByte/arch-repo, PKGBUILDs in packaging/arch-repo/), which builds and publishes it.
 name: Release
 
 on:
@@ -216,6 +218,7 @@ jobs:
     container: archlinux:base-devel
     env:
       PKGVER: ${{ needs.version.outputs.pkgver }}
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - name: Install git
         run: pacman -Syu --noconfirm --needed git
@@ -233,7 +236,8 @@ jobs:
         working-directory: packaging/arch
         run: |
           sed -i "s/^pkgver=.*/pkgver=$PKGVER/" PKGBUILD
-          sudo -u builder makepkg --syncdeps --noconfirm
+          # the updater compares against the release version, beta suffix included
+          sudo -u builder env BYTEFORGE_VERSION="$VERSION" makepkg --syncdeps --noconfirm
 
       - uses: actions/upload-artifact@v4
         with:
@@ -298,3 +302,79 @@ jobs:
             dist/*.pkg.tar.zst
             dist/*.dmg
           fail_on_unmatched_files: true
+
+  # Hand the release to the [devstarbyte] pacman repo (DevStarByte/arch-repo). The PKGBUILDs live here in
+  # packaging/arch-repo/; this copies them into arch-repo's pkgs/ with pkgver set to the tag and pushes.
+  # That push starts arch-repo's "Build packages" workflow, which builds, signs (its GPG_PRIVATE_KEY stays
+  # there) and publishes them; computers get them on their next `pacman -Syu`.
+  #   pre-release vX.Y.Z-beta.N -> byteforge-beta
+  #   release     vX.Y.Z        -> byteforge and byteforge-beta (beta always carries the newest build)
+  # A package whose arch-repo version is already newer or equal is left alone (re-runs, old tags).
+  # Needs the secret ARCH_REPO_TOKEN: a fine-grained token with "Contents: read and write" on
+  # DevStarByte/arch-repo (the run's own GITHUB_TOKEN can't push there, and its pushes start no workflow).
+  # Without it the job only warns, the GitHub release is out either way.
+  arch-repo:
+    if: github.ref_type == 'tag'
+    needs: [version, release]
+    runs-on: ubuntu-latest
+    # Arch for vercmp, pacman's own version compare
+    container: archlinux:base
+    env:
+      PKGVER: ${{ needs.version.outputs.pkgver }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+      ARCH_REPO_TOKEN: ${{ secrets.ARCH_REPO_TOKEN }}
+    steps:
+      - name: Install git
+        run: pacman -Syu --noconfirm --needed git
+
+      - uses: actions/checkout@v4
+        with:
+          path: byteforge
+
+      - name: Check out arch-repo
+        id: checkout
+        run: |
+          if [ -z "$ARCH_REPO_TOKEN" ]; then
+            echo "::warning::No ARCH_REPO_TOKEN secret: the [devstarbyte] pacman repo was not updated to $PKGVER"
+            exit 0
+          fi
+          git clone "https://x-access-token:$ARCH_REPO_TOKEN@github.com/DevStarByte/arch-repo.git" arch-repo
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Update the PKGBUILDs
+        if: steps.checkout.outputs.ok == 'true'
+        run: |
+          pkgs=byteforge-beta
+          [ "$PRERELEASE" = true ] || pkgs="byteforge $pkgs"
+          changed=
+          for name in $pkgs; do
+            dest="arch-repo/pkgs/$name/PKGBUILD"
+            if [ -f "$dest" ]; then
+              current=$(sed -n 's/^pkgver=\([^ #]*\).*/\1/p' "$dest")
+              if [ "$(vercmp "$current" "$PKGVER")" -ge 0 ]; then
+                echo "$name: arch-repo has $current, not older than $PKGVER; left alone"
+                continue
+              fi
+            fi
+            mkdir -p "$(dirname "$dest")"
+            sed -e "s/^pkgver=.*/pkgver=$PKGVER/" -e "s/^pkgrel=.*/pkgrel=1/" \
+              "byteforge/packaging/arch-repo/$name/PKGBUILD" > "$dest"
+            echo "$name: $PKGVER"
+            changed="$changed $name"
+          done
+          echo "CHANGED=$changed" >> "$GITHUB_ENV"
+
+      - name: Push to arch-repo
+        if: steps.checkout.outputs.ok == 'true' && env.CHANGED != ''
+        working-directory: arch-repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add pkgs
+          git commit -m "ByteForge $GITHUB_REF_NAME:$CHANGED"
+          # arch-repo may have moved on (its own build commits); retry on top of it
+          for i in 1 2 3; do
+            git push origin HEAD:master && exit 0
+            git pull --rebase origin master
+          done
+          exit 1

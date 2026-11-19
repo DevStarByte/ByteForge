@@ -255,6 +255,11 @@ pub fn render(markdown: &str, cx: &App) -> AnyElement {
 
 /// A code block with syntax colors when the language is known (C#, Razor, JSON, XML, YAML, or a module's).
 pub(crate) fn code_text(text: &str, language: Option<&str>, font: &gpui::Font, fg: Hsla, t: &Theme) -> StyledText {
+    StyledText::new(SharedString::from(text.to_owned())).with_runs(code_runs(text, language, font, fg, t))
+}
+
+/// The colored runs of [`code_text`].
+pub(crate) fn code_runs(text: &str, language: Option<&str>, font: &gpui::Font, fg: Hsla, t: &Theme) -> Vec<TextRun> {
     let language = language.and_then(bf_syntax::Language::from_id);
     let run = |len: usize, color: Hsla, bold: bool, italic: bool| TextRun {
         len,
@@ -287,7 +292,7 @@ pub(crate) fn code_text(text: &str, language: Option<&str>, font: &gpui::Font, f
     } else if !text.is_empty() {
         runs.push(run(text.len(), fg, false, false));
     }
-    StyledText::new(SharedString::from(text.to_owned())).with_runs(runs)
+    runs
 }
 
 #[cfg(test)]

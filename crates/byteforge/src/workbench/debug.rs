@@ -35,6 +35,8 @@ enum Target {
     Attach { pid: u32 },
     /// A process in a Docker container (its PID there), debugged by the netcoredbg put into it.
     Container { container: String, pid: u32 },
+    /// A Blazor WebAssembly app, debugged in a browser by ByteForge's own adapter (`--blazor-wasm-adapter`).
+    Wasm { project: PathBuf },
 }
 
 /// Source paths of a container session: breakpoints go out as short workspace-relative paths, stack
@@ -120,6 +122,11 @@ impl DebugSession {
         self.children.clear();
         self.expanded.clear();
     }
+}
+
+/// A standalone Blazor WebAssembly app (it runs in the browser, so it's debugged through the browser).
+fn is_blazor_wasm_project(project: &Path) -> bool {
+    std::fs::read_to_string(project).is_ok_and(|text| text.contains("Microsoft.NET.Sdk.BlazorWebAssembly"))
 }
 
 fn is_web_project(project: &Path) -> bool {
@@ -352,6 +359,10 @@ impl Workbench {
             self.show_panel(PanelView::Output, cx);
             return;
         };
+        // Blazor WebAssembly runs in the browser: ByteForge's own adapter debugs it, netcoredbg isn't needed.
+        if self.startup_project().is_some_and(|p| is_blazor_wasm_project(&p)) {
+            return self.debug_build_and_launch(root, String::new(), window, cx);
+        }
         self.with_debug_adapter(window, cx, move |wb, adapter, window, cx| wb.debug_build_and_launch(root, adapter, window, cx));
     }
 
@@ -456,6 +467,9 @@ impl Workbench {
             session.phase = Phase::Starting;
         }
         self.show_panel(PanelView::DebugConsole, cx);
+        if is_blazor_wasm_project(&project) {
+            return self.debug_connect(generation, Target::Wasm { project }, adapter, window, cx);
+        }
         let task = cx.background_spawn({
             let project = project.clone();
             async move { target_assembly(&project) }
@@ -736,12 +750,16 @@ impl Workbench {
 
     fn debug_connect(&mut self, generation: u64, target: Target, adapter: String, window: &mut Window, cx: &mut Context<Self>) {
         let cwd = match &target {
-            Target::Launch { project, .. } => project.parent().map(Path::to_path_buf),
+            Target::Launch { project, .. } | Target::Wasm { project } => project.parent().map(Path::to_path_buf),
             Target::Attach { .. } | Target::Container { .. } => self.workspace.root(),
         }
         .unwrap_or_else(|| PathBuf::from("."));
         let (command, args) = match &target {
             Target::Container { container, .. } => ("docker".to_owned(), bf_core::container::adapter_args(container)),
+            Target::Wasm { .. } => {
+                let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "byteforge".into());
+                (exe, vec![crate::WASM_ADAPTER_FLAG.to_owned()])
+            }
             _ => (adapter, vec!["--interpreter=vscode".into()]),
         };
         let (client, events) = match DapClient::start(AdapterConfig { command, args, cwd: cwd.clone() }) {
@@ -786,6 +804,29 @@ impl Workbench {
                 });
                 (arguments, false)
             }
+            Target::Wasm { project } => {
+                profile = launch_profile(project, self.chosen_launch_profile(project).as_deref());
+                let mut env = serde_json::Map::new();
+                if let Some(p) = &profile {
+                    for (key, value) in &p.env {
+                        env.insert(key.clone(), json!(value));
+                    }
+                }
+                env.entry("ASPNETCORE_ENVIRONMENT").or_insert(json!("Development"));
+                let via = profile.as_ref().map(|p| format!(" (launch profile \"{}\")", p.name)).unwrap_or_default();
+                self.debug_print(format!("Launching {} in the browser{via}\n", project.file_stem().map(|n| n.to_string_lossy()).unwrap_or_default()), cx);
+                let browser = self.settings.get_string("debug.browser").filter(|b| !b.is_empty());
+                let arguments = json!({
+                    "name": "Blazor WebAssembly",
+                    "type": "blazorwasm",
+                    "request": "launch",
+                    "project": project,
+                    "launchProfile": profile.as_ref().map(|p| p.name.clone()),
+                    "env": env,
+                    "browser": browser,
+                });
+                (arguments, false)
+            }
             Target::Attach { pid } | Target::Container { pid, .. } => (
                 json!({ "name": ".NET Attach", "type": "coreclr", "request": "attach", "processId": pid, "justMyCode": just_my_code }),
                 true,
@@ -822,6 +863,8 @@ impl Workbench {
             }
         });
         if let Some(session) = self.debug.as_mut() {
+            // The adapter opens the app in its own debugging browser.
+            session.browser_opened |= matches!(target, Target::Wasm { .. });
             session.client = Some(client);
             session.attached = attached;
             session.profile = profile;

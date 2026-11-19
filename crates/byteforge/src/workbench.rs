@@ -353,6 +353,8 @@ pub struct Workbench {
     /// The module whose details are open in the Modules view.
     registry_task: Option<Task<()>>,
     md_cache: preview::DiskCache,
+    /// The Markdown preview of each previewed file (its scroll position and selection survive tab switches).
+    md_views: HashMap<PathBuf, Entity<preview::MarkdownView>>,
     plugin_tx: Option<flume::Sender<PluginMessage>>,
     formatters: Vec<Formatter>,
     format_requests: HashMap<u64, PendingFormat>,
@@ -619,6 +621,7 @@ impl Workbench {
             module_filter,
             registry_task: None,
             md_cache: HashMap::new(),
+            md_views: HashMap::new(),
             plugin_tx: None,
             formatters: Vec::new(),
             format_requests: HashMap::new(),

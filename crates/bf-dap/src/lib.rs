@@ -6,6 +6,7 @@
 
 mod client;
 mod types;
+pub mod wasm;
 
 use std::path::PathBuf;
 

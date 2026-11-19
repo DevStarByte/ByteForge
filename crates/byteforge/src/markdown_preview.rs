@@ -2,12 +2,12 @@
 //! into a small block tree, then drawn with the theme's colors. Links open in the browser or, when relative,
 //! in ByteForge; local images are shown, remote ones (the app has no HTTP client) fall back to their alt text.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use gpui::{AnyElement, App, FontStyle, FontWeight, Hsla, InteractiveText, ObjectFit, SharedString, StrikethroughStyle, StyledImage, StyledText, TextRun, UnderlineStyle, Window, div, img, prelude::*, px, relative};
+use gpui::{AnyElement, App, FontStyle, FontWeight, Hsla, ObjectFit, SharedString, StrikethroughStyle, StyledImage, StyledText, TextLayout, TextRun, UnderlineStyle, Window, div, img, prelude::*, px, relative};
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 
 use crate::theme::Theme;
@@ -286,14 +286,69 @@ pub fn parse(markdown: &str) -> Vec<Block> {
     }
 }
 
-/// Called with a link's target when it is clicked.
-pub type LinkHandler = Rc<dyn Fn(&str, &mut Window, &mut App)>;
+/// Where a task list's checkboxes are in the source: the byte range of each `[ ]` / `[x]`, in order.
+pub fn task_markers(markdown: &str) -> Vec<Range<usize>> {
+    let options = Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS;
+    Parser::new_ext(markdown, options)
+        .into_offset_iter()
+        .filter(|(event, _)| matches!(event, Event::TaskListMarker(_)))
+        .map(|(_, range)| range)
+        .collect()
+}
+
+/// `markdown` with its `index`th checkbox ticked (`done`) or cleared; None if there's no such checkbox.
+pub fn set_task(markdown: &str, index: usize, done: bool) -> Option<String> {
+    let range = task_markers(markdown).into_iter().nth(index)?;
+    let marker = &markdown[range.clone()];
+    let inner = marker.find(['x', 'X', ' '])? + range.start;
+    let mut out = markdown.to_owned();
+    out.replace_range(inner..inner + 1, if done { "x" } else { " " });
+    Some(out)
+}
+
+/// A heading's anchor the way GitHub makes it: lowercase, spaces to dashes, punctuation dropped.
+pub fn heading_slug(text: &str) -> String {
+    text.trim()
+        .chars()
+        .filter_map(|c| match c {
+            ' ' => Some('-'),
+            c if c.is_alphanumeric() || c == '-' || c == '_' => Some(c.to_lowercase().next().unwrap_or(c)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A position in the drawn text: (text block, byte offset in it).
+pub type Pos = (usize, usize);
+
+/// One drawn block of text: where it was laid out, what it says and its links (byte ranges).
+#[derive(Clone)]
+pub struct TextRef {
+    pub layout: TextLayout,
+    pub text: SharedString,
+    pub links: Vec<(Range<usize>, String)>,
+}
+
+/// What a render drew, for hit-testing mouse positions afterwards.
+#[derive(Default)]
+pub struct Rendered {
+    pub texts: Vec<TextRef>,
+    /// Heading anchors and the text block of each heading.
+    pub headings: Vec<(String, usize)>,
+}
+
+/// Called with a checkbox's index (in document order) and its new state when it is clicked.
+pub type TaskHandler = Rc<dyn Fn(usize, bool, &mut Window, &mut App)>;
 
 struct Ctx<'a> {
     t: &'a Theme,
     base: PathBuf,
-    on_link: LinkHandler,
     ids: Cell<usize>,
+    out: Rc<RefCell<Rendered>>,
+    selection: Option<(Pos, Pos)>,
+    selection_bg: Hsla,
+    tasks: Cell<usize>,
+    on_task: TaskHandler,
     fg: Hsla,
     muted: Hsla,
     link: Hsla,
@@ -320,16 +375,61 @@ impl Ctx<'_> {
         let path = Path::new(&decoded);
         Some(if path.is_absolute() { path.to_path_buf() } else { self.base.join(path) })
     }
+
+    /// Records a block of text (with the selection painted into it) and returns it to draw.
+    fn text(&self, text: String, runs: Vec<TextRun>, links: Vec<(Range<usize>, String)>) -> StyledText {
+        let index = self.out.borrow().texts.len();
+        let runs = match self.selection {
+            Some((a, b)) if a.0 <= index && index <= b.0 => {
+                let start = if index == a.0 { a.1 } else { 0 };
+                let end = if index == b.0 { b.1 } else { text.len() };
+                highlight(runs, start.min(text.len())..end.min(text.len()), self.selection_bg)
+            }
+            _ => runs,
+        };
+        let text = SharedString::from(text);
+        let styled = StyledText::new(text.clone()).with_runs(runs);
+        self.out.borrow_mut().texts.push(TextRef { layout: styled.layout().clone(), text, links });
+        styled
+    }
 }
 
-/// Draws a parsed document. `base` is the folder of the Markdown file (for relative images).
-pub fn render(blocks: &[Block], base: &Path, on_link: LinkHandler, cx: &App) -> AnyElement {
+/// `runs` with `range` given the selection background.
+fn highlight(runs: Vec<TextRun>, range: Range<usize>, bg: Hsla) -> Vec<TextRun> {
+    if range.is_empty() {
+        return runs;
+    }
+    let mut out = Vec::with_capacity(runs.len() + 2);
+    let mut at = 0;
+    for run in runs {
+        let (start, end) = (at, at + run.len);
+        at = end;
+        // The parts of this run before, inside and after the selection.
+        let cuts = [start, range.start.clamp(start, end), range.end.clamp(start, end), end];
+        for w in cuts.windows(2) {
+            if w[1] > w[0] {
+                let inside = w[0] >= range.start && w[1] <= range.end;
+                out.push(TextRun { len: w[1] - w[0], background_color: if inside { Some(bg) } else { run.background_color }, ..run.clone() });
+            }
+        }
+    }
+    out
+}
+
+/// Draws a parsed document. `base` is the folder of the Markdown file (for relative images); what was
+/// drawn goes to `out`, for the view to hit-test.
+pub fn render(blocks: &[Block], base: &Path, selection: Option<(Pos, Pos)>, on_task: TaskHandler, out: Rc<RefCell<Rendered>>, cx: &App) -> AnyElement {
     let t = Theme::global(cx);
+    *out.borrow_mut() = Rendered::default();
     let ctx = Ctx {
         t: &t,
         base: base.to_path_buf(),
-        on_link,
         ids: Cell::new(0),
+        out,
+        selection,
+        selection_bg: t.c("editor.selectionBackground"),
+        tasks: Cell::new(0),
+        on_task,
         fg: t.c("editor.foreground"),
         muted: t.c("foreground.muted"),
         link: if t.has("textLink.foreground") { t.c("textLink.foreground") } else { t.c("focusBorder") },
@@ -363,6 +463,9 @@ fn render_block(block: &Block, ctx: &Ctx, depth: usize) -> AnyElement {
                 5 => (14., 22.),
                 _ => (13., 20.),
             };
+            let plain: String = pieces.iter().filter_map(|p| if let Piece::Text { text, .. } = p { Some(text.as_str()) } else { None }).collect();
+            let index = ctx.out.borrow().texts.len();
+            ctx.out.borrow_mut().headings.push((heading_slug(&plain), index));
             div()
                 .mt(px(if *level <= 2 { 10. } else { 4. }))
                 .text_size(px(size))
@@ -373,20 +476,23 @@ fn render_block(block: &Block, ctx: &Ctx, depth: usize) -> AnyElement {
                 .into_any_element()
         }
         Block::Paragraph(pieces) => inline(pieces, ctx, None),
-        Block::Code { language, text } => div()
-            .id(ctx.id("code"))
-            .px(px(14.))
-            .py(px(10.))
-            .rounded(px(6.))
-            .bg(ctx.code_bg)
-            .border_1()
-            .border_color(Hsla { a: ctx.rule.a * 0.6, ..ctx.rule })
-            .overflow_x_scroll()
-            .font_family(ctx.t.editor_font.clone())
-            .text_size(px(13.))
-            .line_height(px(20.))
-            .child(div().whitespace_nowrap().child(crate::markdown::code_text(text, language.as_deref(), &ctx.code_font, ctx.fg, ctx.t)))
-            .into_any_element(),
+        Block::Code { language, text } => {
+            let runs = crate::markdown::code_runs(text, language.as_deref(), &ctx.code_font, ctx.fg, ctx.t);
+            div()
+                .id(ctx.id("code"))
+                .px(px(14.))
+                .py(px(10.))
+                .rounded(px(6.))
+                .bg(ctx.code_bg)
+                .border_1()
+                .border_color(Hsla { a: ctx.rule.a * 0.6, ..ctx.rule })
+                .overflow_x_scroll()
+                .font_family(ctx.t.editor_font.clone())
+                .text_size(px(13.))
+                .line_height(px(20.))
+                .child(div().whitespace_nowrap().child(ctx.text(text.clone(), runs, Vec::new())))
+                .into_any_element()
+        }
         Block::Quote(blocks) => div()
             .pl(px(14.))
             .border_l(px(3.))
@@ -412,19 +518,32 @@ fn render_block(block: &Block, ctx: &Ctx, depth: usize) -> AnyElement {
     }
 }
 
+/// A task list's checkbox; a click ticks or clears it in the source.
 fn checkbox(done: bool, ctx: &Ctx) -> AnyElement {
+    let index = ctx.tasks.get();
+    ctx.tasks.set(index + 1);
     let accent = ctx.t.c("focusBorder");
+    let on_task = ctx.on_task.clone();
     div()
+        .id(SharedString::from(format!("md-task-{index}")))
+        .debug_selector(move || format!("md-task-{index}"))
         .mt(px(3.))
         .size(px(14.))
         .rounded(px(3.))
         .border_1()
         .border_color(if done { accent } else { ctx.muted })
         .when(done, |d| d.bg(accent))
+        .cursor_pointer()
         .flex()
         .items_center()
         .justify_center()
         .when(done, |d| d.child(crate::assets::icon("check", px(11.), ctx.t.c("editor.background"))))
+        // The view's own mouse handling (selection) must not see this click.
+        .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(move |_, window, cx| {
+            cx.stop_propagation();
+            on_task(index, !done, window, cx);
+        })
         .into_any_element()
 }
 
@@ -472,7 +591,7 @@ fn table(aligns: &[Alignment], head: &[Vec<Piece>], rows: &[Vec<Vec<Piece>>], ct
     el.into_any_element()
 }
 
-/// A run of text and images. Consecutive text becomes one wrapping, clickable text element.
+/// A run of text and images. Consecutive text becomes one wrapping text block.
 fn inline(pieces: &[Piece], ctx: &Ctx, weight: Option<FontWeight>) -> AnyElement {
     let mut parts: Vec<AnyElement> = Vec::new();
     let mut texts: Vec<&Piece> = Vec::new();
@@ -523,30 +642,18 @@ fn styled(pieces: &[&Piece], ctx: &Ctx, weight: Option<FontWeight>) -> AnyElemen
             strikethrough: style.strike.then_some(StrikethroughStyle { thickness: px(1.), color: Some(ctx.fg) }),
         });
         if let Some(url) = link {
+            let target = resolve_link(url, &ctx.base);
             match links.last_mut() {
-                Some((range, last)) if last == url && range.end == start => range.end = text.len(),
-                _ => links.push((start..text.len(), url.clone())),
+                Some((range, last)) if *last == target && range.end == start => range.end = text.len(),
+                _ => links.push((start..text.len(), target)),
             }
         }
     }
-    let styled = StyledText::new(SharedString::from(text)).with_runs(runs);
-    if links.is_empty() {
-        return div().line_height(relative(1.6)).child(styled).into_any_element();
-    }
-    let on_link = ctx.on_link.clone();
-    let (ranges, targets): (Vec<Range<usize>>, Vec<String>) = links.into_iter().unzip();
-    let base = ctx.base.clone();
-    let text = InteractiveText::new(ctx.id("text"), styled).on_click(ranges, move |ix, window, cx| {
-        if let Some(target) = targets.get(ix) {
-            let resolved = resolve_link(target, &base);
-            on_link(&resolved, window, cx);
-        }
-    });
-    div().line_height(relative(1.6)).child(text).into_any_element()
+    div().line_height(relative(1.6)).child(ctx.text(text, runs, links)).into_any_element()
 }
 
 /// A link target as an absolute path for local files, unchanged otherwise.
-fn resolve_link(target: &str, base: &Path) -> String {
+pub fn resolve_link(target: &str, base: &Path) -> String {
     if target.contains("://") || target.starts_with("mailto:") || target.starts_with('#') {
         return target.to_owned();
     }

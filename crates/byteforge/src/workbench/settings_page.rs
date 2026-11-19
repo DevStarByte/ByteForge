@@ -91,6 +91,7 @@ pub(super) fn all_settings() -> Vec<SettingInfo> {
         s!("Debugging", "debug.openBrowser", "Open the browser", Bool, true, "F5 on a web app opens its page once it listens."),
         s!("Debugging", "debug.breakOnExceptions", "Break on exceptions", choice(&["user-unhandled", "all", "never"]), ["user-unhandled"], "Which exceptions pause the program."),
         s!("Debugging", "debug.netcoredbgPath", "netcoredbg path", Text, "", "Path to the debugger (empty: found by itself)."),
+        s!("Debugging", "debug.browser", "Browser for Blazor WebAssembly", Text, "", "Edge, Chrome or Chromium to debug WebAssembly apps in (empty: found by itself)."),
         s!("Git", "git.blame.currentLine", "Blame of the current line", Bool, true, "Who last changed the caret's line, shown after it."),
         s!("Terminal", "terminal.shell", "Shell", Text, "", "The terminal's program (empty: your login shell)."),
         s!("Terminal", "terminal.args", "Shell arguments", List, Vec::<String>::new(), "Arguments for the shell, comma-separated."),
