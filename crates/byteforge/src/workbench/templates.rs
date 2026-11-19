@@ -384,6 +384,7 @@ impl Workbench {
 
 #[cfg(test)]
 mod tests {
+    use crate::actions::PressKeys;
     use super::*;
     use crate::workbench::settings_page::view_tests::workbench;
 
@@ -423,7 +424,7 @@ mod tests {
     /// Types into the open prompt and presses Enter.
     fn answer(cx: &mut gpui::VisualTestContext, text: &str) {
         cx.simulate_input(text);
-        cx.simulate_keystrokes("enter");
+        cx.press("enter");
         cx.run_until_parked();
     }
 
@@ -466,7 +467,7 @@ mod tests {
 
         // The pencil changes a value (the prompt starts with the old one), also to an empty one.
         click(cx, "secret-edit-Token");
-        cx.simulate_keystrokes("backspace");
+        cx.press("backspace");
         answer(cx, "");
         assert!(read().contains(&("Token".into(), String::new())), "{:?}", read());
         assert!(wb.read_with(cx, |wb, _| wb.palette.is_none()));

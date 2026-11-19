@@ -617,6 +617,7 @@ impl Workbench {
 
 #[cfg(test)]
 mod tests {
+    use crate::actions::PressKeys;
     use super::*;
     use crate::workbench::settings_page::view_tests::workbench;
 
@@ -1277,7 +1278,7 @@ mod tests {
         click_at(cx, x, y);
         assert_eq!(right.read_with(cx, |e, _| e.state.caret().line), 2);
         cx.simulate_input("!");
-        cx.simulate_keystrokes("ctrl-s");
+        cx.press("ctrl-s");
         cx.run_until_parked();
         assert_eq!(std::fs::read_to_string(&file).unwrap(), "one\r\nTWO\r\nthree!\r\n");
         drop(guard);
@@ -1390,7 +1391,7 @@ mod tests {
         // Click into the first conflict's incoming side, Ctrl+., and take the second entry (Incoming).
         let (x, y) = editor.read_with(cx, |e, _| (e.layout.text_left + 4.0, e.layout.top + 3.5 * e.layout.line_height));
         click_at(cx, x, y);
-        cx.simulate_keystrokes("ctrl-. down enter");
+        cx.press("ctrl-. down enter");
         cx.run_until_parked();
         assert_eq!(editor.read_with(cx, |e, _| e.conflict_summary().0), 1);
         let text = editor.read_with(cx, |e, _| e.state.buffer.text());
@@ -1501,18 +1502,18 @@ mod tests {
         cx.simulate_input("Subject");
         let height = |cx: &mut gpui::VisualTestContext| wb.update(cx, |wb, cx| wb.scm.read(cx).message_input().read(cx).bounds_for_test()).expect("drawn").size.height;
         let one_row = height(cx);
-        cx.simulate_keystrokes("enter enter");
+        cx.press("enter enter");
         cx.simulate_input("Body");
         assert_eq!(commit_count(&repo), 1, "Enter doesn't commit");
         assert_eq!(wb.update(cx, |wb, cx| wb.scm.read(cx).message_text(cx)), "Subject\n\nBody");
         // Up twice and Home: the start of the subject; typing goes there.
-        cx.simulate_keystrokes("up up home");
+        cx.press("up up home");
         cx.simulate_input("The ");
         assert_eq!(wb.update(cx, |wb, cx| wb.scm.read(cx).message_text(cx)), "The Subject\n\nBody");
         // The box grew with the text: three rows.
         let three_rows = height(cx);
         assert!(three_rows > one_row * 2.5, "three rows ({three_rows:?}) against one ({one_row:?})");
-        cx.simulate_keystrokes("ctrl-enter");
+        cx.press("ctrl-enter");
         wait_for(cx, "the commit", |_| commit_count(&repo) == 2);
         assert_eq!(git(&repo, &["log", "-1", "--format=%B"]), "The Subject\n\nBody");
         // A long line wraps onto more rows instead of running on.

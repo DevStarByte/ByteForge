@@ -339,6 +339,7 @@ impl Workbench {
 
 #[cfg(test)]
 mod tests {
+    use crate::actions::PressKeys;
     use super::*;
     use crate::workbench::settings_page::view_tests::workbench;
 
@@ -566,7 +567,7 @@ public class Calculator
         assert!(wait_for(cx, wb, 30, |wb, _| rename_prompt_open(wb)), "the rename prompt opens");
         let before = wb.read_with(cx, editor_text);
         cx.simulate_input(name);
-        cx.simulate_keystrokes("enter");
+        cx.press("enter");
         if several_files {
             apply_dialog(cx, wb);
         }
@@ -596,20 +597,20 @@ public class Calculator
         let Some((guard, wb, cx, _)) = csharp_project(cx, "refactor-menu", &[("Calculator.cs", CALCULATOR)], "Calculator.cs") else { return };
         // An expression: extract and introduce, no Rename, no fixes.
         select(cx, &wb, (10, 18), (10, 30));
-        cx.simulate_keystrokes("ctrl-shift-r");
+        cx.press("ctrl-shift-r");
         let menu = menu_after(cx, &wb).unwrap();
         assert_eq!(menu[..3], ["Extract method", "Extract local function", "Introduce local for 'left + right'"], "{menu:?}");
         assert!(menu.iter().all(|l| l.starts_with("Extract") || l.starts_with("Introduce")), "{menu:?}");
-        cx.simulate_keystrokes("escape");
+        cx.press("escape");
         // A class name: Rename first, then extracting an interface or a base class.
         select(cx, &wb, (6, 15), (6, 15));
-        cx.simulate_keystrokes("ctrl-shift-r");
+        cx.press("ctrl-shift-r");
         let menu = menu_after(cx, &wb).unwrap();
         assert_eq!(menu[..3], ["Rename 'Calculator'…", "Extract interface...", "Extract base class..."], "{menu:?}");
-        cx.simulate_keystrokes("escape");
+        cx.press("escape");
         // The caret right after a name (before its parenthesis) is on it.
         select(cx, &wb, (8, 18), (8, 18));
-        cx.simulate_keystrokes("ctrl-shift-r");
+        cx.press("ctrl-shift-r");
         let menu = menu_after(cx, &wb).unwrap();
         assert_eq!(menu.first().map(String::as_str), Some("Rename 'Add'…"), "{menu:?}");
         click_row(cx, &wb, "Rename 'Add'…");
@@ -618,7 +619,7 @@ public class Calculator
 
         // Picking Introduce Local introduces it and asks for its name.
         select(cx, &wb, (10, 18), (10, 30));
-        cx.simulate_keystrokes("ctrl-shift-r");
+        cx.press("ctrl-shift-r");
         menu_after(cx, &wb);
         click_row(cx, &wb, "Introduce local for 'left + right'");
         answer_rename(cx, &wb, "total", false);
@@ -633,7 +634,7 @@ public class Calculator
     fn extract_method_by_key_names_the_new_method(cx: &mut gpui::TestAppContext) {
         let Some((guard, wb, cx, _)) = csharp_project(cx, "refactor-extract", &[("Calculator.cs", CALCULATOR)], "Calculator.cs") else { return };
         select(cx, &wb, (11, 10), (11, 10));
-        cx.simulate_keystrokes("ctrl-r ctrl-m");
+        cx.press("ctrl-r ctrl-m");
         answer_rename(cx, &wb, "Print", false);
         let text = wb.read_with(cx, editor_text);
         assert!(text.contains("        Print(sum);\n") && text.contains("    private static void Print(int sum)\n    {\n        Console.WriteLine(sum);\n    }\n"), "{text}");
@@ -648,7 +649,7 @@ public class Calculator
         select(cx, &wb, (12, 15), (12, 15));
         cx.dispatch_action(crate::actions::ExtractInterface);
         assert_eq!(menu_after(cx, &wb), Some(vec!["Extract Interface isn't available here. Put the caret on the name of a class.".to_owned()]));
-        cx.simulate_keystrokes("escape");
+        cx.press("escape");
 
         select(cx, &wb, (10, 12), (10, 12));
         cx.dispatch_action(crate::actions::InlineSymbol);
@@ -661,7 +662,7 @@ public class Calculator
         select(cx, &wb, (11, 32), (11, 33));
         cx.dispatch_action(crate::actions::IntroduceField);
         assert_eq!(menu_after(cx, &wb), Some(vec!["Introduce Field isn't available for this selection.".to_owned()]));
-        cx.simulate_keystrokes("escape");
+        cx.press("escape");
         cx.dispatch_action(crate::actions::IntroduceConstant);
         menu_after(cx, &wb);
         click_row(cx, &wb, "Introduce constant for '2'");
@@ -678,7 +679,7 @@ public class Calculator
     fn extract_interface_and_base_class(cx: &mut gpui::TestAppContext) {
         let Some((guard, wb, cx, file)) = csharp_project(cx, "refactor-types", &[("Calculator.cs", CALCULATOR)], "Calculator.cs") else { return };
         select(cx, &wb, (6, 15), (6, 15));
-        cx.simulate_keystrokes("ctrl-r ctrl-i");
+        cx.press("ctrl-r ctrl-i");
         apply_dialog(cx, &wb);
         let interface = file.with_file_name("ICalculator.cs");
         answer_rename(cx, &wb, "IAdder", true);
@@ -704,7 +705,7 @@ public class Calculator
         // The unused usings come as diagnostics; the command needs them.
         wait_for(cx, &wb, 30, |wb, cx| wb.active_editor().is_some_and(|e| e.read(cx).diagnostics.iter().any(|d| d.code.as_deref() == Some("CS8019"))));
         select(cx, &wb, (0, 0), (0, 0));
-        cx.simulate_keystrokes("ctrl-r ctrl-g");
+        cx.press("ctrl-r ctrl-g");
         let ok = wait_for(cx, &wb, 30, |wb, cx| editor_text(wb, cx).starts_with("using System;\nusing System.Collections.Generic;\n\nnamespace Demo;"));
         assert!(ok, "{}\n{:?}", wb.read_with(cx, editor_text), wb.read_with(cx, menu_lines));
         stop(cx, &wb);

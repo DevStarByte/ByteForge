@@ -566,6 +566,7 @@ pub(super) enum AutoSave {
 
 #[cfg(test)]
 mod tests {
+    use crate::actions::PressKeys;
     use super::*;
     use crate::workbench::settings_page::view_tests::workbench;
     use gpui::{Modifiers, VisualTestContext};
@@ -647,7 +648,7 @@ mod tests {
     fn dragging_a_tab_into_the_other_group(cx: &mut gpui::TestAppContext) {
         let (guard, wb, cx) = workbench(cx, "tab-other-group");
         open_files(&wb, cx, &guard.dir.join("ws"), &["a.txt", "b.txt", "c.txt"]);
-        cx.simulate_keystrokes("ctrl-\\");
+        cx.press("ctrl-\\");
         cx.run_until_parked();
         assert_eq!(tabs(&wb, cx), vec![(0, "a.txt".into()), (0, "b.txt".into()), (1, "c.txt".into())]);
         // Onto the right group's empty strip: to its end.
@@ -683,7 +684,7 @@ mod tests {
     fn split_editor_with_one_file_shows_it_in_both_groups(cx: &mut gpui::TestAppContext) {
         let (guard, wb, cx) = workbench(cx, "split-one");
         open_files(&wb, cx, &guard.dir.join("ws"), &["a.txt"]);
-        cx.simulate_keystrokes("ctrl-\\");
+        cx.press("ctrl-\\");
         cx.run_until_parked();
         assert_eq!(tabs(&wb, cx), vec![(0, "a.txt".into()), (1, "a.txt".into())]);
         drop(guard);
@@ -709,7 +710,7 @@ mod tests {
         cx.simulate_input("X");
         cx.run_until_parked();
         assert_eq!(views(&wb, cx, "a.txt"), vec![(0, "Xa.txt\n".into(), true), (1, "Xa.txt\n".into(), true)]);
-        cx.simulate_keystrokes("ctrl-s");
+        cx.press("ctrl-s");
         cx.run_until_parked();
         assert_eq!(std::fs::read_to_string(dir.join("a.txt")).unwrap(), "Xa.txt\n");
         assert_eq!(views(&wb, cx, "a.txt"), vec![(0, "Xa.txt\n".into(), false), (1, "Xa.txt\n".into(), false)]);
@@ -719,7 +720,7 @@ mod tests {
         cx.simulate_input("Y");
         cx.run_until_parked();
         assert_eq!(views(&wb, cx, "a.txt"), vec![(0, "XYa.txt\n".into(), true), (1, "XYa.txt\n".into(), true)]);
-        cx.simulate_keystrokes("ctrl-z");
+        cx.press("ctrl-z");
         cx.run_until_parked();
         assert_eq!(views(&wb, cx, "a.txt"), vec![(0, "Xa.txt\n".into(), false), (1, "Xa.txt\n".into(), false)]);
 
@@ -727,14 +728,14 @@ mod tests {
         cx.simulate_input("Z");
         cx.run_until_parked();
         click(cx, "tab-1-a.txt".into());
-        cx.simulate_keystrokes("ctrl-w");
+        cx.press("ctrl-w");
         cx.run_until_parked();
         assert!(!cx.has_pending_prompt(), "closing one of two views doesn't ask to save");
         assert_eq!(tabs(&wb, cx), vec![(0, "a.txt".into()), (0, "b.txt".into())]);
         assert_eq!(views(&wb, cx, "a.txt"), vec![(0, "XZa.txt\n".into(), true)]);
         // The last view does ask.
         click(cx, "tab-0-a.txt".into());
-        cx.simulate_keystrokes("ctrl-w");
+        cx.press("ctrl-w");
         cx.run_until_parked();
         assert!(cx.has_pending_prompt(), "closing the last view of an unsaved file asks");
         cx.simulate_prompt_answer("Save");
@@ -763,7 +764,7 @@ mod tests {
         cx.dispatch_action(crate::actions::OpenInOtherGroup);
         cx.run_until_parked();
         assert_eq!(tabs(&wb, cx), vec![(0, "a.txt".into()), (0, "b.txt".into()), (1, "a.txt".into())]);
-        cx.simulate_keystrokes("ctrl-\\");
+        cx.press("ctrl-\\");
         cx.run_until_parked();
         assert_eq!(tabs(&wb, cx), vec![(0, "a.txt".into()), (0, "b.txt".into())]);
         drop(guard);
@@ -818,7 +819,7 @@ mod tests {
         assert_eq!(around, vec!["Foo".to_string()], "only the class is around the caret now");
 
         // Two groups: b.txt left, a.txt right; the right group's crumbs work there.
-        cx.simulate_keystrokes("ctrl-\\");
+        cx.press("ctrl-\\");
         cx.run_until_parked();
         assert_eq!(tabs(&wb, cx), vec![(0, "b.txt".into()), (1, "a.txt".into())]);
         editor.update(cx, |e, cx| e.go_to(Point::new(3, 4), cx));
@@ -827,7 +828,7 @@ mod tests {
         assert_eq!(crumb_menu(&wb, cx), Some(vec!["*Bar".to_string(), "Baz".into()]), "the methods of the class");
         wb.read_with(cx, |wb, _| assert_eq!(wb.active.map(|i| wb.tabs[i].title.as_str()), Some("a.txt"), "the clicked group is in front"));
         // Down and Enter pick the next one.
-        cx.simulate_keystrokes("down enter");
+        cx.press("down enter");
         redraw(cx);
         assert_eq!(crumb_menu(&wb, cx), None);
         assert_eq!(editor.read_with(cx, |e, _| e.state.caret()), Point::new(5, 9));
@@ -867,7 +868,7 @@ mod tests {
         // The file crumb: its folder, itself marked; Escape closes and gives the editor the keys back.
         click(cx, "crumb-0-c.txt".into());
         assert_eq!(crumb_menu(&wb, cx), Some(vec!["*c.txt".to_string()]));
-        cx.simulate_keystrokes("escape");
+        cx.press("escape");
         redraw(cx);
         assert_eq!(crumb_menu(&wb, cx), None);
         let focused = wb.update_in(cx, |wb, window, cx| wb.active_editor().unwrap().read(cx).focus_handle(cx).is_focused(window));
@@ -875,7 +876,7 @@ mod tests {
 
         // Keyboard: src lists sub (marked), Zeta, a.txt, b.txt; Down twice and Enter opens a.txt.
         click(cx, "crumb-0-src".into());
-        cx.simulate_keystrokes("down down enter");
+        cx.press("down down enter");
         redraw(cx);
         wb.read_with(cx, |wb, _| assert_eq!(wb.active.map(|i| wb.tabs[i].title.as_str()), Some("a.txt")));
 

@@ -324,6 +324,7 @@ mod copy_tests {
 
 #[cfg(test)]
 mod explorer_tests {
+    use crate::actions::PressKeys;
     use super::*;
     use crate::workbench::settings_page::view_tests::workbench;
 
@@ -351,7 +352,7 @@ mod explorer_tests {
             wb.update(cx, |wb, cx| wb.explorer.read(cx).selected_for_test().and_then(|p| p.strip_prefix(&ws).ok()).map(|p| p.to_string_lossy().replace('\\', "/")))
         };
         let press = |keys: &str, cx: &mut gpui::VisualTestContext| {
-            cx.simulate_keystrokes(keys);
+            cx.press(keys);
             cx.run_until_parked();
             selected(cx).unwrap_or_default()
         };
@@ -387,7 +388,7 @@ mod explorer_tests {
         // Copy README.md and paste it next to itself; a second paste gets the next free name.
         press("end ctrl-c ctrl-v", cx);
         press("end", cx);
-        cx.simulate_keystrokes("ctrl-v");
+        cx.press("ctrl-v");
         for _ in 0..50 {
             cx.run_until_parked();
             if ws.join("README copy 2.md").exists() {
@@ -425,7 +426,7 @@ mod explorer_tests {
             })
         };
         let press = |keys: &str, cx: &mut gpui::VisualTestContext| {
-            cx.simulate_keystrokes(keys);
+            cx.press(keys);
             cx.run_until_parked();
         };
         let wait_until = |cx: &mut gpui::VisualTestContext, done: &dyn Fn() -> bool| {

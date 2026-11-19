@@ -667,6 +667,20 @@ pub fn platform_keys(keys: &str) -> String {
     keys.split_whitespace().map(mac_chord).collect::<Vec<_>>().join(" ")
 }
 
+/// Tests type shortcuts the way they're written in the bindings ("ctrl-s"); `press` sends what the
+/// platform really binds (Cmd+S on macOS), so the same test passes on every OS.
+#[cfg(test)]
+pub trait PressKeys {
+    fn press(&mut self, keys: &str);
+}
+
+#[cfg(test)]
+impl PressKeys for gpui::VisualTestContext {
+    fn press(&mut self, keys: &str) {
+        self.simulate_keystrokes(&platform_keys(keys));
+    }
+}
+
 fn mac_chord(chord: &str) -> String {
     let special = match chord {
         // Word and document movement follow the macOS text conventions.
