@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Builds modules/index.json (the ByteForge module registry) from the module folders.
 
-Every folder in modules/ with a module.json is a package; all its files (except caches) are listed so the
+Every folder in modules/ with a module.json is a package; all its files (except caches and tests) are listed so the
 IDE can download them. Run from the root of the packages branch: python3 tools/mkindex.py
 """
 
@@ -38,7 +38,8 @@ for name in sorted(os.listdir(root)):
     for directory, dirs, names in os.walk(folder):
         dirs[:] = [d for d in dirs if d not in ("__pycache__", "node_modules") and not d.startswith(".")]
         for n in names:
-            if n.endswith((".pyc", ".pyo")) or n.startswith("."):
+            # tests (test_*.py) stay in the repository; users don't download them
+            if n.endswith((".pyc", ".pyo")) or n.startswith(".") or (n.startswith("test_") and n.endswith(".py")):
                 continue
             files.append(os.path.relpath(os.path.join(directory, n), folder).replace(os.sep, "/"))
     requires = [REQUIRES[m["command"]]] if m.get("command") in REQUIRES else []
