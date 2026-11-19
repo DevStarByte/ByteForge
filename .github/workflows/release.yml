@@ -1,10 +1,11 @@
-# Builds the release downloads and publishes them as a GitHub Release.
+# The whole pipeline: checks (clippy + tests), then builds the release downloads and publishes
+# them as a GitHub Release.
 #
 #   git tag v0.4.0 && git push origin v0.4.0           -> release
 #   git tag v0.4.0-beta.1 && git push origin v0.4.0-beta.1 -> pre-release (any tag with a "-")
 #
 # The tag (without its "-beta.N" part) must match the version in Cargo.toml.
-# Clippy and the whole test suite (ci.yml) run first; a failure stops the builds and the release.
+# Clippy and the whole test suite run first; a failure stops the builds and the release.
 # Pushes to master that touch the code (and runs started by hand) build the
 # downloads as workflow artifacts without publishing anything.
 #
@@ -29,7 +30,6 @@ on:
       - "modules/**"
       - "packaging/**"
       - ".github/workflows/release.yml"
-      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 permissions:
@@ -40,10 +40,62 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # clippy + the whole test suite (ci.yml) on Arch, Windows and macOS. Everything below waits for
-  # it through `version`, so nothing is built or published unless every check passes.
+  # Clippy (warnings fail the run) and the whole test suite on Arch Linux, Windows and macOS.
+  # Everything below waits for it through `version`, so nothing is built or published unless every
+  # check passes. Arch runs in an archlinux container with Arch's own rust, .NET SDK and git; Windows
+  # and macOS use the runners' preinstalled .NET SDK and git. Tests that need a tool the runner lacks
+  # (csharp-ls, netcoredbg, docker containers, …) skip themselves.
   tests:
-    uses: ./.github/workflows/ci.yml
+    name: tests (${{ matrix.name }})
+    permissions:
+      contents: read
+    env:
+      CARGO_TERM_COLOR: always
+      # English dotnet output, whatever the runner's locale (tests read it)
+      DOTNET_CLI_UI_LANGUAGE: en
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: arch
+            os: ubuntu-latest
+            container: archlinux:base-devel
+          - name: windows
+            os: windows-latest
+          - name: macos
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    steps:
+      # Before checkout: actions/checkout needs git in the container for a real clone.
+      - name: Arch packages
+        if: matrix.name == 'arch'
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git rust cmake clang pkgconf \
+            vulkan-icd-loader libxkbcommon libxkbcommon-x11 wayland libx11 libxcb \
+            fontconfig freetype2 alsa-lib dotnet-sdk curl
+
+      - uses: actions/checkout@v4
+
+      # The container runs as root on a checkout owned by the runner user; tests run git there.
+      - name: Trust the checkout
+        if: matrix.name == 'arch'
+        run: git config --global --add safe.directory '*'
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.name != 'arch'
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace --locked --no-fail-fast
 
   version:
     needs: tests

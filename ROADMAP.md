@@ -50,8 +50,8 @@ the Roslyn server above), and debugging in Alpine (musl) images (netcoredbg has 
 
 Section 1 above is what still has to be checked by hand; this is what the release itself needs.
 
-- [x] CI: clippy (warnings fail) and the whole test suite on Linux, Windows and macOS for every push and pull
-      request (`.github/workflows/ci.yml`), so a tag never ships an untested build.
+- [x] CI: clippy (warnings fail) and the whole test suite on Arch Linux, Windows and macOS as the first step of
+      the pipeline (`.github/workflows/release.yml`), so nothing is built or released untested.
 - [x] Privacy statement (docs/code-signing.md) lists every connection: the update check at start, modules,
       netcoredbg and the Roslyn server downloads.
 - [x] CHANGELOG.md, with what changed per version; the 1.0 notes come from it.
