@@ -29,6 +29,10 @@ live, and modules written in any language can extend it.
   return to where the caret was and forward again, across files
 - **C#:** completion, hover, go to definition, find references, rename, quick fixes and inlay hints, powered by
   `csharp-ls` (Roslyn)
+- **Code Lens:** reference counts above types and members ("3 references", click to list them) and Run Test /
+  Debug Test above tests
+- **Call and Type Hierarchy:** who calls a method and what it calls (Shift+Alt+H), base and derived types of a
+  type, as a tree in the panel that goes deeper when opened
 - **Refactoring:** a Refactor menu (Ctrl+Shift+R, the menu bar or right-click) with Extract Method, Extract Local
   Function, Extract Interface / Base Class, Introduce Variable / Constant / Field / Parameter, Inline, Move Type to
   File and Remove and Sort Usings; what a refactoring names (`NewMethod`, `value`) goes straight to Rename

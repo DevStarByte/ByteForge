@@ -7,6 +7,7 @@ mod editor_area;
 mod ef;
 mod files;
 mod git;
+mod hierarchy;
 mod lsp;
 mod module_views;
 mod modules;
@@ -144,6 +145,7 @@ enum PanelView {
     DebugConsole,
     Terminal,
     References,
+    Hierarchy,
 }
 
 #[derive(Clone, Copy)]
@@ -234,7 +236,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "-", "refactor.inline", "refactor.moveTypeToFile", "-", "refactor.removeAndSortUsings", "refactor.sortUsings",
     ]),
     ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.splitEditor", "view.openInOtherGroup", "-", "view.toggleWordWrap", "view.toggleSideBar", "view.togglePanel"]),
-    ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
+    ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "edit.showCallHierarchy", "edit.showTypeHierarchy", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.fileHistory", "git.showLineCommit", "git.toggleBlame", "git.toggleBlameGutter", "-",
         "merge.editor", "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
     ("Run", &[
@@ -292,6 +294,8 @@ pub struct Workbench {
     panel: PanelView,
     /// The last Find All References result (the References panel).
     references: Option<references::References>,
+    /// The last Show Call / Type Hierarchy (the Hierarchy panel).
+    hierarchy: Option<hierarchy::Hierarchy>,
     panel_visible: bool,
     panel_height: f32,
     panel_width: f32,
@@ -574,6 +578,7 @@ impl Workbench {
             side_width: 0.0,
             panel: PanelView::Problems,
             references: None,
+            hierarchy: None,
             panel_visible: false,
             panel_height: 0.0,
             panel_width: 0.0,
@@ -757,13 +762,16 @@ impl Workbench {
         }
         cx.bind_keys(bindings);
         let inlay_hints = self.settings.get("editor.inlayHints", true);
+        let code_lens = self.settings.get("editor.codeLens", true);
         for tab in &self.tabs {
             tab.editor.update(cx, |e, cx| {
-                let was = e.inlay_hints_enabled;
+                let (was_hints, was_lens) = (e.inlay_hints_enabled, e.code_lens_enabled);
                 self.configure_editor(e);
-                // Applied through the setter, so hints appear or go away right away.
-                e.inlay_hints_enabled = was;
+                // Applied through the setters, so hints and lenses appear or go away right away.
+                e.inlay_hints_enabled = was_hints;
                 e.set_inlay_hints(inlay_hints, cx);
+                e.code_lens_enabled = was_lens;
+                e.set_code_lens(code_lens, cx);
                 cx.notify();
             });
         }
@@ -781,6 +789,7 @@ impl Workbench {
         e.smooth_scrolling = s.get("editor.smoothScrolling", true);
         e.cursor_blinking = s.get("editor.cursorBlinking", true);
         e.inlay_hints_enabled = s.get("editor.inlayHints", true);
+        e.code_lens_enabled = s.get("editor.codeLens", true);
         e.folding_enabled = s.get("editor.folding", true);
         e.minimap_enabled = s.get("editor.minimap", true) && !e.read_only;
         e.word_wrap = s.get_string("editor.wordWrap").is_some_and(|w| w == "on");
@@ -1064,6 +1073,7 @@ pub(crate) fn default_key(id: &str) -> String {
         "edit.goToDefinition" => "f12",
         "edit.findReferences" => "shift-f12",
         "edit.goToImplementation" => "ctrl-f12",
+        "edit.showCallHierarchy" => "shift-alt-h",
         "edit.fold" => "ctrl-shift-[",
         "edit.unfold" => "ctrl-shift-]",
         "view.goToWorkspaceSymbol" => "ctrl-t",

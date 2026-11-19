@@ -88,6 +88,7 @@ impl EditorView {
             h.at = shift_point(h.at, c);
         }
         self.word_highlights.clear();
+        self.shift_lenses(c);
     }
 
     /// Asks for the uses of the symbol under the caret once the caret rests (only in language-server files).

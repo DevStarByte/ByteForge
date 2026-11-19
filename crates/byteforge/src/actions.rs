@@ -106,7 +106,7 @@ actions!(
         SelectDocEnd, PageUp, PageDown, SelectPageUp, SelectPageDown, ScrollLineUp, ScrollLineDown, Backspace, DeleteWordLeft,
         Delete, DeleteWordRight, Newline, Tab, Outdent, SelectAll, Copy, Cut, Paste, Undo, Redo, DuplicateLines, DeleteLines,
         MoveLinesUp, MoveLinesDown, ToggleComment, Find, Replace, FindNext, FindPrevious, TriggerCompletion, GoToDefinition,
-        Cancel, ToggleBreakpoint, QuickFix, FindReferences, RenameSymbol, ShowSignatureHelp, GoToImplementation, GoToTypeDefinition, Fold, Unfold, FoldAll, UnfoldAll,
+        Cancel, ToggleBreakpoint, QuickFix, FindReferences, RenameSymbol, ShowSignatureHelp, GoToImplementation, GoToTypeDefinition, ShowCallHierarchy, ShowTypeHierarchy, Fold, Unfold, FoldAll, UnfoldAll,
         AddCursorAbove, AddCursorBelow, AddNextMatch, SelectAllMatches, ToggleFindCase, ToggleFindWholeWord, ToggleFindRegex, ToggleWordWrap
     ]
 );
@@ -403,6 +403,8 @@ fn builtin() -> Vec<Builtin> {
         ("edit.findReferences", "Find All References", "Go", Box::new(FindReferences), None),
         ("edit.goToImplementation", "Go to Implementations", "Go", Box::new(GoToImplementation), None),
         ("edit.goToTypeDefinition", "Go to Type Definition", "Go", Box::new(GoToTypeDefinition), None),
+        ("edit.showCallHierarchy", "Show Call Hierarchy", "Go", Box::new(ShowCallHierarchy), None),
+        ("edit.showTypeHierarchy", "Show Type Hierarchy", "Go", Box::new(ShowTypeHierarchy), None),
         ("view.goToSymbol", "Go to Symbol in Editor…", "Go", Box::new(GoToSymbolInEditor), Some("alt-\\")),
         ("view.goToWorkspaceSymbol", "Go to Symbol in Workspace…", "Go", Box::new(GoToSymbolInWorkspace), Some("ctrl-t")),
         ("edit.rename", "Rename Symbol", "Edit", Box::new(RenameSymbol), None),
@@ -551,6 +553,7 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         kb("ctrl-.", QuickFix, e),
         kb("shift-f12", FindReferences, e),
         kb("ctrl-f12", GoToImplementation, e),
+        kb("shift-alt-h", ShowCallHierarchy, e),
         kb("ctrl-shift-[", Fold, e),
         kb("ctrl-shift-]", Unfold, e),
         kb("f2", RenameSymbol, e),

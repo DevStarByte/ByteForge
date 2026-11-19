@@ -267,6 +267,17 @@ impl LspClient {
         self.typed_request("textDocument/inlayHint", params, |v, _| Ok(convert::parse_inlay_hints(&v)))
     }
 
+    /// `textDocument/codeLens`: the lenses of the whole file (titles may still need [`Self::resolve_code_lens`]).
+    pub fn code_lenses(&self, path: &Path) -> flume::Receiver<Result<Vec<crate::CodeLens>>> {
+        self.typed_request("textDocument/codeLens", json!({ "textDocument": { "uri": path_to_uri(path) } }), |v, _| Ok(convert::parse_code_lenses(&v)))
+    }
+
+    /// `codeLens/resolve`: fills in the title (and command) of a lazily computed lens.
+    pub fn resolve_code_lens(&self, lens: &crate::CodeLens) -> flume::Receiver<Result<crate::CodeLens>> {
+        let fallback = lens.clone();
+        self.typed_request("codeLens/resolve", lens.raw.clone(), move |v, _| Ok(convert::parse_code_lens(&v).unwrap_or(fallback)))
+    }
+
     /// `textDocument/implementation` at `position`: implementations of an interface or abstract member,
     /// overrides of a virtual one.
     pub fn implementation(&self, path: &Path, position: Position) -> flume::Receiver<Result<Vec<Location>>> {
@@ -287,6 +298,28 @@ impl LspClient {
     /// `workspace/symbol`: types and members across the solution whose name matches `query`.
     pub fn workspace_symbols(&self, query: &str) -> flume::Receiver<Result<Vec<crate::Symbol>>> {
         self.typed_request("workspace/symbol", json!({ "query": query }), |v, _| Ok(convert::parse_workspace_symbols(&v)))
+    }
+
+    /// `textDocument/prepareCallHierarchy` at `position`: the method (or property, constructor) there.
+    pub fn prepare_call_hierarchy(&self, path: &Path, position: Position) -> flume::Receiver<Result<Vec<crate::HierarchyItem>>> {
+        self.typed_request("textDocument/prepareCallHierarchy", position_params(path, position), |v, _| Ok(convert::parse_hierarchy_items(&v)))
+    }
+
+    /// `callHierarchy/incomingCalls` (who calls `item`, `incoming`) or `callHierarchy/outgoingCalls` (what it calls).
+    pub fn hierarchy_calls(&self, item: &crate::HierarchyItem, incoming: bool) -> flume::Receiver<Result<Vec<crate::HierarchyCall>>> {
+        let (method, key) = if incoming { ("callHierarchy/incomingCalls", "from") } else { ("callHierarchy/outgoingCalls", "to") };
+        self.typed_request(method, json!({ "item": item.raw }), move |v, _| Ok(convert::parse_hierarchy_calls(&v, key)))
+    }
+
+    /// `textDocument/prepareTypeHierarchy` at `position`: the type there.
+    pub fn prepare_type_hierarchy(&self, path: &Path, position: Position) -> flume::Receiver<Result<Vec<crate::HierarchyItem>>> {
+        self.typed_request("textDocument/prepareTypeHierarchy", position_params(path, position), |v, _| Ok(convert::parse_hierarchy_items(&v)))
+    }
+
+    /// `typeHierarchy/supertypes` (base class and interfaces of `item`, `supertypes`) or `typeHierarchy/subtypes`.
+    pub fn hierarchy_types(&self, item: &crate::HierarchyItem, supertypes: bool) -> flume::Receiver<Result<Vec<crate::HierarchyItem>>> {
+        let method = if supertypes { "typeHierarchy/supertypes" } else { "typeHierarchy/subtypes" };
+        self.typed_request(method, json!({ "item": item.raw }), |v, _| Ok(convert::parse_hierarchy_items(&v)))
     }
 
     /// `textDocument/references` at `position`, including the declaration.
@@ -726,10 +759,13 @@ impl Shared {
                 self.schedule_pull_all();
                 Value::Null
             }
+            "workspace/codeLens/refresh" => {
+                self.emit(LspEvent::CodeLensRefresh);
+                Value::Null
+            }
             "window/workDoneProgress/create"
             | "client/unregisterCapability"
             | "workspace/semanticTokens/refresh"
-            | "workspace/codeLens/refresh"
             | "workspace/inlayHint/refresh"
             | "workspace/inlineValue/refresh"
             | "workspace/foldingRange/refresh" => Value::Null,
@@ -988,6 +1024,7 @@ fn initialize_params(config: &ServerConfig, workspace_folder: &Value) -> Value {
                 "workspaceEdit": { "documentChanges": true, "resourceOperations": ["create"] },
                 "executeCommand": { "dynamicRegistration": false },
                 "diagnostics": { "refreshSupport": true },
+                "codeLens": { "refreshSupport": true },
                 "didChangeConfiguration": { "dynamicRegistration": false }
             },
             "textDocument": {
@@ -1008,8 +1045,11 @@ fn initialize_params(config: &ServerConfig, workspace_folder: &Value) -> Value {
                 "references": { "dynamicRegistration": false },
                 "documentHighlight": { "dynamicRegistration": false },
                 "inlayHint": { "dynamicRegistration": false, "resolveSupport": { "properties": [] } },
+                "codeLens": { "dynamicRegistration": false, "resolveSupport": { "properties": ["command"] } },
                 "implementation": { "dynamicRegistration": false, "linkSupport": false },
                 "typeDefinition": { "dynamicRegistration": false, "linkSupport": false },
+                "callHierarchy": { "dynamicRegistration": false },
+                "typeHierarchy": { "dynamicRegistration": false },
                 "documentSymbol": { "dynamicRegistration": false, "hierarchicalDocumentSymbolSupport": true },
                 "rename": { "dynamicRegistration": false, "prepareSupport": false },
                 "signatureHelp": {

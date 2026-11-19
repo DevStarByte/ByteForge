@@ -92,7 +92,7 @@ impl EditorView {
     /// spacers changed (every frame).
     pub(crate) fn update_wrap(&mut self) {
         let wrapping = self.word_wrap && self.layout.char_width > 0.0 && self.layout.width > 0.0;
-        let spacers = self.spacers.clone().filter(|s| s.iter().any(|&n| n > 0));
+        let spacers = self.spacers.clone().or_else(|| self.lens_spacers.clone()).filter(|s| s.iter().any(|&n| n > 0));
         if !wrapping && spacers.is_none() {
             self.wrap = None;
             return;

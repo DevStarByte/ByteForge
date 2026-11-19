@@ -132,6 +132,8 @@ pub struct Prepaint {
     blame: Vec<(usize, ShapedLine)>,
     /// Char ranges of file references per visible line.
     links: Vec<(usize, Vec<(usize, usize)>)>,
+    /// Code Lens rows: the line they sit above, their x from the text's left edge, their text.
+    lenses: Vec<(usize, f32, ShapedLine)>,
 }
 
 impl Element for EditorElement {
@@ -432,6 +434,53 @@ impl Element for EditorElement {
             view.conflict_note_hits = lines.iter().filter(|(line, _, _)| view.conflicts.iter().any(|c| c.start == *line)).flat_map(|(line, _, shaped)| super::merge::note_hits(*line, shaped)).collect();
         });
 
+        // Code Lens rows, at the indentation of their line, a little smaller than the code; where each entry
+        // landed, so a click runs it.
+        let mut lenses = Vec::new();
+        {
+            let v = self.view.read(cx);
+            let lens_size = px((style.font_size * 0.85).round());
+            let lens_font = gpui::Font { style: FontStyle::Normal, ..editor_font.clone() };
+            let line_count = v.state.buffer.line_count();
+            let mut hits = Vec::new();
+            for row in v.lens_rows.iter().filter(|r| r.line >= first && r.line <= last + 1 && r.line < line_count && !v.folds.is_hidden(r.line)) {
+                let (text, spans) = row.label();
+                if text.is_empty() {
+                    continue;
+                }
+                let line_text = v.state.buffer.line(row.line);
+                let indent_chars = line_text.chars().take_while(|c| *c == ' ' || *c == '\t').count();
+                let x = visual_col(&line_text, indent_chars, v.state.tab_size) as f32 * char_width;
+                let run = |len: usize, hovered: bool| TextRun {
+                    len,
+                    font: lens_font.clone(),
+                    color: note_color,
+                    background_color: None,
+                    underline: hovered.then(|| UnderlineStyle { color: Some(note_color), thickness: px(1.), wavy: false }),
+                    strikethrough: None,
+                };
+                let mut runs = Vec::new();
+                let mut at = 0;
+                for (i, (s, e, _)) in spans.iter().enumerate() {
+                    if *s > at {
+                        runs.push(run(s - at, false));
+                    }
+                    runs.push(run(e - s, v.lens_hover == Some(hits.len() + i)));
+                    at = *e;
+                }
+                if text.len() > at {
+                    runs.push(run(text.len() - at, false));
+                }
+                let shaped = text_system.shape_line(SharedString::from(text), lens_size, &runs, None);
+                for (s, e, action) in spans {
+                    let (x0, x1) = (x + f32::from(shaped.x_for_index(s)), x + f32::from(shaped.x_for_index(e)));
+                    hits.push(super::lenses::LensHit { line: row.line, x0, x1, action: action.clone() });
+                }
+                lenses.push((row.line, x, shaped));
+            }
+            self.view.update(cx, |view, _| view.lens_hits = hits);
+        }
+
         // File references to underline.
         let links: Vec<(usize, Vec<(usize, usize)>)> = self.view.update(cx, |view, _| {
             if !view.detect_links {
@@ -495,7 +544,7 @@ impl Element for EditorElement {
             }
         }
 
-        Prepaint { lines, numbers, blame, links }
+        Prepaint { lines, numbers, blame, links, lenses }
     }
 
     fn paint(
@@ -750,6 +799,12 @@ impl Element for EditorElement {
                         let _ = shaped.paint(point(px(origin_x), y), px(lh), window, cx);
                     }
                 }
+            }
+
+            // Code Lens rows, on the spacer row above their line.
+            for (line, x, shaped) in &prepaint.lenses {
+                let y = line_top(*line) - px(lh);
+                let _ = shaped.paint(point(px(origin_x + x), y), px(lh), window, cx);
             }
 
             // Folded regions: a "⋯" marker after their first line.

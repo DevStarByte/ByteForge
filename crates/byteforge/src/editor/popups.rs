@@ -275,7 +275,7 @@ impl EditorView {
         }
         let code = self.lsp.is_some() && !self.read_only;
         if code {
-            for id in ["edit.goToDefinition", "edit.goToImplementation", "edit.findReferences"] {
+            for id in ["edit.goToDefinition", "edit.goToImplementation", "edit.findReferences", "edit.showCallHierarchy", "edit.showTypeHierarchy"] {
                 command(&mut entries, id);
             }
             entries.push(None);

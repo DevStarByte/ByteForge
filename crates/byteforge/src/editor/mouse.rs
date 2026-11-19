@@ -49,6 +49,14 @@ impl EditorView {
             self.accept_conflict(how, cx);
             return;
         }
+        // A Code Lens entry ("3 references", "Run Test").
+        if e.click_count == 1
+            && !e.modifiers.shift
+            && let Some((_, _, action)) = self.lens_at(x, y)
+        {
+            self.run_lens(action, cx);
+            return;
+        }
         let p = self.point_at(x, y);
         if self.detect_links
             && (self.read_only || e.modifiers.secondary())
@@ -73,7 +81,7 @@ impl EditorView {
         if self.glyph_margin && x < self.layout.left + self.layout.glyph && y < self.layout.top + self.layout.height {
             // A test marker runs its test (F9 still sets a breakpoint on that line).
             if self.test_marks.iter().any(|m| m.0 == p.line) && !self.breakpoints.iter().any(|b| b.line == p.line) {
-                cx.emit(EditorEvent::RunTestAt(p.line));
+                cx.emit(EditorEvent::RunTestAt { line: p.line, debug: false });
                 return;
             }
             self.toggle_breakpoint(p.line, cx);
@@ -124,6 +132,16 @@ impl EditorView {
                 }
                 if self.hover.is_some() && self.hover_bounds.get().is_some_and(|b| b.contains(&e.position)) {
                     return; // reading the popup
+                }
+                // Over a Code Lens entry: underlined, with a pointing hand.
+                let lens = if e.pressed_button.is_none() { self.lens_at(x, y).map(|(_, i, _)| i) } else { None };
+                if lens != self.lens_hover {
+                    self.lens_hover = lens;
+                    cx.notify();
+                }
+                if lens.is_some() {
+                    self.clear_hover(cx);
+                    return;
                 }
                 // Hover: diagnostics immediately, language-server hover after a delay.
                 let inside = x > self.layout.text_left && y > self.layout.top && y < self.layout.top + self.layout.height;

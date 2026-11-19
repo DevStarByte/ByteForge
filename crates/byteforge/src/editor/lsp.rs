@@ -12,6 +12,7 @@ impl EditorView {
             self.lsp = Some(lsp);
             self.schedule_semantic(Duration::from_millis(100), cx);
             self.schedule_inlay_hints(Duration::from_millis(300), cx);
+            self.schedule_code_lenses(Duration::from_millis(500), cx);
             self.schedule_outline(Duration::from_millis(300), cx);
         }
     }
@@ -164,14 +165,19 @@ impl EditorView {
 
     /// Find All References for the symbol at the caret; the result goes to the workbench's References panel.
     pub fn find_references(&mut self, cx: &mut Context<Self>) {
-        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else {
+        if self.lsp.is_none() || self.path.is_none() {
             cx.emit(EditorEvent::Log("Find All References needs the C# language server (open a .cs file in a project).".into()));
             return;
-        };
-        let caret = self.state.caret();
-        let (start, end) = self.state.word_at(caret);
+        }
+        self.find_references_at(self.state.caret(), cx);
+    }
+
+    /// Find All References for the symbol at `at` (the caret, or a clicked "3 references" lens).
+    pub(crate) fn find_references_at(&mut self, at: Point, cx: &mut Context<Self>) {
+        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else { return };
+        let (start, end) = self.state.word_at(at);
         let symbol = self.state.buffer.slice(start, end);
-        let rx = lsp.references(&path, self.lsp_position(caret));
+        let rx = lsp.references(&path, self.lsp_position(at));
         cx.spawn(async move |this, cx| {
             let result = rx.recv_async().await;
             let _ = this.update(cx, |_, cx| match result {
@@ -208,6 +214,38 @@ impl EditorView {
                 }
                 Ok(Ok(locations)) => cx.emit(EditorEvent::Locations { title: format!("{what} of '{symbol}'"), locations }),
                 Ok(Err(e)) => cx.emit(EditorEvent::Log(format!("Finding {what} failed: {e:#}"))),
+                Err(_) => {}
+            });
+        })
+        .detach();
+    }
+
+    /// Show Call Hierarchy (`calls`) or Show Type Hierarchy for the symbol at the caret: the workbench's
+    /// Hierarchy panel lists its callers (or base types) and goes deeper on demand.
+    pub fn show_hierarchy(&mut self, calls: bool, cx: &mut Context<Self>) {
+        let what = if calls { "Call Hierarchy" } else { "Type Hierarchy" };
+        let (Some(lsp), Some(path)) = (self.lsp.clone(), self.path.clone()) else {
+            cx.emit(EditorEvent::Log(format!("{what} needs the C# language server (open a .cs file in a project).")));
+            return;
+        };
+        let caret = self.state.caret();
+        let (start, end) = self.state.word_at(caret);
+        let symbol = self.state.buffer.slice(start, end);
+        let position = self.lsp_position(caret);
+        let rx = if calls { lsp.prepare_call_hierarchy(&path, position) } else { lsp.prepare_type_hierarchy(&path, position) };
+        cx.spawn(async move |this, cx| {
+            let result = rx.recv_async().await;
+            let _ = this.update(cx, |_, cx| match result {
+                Ok(Ok(mut items)) if !items.is_empty() => cx.emit(EditorEvent::Hierarchy { calls, item: items.remove(0) }),
+                Ok(Ok(_)) => {
+                    let on = if calls { "a method, property or constructor" } else { "a class, struct or interface" };
+                    let name = if symbol.trim().is_empty() { String::new() } else { format!(" for '{symbol}'") };
+                    cx.emit(EditorEvent::Log(format!("No {what}{name}: put the caret on the name of {on}.")))
+                }
+                Ok(Err(e)) if e.downcast_ref::<bf_lsp::ResponseError>().is_some_and(|e| e.code == -32601) => {
+                    cx.emit(EditorEvent::Log(format!("This language server has no {what}.")))
+                }
+                Ok(Err(e)) => cx.emit(EditorEvent::Log(format!("{what} failed: {e:#}"))),
                 Err(_) => {}
             });
         })

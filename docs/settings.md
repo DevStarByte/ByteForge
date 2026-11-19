@@ -21,6 +21,7 @@ comments when the settings screen changes a value:
   "terminal.shell": "/usr/bin/fish", "terminal.args": [],  // default: your login shell ($SHELL); also set by
                                                      // "Terminal: Select Default Shell…" (palette or the panel button)
   "editor.wordWrap": "off",                            // "on": long lines continue on the next rows (Alt+Z)
+  "editor.codeLens": true,                             // reference counts and Run Test / Debug Test above declarations (C#)
   "files.autoSave": "off",                             // or "afterDelay", "onFocusChange", "onWindowChange"
   "files.autoSaveDelay": 1000,                         // ms of quiet before "afterDelay" saves (no formatting)
   "editor.formatOnSave": false, "editor.defaultFormatter": "resharper",   // or "csharp-ls", "csharpier"

@@ -3,6 +3,19 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.1.0
+
+- Code Lens: a row above types and members says how often they're referenced ("3 references"); click it to
+  list the references. Tests get "Run Test | Debug Test" (a test class "Run All Tests | Debug All Tests"). The
+  row sits above the attributes, like Rider's. The counts the screen shows are asked for first, and are asked for
+  again after edits, after saving a C# file and once the server has loaded the solution. Off with
+  `"editor.codeLens": false` (also on the settings screen); themes color it with `editorCodeLens.foreground`.
+- Call Hierarchy (Shift+Alt+H) and Type Hierarchy (Go menu, or right-click in the editor): who calls a method,
+  property or constructor and what it calls, or a type's base types and derived types, as a tree in the panel's
+  new Hierarchy tab. Branches are asked for from the language server when opened; Callers / Callees (Base Types /
+  Derived Types) switch the direction. A click opens a caller at its call, anything else at its declaration.
+- README: the known limitations match the app again.
+
 ## 1.0.4
 
 - Terminal: Space types a space again (Windows delivered it as a named key without a character, so it was dropped).

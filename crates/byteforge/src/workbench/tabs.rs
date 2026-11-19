@@ -155,6 +155,7 @@ impl Workbench {
             }
             EditorEvent::ApplyCodeAction(action, then) => self.apply_code_action((**action).clone(), *then, editor.downgrade(), window, cx),
             EditorEvent::Locations { title, locations } => self.show_references(title.clone(), locations, cx),
+            EditorEvent::Hierarchy { calls, item } => self.open_hierarchy(*calls, item.clone(), cx),
             EditorEvent::RenameRequested { symbol, at } => {
                 let kind = PromptKind::RenameSymbol { editor: editor.downgrade(), at: *at, old: symbol.clone() };
                 self.open_prompt(kind, symbol, window, cx);
@@ -165,9 +166,9 @@ impl Workbench {
                 self.log(text);
                 self.show_panel(PanelView::Output, cx);
             }
-            EditorEvent::RunTestAt(line) => {
+            EditorEvent::RunTestAt { line, debug } => {
                 if let Some(path) = self.tabs.iter().find(|t| t.editor == *editor).and_then(|t| t.path.clone()) {
-                    self.run_test_at(&path, *line, false, window, cx);
+                    self.run_test_at(&path, *line, *debug, window, cx);
                 }
             }
             _ => cx.notify(),
@@ -252,6 +253,10 @@ impl Workbench {
                 }
                 for p in &self.plugins {
                     p.event("fileSaved", Some(&path));
+                }
+                // References from this file count in the lenses of the others.
+                if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("cs")) {
+                    self.refresh_code_lenses(cx);
                 }
                 self.scm.update(cx, |s, cx| s.refresh(cx));
                 if self.themes.current().file_path.as_deref() == Some(path.as_path()) || path.starts_with(self.paths.user_themes()) {

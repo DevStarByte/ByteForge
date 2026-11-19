@@ -157,6 +157,8 @@ impl EditorView {
             .on_action(cx.listener(|v, _: &UnfoldAll, _, cx| v.unfold_all(cx)))
             .on_action(cx.listener(|v, _: &GoToImplementation, _, cx| v.go_to_related(true, cx)))
             .on_action(cx.listener(|v, _: &GoToTypeDefinition, _, cx| v.go_to_related(false, cx)))
+            .on_action(cx.listener(|v, _: &ShowCallHierarchy, _, cx| v.show_hierarchy(true, cx)))
+            .on_action(cx.listener(|v, _: &ShowTypeHierarchy, _, cx| v.show_hierarchy(false, cx)))
             .on_action(cx.listener(|v, _: &RenameSymbol, _, cx| v.request_rename(cx)))
             .on_action(cx.listener(|v, _: &ShowSignatureHelp, _, cx| v.request_signature_help(cx)))
             .on_action(cx.listener(|v, _: &ToggleBreakpoint, _, cx| {

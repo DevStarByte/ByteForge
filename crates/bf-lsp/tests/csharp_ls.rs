@@ -169,7 +169,7 @@ fn csharp_ls_end_to_end() {
             ),
             LspEvent::Exited(reason) => panic!("server exited: {reason}"),
             LspEvent::Idle => println!("[{:>6.1?}] idle", t0.elapsed()),
-            LspEvent::ApplyEdit(_) => {}
+            LspEvent::ApplyEdit(_) | LspEvent::CodeLensRefresh => {}
         }
     }
     assert!(ready);
@@ -263,6 +263,38 @@ fn csharp_ls_end_to_end() {
     let hints = recv(client.inlay_hints(&program, whole), "inlay hints");
     println!("[{:>6.1?}] inlay hints: {hints:?} (took {:?})", t0.elapsed(), t.elapsed());
     assert!(hints.iter().any(|h| h.parameter && h.label.starts_with("left")), "no parameter-name hint for Add(1, 2): {hints:?}");
+
+    let t = Instant::now();
+    let lenses = recv(client.code_lenses(&program), "code lenses");
+    let resolved: Vec<_> = lenses
+        .iter()
+        .map(|l| if l.needs_resolve() { recv(client.resolve_code_lens(l), "resolve code lens") } else { l.clone() })
+        .collect();
+    println!("[{:>6.1?}] code lenses: {:?} (took {:?})", t0.elapsed(), resolved.iter().map(|l| (l.range.start, &l.title)).collect::<Vec<_>>(), t.elapsed());
+    let add = find(PROGRAM, "Add(int", 0);
+    assert!(
+        resolved.iter().any(|l| l.range.start.line == add.line && l.title.as_deref().is_some_and(|t| t.starts_with("1 "))),
+        "no \"1 reference\" lens on Add: {resolved:?}"
+    );
+
+    let t = Instant::now();
+    let prepared = recv(client.prepare_call_hierarchy(&program, find(PROGRAM, "Add(int", 1)), "prepare call hierarchy");
+    let add_item = prepared.first().unwrap_or_else(|| panic!("no call hierarchy item for Add: {prepared:?}")).clone();
+    let callers = recv(client.hierarchy_calls(&add_item, true), "incoming calls");
+    println!("[{:>6.1?}] callers of {}: {:?} (took {:?})", t0.elapsed(), add_item.name, callers.iter().map(|c| (&c.item.name, &c.ranges)).collect::<Vec<_>>(), t.elapsed());
+    assert!(add_item.name.starts_with("Add"), "{add_item:?}");
+    let main = callers.iter().find(|c| c.item.name.starts_with("Main")).unwrap_or_else(|| panic!("Main doesn't call Add: {callers:?}"));
+    assert!(main.ranges.iter().any(|r| r.start.line == find(PROGRAM, "var sum = Add", 0).line), "{main:?}");
+    let callees = recv(client.hierarchy_calls(&main.item, false), "outgoing calls");
+    println!("           Main calls: {:?}", callees.iter().map(|c| &c.item.name).collect::<Vec<_>>());
+    assert!(callees.iter().any(|c| c.item.name.starts_with("Add")), "{callees:?}");
+
+    let t = Instant::now();
+    let types = recv(client.prepare_type_hierarchy(&program, find(PROGRAM, "class Program", 7)), "prepare type hierarchy");
+    let program_type = types.first().unwrap_or_else(|| panic!("no type hierarchy item for Program: {types:?}")).clone();
+    let supertypes = recv(client.hierarchy_types(&program_type, true), "supertypes");
+    println!("[{:>6.1?}] {}: {:?}, supertypes {:?} (took {:?})", t0.elapsed(), program_type.name, program_type.kind, supertypes.iter().map(|s| (&s.name, &s.path)).collect::<Vec<_>>(), t.elapsed());
+    assert!(program_type.name.starts_with("Program"), "{program_type:?}");
 
     let t = Instant::now();
     let symbols = recv(client.document_symbols(&program), "document symbols");

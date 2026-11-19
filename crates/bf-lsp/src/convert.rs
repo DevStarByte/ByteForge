@@ -547,6 +547,41 @@ mod tests {
     }
 
     #[test]
+    fn code_lens_parsing() {
+        let v = json!([
+            { "range": { "start": { "line": 16, "character": 15 }, "end": { "line": 16, "character": 18 } }, "data": { "position": 1 } },
+            { "range": { "start": { "line": 4, "character": 20 }, "end": { "line": 4, "character": 27 } },
+              "command": { "title": "2 Reference(s)", "command": "textDocument/references", "arguments": [] } },
+            { "command": { "title": "no range" } }
+        ]);
+        let lenses = parse_code_lenses(&v);
+        assert_eq!(lenses.len(), 2);
+        assert_eq!((lenses[0].range.start.line, lenses[0].title.as_deref(), lenses[0].needs_resolve()), (4, Some("2 Reference(s)"), false));
+        assert_eq!(lenses[0].command.as_deref(), Some("textDocument/references"));
+        assert!(lenses[1].needs_resolve());
+        // The raw lens goes back to the server for `codeLens/resolve`, `data` included.
+        assert_eq!(lenses[1].raw["data"]["position"], 1);
+    }
+
+    #[test]
+    fn hierarchy_parsing() {
+        let uri = crate::path_to_uri(&std::env::temp_dir().join("a.cs"));
+        let r = |l: u32| json!({ "start": { "line": l, "character": 4 }, "end": { "line": l, "character": 9 } });
+        let item = |name: &str, line: u32| json!({ "name": name, "kind": 6, "detail": "Demo.Calc", "uri": uri, "range": r(line), "selectionRange": r(line), "data": 7 });
+        let items = parse_hierarchy_items(&json!([item("Add", 3), { "name": "no uri", "kind": 6 }]));
+        assert_eq!(items.len(), 1);
+        assert_eq!((items[0].name.as_str(), items[0].kind, items[0].detail.as_deref()), ("Add", "method", Some("Demo.Calc")));
+        // The raw item goes back to the server for the follow-up requests, `data` included.
+        assert_eq!(items[0].raw["data"], 7);
+        assert!(parse_hierarchy_items(&Value::Null).is_empty());
+
+        let calls = parse_hierarchy_calls(&json!([{ "from": item("Run", 9), "fromRanges": [r(12), r(10)] }, { "from": item("Main", 2), "fromRanges": [] }]), "from");
+        assert_eq!(calls.iter().map(|c| c.item.name.as_str()).collect::<Vec<_>>(), ["Main", "Run"]);
+        assert_eq!(calls[1].ranges.iter().map(|r| r.start.line).collect::<Vec<_>>(), [10, 12]);
+        assert!(parse_hierarchy_calls(&json!([{ "to": item("Add", 3) }]), "from").is_empty());
+    }
+
+    #[test]
     fn symbol_parsing() {
         let path = std::path::Path::new("/w/A.cs");
         let v = json!([{
@@ -816,6 +851,62 @@ pub(crate) fn parse_inlay_hints(v: &Value) -> Vec<crate::InlayHint> {
         .unwrap_or_default();
     hints.sort_by_key(|h| (h.position.line, h.position.character));
     hints
+}
+
+/// Parses one `CodeLens`; the title is `None` until the server has resolved it (no `command` yet).
+pub(crate) fn parse_code_lens(v: &Value) -> Option<crate::CodeLens> {
+    let command = v.get("command").filter(|c| !c.is_null());
+    Some(crate::CodeLens {
+        range: parse_range(v.get("range")?)?,
+        title: command.and_then(|c| str_field(c, "title")).map(|t| t.trim().to_owned()),
+        command: command.and_then(|c| str_field(c, "command")),
+        raw: v.clone(),
+    })
+}
+
+/// Parses a `textDocument/codeLens` result, sorted by position.
+pub(crate) fn parse_code_lenses(v: &Value) -> Vec<crate::CodeLens> {
+    let mut lenses: Vec<crate::CodeLens> = v.as_array().map(|items| items.iter().filter_map(parse_code_lens).collect()).unwrap_or_default();
+    lenses.sort_by_key(|l| (l.range.start.line, l.range.start.character));
+    lenses
+}
+
+/// Parses a `CallHierarchyItem` or `TypeHierarchyItem`.
+pub(crate) fn parse_hierarchy_item(v: &Value) -> Option<crate::HierarchyItem> {
+    let range = parse_range(v.get("range")?)?;
+    Some(crate::HierarchyItem {
+        name: str_field(v, "name")?,
+        kind: symbol_kind(v.get("kind").and_then(Value::as_u64).unwrap_or(0)),
+        detail: str_field(v, "detail").filter(|d| !d.trim().is_empty()),
+        path: uri_to_path(v.get("uri")?.as_str()?)?,
+        selection_range: v.get("selectionRange").and_then(parse_range).unwrap_or(range),
+        raw: v.clone(),
+    })
+}
+
+/// Parses `prepareCallHierarchy`, `prepareTypeHierarchy`, `supertypes` and `subtypes` results (`null` is none).
+pub(crate) fn parse_hierarchy_items(v: &Value) -> Vec<crate::HierarchyItem> {
+    v.as_array().map(|items| items.iter().filter_map(parse_hierarchy_item).collect()).unwrap_or_default()
+}
+
+/// Parses `callHierarchy/incomingCalls` (`key` "from") or `outgoingCalls` (`key` "to"), sorted by file and position.
+pub(crate) fn parse_hierarchy_calls(v: &Value, key: &str) -> Vec<crate::HierarchyCall> {
+    let mut calls: Vec<crate::HierarchyCall> = v
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|c| {
+                    let item = parse_hierarchy_item(c.get(key)?)?;
+                    let mut ranges: Vec<Range> = c.get("fromRanges").and_then(Value::as_array).map(|r| r.iter().filter_map(parse_range).collect()).unwrap_or_default();
+                    ranges.sort_by_key(|r| (r.start.line, r.start.character));
+                    Some(crate::HierarchyCall { item, ranges })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    calls.sort_by(|a, b| (&a.item.path, a.item.selection_range.start.line).cmp(&(&b.item.path, b.item.selection_range.start.line)));
+    calls
 }
 
 /// LSP `SymbolKind` (1-based) as a lowercase word.

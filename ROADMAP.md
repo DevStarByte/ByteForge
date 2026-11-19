@@ -65,10 +65,14 @@ Section 1 above is what still has to be checked by hand; this is what the releas
 
 ## 5. What a C# developer misses from Rider or Visual Studio
 
-- [ ] Code Lens: reference counts and "Run | Debug" above tests, from `textDocument/codeLens` (today only
-      `codeLens/refresh` is answered; no lenses are asked for or drawn).
-- [ ] Call Hierarchy (incoming / outgoing calls) and Type Hierarchy (base types / derived types), from the LSP
-      requests both csharp-ls and the Roslyn server answer.
+- [x] Code Lens: "3 references" above types and members (`textDocument/codeLens`, resolved visible-first; click:
+      the References panel) and Run Test / Debug Test (Run All / Debug All Tests on a class) above tests, on a row
+      above the attributes. Asked again after edits, saves of C# files, when the server has loaded and on its
+      `codeLens/refresh`. `"editor.codeLens"` turns it off.
+- [x] Call Hierarchy (Shift+Alt+H: callers or callees) and Type Hierarchy (base types or derived types), in a
+      Hierarchy panel tab: a tree whose branches are asked for when opened (`prepareCallHierarchy`,
+      `incomingCalls` / `outgoingCalls`, `prepareTypeHierarchy`, `supertypes` / `subtypes`). Go menu and right-click;
+      a click opens the caller at its call, anything else at its declaration.
 - [ ] Razor IntelliSense (completion, hover, diagnostics in `.razor` / `.cshtml`) with the Roslyn server: needs the
       Razor extension VS Code's C# extension loads.
 - [ ] Blazor WebAssembly debugging.

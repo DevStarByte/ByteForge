@@ -52,6 +52,13 @@ impl Workbench {
         self.launch_lsp(config, cx);
     }
 
+    /// Asks again for the Code Lens of every open C# file (the server loaded, or reference counts changed).
+    pub(super) fn refresh_code_lenses(&mut self, cx: &mut Context<Self>) {
+        for tab in &self.tabs {
+            tab.editor.update(cx, |e, cx| e.refresh_code_lenses(cx));
+        }
+    }
+
     /// Starts the language server and attaches it to the open C# files.
     fn launch_lsp(&mut self, config: ServerConfig, cx: &mut Context<Self>) {
         match LspClient::start(config) {
@@ -74,7 +81,12 @@ impl Workbench {
                                     LspEvent::Ready => wb.lsp_status = "C#: loading…".into(),
                                     LspEvent::Progress(text) => wb.lsp_status = format!("C#: {}", short(&text, 48)),
                                     // by the protocol, not by message text (csharp-ls 0.29 ends with "Loaded app")
-                                    LspEvent::Idle => wb.lsp_status = "C#: ready".into(),
+                                    LspEvent::Idle => {
+                                        wb.lsp_status = "C#: ready".into();
+                                        // Counts asked for while the solution loaded were short.
+                                        wb.refresh_code_lenses(cx);
+                                    }
+                                    LspEvent::CodeLensRefresh => wb.refresh_code_lenses(cx),
                                     LspEvent::Diagnostics { path, diagnostics, .. } => {
                                         // Every view of the file (it can be open in both groups).
                                         for tab in wb.tabs.iter().filter(|t| t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))) {
@@ -660,6 +672,82 @@ public class Calculator
         answer_rename(cx, &wb, "total", false);
         let text = wb.read_with(cx, editor_text);
         assert!(text.contains("total = left + right;") && text.contains("sum = total;"), "{text}");
+        stop(cx, &wb);
+        drop(guard);
+    }
+
+    /// Code Lens: "1 reference" shows above Add (resolved by csharp-ls); clicking it lists the references.
+    #[gpui::test]
+    fn code_lens_counts_and_lists_references(cx: &mut gpui::TestAppContext) {
+        let program = "namespace Demo;\n\npublic static class Program\n{\n    public static int Run() => new Calculator().Add(1, 2);\n}\n";
+        let Some((guard, wb, cx, _)) = csharp_project(cx, "code-lens", &[("Calculator.cs", CALCULATOR), ("Program.cs", program)], "Calculator.cs") else { return };
+        let add_lens = |wb: &Workbench, cx: &App| {
+            let editor = wb.active_editor()?.read(cx);
+            let ix = editor.lens_hits.iter().position(|h| h.line == 8)?;
+            let row = editor.lens_rows.iter().find(|r| r.line == 8)?;
+            (row.items.first()?.title == "1 reference").then_some(ix)
+        };
+        // The lenses are asked for after a pause (the test clock moves only when told to).
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        while !wb.read_with(cx, |wb, cx| add_lens(wb, cx).is_some()) && std::time::Instant::now() < deadline {
+            cx.executor().advance_clock(std::time::Duration::from_millis(500));
+            wait_for(cx, &wb, 0, |_, _| false);
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        assert!(
+            wb.read_with(cx, |wb, cx| add_lens(wb, cx).is_some()),
+            "no \"1 reference\" lens above Add: {:?}",
+            wb.read_with(cx, |wb, cx| wb.active_editor().map(|e| e.read(cx).lens_rows.clone()))
+        );
+        let at = wb.read_with(cx, |wb, cx| {
+            let editor = wb.active_editor().unwrap().read(cx);
+            let hit = &editor.lens_hits[add_lens(wb, cx).unwrap()];
+            let l = editor.layout;
+            let x = l.text_left - editor.scroll.0 + (hit.x0 + hit.x1) / 2.0;
+            let y = l.top + (editor.row_of(8) - 1) as f32 * l.line_height - editor.scroll.1 + l.line_height / 2.0;
+            gpui::point(gpui::px(x), gpui::px(y))
+        });
+        cx.simulate_click(at, gpui::Modifiers::none());
+        let listed = wait_for(cx, &wb, 30, |wb, _| wb.references.as_ref().is_some_and(|r| r.items.len() == 2));
+        assert!(listed, "declaration and the call in Program.cs listed:\n{}", wb.read_with(cx, output_text));
+        stop(cx, &wb);
+        drop(guard);
+    }
+
+    /// Show Call Hierarchy on Add lists Run (in Program.cs) as its caller; Callees on Run lists Add; Show Type
+    /// Hierarchy on Calculator lists the class deriving from it, and clicking it opens its file.
+    #[gpui::test]
+    fn call_and_type_hierarchy(cx: &mut gpui::TestAppContext) {
+        let program = "namespace Demo;\n\npublic static class Program\n{\n    public static int Run() => new Calculator().Add(1, 2);\n}\n\npublic class Scientific : Calculator\n{\n}\n";
+        let Some((guard, wb, cx, _)) = csharp_project(cx, "hierarchy", &[("Calculator.cs", CALCULATOR), ("Program.cs", program)], "Calculator.cs") else { return };
+        let names = |wb: &Workbench, _: &App| -> Vec<String> {
+            let Some(h) = &wb.hierarchy else { return Vec::new() };
+            h.visible().iter().map(|&ix| format!("{}{}", "  ".repeat(h.nodes[ix].depth), h.nodes[ix].item.name)).collect()
+        };
+        select(cx, &wb, (8, 16), (8, 16));
+        cx.press("shift-alt-h");
+        let found = wait_for(cx, &wb, 60, |wb, cx| names(wb, cx).len() == 2);
+        assert!(found, "callers of Add: {:?}\n{}", wb.read_with(cx, names), wb.read_with(cx, output_text));
+        let listed = wb.read_with(cx, names);
+        assert!(listed[0].starts_with("Add") && listed[1].starts_with("  Run"), "{listed:?}");
+        assert!(wb.read_with(cx, |wb, _| wb.panel == PanelView::Hierarchy && wb.hierarchy.as_ref().unwrap().title() == "callers of 'Add'"));
+
+        // Run's own callers: none.
+        wb.update(cx, |wb, cx| wb.toggle_hierarchy_node(1, cx));
+        assert!(wait_for(cx, &wb, 30, |wb, _| wb.hierarchy.as_ref().unwrap().nodes[1].children.is_some()));
+        assert_eq!(wb.read_with(cx, |wb, _| wb.hierarchy.as_ref().unwrap().nodes[1].children.clone()), Some(vec![]));
+
+        // What Add calls: Console.WriteLine has no source here, so nothing from the solution.
+        wb.update(cx, |wb, cx| wb.set_hierarchy_direction(false, cx));
+        assert!(wait_for(cx, &wb, 30, |wb, _| wb.hierarchy.as_ref().is_some_and(|h| !h.up && h.nodes[0].children.is_some())));
+
+        select(cx, &wb, (6, 15), (6, 15));
+        cx.dispatch_action(crate::actions::ShowTypeHierarchy);
+        let found = wait_for(cx, &wb, 30, |wb, cx| wb.hierarchy.as_ref().is_some_and(|h| !h.calls) && names(wb, cx).len() == 2);
+        assert!(found, "derived types of Calculator: {:?}\n{}", wb.read_with(cx, names), wb.read_with(cx, output_text));
+        assert!(wb.read_with(cx, names)[1].starts_with("  Scientific"), "{:?}", wb.read_with(cx, names));
+        wb.update_in(cx, |wb, window, cx| wb.open_hierarchy_node(1, window, cx));
+        assert!(wait_for(cx, &wb, 10, |wb, cx| wb.active_editor().is_some_and(|e| e.read(cx).path.as_ref().is_some_and(|p| p.ends_with("Program.cs")))));
         stop(cx, &wb);
         drop(guard);
     }

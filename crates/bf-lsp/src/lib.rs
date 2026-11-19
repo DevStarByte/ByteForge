@@ -12,7 +12,7 @@ mod uri;
 
 use std::path::PathBuf;
 
-pub use client::LspClient;
+pub use client::{LspClient, ResponseError};
 pub use snippet::strip_snippet;
 pub use uri::{path_to_uri, uri_to_path};
 
@@ -151,6 +151,48 @@ pub struct InlayHint {
     pub parameter: bool,
     pub padding_left: bool,
     pub padding_right: bool,
+}
+
+/// A line of information above a declaration (`textDocument/codeLens`), such as "3 references".
+#[derive(Clone, Debug, PartialEq)]
+pub struct CodeLens {
+    pub range: Range,
+    /// The command's title: what is shown. `None` until resolved (see [`CodeLens::needs_resolve`]).
+    pub title: Option<String>,
+    /// The command's id (`"csharp.showReferences"`, `"roslyn.client.peekReferences"`, …).
+    pub command: Option<String>,
+    /// The lens as the server sent it, for `codeLens/resolve`.
+    pub raw: serde_json::Value,
+}
+
+impl CodeLens {
+    /// The server fills in the title lazily; call [`LspClient::resolve_code_lens`] first.
+    pub fn needs_resolve(&self) -> bool {
+        self.title.is_none()
+    }
+}
+
+/// A method or type in a call or type hierarchy (`CallHierarchyItem`, `TypeHierarchyItem`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct HierarchyItem {
+    pub name: String,
+    /// LSP `SymbolKind` as a word: "class", "method", …
+    pub kind: &'static str,
+    /// Extra text from the server (the containing type, a signature), if any.
+    pub detail: Option<String>,
+    pub path: PathBuf,
+    /// Where the name is.
+    pub selection_range: Range,
+    /// The item as the server sent it, for the follow-up requests.
+    pub raw: serde_json::Value,
+}
+
+/// One entry of `callHierarchy/incomingCalls` (a caller) or `outgoingCalls` (a callee).
+#[derive(Clone, Debug, PartialEq)]
+pub struct HierarchyCall {
+    pub item: HierarchyItem,
+    /// Where the calls are: in the caller's file for incoming calls, in the asked item's file for outgoing ones.
+    pub ranges: Vec<Range>,
 }
 
 /// A named code element (`textDocument/documentSymbol`, `workspace/symbol`).
@@ -333,6 +375,8 @@ pub enum LspEvent {
     Exited(String),
     /// `workspace/applyEdit`: the server asks the editor to change files (e.g. while running a command).
     ApplyEdit(WorkspaceEdit),
+    /// `workspace/codeLens/refresh`: the lenses of open files are out of date; ask for them again.
+    CodeLensRefresh,
 }
 
 /// Environment for the .NET language servers: English output (csharp-ls takes its locale from

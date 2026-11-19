@@ -26,6 +26,7 @@ impl Workbench {
             PanelView::Output => self.output.clone().into_any_element(),
             PanelView::DebugConsole => self.render_debug_console(cx),
             PanelView::References => self.render_references(cx),
+            PanelView::Hierarchy => self.render_hierarchy(cx),
             PanelView::Terminal => match self.terminals.get(self.active_terminal) {
                 Some((terminal, _)) => terminal.clone().into_any_element(),
                 None => div().p_3().text_color(t.c("foreground.muted")).child(format!("No terminal is open. Press {} to start one.", crate::actions::key_label("ctrl-shift-`"))).into_any_element(),
@@ -108,6 +109,9 @@ impl Workbench {
         if self.references.is_some() && !panel_tabs.iter().any(|n| n == "references") {
             panel_tabs.push("references".into());
         }
+        if self.hierarchy.is_some() && !panel_tabs.iter().any(|n| n == "hierarchy") {
+            panel_tabs.push("hierarchy".into());
+        }
         for name in &panel_tabs {
             match name.as_str() {
                 "references" => {
@@ -115,6 +119,13 @@ impl Workbench {
                     header = header.child(
                         tab("ptab-references".into(), format!("REFERENCES ({count})"), self.panel == PanelView::References)
                             .on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::References, cx))),
+                    );
+                }
+                "hierarchy" => {
+                    let label = if self.hierarchy.as_ref().is_some_and(|h| h.calls) { "CALL HIERARCHY" } else { "TYPE HIERARCHY" };
+                    header = header.child(
+                        tab("ptab-hierarchy".into(), label.into(), self.panel == PanelView::Hierarchy)
+                            .on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::Hierarchy, cx))),
                     );
                 }
                 "problems" => {

@@ -8,6 +8,7 @@ mod element;
 mod find;
 mod folding;
 mod inlays;
+mod lenses;
 mod lsp;
 mod merge;
 mod minimap;
@@ -70,6 +71,8 @@ pub enum EditorEvent {
     /// Several results to list in the References panel (Find All References, implementations, …), e.g.
     /// `title` = "references to 'Count'".
     Locations { title: String, locations: Vec<bf_lsp::Location> },
+    /// Show Call Hierarchy (`calls`) or Show Type Hierarchy on `item`: the workbench's Hierarchy panel.
+    Hierarchy { calls: bool, item: bf_lsp::HierarchyItem },
     /// Rename Symbol (F2) on `symbol` at `at`: the workbench asks for the new name, then calls
     /// [`EditorView::rename_symbol`].
     RenameRequested { symbol: String, at: Point },
@@ -80,8 +83,9 @@ pub enum EditorEvent {
     ShowCommit { commit: String, filename: String },
     /// A status message for the Output panel (e.g. "nothing to rename here").
     Log(String),
-    /// The test marker in the gutter on this line was clicked: run that test.
-    RunTestAt(usize),
+    /// A test marker in the gutter or a "Run Test / Debug Test" lens was clicked: run (or debug) the test
+    /// declared on `line`.
+    RunTestAt { line: usize, debug: bool },
 }
 
 /// A breakpoint in the gutter (0-based line). `verified` is false while the debugger couldn't bind it.
@@ -262,6 +266,15 @@ pub struct EditorView {
     /// Inlay hints sorted by position ("editor.inlayHints").
     pub(crate) inlays: Vec<inlays::Inlay>,
     pub inlay_hints_enabled: bool,
+    /// Code Lens rows above declarations ("editor.codeLens"), sorted by line.
+    pub(crate) lens_rows: Vec<lenses::LensRow>,
+    pub code_lens_enabled: bool,
+    /// One spacer row above each line with lenses (the row map uses them unless `spacers` is set).
+    pub(crate) lens_spacers: Option<Arc<Vec<usize>>>,
+    /// Where the visible lens entries were drawn, for clicks; and the one under the pointer.
+    pub(crate) lens_hits: Vec<lenses::LensHit>,
+    pub(crate) lens_hover: Option<usize>,
+    lens_task: Option<Task<()>>,
     /// Long lines continue on the next rows ("editor.wordWrap").
     pub word_wrap: bool,
     pub(crate) wrap: Option<wrap::WrapMap>,
@@ -401,6 +414,12 @@ impl EditorView {
             snippet_session: None,
             inlays: Vec::new(),
             inlay_hints_enabled: true,
+            lens_rows: Vec::new(),
+            code_lens_enabled: true,
+            lens_spacers: None,
+            lens_hits: Vec::new(),
+            lens_hover: None,
+            lens_task: None,
             word_wrap: false,
             wrap: None,
             wrap_goal: None,
@@ -606,6 +625,7 @@ impl EditorView {
         self.schedule_highlight(cx);
         self.schedule_semantic(Duration::from_millis(350), cx);
         self.schedule_inlay_hints(Duration::from_millis(600), cx);
+        self.schedule_code_lenses(Duration::from_millis(1500), cx);
         self.schedule_git_diff(Duration::from_millis(120), cx);
         self.after_edit_merge(cx);
         self.schedule_outline(Duration::from_millis(1000), cx);
@@ -1041,7 +1061,7 @@ impl Render for EditorView {
             .size_full()
             .relative()
             .overflow_hidden()
-            .cursor(gpui::CursorStyle::IBeam)
+            .cursor(if self.lens_hover.is_some() { gpui::CursorStyle::PointingHand } else { gpui::CursorStyle::IBeam })
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
@@ -1050,6 +1070,9 @@ impl Render for EditorView {
             .on_hover(cx.listener(|view, hovered: &bool, _, cx| {
                 if !hovered {
                     view.clear_hover(cx);
+                    if view.lens_hover.take().is_some() {
+                        cx.notify();
+                    }
                 }
             }))
             .on_scroll_wheel(cx.listener(Self::on_scroll));
