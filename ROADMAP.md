@@ -59,9 +59,6 @@ Section 1 above is what still has to be checked by hand; this is what the releas
 - [x] Privacy statement (docs/code-signing.md) lists every connection: the update check at start, modules,
       netcoredbg and the Roslyn server downloads.
 - [x] CHANGELOG.md, with what changed per version; the 1.0 notes come from it.
-- [ ] Windows: SignPath Foundation approval, then the `SIGNPATH_*` secret and variables (docs/code-signing.md).
-      Until then SmartScreen warns.
-- [ ] macOS: notarization (needs an Apple Developer ID); until then the README's right-click → Open note stays.
 - [x] Release notes: known limits (no Razor IntelliSense with the Roslyn server, no Change Signature, no
       debugging in Alpine images), in CHANGELOG.md under 1.0.0.
 - [x] Tag `v1.0.0`. Signing (SignPath) and notarization follow in a later release.
