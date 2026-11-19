@@ -5,6 +5,16 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
 ## 1.1.0
 
+Released as betas while section 1 of the roadmap (everyday use) is finished; the next full release follows.
+
+- Git pull isn't fast-forward only any more. When your branch and the remote both have new commits, Pull (and
+  Sync) merges them, or rebases yours on top when `pull.rebase` (or `branch.<name>.rebase`) is set; `pull.ff =
+  only` is still honored. A pull that stops at conflicting changes says what to do next: resolve them in the
+  Merge Editor, then commit (merge) or Commit / "Git: Continue Rebase" (rebase, each commit keeps its message),
+  or "Abort Merge" / "Abort Rebase" (new, in the Source Control "…" menu and the command palette).
+- Problems lists the build's errors in C# files that aren't open. With the C# language server running they were
+  hidden, as if the server reported them, but it only reports open files; so a failed build (also before F5)
+  showed an empty Problems tab. An error the editor already shows is listed once.
 - Code Lens: a row above types and members says how often they're referenced ("3 references"); click it to
   list the references. Tests get "Run Test | Debug Test" (a test class "Run All Tests | Debug All Tests"). The
   row sits above the attributes, like Rider's. The counts the screen shows are asked for first, and are asked for

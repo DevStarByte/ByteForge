@@ -52,7 +52,8 @@ live, and modules written in any language can extend it.
   references; search, add, update and remove NuGet packages, and see which ones have updates
 - **Git:** a Source Control view, change markers in the gutter, a diff editor (side by side or inline, syntax
   highlighted, changed words marked, F7 / Shift+F7 between changes, the working tree editable in place), blame of the current line, file history,
-  merge-conflict resolution (accept current / incoming / both), branches, and pull / push / fetch. The view's "…" menu
+  merge-conflict resolution (accept current / incoming / both), branches, and pull (merge, or rebase with
+  `pull.rebase`) / push / fetch. The view's "…" menu
   (also in the command palette) has Undo Last Commit, Commit (Amend), Revert Commit, the stash (stash, pop, apply,
   drop), Discard All, Merge Branch / Abort Merge, Rename Branch and tags; right-click a commit in HISTORY to tag,
   revert or copy it
@@ -174,7 +175,6 @@ themes and modules in that folder (to try a theme or a build without touching yo
 
 ## Known limitations
 
-- Git pull is fast-forward only.
 - Razor files (`.razor`, `.cshtml`) are highlighted but have no completion or hover yet; errors show up after a
   build.
 - No Change Signature refactoring: neither csharp-ls nor the Roslyn server offers it outside Visual Studio.

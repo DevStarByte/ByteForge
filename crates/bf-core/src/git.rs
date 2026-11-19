@@ -255,6 +255,19 @@ fn run_with_input(dir: &Path, args: &[&str], input: &str) -> anyhow::Result<Stri
 }
 
 /// Output of a command whose result is shown to the user (stdout + stderr, e.g. pull/push progress).
+/// The `--rebase` / `--no-rebase` argument for `git pull`, from the configured rebase setting. With neither
+/// it nor `pull.ff` set it means merge (git itself would refuse a pull of diverged branches then). A
+/// configured value is left to git (`--no-rebase` would override `pull.ff = only` in newer git), except
+/// "interactive", which would wait for an editor.
+fn pull_rebase_arg(config: Option<&str>, ff_configured: bool) -> Option<&'static str> {
+    match config {
+        None if ff_configured => None,
+        None => Some("--no-rebase"),
+        Some("interactive" | "i") => Some("--rebase=true"),
+        Some(_) => None,
+    }
+}
+
 fn run_verbose(dir: &Path, args: &[&str]) -> anyhow::Result<String> {
     let output = git(dir).args(args).output().map_err(|e| anyhow::anyhow!("could not run git: {e}"))?;
     let text = format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr)).trim().to_owned();
@@ -526,8 +539,42 @@ impl Git {
         run_verbose(&self.root, &["fetch", "--all", "--prune"])
     }
 
+    /// Pulls the current branch. When it and the remote both have new commits, it merges them, or rebases
+    /// when `pull.rebase` (or `branch.<name>.rebase`) says so; `pull.ff = only` keeps it fast-forward only.
+    /// Conflicts stop it like `git pull` does: [`is_merging`](Self::is_merging) or
+    /// [`is_rebasing`](Self::is_rebasing) is then true.
     pub fn pull(&self) -> anyhow::Result<String> {
-        run_verbose(&self.root, &["pull", "--ff-only"])
+        let mut args = vec!["pull", "--no-edit"];
+        let ff_configured = run(&self.root, &["config", "--get", "pull.ff"]).is_ok();
+        args.extend(pull_rebase_arg(self.rebase_config().as_deref(), ff_configured));
+        run_verbose(&self.root, &args)
+    }
+
+    /// The `rebase` setting that applies to a pull of the current branch: `branch.<name>.rebase`, else
+    /// `pull.rebase`.
+    fn rebase_config(&self) -> Option<String> {
+        let get = |key: &str| run(&self.root, &["config", "--get", key]).ok().map(|v| v.trim().to_lowercase()).filter(|v| !v.is_empty());
+        let branch = run(&self.root, &["symbolic-ref", "--short", "-q", "HEAD"]).ok().map(|b| b.trim().to_owned());
+        branch.and_then(|b| get(&format!("branch.{b}.rebase"))).or_else(|| get("pull.rebase"))
+    }
+
+    /// Whether a rebase is in progress (stopped at conflicts).
+    pub fn is_rebasing(&self) -> bool {
+        ["rebase-merge", "rebase-apply"].iter().any(|dir| {
+            run(&self.root, &["rev-parse", "--git-path", dir]).is_ok_and(|p| {
+                let p = PathBuf::from(p.trim());
+                if p.is_absolute() { p.is_dir() } else { self.root.join(p).is_dir() }
+            })
+        })
+    }
+
+    /// Goes on with a rebase after its conflicts are resolved and staged (each commit keeps its message).
+    pub fn continue_rebase(&self) -> anyhow::Result<String> {
+        run_verbose(&self.root, &["-c", "core.editor=true", "rebase", "--continue"])
+    }
+
+    pub fn abort_rebase(&self) -> anyhow::Result<String> {
+        run_verbose(&self.root, &["rebase", "--abort"])
     }
 
     /// Pushes the current branch; publishes it to `origin` under its own name if it has no upstream yet.
@@ -1109,6 +1156,101 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         assert_eq!((ours.as_deref(), theirs.as_deref()), (Some("class A { int current; }\n"), Some("class A { int incoming; }\n")));
         let both = crate::conflicts::apply(&text, &conflicts[0], crate::conflicts::Resolution::Both);
         assert_eq!(both, "class A { int current; }\nclass A { int incoming; }\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn pull_merges_unless_rebase_is_configured() {
+        assert_eq!(pull_rebase_arg(None, false), Some("--no-rebase"));
+        assert_eq!(pull_rebase_arg(None, true), None, "pull.ff is left to git");
+        assert_eq!(pull_rebase_arg(Some("true"), false), None);
+        assert_eq!(pull_rebase_arg(Some("merges"), false), None);
+        assert_eq!(pull_rebase_arg(Some("false"), false), None);
+        assert_eq!(pull_rebase_arg(Some("interactive"), false), Some("--rebase=true"));
+    }
+
+    /// Pulling diverged branches from a real remote: merge, rebase (`pull.rebase`), a rebase stopped at a
+    /// conflict that is continued or aborted, and `pull.ff = only`.
+    #[test]
+    fn pull_of_diverged_branches() {
+        if Command::new("git").arg("--version").output().is_err() {
+            eprintln!("git not installed; skipping");
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("bf-git-pull-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        run(&dir, &["init", "-q", "--bare", "-b", "main", "remote.git"]).unwrap();
+        let configure = |root: &Path| {
+            for (k, v) in [("user.name", "Test"), ("user.email", "test@example.com"), ("commit.gpgsign", "false"), ("core.autocrlf", "false")] {
+                run(root, &["config", k, v]).unwrap();
+            }
+        };
+        std::fs::create_dir_all(dir.join("theirs")).unwrap();
+        run(&dir.join("theirs"), &["init", "-q", "-b", "main"]).unwrap();
+        let theirs = Git::discover(&dir.join("theirs")).unwrap();
+        configure(theirs.root());
+        let commit = |repo: &Git, name: &str, text: &str| {
+            std::fs::write(repo.root().join(name), text).unwrap();
+            repo.stage_all().unwrap();
+            repo.commit(&format!("{name}: {}", text.trim()), false).unwrap();
+        };
+        commit(&theirs, "A.cs", "a\n");
+        run(theirs.root(), &["remote", "add", "origin", dir.join("remote.git").to_str().unwrap()]).unwrap();
+        run(theirs.root(), &["push", "-q", "-u", "origin", "main"]).unwrap();
+        run(&dir, &["clone", "-q", dir.join("remote.git").to_str().unwrap(), "mine"]).unwrap();
+        let mine = Git::discover(&dir.join("mine")).unwrap();
+        configure(mine.root());
+        let diverge = |name: &str, theirs_text: &str, mine_text: &str| {
+            run(theirs.root(), &["pull", "-q", "--ff-only"]).unwrap();
+            commit(&theirs, name, theirs_text);
+            run(theirs.root(), &["push", "-q"]).unwrap();
+            commit(&mine, if name == "A.cs" { name } else { "Mine.cs" }, mine_text);
+        };
+        let parents = |repo: &Git| repo.log(1, 0).unwrap()[0].parents.len();
+        let read = |name: &str| std::fs::read_to_string(mine.root().join(name)).unwrap();
+
+        // No setting: a merge commit with both sides.
+        diverge("B.cs", "b\n", "m1\n");
+        mine.pull().unwrap();
+        assert_eq!(parents(&mine), 2, "a merge commit");
+        assert_eq!((read("B.cs").as_str(), read("Mine.cs").as_str()), ("b\n", "m1\n"));
+        run(mine.root(), &["push", "-q"]).unwrap();
+
+        // pull.rebase: my commit goes on top of theirs, no merge commit.
+        run(mine.root(), &["config", "pull.rebase", "true"]).unwrap();
+        diverge("C.cs", "c\n", "m2\n");
+        mine.pull().unwrap();
+        assert_eq!(parents(&mine), 1, "rebased");
+        assert_eq!(mine.log(2, 0).unwrap()[1].subject, "C.cs: c");
+        run(mine.root(), &["push", "-q"]).unwrap();
+
+        // A conflicting rebase stops; resolved and staged, it continues.
+        diverge("A.cs", "theirs\n", "mine\n");
+        assert!(mine.pull().is_err());
+        assert!(mine.is_rebasing());
+        std::fs::write(mine.root().join("A.cs"), "both\n").unwrap();
+        mine.stage_all().unwrap();
+        mine.continue_rebase().unwrap();
+        assert!(!mine.is_rebasing());
+        assert_eq!(mine.log(1, 0).unwrap()[0].subject, "A.cs: mine", "my commit keeps its message");
+        assert_eq!(read("A.cs"), "both\n");
+        run(mine.root(), &["push", "-q"]).unwrap();
+
+        // Aborted, everything is as before the pull.
+        diverge("A.cs", "theirs again\n", "mine again\n");
+        assert!(mine.pull().is_err() && mine.is_rebasing());
+        mine.abort_rebase().unwrap();
+        assert!(!mine.is_rebasing());
+        assert_eq!(read("A.cs"), "mine again\n");
+
+        // pull.ff = only (and no rebase): diverged branches are refused, nothing changes.
+        run(mine.root(), &["config", "--unset", "pull.rebase"]).unwrap();
+        run(mine.root(), &["config", "pull.ff", "only"]).unwrap();
+        let before = mine.log(1, 0).unwrap()[0].id.clone();
+        assert!(mine.pull().is_err());
+        assert!(!mine.is_rebasing() && !mine.is_merging());
+        assert_eq!(mine.log(1, 0).unwrap()[0].id, before);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

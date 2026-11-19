@@ -130,7 +130,7 @@ actions!(
     git,
     [
         GitUndoLastCommit, GitCommitAmend, GitStash, GitStashPopLatest, GitStashPop, GitStashApply, GitStashDrop, GitDiscardAll,
-        GitMergeBranch, GitAbortMerge, GitRenameBranch, GitCreateTag, GitPushTags, GitRevertCommit
+        GitMergeBranch, GitAbortMerge, GitContinueRebase, GitAbortRebase, GitRenameBranch, GitCreateTag, GitPushTags, GitRevertCommit
     ]
 );
 
@@ -296,6 +296,8 @@ fn builtin() -> Vec<Builtin> {
         ("git.stashDrop", "Drop Stash…", "Git", Box::new(GitStashDrop), None),
         ("git.merge", "Merge Branch…", "Git", Box::new(GitMergeBranch), None),
         ("git.abortMerge", "Abort Merge", "Git", Box::new(GitAbortMerge), None),
+        ("git.continueRebase", "Continue Rebase", "Git", Box::new(GitContinueRebase), None),
+        ("git.abortRebase", "Abort Rebase", "Git", Box::new(GitAbortRebase), None),
         ("git.renameBranch", "Rename Branch…", "Git", Box::new(GitRenameBranch), None),
         ("git.createTag", "Create Tag…", "Git", Box::new(GitCreateTag), None),
         ("git.pushTags", "Push Tags", "Git", Box::new(GitPushTags), None),

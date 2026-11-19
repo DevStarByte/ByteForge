@@ -1613,6 +1613,49 @@ mod tests {
         drop(guard);
     }
 
+    /// Pull with `pull.rebase` when both sides changed the same line: it stops while rebasing; the file is
+    /// resolved and Commit goes on with the rebase, so my commit ends up on top of theirs.
+    #[gpui::test]
+    fn pull_rebase_stops_at_a_conflict_and_commit_continues(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "git-pull-rebase");
+        let repo = two_commits(&guard, &wb, cx);
+        let remote = guard.dir.join("remote.git");
+        git(&guard.dir, &["clone", "-q", "--bare", repo.to_str().unwrap(), remote.to_str().unwrap()]);
+        git(&repo, &["remote", "add", "origin", remote.to_str().unwrap()]);
+        git(&repo, &["fetch", "-q", "origin"]);
+        git(&repo, &["branch", "-q", "-u", "origin/main"]);
+        git(&repo, &["config", "pull.rebase", "true"]);
+        let other = guard.dir.join("other");
+        git(&guard.dir, &["clone", "-q", remote.to_str().unwrap(), other.to_str().unwrap()]);
+        for (k, v) in [("user.name", "Bo Example"), ("user.email", "b@example.com"), ("commit.gpgsign", "false"), ("core.autocrlf", "false")] {
+            git(&other, &["config", k, v]);
+        }
+        std::fs::write(other.join("A.cs"), "theirs\n").unwrap();
+        git(&other, &["commit", "-qam", "their change"]);
+        git(&other, &["push", "-q"]);
+        std::fs::write(repo.join("A.cs"), "mine\n").unwrap();
+        git(&repo, &["commit", "-qam", "my change"]);
+        wb.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.refresh(cx)));
+        cx.run_until_parked();
+
+        cx.dispatch_action(crate::actions::GitPull);
+        let rebasing = |repo: &Path| repo.join(".git/rebase-merge").is_dir() || repo.join(".git/rebase-apply").is_dir();
+        wait_for(cx, "the pull stopped while rebasing", |_| rebasing(&repo));
+        wait_for(cx, "the explanation", |cx| wb.update(cx, |wb, cx| wb.scm.read(cx).error.as_deref().is_some_and(|e| e.contains("Continue Rebase"))));
+
+        // Commit with the conflict markers still in the file refuses; resolved, it goes on with the rebase.
+        cx.dispatch_action(crate::actions::GitCommit);
+        assert!(rebasing(&repo), "unresolved: still rebasing");
+        std::fs::write(repo.join("A.cs"), "theirs and mine\n").unwrap();
+        wb.update(cx, |wb, cx| wb.scm.update(cx, |s, cx| s.refresh(cx)));
+        cx.run_until_parked();
+        cx.dispatch_action(crate::actions::GitCommit);
+        wait_for(cx, "the rebase finished", |_| !rebasing(&repo));
+        assert_eq!(git(&repo, &["log", "-2", "--format=%s"]), "my change\ntheir change");
+        assert_eq!(std::fs::read_to_string(repo.join("A.cs")).unwrap(), "theirs and mine\n");
+        drop(guard);
+    }
+
     /// A commit's right-click menu: Create Tag Here… and Revert Commit (which asks first).
     #[gpui::test]
     fn tag_and_revert_from_a_commits_menu(cx: &mut gpui::TestAppContext) {

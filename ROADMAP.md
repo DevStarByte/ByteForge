@@ -15,7 +15,8 @@ the git history.
       Fixed since: Revert Change on an untracked file deletes it (and says so first); saving a secret edits only
       that key, so comments and nesting in secrets.json stay; Run All goes on past a test project that doesn't
       build (Shift+F5 ends the queue); every breadcrumb opens a dropdown (folder entries, siblings, symbols); the
-      commit message box spans the side bar and takes several lines; text boxes scroll to the caret.
+      commit message box spans the side bar and takes several lines; text boxes scroll to the caret; Space types
+      in the terminal; Problems lists build errors of closed C# files while a language server runs.
 - [x] Branch picker: clicking a branch doesn't switch to it. Confirmed working in the app (and the status bar follows). A switch git refuses (local changes in the way) asks, with
       "Stash Changes and Switch", and a switch while git is busy says so in the Output.
 - [x] The Roslyn language server (the one VS Code's C# extension uses) next to csharp-ls: `"csharp.server": "roslyn"` or
@@ -76,7 +77,9 @@ Section 1 above is what still has to be checked by hand; this is what the releas
 - [ ] Razor IntelliSense (completion, hover, diagnostics in `.razor` / `.cshtml`) with the Roslyn server: needs the
       Razor extension VS Code's C# extension loads.
 - [ ] Blazor WebAssembly debugging.
-- [ ] Git pull that isn't fast-forward only (merge or rebase, `pull.rebase` honored).
+- [x] Git pull that isn't fast-forward only: diverged branches are merged, or rebased with `pull.rebase` (or
+      `branch.<name>.rebase`); `pull.ff = only` is honored. A pull that stops at conflicts says what to do next;
+      mid-rebase, Commit (or Git: Continue Rebase) goes on once the files are resolved, Git: Abort Rebase goes back.
 
 ## 6. The rest of a .NET project
 

@@ -183,6 +183,8 @@ impl Render for Workbench {
                 wb.scm.update(cx, |s, cx| s.merge(branch, cx))
             }))
             .on_action(cx.listener(|wb, _: &GitAbortMerge, w, cx| wb.scm.update(cx, |s, cx| s.abort_merge(w, cx))))
+            .on_action(cx.listener(|wb, _: &GitContinueRebase, _, cx| wb.scm.update(cx, |s, cx| s.continue_rebase(cx))))
+            .on_action(cx.listener(|wb, _: &GitAbortRebase, w, cx| wb.scm.update(cx, |s, cx| s.abort_rebase(w, cx))))
             .on_action(cx.listener(|wb, _: &GitRenameBranch, w, cx| {
                 let current = wb.scm.read(cx).branch().unwrap_or_default().to_owned();
                 wb.open_prompt(PromptKind::RenameBranch, &current, w, cx)

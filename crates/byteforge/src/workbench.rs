@@ -942,27 +942,34 @@ impl Workbench {
     }
 
     fn problems(&self, cx: &App) -> Vec<(PathBuf, crate::editor::Diagnostic)> {
-        let mut out = Vec::new();
+        let mut editors = Vec::new();
         for tab in &self.tabs {
             if let Some(path) = &tab.path {
                 for d in &tab.editor.read(cx).diagnostics {
-                    out.push((path.clone(), d.clone()));
+                    editors.push((path.clone(), d.clone()));
                 }
             }
         }
-        // Build diagnostics of files that aren't open (open ones show them as editor diagnostics). C# files
-        // are left to the language server when it runs.
-        let lsp = self.lsp.is_some();
-        for (path, d) in &self.build_problems {
-            let open = self.tabs.iter().any(|t| t.path.as_ref() == Some(path));
-            let csharp = path.extension().is_some_and(|e| e == "cs");
-            if !(open || (lsp && csharp)) {
-                out.push((path.clone(), d.clone()));
-            }
-        }
-        out.sort_by_key(|(p, d)| (severity_rank(d.severity), p.clone(), d.start));
-        out
+        merge_problems(editors, &self.build_problems)
     }
+}
+
+/// The Problems list: the open editors' diagnostics plus every build diagnostic the editors don't already
+/// show. The language server only reports files that are open, so a build error in a closed C# file has
+/// to come from the build (it stays until the next build, like in Visual Studio).
+fn merge_problems(
+    mut out: Vec<(PathBuf, crate::editor::Diagnostic)>,
+    build: &[(PathBuf, crate::editor::Diagnostic)],
+) -> Vec<(PathBuf, crate::editor::Diagnostic)> {
+    let shown = out.len();
+    for (path, d) in build {
+        let same = |(p, x): &(PathBuf, crate::editor::Diagnostic)| p == path && x.start == d.start && x.code == d.code;
+        if !out[..shown].iter().any(same) {
+            out.push((path.clone(), d.clone()));
+        }
+    }
+    out.sort_by_key(|(p, d)| (severity_rank(d.severity), p.clone(), d.start));
+    out
 }
 
 fn severity_rank(s: bf_lsp::Severity) -> u8 {
@@ -1116,4 +1123,27 @@ pub(crate) fn default_key(id: &str) -> String {
         _ => "",
     };
     crate::actions::key_label(keys)
+}
+#[cfg(test)]
+mod problem_tests {
+    use super::*;
+    use crate::editor::Diagnostic;
+
+    fn error(line: usize, code: &str, message: &str) -> Diagnostic {
+        Diagnostic { start: Point::new(line, 4), end: Point::new(line, 5), severity: bf_lsp::Severity::Error, message: message.into(), code: Some(code.into()) }
+    }
+
+    #[test]
+    fn build_errors_of_closed_csharp_files_are_listed_once() {
+        let (open, closed) = (PathBuf::from("/p/Open.cs"), PathBuf::from("/p/MainForm.cs"));
+        // The language server reports the open file; the build reports both.
+        let editors = vec![(open.clone(), error(3, "CS0103", "The name 'x' does not exist in the current context"))];
+        let build = vec![
+            (open.clone(), error(3, "CS0103", "The name 'x' does not exist")),
+            (closed.clone(), error(38, "CS0117", "'BoardTheme' does not contain a definition for 'CardFont'")),
+        ];
+        let problems = merge_problems(editors, &build);
+        let listed: Vec<_> = problems.iter().map(|(p, d)| (p.clone(), d.code.clone().unwrap())).collect();
+        assert_eq!(listed, [(closed, "CS0117".to_owned()), (open, "CS0103".to_owned())]);
+    }
 }

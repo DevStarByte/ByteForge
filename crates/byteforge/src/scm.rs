@@ -65,7 +65,7 @@ pub struct ScmView {
     entries: Vec<Entry>,
     message: Entity<TextInput>,
     busy: Option<String>,
-    error: Option<String>,
+    pub(crate) error: Option<String>,
     loaded: bool,
     history: History,
     refresh_task: Option<Task<()>>,
@@ -461,6 +461,11 @@ impl ScmView {
     }
 
     pub fn commit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // Mid-rebase, a commit of its own would land between the replayed ones; Commit goes on with the
+        // rebase instead (each replayed commit keeps its message).
+        if self.git.as_ref().is_some_and(|g| g.is_rebasing()) {
+            return self.continue_rebase(cx);
+        }
         let message = self.message.read(cx).text().trim().to_owned();
         if message.is_empty() {
             self.error = Some("Enter a commit message first.".into());
@@ -493,7 +498,49 @@ impl ScmView {
     }
 
     pub fn pull(&mut self, cx: &mut Context<Self>) {
-        self.run_op("pull", false, |g| g.pull(), cx);
+        self.run_op("pull", false, |g| g.pull().map_err(|e| explain_stopped_pull(g, e)), cx);
+    }
+
+    /// Goes on with a rebase whose conflicts are resolved (unstaged resolutions are staged first; a file
+    /// that still has conflict markers stops it).
+    pub fn continue_rebase(&mut self, cx: &mut Context<Self>) {
+        let Some(git) = self.git.clone() else { return };
+        if !git.is_rebasing() {
+            cx.emit(ScmEvent::Log("No rebase is in progress.".into()));
+            return;
+        }
+        let unresolved: Vec<String> = self
+            .status
+            .changes
+            .iter()
+            .filter(|c| c.conflict && std::fs::read_to_string(&c.path).is_ok_and(|t| !bf_core::conflicts::find(&t).is_empty()))
+            .filter_map(|c| c.path.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .collect();
+        if !unresolved.is_empty() {
+            self.error = Some(format!("Resolve the conflicts first: {}.", unresolved.join(", ")));
+            cx.notify();
+            return;
+        }
+        self.run_op("rebase --continue", false, |g| {
+            g.stage_all()?;
+            g.continue_rebase().map_err(|e| explain_stopped_pull(g, e))
+        }, cx);
+    }
+
+    /// Stops a rebase that stopped at conflicts, back to before the pull (asks first).
+    pub fn abort_rebase(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(git) = self.git.clone() else { return };
+        if !git.is_rebasing() {
+            cx.emit(ScmEvent::Log("No rebase is in progress.".into()));
+            return;
+        }
+        let rx = window.prompt(PromptLevel::Warning, "Abort the rebase?", Some("The branch goes back to how it was before the pull; conflict resolutions made so far are lost."), &["Abort Rebase", "Cancel"], cx);
+        cx.spawn(async move |this, cx| {
+            if let Ok(0) = rx.await {
+                let _ = this.update(cx, |v, cx| v.run_op("rebase --abort", false, |g| g.abort_rebase(), cx));
+            }
+        })
+        .detach();
     }
 
     pub fn push(&mut self, cx: &mut Context<Self>) {
@@ -505,11 +552,11 @@ impl ScmView {
         self.run_op("fetch", false, |g| g.fetch(), cx);
     }
 
-    /// Pull (fast-forward only), then push.
+    /// Pull, then push (a pull that stops at conflicts pushes nothing).
     pub fn sync(&mut self, cx: &mut Context<Self>) {
         let status = self.status.clone();
         self.run_op("sync", false, move |g| {
-            let mut out = if status.upstream.is_some() { g.pull()? } else { String::new() };
+            let mut out = if status.upstream.is_some() { g.pull().map_err(|e| explain_stopped_pull(g, e))? } else { String::new() };
             let status = g.status().unwrap_or(status);
             out.push('\n');
             out.push_str(&g.push(&status)?);
@@ -1205,6 +1252,8 @@ impl ScmView {
                 .child(crate::menu::separator(&t))
                 .child(section("Remote"))
                 .child(entry("m-pull", "Pull", Box::new(GitPull), cx))
+                .child(entry("m-continue-rebase", "Continue Rebase", Box::new(GitContinueRebase), cx))
+                .child(entry("m-abort-rebase", "Abort Rebase", Box::new(GitAbortRebase), cx))
                 .child(entry("m-push", "Push", Box::new(GitPush), cx))
                 .child(entry("m-fetch", "Fetch", Box::new(GitFetch), cx))
                 .child(entry("m-sync", "Sync (Pull, then Push)", Box::new(GitSync), cx))
@@ -1237,6 +1286,17 @@ impl ScmView {
             .child(entry("c-revert", "Revert Commit", Box::new(GitRevertCommitId { id: id3, subject: commit.subject.clone() }), cx))
             .when(is_head, |d| d.child(entry("c-undo", "Undo Commit", Box::new(GitUndoLastCommit), cx)));
         Some(gpui::deferred(gpui::anchored().position(pos).snap_to_window().child(panel)).with_priority(1).into_any_element())
+    }
+}
+
+/// A pull (or a rebase going on) that stopped at conflicts, with what to do next; other errors stay as they are.
+fn explain_stopped_pull(git: &bf_core::git::Git, e: anyhow::Error) -> anyhow::Error {
+    if git.is_rebasing() {
+        anyhow::anyhow!("The pull stopped at conflicting changes while rebasing. Resolve the conflicts (Merge Editor), then Commit or Git: Continue Rebase; or Git: Abort Rebase.\n{e}")
+    } else if git.is_merging() {
+        anyhow::anyhow!("The pull stopped at conflicting changes. Resolve the conflicts (Merge Editor), stage the files and commit, or Git: Abort Merge.\n{e}")
+    } else {
+        e
     }
 }
 
