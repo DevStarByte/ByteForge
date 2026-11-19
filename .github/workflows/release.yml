@@ -4,6 +4,7 @@
 #   git tag v0.4.0-beta.1 && git push origin v0.4.0-beta.1 -> pre-release (any tag with a "-")
 #
 # The tag (without its "-beta.N" part) must match the version in Cargo.toml.
+# Clippy and the whole test suite (ci.yml) run first; a failure stops the builds and the release.
 # Pushes to master that touch the code (and runs started by hand) build the
 # downloads as workflow artifacts without publishing anything.
 #
@@ -28,6 +29,7 @@ on:
       - "modules/**"
       - "packaging/**"
       - ".github/workflows/release.yml"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 permissions:
@@ -38,7 +40,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # clippy + the whole test suite (ci.yml) on Arch, Windows and macOS. Everything below waits for
+  # it through `version`, so nothing is built or published unless every check passes.
+  tests:
+    uses: ./.github/workflows/ci.yml
+
   version:
+    needs: tests
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}

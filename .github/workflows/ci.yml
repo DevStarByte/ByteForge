@@ -2,7 +2,8 @@
 # on Arch Linux, Windows and macOS. Linux runs in an archlinux container (the platform ByteForge is
 # packaged for) with Arch's own rust, .NET SDK and git; Windows and macOS use the runners'
 # preinstalled .NET SDK and git. Tests that need a tool the runner lacks (csharp-ls, netcoredbg,
-# docker containers, …) skip themselves. Builds and releases are left to release.yml.
+# docker containers, …) skip themselves. Builds and releases are left to release.yml, which calls
+# this workflow first and builds only when it passes.
 name: CI
 
 on:
@@ -16,13 +17,17 @@ on:
       - "**.md"
       - "docs/**"
   workflow_dispatch:
+  # release.yml runs these checks first and builds nothing unless they pass
+  workflow_call:
 
 permissions:
   contents: read
 
+# github.workflow is the caller's name when release.yml calls this, so the standalone CI run and the
+# release's checks never cancel each other; only standalone runs cancel an older run on the same ref.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.workflow == 'CI' }}
 
 env:
   CARGO_TERM_COLOR: always
