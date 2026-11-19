@@ -170,9 +170,13 @@ themes and modules in that folder (to try a theme or a build without touching yo
 
 ## Known limitations
 
-- Git pull is fast-forward only, and there's no merge-conflict editor or blame yet.
-- Razor files have no completion or hover yet; errors show up after a build.
-- No conditional breakpoints or watch expressions yet. Blazor WebAssembly can't be debugged.
+- Git pull is fast-forward only.
+- Razor files (`.razor`, `.cshtml`) are highlighted but have no completion or hover yet; errors show up after a
+  build.
+- No Change Signature refactoring: neither csharp-ls nor the Roslyn server offers it outside Visual Studio.
+- Blazor WebAssembly can't be debugged, and neither can apps in Alpine (musl) containers (netcoredbg has no
+  musl release).
+- Windows downloads aren't code-signed yet and the macOS app isn't notarized (see [Install](#install)).
 - Very large solutions take a while before diagnostics appear.
 
 ## License

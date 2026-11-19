@@ -25,6 +25,10 @@ the git history.
       extension the C# extension loads). Change Signature isn't offered by Roslyn's server either (VS Code shows its
       own dialog for it).
 
+- [x] README "Known limitations" matches the app: merge editor, blame, conditional breakpoints and watch
+      expressions are built, so they are no longer listed as missing; what still is (fast-forward-only pull,
+      Razor IntelliSense, Change Signature, Blazor WebAssembly and Alpine debugging, unsigned downloads) is.
+
 ## 2. Everyday features
 
 - [x] Search: regex and whole-word options in Find and in Search across files (Aa / ab / .* toggles, Alt+C/W/R in the find bar, `$1` groups in Replace, matches highlighted in the Search results).
@@ -62,8 +66,29 @@ Section 1 above is what still has to be checked by hand; this is what the releas
       debugging in Alpine images), in CHANGELOG.md under 1.0.0.
 - [x] Tag `v1.0.0`. Signing (SignPath) and notarization follow in a later release.
 
-## 5. Later
+## 5. What a C# developer misses from Rider or Visual Studio
+
+- [ ] Code Lens: reference counts and "Run | Debug" above tests, from `textDocument/codeLens` (today only
+      `codeLens/refresh` is answered; no lenses are asked for or drawn).
+- [ ] Call Hierarchy (incoming / outgoing calls) and Type Hierarchy (base types / derived types), from the LSP
+      requests both csharp-ls and the Roslyn server answer.
+- [ ] Razor IntelliSense (completion, hover, diagnostics in `.razor` / `.cshtml`) with the Roslyn server: needs the
+      Razor extension VS Code's C# extension loads.
+- [ ] Blazor WebAssembly debugging.
+- [ ] Git pull that isn't fast-forward only (merge or rebase, `pull.rebase` honored).
+
+## 6. The rest of a .NET project
+
+- [ ] Highlighting beyond C#, Razor, JSON, XML and YAML: JavaScript / TypeScript, CSS / SCSS, HTML, SQL, Markdown,
+      PowerShell and shell scripts.
+- [ ] Linked editing: renaming an XML or HTML tag renames its closing tag (`.csproj`, `.razor`, `.cshtml`).
+
+## 7. Later
 
 - [ ] Code coverage in the gutter.
 - [ ] Sticky scroll (the current type and member pinned at the top of the editor).
 - [ ] An AI assistant panel.
+- [ ] A keyboard shortcuts editor (today: `"keybindings"` in settings.json).
+- [ ] Vim mode.
+- [ ] Remote development: SSH, WSL, dev containers.
+- [ ] Profiling: `dotnet-counters` / `dotnet-trace` from the Run menu.
