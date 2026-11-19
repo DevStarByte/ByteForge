@@ -3,6 +3,13 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.0.2
+
+- The Windows installer (`ByteForge-<version>-windows-x64-setup.exe`) is on the release again. It was
+  built but never attached, so 1.0.0 and 1.0.1 have only the portable `.zip`, and installed copies couldn't
+  update themselves.
+- README: Windows builds aren't code-signed; how to get past the SmartScreen warning.
+
 ## 1.0.1
 
 - Settings screen: the search box spans the page and shows its "Search settings" hint again. Before, it

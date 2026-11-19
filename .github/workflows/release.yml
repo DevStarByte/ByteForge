@@ -299,5 +299,11 @@ jobs:
           name: ByteForge ${{ needs.version.outputs.version }}
           prerelease: ${{ needs.version.outputs.prerelease }}
           generate_release_notes: true
-          files: dist/*
+          # Every download by name: the Windows installer arrives in dist/setup/ (its artifact keeps that
+          # folder), which `dist/*` never matched. Each pattern must match, so a missing one fails the run.
+          files: |
+            dist/setup/*-setup.exe
+            dist/*.zip
+            dist/*.pkg.tar.zst
+            dist/*.dmg
           fail_on_unmatched_files: true

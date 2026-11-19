@@ -93,8 +93,8 @@ Download `ByteForge-<version>-windows-x64-setup.exe` (installer, no admin rights
 dotnet tool install -g csharp-ls
 ```
 
-Windows builds are signed through SignPath Foundation once its approval comes through; see the
-[code signing policy](docs/code-signing.md).
+Windows builds aren't code-signed, so Windows SmartScreen warns the first time you run the installer or
+`byteforge.exe`: choose "More info" → "Run anyway".
 
 ### macOS
 
