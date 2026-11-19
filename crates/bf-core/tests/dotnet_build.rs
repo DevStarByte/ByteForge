@@ -2,7 +2,8 @@
 //! from `dotnet build` output. Skips (passes) with a message when `dotnet` is not installed.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output};
+use std::sync::Mutex;
 
 use bf_core::debug::{BuildSeverity, parse_build_line, target_assembly};
 
@@ -20,6 +21,24 @@ fn web_framework() -> Option<String> {
         .filter_map(|l| l.strip_prefix("Microsoft.AspNetCore.App ")?.split('.').next()?.parse::<u32>().ok())
         .max()?;
     Some(format!("net{major}.0"))
+}
+
+/// One `dotnet build` at a time, without build servers: on a fresh CI runner (macOS especially) two
+/// parallel first builds race over NuGet restore and the shared MSBuild/compiler server processes and
+/// fail now and then.
+static DOTNET: Mutex<()> = Mutex::new(());
+
+fn dotnet_build(project: &Path) -> Output {
+    let _one_at_a_time = DOTNET.lock().unwrap_or_else(|e| e.into_inner());
+    Command::new("dotnet").arg("build").arg(project).arg("--disable-build-servers").output().unwrap()
+}
+
+fn shown(output: &Output) -> String {
+    format!("exit {:?}
+--- stdout ---
+{}
+--- stderr ---
+{}", output.status.code(), String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr))
 }
 
 struct TempProject(PathBuf);
@@ -54,10 +73,13 @@ fn target_assembly_of_built_project() {
     );
     let project = temp_project("target", &[("Multi.csproj", csproj), ("Program.cs", "System.Console.WriteLine(1);".into())]);
     let csproj = project.0.join("Multi.csproj");
-    let output = Command::new("dotnet").arg("build").arg(&csproj).output().unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stdout));
+    let output = dotnet_build(&csproj);
+    assert!(output.status.success(), "{}", shown(&output));
     // TargetFrameworks (plural) has no TargetPath until one framework is picked.
-    let program = target_assembly(&csproj).unwrap();
+    let program = {
+        let _one_at_a_time = DOTNET.lock().unwrap_or_else(|e| e.into_inner());
+        target_assembly(&csproj).unwrap()
+    };
     assert!(program.ends_with(Path::new(&tfm).join("Multi.dll")), "{}", program.display());
     assert!(program.is_file());
 }
@@ -72,8 +94,9 @@ fn razor_errors_from_build_output() {
     let program = "var app = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(args).Build(); app.Run();";
     let page = "@page\n<h1>Hello</h1>\n<p>@notDefined</p>\n";
     let project = temp_project("razor", &[("Web.csproj", csproj), ("Program.cs", program.into()), ("Pages/Index.cshtml", page.into())]);
-    let output = Command::new("dotnet").arg("build").arg(project.0.join("Web.csproj")).output().unwrap();
-    assert!(!output.status.success());
+    let output = dotnet_build(&project.0.join("Web.csproj"));
+    assert!(!output.status.success(), "the build should fail:
+{}", shown(&output));
     let stdout = String::from_utf8_lossy(&output.stdout);
     let found: Vec<_> = stdout.lines().filter_map(|l| parse_build_line(l, &project.0)).collect();
     let error = found
