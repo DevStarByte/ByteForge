@@ -1068,15 +1068,17 @@ mod tests {
     }
 
     /// Runs the app until `done` holds (git runs on background threads), or panics with `what`.
+    /// The limit is generous: CI's macOS runners are slow when the whole suite runs in parallel.
     fn wait_for(cx: &mut gpui::VisualTestContext, what: &str, mut done: impl FnMut(&mut gpui::VisualTestContext) -> bool) {
-        for _ in 0..200 {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        loop {
             cx.run_until_parked();
             if done(cx) {
                 return;
             }
+            assert!(std::time::Instant::now() < deadline, "timed out waiting for: {what}");
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
-        panic!("timed out waiting for: {what}");
     }
 
     /// Clicks the element drawn with `selector` (it has to be on screen).
