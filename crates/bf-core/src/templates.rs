@@ -2,7 +2,7 @@
 //! (class, interface, record, enum, struct), which the SDK doesn't ship.
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use anyhow::{Context as _, bail};
 
@@ -28,17 +28,12 @@ pub fn list(kind: TemplateKind) -> anyhow::Result<Vec<Template>> {
         TemplateKind::Project => "project",
         TemplateKind::Item => "item",
     };
-    let mut command = Command::new("dotnet");
+    let mut command = crate::process::command("dotnet");
     command
         .args(["new", "list", "--type", kind_arg])
         .env("DOTNET_NOLOGO", "1")
         .env("DOTNET_CLI_TELEMETRY_OPTOUT", "1")
         .stdin(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
     let out = command.output().context("could not start dotnet (is the .NET SDK installed?)")?;
     let text = String::from_utf8_lossy(&out.stdout);
     let templates = parse_list(&text);

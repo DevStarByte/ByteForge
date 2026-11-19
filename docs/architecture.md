@@ -9,7 +9,9 @@ crates/
   bf-core     paths, settings, themes (inheritance, hot reload), workspace index/watcher, search, dotnet runner,
               debug helpers (launch profiles, target assembly, build diagnostics), module host
   byteforge   the GPUI app: workbench, editor element, palette, explorer, search, theme → GPUI mapping, icons
-modules/      bundled modules (the ReSharper Formatter is preinstalled; Aspire, Azure and SQL come from the registry)
+modules/      the preinstalled modules, shipped with every download (the ReSharper Formatter); all others live in
+              the registry: modules/ on the `packages` branch
+tests/        test data (copies of the SQL and Azure modules' module.json for the module language tests)
 themes/       built-in themes (byteforge-dark.json documents every key)
 packaging/    Linux install script, desktop entry, Arch PKGBUILD for local builds
               (the repo's PKGBUILD and build workflow live on the `packages` branch)

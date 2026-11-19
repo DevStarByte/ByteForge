@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use anyhow::{Context as _, bail};
 use serde::Deserialize;
@@ -21,18 +21,13 @@ pub struct PackageInfo {
 pub type Outdated = HashMap<PathBuf, HashMap<String, String>>;
 
 fn dotnet(dir: &Path, args: &[&str]) -> anyhow::Result<(bool, String, String)> {
-    let mut command = Command::new("dotnet");
+    let mut command = crate::process::command("dotnet");
     command
         .args(args)
         .current_dir(dir)
         .env("DOTNET_NOLOGO", "1")
         .env("DOTNET_CLI_TELEMETRY_OPTOUT", "1")
         .stdin(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
     let out = command.output().context("could not start dotnet")?;
     Ok((out.status.success(), String::from_utf8_lossy(&out.stdout).into_owned(), String::from_utf8_lossy(&out.stderr).into_owned()))
 }

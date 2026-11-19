@@ -656,18 +656,26 @@ impl Shared {
                 None => log::warn!("bf-lsp: malformed publishDiagnostics: {params}"),
             },
             "$/progress" => {
-                let text = self.state.lock().progress.handle(params);
+                let (text, idle) = {
+                    let mut state = self.state.lock();
+                    let text = state.progress.handle(params);
+                    (text, state.progress.is_idle())
+                };
                 if let Some(text) = text {
                     self.emit(LspEvent::Progress(text));
                 }
                 // Diagnostics computed while the project was still loading are incomplete.
                 if params.pointer("/value/kind").and_then(Value::as_str) == Some("end") {
+                    if idle {
+                        self.emit(LspEvent::Idle);
+                    }
                     self.schedule_pull_all();
                 }
             }
             // Roslyn: the solution or projects are loaded (the diagnostics until now were incomplete).
             "workspace/projectInitializationComplete" => {
                 self.emit(LspEvent::Progress("Finished loading projects".into()));
+                self.emit(LspEvent::Idle);
                 self.schedule_pull_all();
             }
             "window/logMessage" | "window/showMessage" | "$/logTrace" => {

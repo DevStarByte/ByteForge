@@ -32,13 +32,8 @@ pub struct ContainerProcess {
 }
 
 fn docker() -> Command {
-    let mut command = Command::new("docker");
+    let mut command = crate::process::command("docker");
     command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
     command
 }
 
@@ -162,7 +157,7 @@ pub(crate) fn download_release(asset: &str, dir: &Path, exe: &Path) -> anyhow::R
     std::fs::create_dir_all(dir)?;
     let archive = dir.join(asset);
     let url = format!("https://github.com/Samsung/netcoredbg/releases/latest/download/{asset}");
-    let out = Command::new(system_tool("curl"))
+    let out = crate::process::command(system_tool("curl"))
         .args(["--silent", "--show-error", "--fail", "--location", "--max-time", "600", "--output"])
         .arg(&archive)
         .arg(&url)
@@ -173,7 +168,7 @@ pub(crate) fn download_release(asset: &str, dir: &Path, exe: &Path) -> anyhow::R
         anyhow::bail!("downloading {url} failed: {}", String::from_utf8_lossy(&out.stderr).trim());
     }
     // tar ships with Linux, macOS and Windows 10+; Windows' own (bsdtar) also unpacks .zip files.
-    let out = Command::new(system_tool("tar")).arg("-xf").arg(&archive).arg("-C").arg(dir).stdin(Stdio::null()).output().context("could not run tar")?;
+    let out = crate::process::command(system_tool("tar")).arg("-xf").arg(&archive).arg("-C").arg(dir).stdin(Stdio::null()).output().context("could not run tar")?;
     let _ = std::fs::remove_file(&archive);
     if !out.status.success() || !exe.exists() {
         anyhow::bail!("unpacking {asset} failed: {}", String::from_utf8_lossy(&out.stderr).trim());

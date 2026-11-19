@@ -159,7 +159,7 @@ mod mac_path {
     /// shell profile can't keep the IDE from starting.
     fn login_shell_path() -> Option<String> {
         let shell = std::env::var("SHELL").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "/bin/zsh".into());
-        let mut child = Command::new(shell)
+        let mut child = crate::process::command(shell)
             .args(["-l", "-i", "-c", &format!("echo {MARKER}; printenv PATH")])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -196,7 +196,7 @@ pub fn open_in_default_app(path: &Path) -> std::io::Result<()> {
     } else {
         "xdg-open"
     };
-    let mut child = std::process::Command::new(program)
+    let mut child = crate::process::command(program)
         .arg(path)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())

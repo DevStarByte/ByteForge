@@ -5,7 +5,6 @@
 //! Downloads use `curl` (part of every Arch install, and of Windows 10+), so there's no HTTP stack here.
 
 use std::path::{Component, Path, PathBuf};
-use std::process::Command;
 
 use anyhow::{Context, bail};
 use serde::{Deserialize, Serialize};
@@ -56,7 +55,7 @@ pub fn parse_index(text: &str) -> anyhow::Result<Vec<PackageInfo>> {
 pub fn fetch_index(base: &str) -> anyhow::Result<Vec<PackageInfo>> {
     // Read from curl's output: a temp file (named per process) was shared by fetches running at the same time.
     let url = format!("{}/index.json", base.trim_end_matches('/'));
-    let output = Command::new("curl")
+    let output = crate::process::command("curl")
         .args(["--fail", "--silent", "--show-error", "--location", "--max-time", "60"])
         .arg(&url)
         .output()
@@ -214,7 +213,7 @@ fn check_relative(path: &str) -> anyhow::Result<()> {
 }
 
 fn download(url: &str, dest: &Path) -> anyhow::Result<()> {
-    let output = Command::new("curl")
+    let output = crate::process::command("curl")
         .args(["--fail", "--silent", "--show-error", "--location", "--max-time", "60", "--output"])
         .arg(dest)
         .arg(url)

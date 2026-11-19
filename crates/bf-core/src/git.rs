@@ -210,7 +210,7 @@ pub struct Git {
 }
 
 fn git(dir: &Path) -> Command {
-    let mut command = Command::new("git");
+    let mut command = crate::process::command("git");
     command
         .current_dir(dir)
         .args(["-c", "core.quotepath=false", "-c", "color.ui=false"])
@@ -222,11 +222,6 @@ fn git(dir: &Path) -> Command {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
     command
 }
 

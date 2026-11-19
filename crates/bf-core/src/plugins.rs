@@ -17,7 +17,7 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStdin, Stdio};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -350,13 +350,8 @@ impl PluginHandle {
     pub fn start(manifest: ModuleManifest, events: flume::Sender<PluginMessage>) -> anyhow::Result<Self> {
         let (program, mut args) = resolve_program(&manifest.command);
         args.extend(manifest.args.iter().cloned());
-        let mut command = Command::new(&program);
+        let mut command = crate::process::command(&program);
         command.args(&args).current_dir(&manifest.dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            command.creation_flags(0x0800_0000);
-        }
         let mut child = command.spawn()?;
         let stdout = child.stdout.take().ok_or_else(|| anyhow::anyhow!("no stdout"))?;
         let stderr = child.stderr.take();

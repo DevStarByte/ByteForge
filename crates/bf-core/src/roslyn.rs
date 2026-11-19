@@ -18,13 +18,8 @@ const CONTENT: &str = "content/LanguageServer/neutral/";
 pub const DLL: &str = "Microsoft.CodeAnalysis.LanguageServer.dll";
 
 fn curl(url: &str) -> Command {
-    let mut c = Command::new("curl");
+    let mut c = crate::process::command("curl");
     c.args(["--silent", "--show-error", "--fail", "--location", "--max-time", "600"]).arg(url).stdin(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
     c
 }
 
@@ -95,7 +90,7 @@ pub fn install(cache: &Path, base: &str, version: &str) -> anyhow::Result<PathBu
 }
 
 fn verify_and_unpack(package: &Path, target: &Path) -> anyhow::Result<PathBuf> {
-    let out = Command::new("dotnet")
+    let out = crate::process::command("dotnet")
         .args(["nuget", "verify", "--all", "-v", "normal"])
         .arg(package)
         .env("DOTNET_NOLOGO", "1")
@@ -147,7 +142,7 @@ fn unpack(package: &Path, target: &Path) -> anyhow::Result<()> {
 
 /// Whether the .NET runtime the server needs (10 or newer) is installed.
 pub fn runtime_available() -> bool {
-    let Ok(out) = Command::new("dotnet").arg("--list-runtimes").stdin(Stdio::null()).output() else { return false };
+    let Ok(out) = crate::process::command("dotnet").arg("--list-runtimes").stdin(Stdio::null()).output() else { return false };
     String::from_utf8_lossy(&out.stdout)
         .lines()
         .filter_map(|l| l.strip_prefix("Microsoft.NETCore.App "))

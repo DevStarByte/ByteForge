@@ -441,6 +441,11 @@ impl ProgressTracker {
         };
         Some(join(&title, message, percentage))
     }
+
+    /// No progress is running: every one that began has ended.
+    pub fn is_idle(&self) -> bool {
+        self.titles.is_empty()
+    }
 }
 
 fn join(title: &str, message: Option<&str>, percentage: Option<u64>) -> String {
@@ -738,6 +743,22 @@ mod tests {
         );
         let end = json!({ "token": "t", "value": { "kind": "end" } });
         assert_eq!(p.handle(&end).unwrap(), "Loading solution: done");
+        assert!(p.is_idle());
+    }
+
+    /// Idle once every progress that began has ended, whatever the messages say (csharp-ls 0.29 ends its
+    /// loading with "Loaded app", earlier versions with "Finished …").
+    #[test]
+    fn idle_when_every_progress_ended() {
+        let mut p = ProgressTracker::default();
+        assert!(p.is_idle());
+        p.handle(&json!({ "token": 1, "value": { "kind": "begin", "title": "Loading app" } }));
+        p.handle(&json!({ "token": 2, "value": { "kind": "begin", "title": "Restoring" } }));
+        assert!(!p.is_idle());
+        assert_eq!(p.handle(&json!({ "token": 1, "value": { "kind": "end", "message": "Loaded app" } })).unwrap(), "Loading app: Loaded app");
+        assert!(!p.is_idle(), "another one still runs");
+        p.handle(&json!({ "token": 2, "value": { "kind": "end" } }));
+        assert!(p.is_idle());
     }
 }
 

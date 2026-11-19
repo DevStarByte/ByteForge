@@ -324,6 +324,9 @@ pub enum LspEvent {
     },
     /// Human readable progress (`$/progress`), e.g. `"Loading solution: Foo.csproj 40%"`.
     Progress(String),
+    /// Every progress the server started has ended (sent after the last one's `Progress`): it has loaded
+    /// the workspace, whatever its messages say. Roslyn also sends it on `workspace/projectInitializationComplete`.
+    Idle,
     /// `window/logMessage`, `window/showMessage` and server stderr lines.
     Log(String),
     /// The server process ended or failed to start (with reason).

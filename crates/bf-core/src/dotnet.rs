@@ -1,6 +1,6 @@
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -94,7 +94,7 @@ impl DotnetProcess {
 
     /// Starts any program the same way (`docker build`, …): output streamed, stoppable as a group.
     pub fn start_program(program: &str, root: &Path, args: Vec<String>, env: &[(String, String)]) -> anyhow::Result<(Self, flume::Receiver<RunEvent>)> {
-        let mut command = Command::new(program);
+        let mut command = crate::process::command(program);
         // English output: build errors and test progress are read from it (the env passed in can change it).
         command.env("DOTNET_CLI_UI_LANGUAGE", "en");
         command
@@ -106,11 +106,6 @@ impl DotnetProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-        }
         // Lead a new process group, so stopping also ends the app `dotnet run` starts as a child.
         #[cfg(unix)]
         std::os::unix::process::CommandExt::process_group(&mut command, 0);
@@ -159,11 +154,11 @@ impl DotnetProcess {
         #[cfg(unix)]
         {
             let group = format!("-{}", self.pid);
-            let _ = Command::new("kill").args(["-TERM", "--", &group]).stderr(Stdio::null()).status();
+            let _ = crate::process::command("kill").args(["-TERM", "--", &group]).stderr(Stdio::null()).status();
             let child = self.child.clone();
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_secs(3));
-                let _ = Command::new("kill").args(["-KILL", "--", &group]).stderr(Stdio::null()).status();
+                let _ = crate::process::command("kill").args(["-KILL", "--", &group]).stderr(Stdio::null()).status();
                 if let Some(child) = child.lock().as_mut() {
                     let _ = child.kill();
                 }
@@ -172,7 +167,7 @@ impl DotnetProcess {
         #[cfg(windows)]
         if let Some(child) = self.child.lock().as_mut() {
             // Kill the whole tree.
-            let _ = Command::new("taskkill").args(["/T", "/F", "/PID", &self.pid.to_string()]).output();
+            let _ = crate::process::command("taskkill").args(["/T", "/F", "/PID", &self.pid.to_string()]).output();
             let _ = child.kill();
         }
     }

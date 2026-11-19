@@ -159,13 +159,8 @@ pub fn newest_release(json: &str, current: &Version, include_prereleases: bool) 
 }
 
 fn curl() -> Command {
-    let mut command = Command::new("curl");
+    let mut command = crate::process::command("curl");
     command.args(["--silent", "--show-error", "--fail", "--location", "--max-time", "600"]).stdin(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
     command
 }
 
@@ -234,7 +229,7 @@ pub fn install_kind() -> InstallKind {
 pub fn apply(kind: &InstallKind, file: &Path) -> anyhow::Result<()> {
     match kind {
         InstallKind::WindowsSetup => {
-            let mut command = Command::new(file);
+            let mut command = crate::process::command(file);
             // /CLOSEAPPLICATIONS lets the setup wait for (or close) ByteForge before replacing its files.
             command.args(["/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS", "/RELAUNCH=1"]);
             command.spawn().context("could not start the installer")?;
@@ -242,7 +237,7 @@ pub fn apply(kind: &InstallKind, file: &Path) -> anyhow::Result<()> {
         InstallKind::MacBundle(app) => {
             let script = file.with_extension("sh");
             std::fs::write(&script, MAC_SCRIPT)?;
-            Command::new("/bin/sh")
+            crate::process::command("/bin/sh")
                 .arg(&script)
                 .arg(std::process::id().to_string())
                 .arg(file)

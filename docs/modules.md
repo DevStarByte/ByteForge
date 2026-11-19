@@ -59,17 +59,18 @@ To publish it, add the folder to `modules/` on the `packages` branch.
   `detect` lists regexes that recognize the language in an untitled editor, which has no file name to go by
   (`^` and `$` match at every line; add `(?i)` to ignore case). Each pattern that matches the start of the text
   counts once: two or more win over the built-in guesses (C#, JSON, XML, Razor, YAML, INI, .env), a single one
-  counts when nothing else fits. `modules/sql` and `modules/azure` have examples.
+  counts when nothing else fits. The [SQL](https://github.com/DevStarByte/ByteForge/tree/packages/modules/sql) and
+  [Azure](https://github.com/DevStarByte/ByteForge/tree/packages/modules/azure) modules have examples.
 - **`views`**: side bar views (`id`, `title`, `icon`: a built-in icon name or path data). Each gets an activity bar
   item; the module fills it with `setTree`.
 - **`settings`**: the settings the module reads, listed on the settings screen (Ctrl+,) under **Extensions**, one
   group per module: `{ "key", "title", "description", "type", "default" }` with `type` `boolean`, `number`,
   `string`, `list` (of strings, edited comma-separated) or `json` (edited in settings.json); a `string` with
   `"choices": [...]` is picked from them. Values live in settings.json like any other setting and reach the module
-  with `activate` and `settingsChanged`. A key ByteForge already has isn't listed again. `modules/sql` has examples.
+  with `activate` and `settingsChanged`. A key ByteForge already has isn't listed again. The [SQL module](https://github.com/DevStarByte/ByteForge/tree/packages/modules/sql) has examples.
 
 A module that only declares things leaves out `"command"` and isn't started. Everything a module adds shows while
-it's installed and turned on. `modules/docker` uses all of it.
+it's installed and turned on. The [Docker module](https://github.com/DevStarByte/ByteForge/tree/packages/modules/docker) uses all of it.
 
 ## Protocol
 

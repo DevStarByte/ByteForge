@@ -168,6 +168,7 @@ fn csharp_ls_end_to_end() {
                 l.chars().take(160).collect::<String>()
             ),
             LspEvent::Exited(reason) => panic!("server exited: {reason}"),
+            LspEvent::Idle => println!("[{:>6.1?}] idle", t0.elapsed()),
             LspEvent::ApplyEdit(_) => {}
         }
     }

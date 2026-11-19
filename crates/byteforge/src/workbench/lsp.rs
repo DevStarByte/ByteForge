@@ -72,9 +72,9 @@ impl Workbench {
                             .update(cx, |wb, cx| {
                                 match event {
                                     LspEvent::Ready => wb.lsp_status = "C#: loading…".into(),
-                                    LspEvent::Progress(text) => {
-                                        wb.lsp_status = if text.contains("Finished") { "C#: ready".into() } else { format!("C#: {}", short(&text, 48)) };
-                                    }
+                                    LspEvent::Progress(text) => wb.lsp_status = format!("C#: {}", short(&text, 48)),
+                                    // by the protocol, not by message text (csharp-ls 0.29 ends with "Loaded app")
+                                    LspEvent::Idle => wb.lsp_status = "C#: ready".into(),
                                     LspEvent::Diagnostics { path, diagnostics, .. } => {
                                         // Every view of the file (it can be open in both groups).
                                         for tab in wb.tabs.iter().filter(|t| t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path))) {

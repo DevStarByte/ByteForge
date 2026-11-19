@@ -435,12 +435,12 @@ mod tests {
     /// Module languages are global: tests that install some take turns.
     static LANGUAGES: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-    /// The bundled SQL module's rules all compile (Rust regex syntax) and highlight a query.
+    /// The SQL module's rules all compile (Rust regex syntax) and highlight a query.
     #[test]
     fn sql_module_highlights_queries() {
         let _turn = LANGUAGES.lock().unwrap_or_else(|e| e.into_inner());
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
-        let module = bf_core::plugins::discover(&dir).into_iter().find(|m| m.id == "byteforge.sql").expect("modules/sql");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/modules");
+        let module = bf_core::plugins::discover(&dir).into_iter().find(|m| m.id == "byteforge.sql").expect("tests/fixtures/modules/sql");
         let lang = module.languages.iter().find(|l| l.id == "sql").expect("sql language");
         let compiled = super::module_language(lang);
         assert_eq!(compiled.rules.len(), lang.rules.len(), "every rule compiles");
@@ -470,16 +470,16 @@ mod tests {
         bf_syntax::module_lang::set_module_languages(Vec::new());
     }
 
-    /// The bundled SQL and Azure modules recognize their languages in an untitled editor, and leave other
+    /// The SQL and Azure modules recognize their languages in an untitled editor, and leave other
     /// text to the built-in guesses.
     #[test]
-    fn bundled_modules_detect_their_languages() {
+    fn sql_and_azure_modules_detect_their_languages() {
         let _turn = LANGUAGES.lock().unwrap_or_else(|e| e.into_inner());
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/modules");
         let modules = bf_core::plugins::discover(&dir);
         let languages: Vec<_> = ["byteforge.sql", "byteforge.azure"]
             .iter()
-            .flat_map(|id| modules.iter().find(|m| m.id == *id).expect("bundled module").languages.iter())
+            .flat_map(|id| modules.iter().find(|m| m.id == *id).expect("module test data").languages.iter())
             .map(|l| {
                 let compiled = super::module_language(l);
                 assert_eq!(compiled.detect.len(), l.detect.len(), "every detect pattern of {} compiles", l.id);
@@ -507,13 +507,13 @@ mod tests {
         bf_syntax::module_lang::set_module_languages(Vec::new());
     }
 
-    /// The bundled Azure module highlights Bicep: declarations, decorators, types, functions, strings with
+    /// The Azure module highlights Bicep: declarations, decorators, types, functions, strings with
     /// interpolation, and comments (also `//` inside strings isn't a comment).
     #[test]
     fn azure_module_highlights_bicep() {
         let _turn = LANGUAGES.lock().unwrap_or_else(|e| e.into_inner());
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
-        let module = bf_core::plugins::discover(&dir).into_iter().find(|m| m.id == "byteforge.azure").expect("modules/azure");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/modules");
+        let module = bf_core::plugins::discover(&dir).into_iter().find(|m| m.id == "byteforge.azure").expect("tests/fixtures/modules/azure");
         assert!(module.command.is_empty(), "declares things only");
         let lang = module.languages.iter().find(|l| l.id == "bicep").expect("bicep language");
         let compiled = super::module_language(lang);

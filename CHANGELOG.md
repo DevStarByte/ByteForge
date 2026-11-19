@@ -3,6 +3,17 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.0.3
+
+- Windows: no more console windows popping up. Every program ByteForge starts runs without one, also the
+  few that didn't yet (the .NET runtime check at start, module downloads, opening links in the browser,
+  stopping a run, the debugger and Roslyn downloads), and a test keeps it that way.
+- The C# status shows "ready" again with csharp-ls 0.29, which ends loading with "Loaded app" instead of
+  "Finished …". ByteForge now goes by the protocol (every progress has ended), not by the wording.
+- The downloads carry only the preinstalled module, the ReSharper Formatter. Aspire, Azure and SQL were
+  still bundled (unused); like every other module they come from the Modules view. Aspire 0.2.0 and
+  SQL 0.3.0, which list their settings on the settings screen, are published there.
+
 ## 1.0.2
 
 - The Windows installer (`ByteForge-<version>-windows-x64-setup.exe`) is on the release again. It was
@@ -11,6 +22,8 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 - README: Windows builds aren't code-signed; how to get past the SmartScreen warning.
 
 ## 1.0.1
+
+Not released: its build failed in the tests. Its changes came out with 1.0.2.
 
 - Settings screen: the search box spans the page and shows its "Search settings" hint again. Before, it
   was a narrow sliver with only the caret visible. Text boxes now fill their box wherever they are placed.

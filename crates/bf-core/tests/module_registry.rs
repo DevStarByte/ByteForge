@@ -59,6 +59,18 @@ fn installs_updates_and_uninstalls_from_a_registry() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// `modules/` ships with every download, so it holds the preinstalled modules and nothing else; every
+/// other module lives in the registry (`modules/` on the packages branch).
+#[test]
+fn only_preinstalled_modules_are_bundled() {
+    let bundled = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
+    let mut ids: Vec<String> = discover(&bundled).into_iter().map(|m| m.id).collect();
+    ids.sort();
+    let mut expected: Vec<String> = bf_core::registry::PREINSTALLED.iter().map(|s| (*s).to_owned()).collect();
+    expected.sort();
+    assert_eq!(ids, expected, "modules/ should hold only the preinstalled modules");
+}
+
 #[test]
 fn preinstalls_bundled_modules_once() {
     let root = std::env::temp_dir().join(format!("bf-preinstall-{}", std::process::id()));
@@ -104,14 +116,18 @@ fn real_registry_installs_every_package() {
     }
 }
 
-/// Every module in the repository's `modules/` folder parses (a broken `module.json` is skipped silently
-/// at runtime), and the settings they declare are well formed.
+/// Every module in the repository's `modules/` folder and in the module test data parses (a broken
+/// `module.json` is skipped silently at runtime), and the settings they declare are well formed.
 #[test]
 fn bundled_modules_parse_with_their_settings() {
-    let bundled = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
-    let folders = std::fs::read_dir(&bundled).unwrap().flatten().filter(|e| e.path().join("module.json").is_file()).count();
-    let modules = discover(&bundled);
-    assert_eq!(modules.len(), folders, "a module.json didn't parse");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut modules = Vec::new();
+    for dir in [root.join("modules"), root.join("tests/fixtures/modules")] {
+        let folders = std::fs::read_dir(&dir).unwrap().flatten().filter(|e| e.path().join("module.json").is_file()).count();
+        let found = discover(&dir);
+        assert_eq!(found.len(), folders, "a module.json in {} didn't parse", dir.display());
+        modules.extend(found);
+    }
     let sql = modules.iter().find(|m| m.id == "byteforge.sql").expect("the SQL module");
     assert!(sql.settings.iter().any(|s| s.key == "sql.format.keywordCase" && s.choices.contains(&"upper".to_owned())));
     for m in &modules {

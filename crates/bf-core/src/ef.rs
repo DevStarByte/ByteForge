@@ -95,13 +95,8 @@ pub fn parse_list(output: &str) -> (Vec<ListedMigration>, Option<String>) {
 
 /// Asks EF which migrations are applied (it builds the project first, so this takes a few seconds).
 pub fn list(root: &Path, project: &Path, startup: &Path, context: &str) -> anyhow::Result<(Vec<ListedMigration>, Option<String>)> {
-    let mut command = std::process::Command::new("dotnet");
+    let mut command = crate::process::command("dotnet");
     command.args(list_args(project, startup, context)).current_dir(root).env("DOTNET_NOLOGO", "1").stdin(std::process::Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
     let out = command.output()?;
     let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     if !out.status.success() {

@@ -74,7 +74,7 @@ fn detach_from_terminal() {
     unsafe extern "C" {
         fn setsid() -> i32;
     }
-    let mut command = std::process::Command::new(exe);
+    let mut command = bf_core::process::command(exe);
     command.args(&args).env("BYTEFORGE_FOREGROUND", "1").stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
     // SAFETY: setsid is async-signal-safe, so it may run between fork and exec.
     unsafe {

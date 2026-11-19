@@ -2,7 +2,6 @@
 //! diagnostics from build output, and running .NET processes to attach to.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use anyhow::{Context as _, Result, anyhow, bail};
 use serde_json::Value;
@@ -140,7 +139,7 @@ pub fn target_assembly(project: &Path) -> Result<PathBuf> {
 }
 
 fn msbuild_properties(project: &Path, names: &[&str], framework: Option<&str>) -> Result<Vec<String>> {
-    let mut command = Command::new("dotnet");
+    let mut command = crate::process::command("dotnet");
     command.arg("msbuild").arg(project).arg("-nologo");
     for name in names {
         command.arg(format!("-getProperty:{name}"));
@@ -149,11 +148,6 @@ fn msbuild_properties(project: &Path, names: &[&str], framework: Option<&str>) -
         command.arg(format!("-p:TargetFramework={framework}"));
     }
     command.current_dir(project.parent().unwrap_or(Path::new("."))).env("DOTNET_NOLOGO", "1").env("DOTNET_CLI_TELEMETRY_OPTOUT", "1");
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
     let output = command.output().context("could not run dotnet msbuild")?;
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     if !output.status.success() {
@@ -234,11 +228,11 @@ pub fn listening_url(line: &str) -> Option<&str> {
 /// Opens a URL in the default browser.
 pub fn open_browser(url: &str) {
     let result = if cfg!(windows) {
-        Command::new("cmd").args(["/C", "start", "", url]).spawn()
+        crate::process::command("cmd").args(["/C", "start", "", url]).spawn()
     } else if cfg!(target_os = "macos") {
-        Command::new("open").arg(url).spawn()
+        crate::process::command("open").arg(url).spawn()
     } else {
-        Command::new("xdg-open").arg(url).spawn()
+        crate::process::command("xdg-open").arg(url).spawn()
     };
     if let Err(e) = result {
         log::warn!("could not open {url}: {e}");
@@ -282,7 +276,7 @@ pub fn dotnet_processes() -> Vec<RuntimeProcess> {
         // No /proc on macOS: the user's processes from ps, kept when they are `dotnet` itself or an app
         // host (an executable next to its `<name>.runtimeconfig.json`, which is what `dotnet build` makes).
         let own = std::process::id();
-        if let Ok(output) = Command::new("ps").args(["-x", "-o", "pid=,comm="]).output() {
+        if let Ok(output) = crate::process::command("ps").args(["-x", "-o", "pid=,comm="]).output() {
             for line in String::from_utf8_lossy(&output.stdout).lines() {
                 let line = line.trim();
                 let Some((pid, exe)) = line.split_once(char::is_whitespace) else { continue };
@@ -293,7 +287,7 @@ pub fn dotnet_processes() -> Vec<RuntimeProcess> {
                 if pid == own || !(name == "dotnet" || app_host) {
                     continue;
                 }
-                let command_line = Command::new("ps")
+                let command_line = crate::process::command("ps")
                     .args(["-o", "args=", "-p", &pid.to_string()])
                     .output()
                     .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
@@ -304,8 +298,7 @@ pub fn dotnet_processes() -> Vec<RuntimeProcess> {
     }
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
-        let output = Command::new("tasklist").args(["/m", "coreclr.dll", "/fo", "csv", "/nh"]).creation_flags(0x0800_0000).output();
+        let output = crate::process::command("tasklist").args(["/m", "coreclr.dll", "/fo", "csv", "/nh"]).output();
         if let Ok(output) = output {
             for line in String::from_utf8_lossy(&output.stdout).lines() {
                 let cols: Vec<&str> = line.split("\",\"").map(|c| c.trim_matches('"')).collect();
