@@ -56,6 +56,8 @@ fn roslyn_end_to_end() {
     let dir = std::env::temp_dir().join(format!("bf-roslyn-it-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("logs")).unwrap();
+    // The long form of the path (Windows' TEMP can be an 8.3 short path), as the editor has it.
+    let dir = PathBuf::from(std::fs::canonicalize(&dir).unwrap().to_string_lossy().trim_start_matches(r"\\?\"));
     let guard = TempDir(dir.clone());
     let project = dir.join("Demo.csproj");
     let program = dir.join("Program.cs");

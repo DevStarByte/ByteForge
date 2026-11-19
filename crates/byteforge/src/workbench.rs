@@ -302,6 +302,8 @@ pub struct Workbench {
     sash: Option<Sash>,
     menu_open: Option<usize>,
     lsp: Option<LspClient>,
+    /// The running server serves `.razor` and `.cshtml` files too (Roslyn with its Razor extension).
+    lsp_razor: bool,
     lsp_status: String,
     lsp_task: Option<Task<()>>,
     /// The Roslyn server's checks, running in the background before it starts.
@@ -585,6 +587,7 @@ impl Workbench {
             sash: None,
             menu_open: None,
             lsp: None,
+            lsp_razor: false,
             lsp_status: String::new(),
             lsp_task: None,
             lsp_setup: None,

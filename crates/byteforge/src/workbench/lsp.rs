@@ -26,9 +26,9 @@ impl Workbench {
             self.lsp_setup = Some(cx.spawn(async move |this, cx| {
                 let setup = cx.background_executor().spawn(async move { roslyn_setup(&cache, &root) }).await;
                 let _ = this.update(cx, |wb, cx| match setup {
-                    Ok((version, config)) => {
-                        wb.log(format!("C#: Roslyn language server {version}"));
-                        wb.launch_lsp(config, cx);
+                    Ok((version, config, razor)) => {
+                        wb.log(format!("C#: Roslyn language server {version}{}", if razor { " (with Razor)" } else { "" }));
+                        wb.launch_lsp(config, razor, cx);
                     }
                     Err(missing) => {
                         wb.lsp_status = missing.status().into();
@@ -49,7 +49,13 @@ impl Workbench {
         };
         let mut config = ServerConfig::new(command, Vec::new(), root, "csharp");
         config.env = bf_lsp::dotnet_server_env();
-        self.launch_lsp(config, cx);
+        self.launch_lsp(config, false, cx);
+    }
+
+    /// Whether an editor of `language` talks to the running language server: C# always, Razor when the
+    /// server is Roslyn with its Razor extension.
+    pub(super) fn lsp_serves(&self, language: Option<bf_syntax::Language>) -> bool {
+        self.lsp.is_some() && serves(language, self.lsp_razor)
     }
 
     /// Asks again for the Code Lens of every open C# file (the server loaded, or reference counts changed).
@@ -59,15 +65,18 @@ impl Workbench {
         }
     }
 
-    /// Starts the language server and attaches it to the open C# files.
-    fn launch_lsp(&mut self, config: ServerConfig, cx: &mut Context<Self>) {
+    /// Starts the language server and attaches it to the open files it serves (with `razor`, Razor too).
+    fn launch_lsp(&mut self, config: ServerConfig, razor: bool, cx: &mut Context<Self>) {
         match LspClient::start(config) {
             Ok((client, events)) => {
                 self.lsp_status = "C#: starting…".into();
+                self.lsp_razor = razor;
                 for tab in &self.tabs {
                     let client = client.clone();
                     tab.editor.update(cx, |e, cx| {
-                        if e.language == Some(bf_syntax::Language::CSharp) {
+                        if serves(e.language, razor) {
+                            // Its build diagnostics give way to the server's.
+                            e.set_diagnostics(Vec::new(), cx);
                             e.attach_lsp(client, cx);
                         }
                     });
@@ -369,9 +378,19 @@ impl RoslynMissing {
     }
 }
 
+/// Whether a server (with or without Razor support) serves files of `language`.
+fn serves(language: Option<bf_syntax::Language>, razor: bool) -> bool {
+    match language {
+        Some(bf_syntax::Language::CSharp) => true,
+        Some(bf_syntax::Language::Razor) => razor,
+        _ => false,
+    }
+}
+
 /// How to start the installed Roslyn server for `root` (its solution, else its projects), with its
-/// version. Blocking (runs `dotnet` and looks through the folder); run it off the UI thread.
-fn roslyn_setup(cache: &Path, root: &Path) -> Result<(String, ServerConfig), RoslynMissing> {
+/// version and whether it serves Razor. Blocking (runs `dotnet` and looks through the folder); run it off
+/// the UI thread.
+fn roslyn_setup(cache: &Path, root: &Path) -> Result<(String, ServerConfig, bool), RoslynMissing> {
     let (version, dll) = bf_core::roslyn::installed(cache).into_iter().next().ok_or(RoslynMissing::NotInstalled)?;
     if !bf_core::roslyn::runtime_available() {
         return Err(RoslynMissing::Runtime);
@@ -381,7 +400,8 @@ fn roslyn_setup(cache: &Path, root: &Path) -> Result<(String, ServerConfig), Ros
     let target = bf_core::dotnet::find_target(root, None, false);
     let solution = target.as_deref().filter(|t| matches!(t.extension().and_then(|e| e.to_str()), Some("sln" | "slnx")));
     let projects = if solution.is_some() { Vec::new() } else { bf_core::dotnet::projects(root) };
-    Ok((version, bf_lsp::roslyn_config(&dll, root.to_path_buf(), &logs, solution, &projects)))
+    let razor = bf_core::roslyn::has_razor(&dll);
+    Ok((version, bf_lsp::roslyn_config(&dll, root.to_path_buf(), &logs, solution, &projects), razor))
 }
 
 #[cfg(test)]
@@ -465,6 +485,52 @@ mod tests {
             editor.read(cx).diagnostics.iter().find(|d| d.code.as_deref() == Some("CS0029")).map(|d| d.message.clone()).unwrap_or_default()
         });
         assert!(message.contains("Cannot implicitly convert"), "{message}");
+        wb.update(cx, |wb, _| {
+            if let Some(lsp) = wb.lsp.take() {
+                lsp.shutdown();
+            }
+        });
+        drop(guard);
+    }
+
+    /// A Blazor component with the Roslyn server (installed from nuget.org, so with its Razor extension):
+    /// the C# error inside `@code` shows in the .razor editor, from the server instead of a build.
+    /// Needs BF_ROSLYN_CACHE like the test above; skips otherwise.
+    #[gpui::test]
+    fn the_roslyn_server_serves_razor_files(cx: &mut gpui::TestAppContext) {
+        let Ok(cache) = std::env::var("BF_ROSLYN_CACHE") else {
+            println!("SKIPPED: set BF_ROSLYN_CACHE to a cache with the Roslyn server installed");
+            return;
+        };
+        let (guard, wb, cx) = workbench(cx, "roslyn-razor");
+        let dir = guard.dir.join("web");
+        std::fs::create_dir_all(dir.join("Components")).unwrap();
+        std::fs::write(dir.join("Web.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk.Web\"><PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>").unwrap();
+        std::fs::write(dir.join("Program.cs"), "var app = WebApplication.CreateBuilder(args).Build();\napp.Run();\n").unwrap();
+        let component = dir.join("Components").join("Counter.razor");
+        std::fs::write(&component, "<h1>@count</h1>\n\n@code {\n    private int count = \"zero\";\n}\n").unwrap();
+        assert!(std::process::Command::new("dotnet").args(["restore", "-v", "q"]).current_dir(&dir).status().unwrap().success());
+
+        wb.update_in(cx, |wb, window, cx| {
+            wb.paths.cache_override = Some(PathBuf::from(&cache));
+            wb.settings.set("csharp.server", json!("roslyn"));
+            wb.open_folder(dir.clone(), window, cx);
+            wb.open_file(component.clone(), None, window, cx);
+        });
+        let mut found = false;
+        for _ in 0..240 {
+            cx.run_until_parked();
+            found = wb.update(cx, |wb, cx| {
+                wb.active_editor().is_some_and(|e| e.read(cx).diagnostics.iter().any(|d| d.code.as_deref() == Some("CS0029") && d.start.line == 3))
+            });
+            if found {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+        let (status, razor) = wb.update(cx, |wb, _| (wb.lsp_status.clone(), wb.lsp_razor));
+        assert!(razor, "the installed server has the Razor extension");
+        assert!(found, "no CS0029 on line 4 of the .razor editor (status: {status})");
         wb.update(cx, |wb, _| {
             if let Some(lsp) = wb.lsp.take() {
                 lsp.shutdown();

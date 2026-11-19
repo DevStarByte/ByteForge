@@ -35,7 +35,7 @@ impl Workbench {
             let editor = cx.new(|cx| EditorView::new(&text, Some(path.clone()), cx));
             editor.update(cx, |e, cx| {
                 self.configure_editor(e);
-                if e.language == Some(bf_syntax::Language::CSharp)
+                if self.lsp_serves(e.language)
                     && let Some(lsp) = &self.lsp
                 {
                     e.attach_lsp(lsp.clone(), cx);
@@ -109,7 +109,7 @@ impl Workbench {
                 e.state.buffer.mark_saved();
             }
             e.lsp_mirror = true;
-            if e.language == Some(bf_syntax::Language::CSharp)
+            if self.lsp_serves(e.language)
                 && let Some(lsp) = &self.lsp
             {
                 e.attach_lsp(lsp.clone(), cx);
@@ -289,7 +289,7 @@ impl Workbench {
                         let editor = cx.new(|cx| EditorView::new(&text, Some(path.clone()), cx));
                         editor.update(cx, |e, cx| {
                             wb.configure_editor(e);
-                            if e.language == Some(bf_syntax::Language::CSharp)
+                            if wb.lsp_serves(e.language)
                                 && let Some(lsp) = &wb.lsp
                             {
                                 e.attach_lsp(lsp.clone(), cx);

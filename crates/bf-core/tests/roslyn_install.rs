@@ -1,5 +1,6 @@
-//! Installs the Roslyn language server from Microsoft's feed the way ByteForge does (newest version,
-//! Microsoft's signature checked, server folder unpacked). Downloads ~40 MB, so it only runs on request:
+//! Installs the Roslyn language server from nuget.org the way ByteForge does (newest version, Microsoft's
+//! signature checked, this platform's server folder unpacked, the Razor extension with it). Downloads
+//! ~70 MB, so it only runs on request:
 //! `cargo test -p bf-core --test roslyn_install -- --ignored` (BF_ROSLYN_CACHE keeps the install).
 
 #[test]
@@ -11,6 +12,9 @@ fn installs_the_newest_server() {
     let dll = bf_core::roslyn::install(&cache, &base, &version).expect("install");
     println!("installed: {}", dll.display());
     assert!(dll.is_file());
+    let razor = dll.with_file_name("Microsoft.VisualStudioCode.RazorExtension.dll");
+    assert!(razor.is_file(), "the Razor extension comes with the server");
+    assert!(dll.with_file_name("Targets").join("Microsoft.NET.Sdk.Razor.DesignTime.targets").is_file());
     let installed = bf_core::roslyn::installed(&cache);
     assert_eq!(installed.first().map(|(v, _)| v.as_str()), Some(version.as_str()));
     assert!(bf_core::roslyn::runtime_available(), "this machine has .NET 10+");

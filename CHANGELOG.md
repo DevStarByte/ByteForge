@@ -7,6 +7,12 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
 Released as betas while section 1 of the roadmap (everyday use) is finished; the next full release follows.
 
+- Razor IntelliSense with the Roslyn server: in `.razor` and `.cshtml` files, completion, hover, go to definition
+  and errors as you type (no build needed), for the C# in them. The Roslyn server now comes from nuget.org
+  (Microsoft's `roslyn-language-server` package for your platform, signature still checked), which carries the
+  Razor extension; run "C#: Install or Update Roslyn Language Server" once to get it. HTML in Razor files has no
+  completion of its own yet.
+- The Roslyn server runs with its telemetry off.
 - Git pull isn't fast-forward only any more. When your branch and the remote both have new commits, Pull (and
   Sync) merges them, or rebases yours on top when `pull.rebase` (or `branch.<name>.rebase`) is set; `pull.ff =
   only` is still honored. A pull that stops at conflicting changes says what to do next: resolve them in the

@@ -188,7 +188,7 @@ impl LspClient {
             .lock()
             .open_docs
             .insert(uri.clone(), (path.to_path_buf(), version));
-        let doc = json!({ "uri": uri, "languageId": shared.language_id, "version": version, "text": text });
+        let doc = json!({ "uri": uri, "languageId": language_id_for(path, &shared.language_id), "version": version, "text": text });
         shared.notify("textDocument/didOpen", json!({ "textDocument": doc }));
         shared.schedule_pull(uri);
     }
@@ -763,6 +763,13 @@ impl Shared {
                 self.emit(LspEvent::CodeLensRefresh);
                 Value::Null
             }
+            // Razor (Roslyn's cohosting): the server hands the HTML parts of a .razor/.cshtml file to the
+            // editor and forwards HTML requests on it (`{ textDocument, checksum, request }` with the
+            // standard method names). There is no HTML language server here, so they get "nothing from
+            // HTML" and the server answers with its C# and Razor results alone.
+            "razor/updateHtml" => Value::Null,
+            "textDocument/documentColor" | "textDocument/colorPresentation" if params.get("checksum").is_some() => json!([]),
+            m if m.starts_with("textDocument/") && params.get("checksum").is_some() => Value::Null,
             "window/workDoneProgress/create"
             | "client/unregisterCapability"
             | "workspace/semanticTokens/refresh"
@@ -954,6 +961,13 @@ fn stderr_loop(stderr: impl Read, events: flume::Sender<LspEvent>) {
             Err(_) => break,
         }
     }
+}
+
+/// The `languageId` a document opens with: Razor files are `aspnetcorerazor` (what VS Code sends, and what
+/// the Roslyn server's Razor support listens for); everything else the server's own language.
+fn language_id_for<'a>(path: &Path, default: &'a str) -> &'a str {
+    let razor = path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("razor") || e.eq_ignore_ascii_case("cshtml"));
+    if razor { "aspnetcorerazor" } else { default }
 }
 
 fn position_params(path: &Path, position: Position) -> Value {

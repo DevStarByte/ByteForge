@@ -281,10 +281,10 @@ impl Workbench {
         }
     }
 
-    /// Whether build diagnostics stand in for a language server in this editor (Razor files, or C#
-    /// without csharp-ls).
+    /// Whether build diagnostics stand in for a language server in this editor (files no running server
+    /// serves: Razor without the Roslyn server's Razor support, or C# without a server).
     pub(super) fn uses_build_diagnostics(&self, editor: &EditorView) -> bool {
-        editor.language != Some(bf_syntax::Language::CSharp) || self.lsp.is_none()
+        !self.lsp_serves(editor.language)
     }
 
     /// Shows the last build's diagnostics in open editors that have no language server.

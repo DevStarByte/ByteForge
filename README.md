@@ -175,8 +175,9 @@ themes and modules in that folder (to try a theme or a build without touching yo
 
 ## Known limitations
 
-- Razor files (`.razor`, `.cshtml`) are highlighted but have no completion or hover yet; errors show up after a
-  build.
+- Razor files (`.razor`, `.cshtml`) get completion, hover, go to definition and live errors only with the Roslyn
+  server (`"csharp.server": "roslyn"`); with csharp-ls their errors show up after a build. HTML in them has no
+  completion or hover of its own (there is no HTML language server).
 - No Change Signature refactoring: neither csharp-ls nor the Roslyn server offers it outside Visual Studio.
 - Blazor WebAssembly can't be debugged, and neither can apps in Alpine (musl) containers (netcoredbg has no
   musl release).

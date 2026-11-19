@@ -22,7 +22,7 @@ the git history.
 - [x] The Roslyn language server (the one VS Code's C# extension uses) next to csharp-ls: `"csharp.server": "roslyn"` or
       "C#: Install or Update Roslyn Language Server", which downloads it from Microsoft's NuGet feed, checks Microsoft's
       signature and switches to it. Opens the solution (or the projects), pulls diagnostics (analyzers included),
-      inlay hints, code actions with kinds and Fix All. Needs .NET 10. Still open: Razor IntelliSense (needs the Razor
+      inlay hints, code actions with kinds and Fix All. Needs .NET 10. Razor IntelliSense came later (section 5). Was open: Razor IntelliSense (needs the Razor
       extension the C# extension loads). Change Signature isn't offered by Roslyn's server either (VS Code shows its
       own dialog for it).
 
@@ -74,8 +74,10 @@ Section 1 above is what still has to be checked by hand; this is what the releas
       Hierarchy panel tab: a tree whose branches are asked for when opened (`prepareCallHierarchy`,
       `incomingCalls` / `outgoingCalls`, `prepareTypeHierarchy`, `supertypes` / `subtypes`). Go menu and right-click;
       a click opens the caller at its call, anything else at its declaration.
-- [ ] Razor IntelliSense (completion, hover, diagnostics in `.razor` / `.cshtml`) with the Roslyn server: needs the
-      Razor extension VS Code's C# extension loads.
+- [x] Razor IntelliSense (completion, hover, go to definition, diagnostics in `.razor` / `.cshtml`) with the Roslyn
+      server: it's installed from nuget.org (`roslyn-language-server.<platform>`), whose package carries the Razor
+      extension; the server serves Razor files itself (cohosting). Its HTML requests (`razor/updateHtml` and
+      forwarded `textDocument/*`) are answered without HTML results, as there is no HTML language server yet.
 - [ ] Blazor WebAssembly debugging.
 - [x] Git pull that isn't fast-forward only: diverged branches are merged, or rebased with `pull.rebase` (or
       `branch.<name>.rebase`); `pull.ff = only` is honored. A pull that stops at conflicts says what to do next;

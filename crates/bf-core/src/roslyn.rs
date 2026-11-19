@@ -1,21 +1,53 @@
 //! Microsoft's Roslyn language server (the one VS Code's C# extension uses), as an alternative to
-//! csharp-ls: installed from Microsoft's public `vs-impl` NuGet feed (it isn't on nuget.org), checked
-//! against Microsoft's package signature before it is unpacked, and kept in ByteForge's cache.
+//! csharp-ls: Microsoft's `roslyn-language-server` .NET tool from nuget.org, checked against Microsoft's
+//! package signature before it is unpacked, and kept in ByteForge's cache.
 //!
-//! The `neutral` package is framework-dependent (it runs with `dotnet` on every OS) and needs the .NET 10
-//! runtime or newer.
+//! The tool comes as one package per platform (`roslyn-language-server.win-x64`, `.linux-x64`, …). Next to
+//! the server it carries the Razor extension, which the server loads from its own folder, so `.razor` and
+//! `.cshtml` files get IntelliSense too. The server DLL is framework-dependent (it runs with `dotnet`) and
+//! needs the .NET 10 runtime or newer.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use anyhow::{Context as _, bail};
 
-/// The feed's service index (VS Code's C# extension downloads from the same feed).
-const FEED: &str = "https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json";
-const PACKAGE: &str = "microsoft.codeanalysis.languageserver.neutral";
-/// The server's files inside the package.
-const CONTENT: &str = "content/LanguageServer/neutral/";
+/// nuget.org's package content address (lowercase package ids).
+const FEED: &str = "https://api.nuget.org/v3-flatcontainer";
+const TOOL: &str = "roslyn-language-server";
 pub const DLL: &str = "Microsoft.CodeAnalysis.LanguageServer.dll";
+
+/// The platform's package: `roslyn-language-server.<runtime id>`.
+fn package_id() -> anyhow::Result<String> {
+    Ok(format!("{TOOL}.{}", runtime_id()?))
+}
+
+/// The .NET runtime id of this machine, as the tool's packages are named.
+fn runtime_id() -> anyhow::Result<&'static str> {
+    let arch = match std::env::consts::ARCH {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        other => bail!("the Roslyn language server has no package for {other} processors"),
+    };
+    let os = match std::env::consts::OS {
+        "windows" => "win",
+        "macos" => "osx",
+        // Alpine and other musl systems have their own packages.
+        "linux" if Path::new(&format!("/lib/ld-musl-{}.so.1", std::env::consts::ARCH)).exists() => "linux-musl",
+        "linux" => "linux",
+        other => bail!("the Roslyn language server has no package for {other}"),
+    };
+    Ok(match (os, arch) {
+        ("win", "x64") => "win-x64",
+        ("win", _) => "win-arm64",
+        ("osx", "x64") => "osx-x64",
+        ("osx", _) => "osx-arm64",
+        ("linux-musl", "x64") => "linux-musl-x64",
+        ("linux-musl", _) => "linux-musl-arm64",
+        ("linux", "x64") => "linux-x64",
+        _ => "linux-arm64",
+    })
+}
 
 fn curl(url: &str) -> Command {
     let mut c = crate::process::command("curl");
@@ -31,6 +63,12 @@ fn get_json(url: &str) -> anyhow::Result<serde_json::Value> {
     serde_json::from_slice(&out.stdout).with_context(|| format!("unexpected answer from {url}"))
 }
 
+/// Whether the server at `dll` came with the Razor extension (installs from nuget.org do; the older
+/// `vs-impl` feed's packages didn't), so `.razor` and `.cshtml` files can be served by it.
+pub fn has_razor(dll: &Path) -> bool {
+    dll.with_file_name("Microsoft.VisualStudioCode.RazorExtension.dll").is_file()
+}
+
 /// The installed server's folder for each version, newest first: `<cache>/roslyn/<version>/`.
 pub fn installed(cache: &Path) -> Vec<(String, PathBuf)> {
     let Ok(entries) = std::fs::read_dir(cache.join("roslyn")) else { return Vec::new() };
@@ -44,23 +82,12 @@ pub fn installed(cache: &Path) -> Vec<(String, PathBuf)> {
     out
 }
 
-/// The newest version on the feed: where its packages are, and the version.
+/// The newest version on nuget.org: where its packages are, and the version.
 pub fn latest() -> anyhow::Result<(String, String)> {
-    let index = get_json(FEED)?;
-    let base = index
-        .get("resources")
-        .and_then(|r| r.as_array())
-        .into_iter()
-        .flatten()
-        .find(|r| r.get("@type").and_then(|t| t.as_str()).is_some_and(|t| t.starts_with("PackageBaseAddress")))
-        .and_then(|r| r.get("@id").and_then(|i| i.as_str()))
-        .context("the feed has no package address")?
-        .trim_end_matches('/')
-        .to_owned();
-    let versions = get_json(&format!("{base}/{PACKAGE}/index.json"))?;
+    let versions = get_json(&format!("{FEED}/{}/index.json", package_id()?))?;
     let newest = newest(versions.get("versions").and_then(|v| v.as_array()).into_iter().flatten().filter_map(|v| v.as_str()))
-        .context("the feed lists no versions")?;
-    Ok((base, newest))
+        .context("nuget.org lists no versions")?;
+    Ok((FEED.to_owned(), newest))
 }
 
 /// The highest version (the feed doesn't list them in order).
@@ -79,7 +106,8 @@ pub fn install(cache: &Path, base: &str, version: &str) -> anyhow::Result<PathBu
     let dir = cache.join("roslyn");
     std::fs::create_dir_all(&dir)?;
     let package = dir.join(format!("{version}.nupkg"));
-    let url = format!("{base}/{PACKAGE}/{version}/{PACKAGE}.{version}.nupkg");
+    let id = package_id()?;
+    let url = format!("{base}/{id}/{version}/{id}.{version}.nupkg");
     let out = curl(&url).arg("--output").arg(&package).output().context("could not run curl")?;
     if !out.status.success() {
         bail!("downloading the Roslyn language server failed: {}", String::from_utf8_lossy(&out.stderr).trim());
@@ -115,17 +143,28 @@ fn verify_and_unpack(package: &Path, target: &Path) -> anyhow::Result<PathBuf> {
     Ok(dll)
 }
 
-/// Unpacks the package's server folder (and nothing outside it) into `target`.
+/// The path of a package entry inside the tool's folder, `tools/<framework>/<rid>/` (whatever the
+/// framework is), or None for entries outside it.
+fn tool_path(name: &Path, rid: &str) -> Option<PathBuf> {
+    let mut parts = name.components();
+    let tools = parts.next()?.as_os_str();
+    let (_framework, in_rid) = (parts.next()?, parts.next()?.as_os_str());
+    let rel: PathBuf = parts.collect();
+    (tools == "tools" && in_rid == rid && !rel.as_os_str().is_empty()).then_some(rel)
+}
+
+/// Unpacks the package's tool folder for this platform (and nothing outside it) into `target`.
 fn unpack(package: &Path, target: &Path) -> anyhow::Result<()> {
+    unpack_for(package, target, runtime_id()?)
+}
+
+fn unpack_for(package: &Path, target: &Path, rid: &str) -> anyhow::Result<()> {
     let file = std::fs::File::open(package)?;
     let mut zip = zip::ZipArchive::new(file).context("the download isn't a NuGet package")?;
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i)?;
         let Some(name) = entry.enclosed_name() else { continue }; // no "../" escapes
-        let Ok(rel) = name.strip_prefix(CONTENT) else { continue };
-        if rel.as_os_str().is_empty() {
-            continue;
-        }
+        let Some(rel) = tool_path(&name, rid) else { continue };
         let out = target.join(rel);
         if entry.is_dir() {
             std::fs::create_dir_all(&out)?;
@@ -169,6 +208,12 @@ mod tests {
     }
 
     #[test]
+    fn this_platform_has_a_package() {
+        let id = package_id().unwrap();
+        assert!(id.starts_with("roslyn-language-server.") && (id.ends_with("-x64") || id.ends_with("-arm64")), "{id}");
+    }
+
+    #[test]
     fn unpacks_only_the_server_folder() {
         use std::io::Write;
         let dir = std::env::temp_dir().join(format!("bf-roslyn-unpack-{}", std::process::id()));
@@ -178,15 +223,17 @@ mod tests {
         {
             let mut zip = zip::ZipWriter::new(std::fs::File::create(&package).unwrap());
             let options = zip::write::SimpleFileOptions::default();
-            for (name, body) in [(format!("{CONTENT}{DLL}"), "dll"), (format!("{CONTENT}sub/x.json"), "{}"), ("lib/net10.0/other.dll".to_owned(), "no")] {
+            let tool = "tools/net10.0/win-x64/";
+            for (name, body) in [(format!("{tool}{DLL}"), "dll"), (format!("{tool}Targets/x.targets"), "<Project/>"), ("lib/net10.0/other.dll".to_owned(), "no"), ("tools/any/any/DotnetToolSettings.xml".to_owned(), "")] {
                 zip.start_file(name, options).unwrap();
                 zip.write_all(body.as_bytes()).unwrap();
             }
             zip.finish().unwrap();
         }
         let target = dir.join("out");
-        unpack(&package, &target).unwrap();
-        assert!(target.join(DLL).is_file() && target.join("sub/x.json").is_file());
+        unpack_for(&package, &target, "win-x64").unwrap();
+        assert!(target.join(DLL).is_file() && target.join("Targets/x.targets").is_file());
+        assert!(!target.join("DotnetToolSettings.xml").exists(), "only this platform's tool folder");
         assert!(!target.join("other.dll").exists() && !dir.join("lib").exists());
         let _ = std::fs::remove_dir_all(&dir);
     }

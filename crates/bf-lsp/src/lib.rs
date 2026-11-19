@@ -393,6 +393,9 @@ pub fn roslyn_config(dll: &std::path::Path, root: PathBuf, log_dir: &std::path::
         "Information".into(),
         "--extensionLogDirectory".into(),
         log_dir.to_string_lossy().into_owned(),
+        // The server has telemetry of its own (on by default); ByteForge sends nothing anywhere.
+        "--telemetryLevel".into(),
+        "off".into(),
         "--stdio".into(),
     ];
     let open = match solution {

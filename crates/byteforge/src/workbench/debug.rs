@@ -232,13 +232,13 @@ impl Workbench {
     pub(super) fn prepare_debuggable_editor(&self, editor: &Entity<EditorView>, path: &Path, cx: &mut Context<Self>) {
         let breakpoints = self.breakpoints.get(path).cloned().unwrap_or_default();
         let diagnostics: Vec<_> = self.build_problems.iter().filter(|(p, _)| p == path).map(|(_, d)| d.clone()).collect();
-        let lsp_running = self.lsp.is_some();
+        let language = editor.read(cx).language;
+        let build_only = !self.lsp_serves(language);
         editor.update(cx, |e, cx| {
             if matches!(e.language, Some(bf_syntax::Language::CSharp | bf_syntax::Language::Razor)) {
                 e.glyph_margin = true;
                 e.set_breakpoints(breakpoints, cx);
             }
-            let build_only = e.language != Some(bf_syntax::Language::CSharp) || !lsp_running;
             if build_only && !diagnostics.is_empty() {
                 e.set_diagnostics(diagnostics, cx);
             }
