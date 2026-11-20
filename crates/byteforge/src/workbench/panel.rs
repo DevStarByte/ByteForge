@@ -27,6 +27,7 @@ impl Workbench {
             PanelView::DebugConsole => self.render_debug_console(cx),
             PanelView::References => self.render_references(cx),
             PanelView::Hierarchy => self.render_hierarchy(cx),
+            PanelView::Benchmarks => self.render_benchmarks(cx),
             PanelView::Terminal => match self.terminals.get(self.active_terminal) {
                 Some((terminal, _)) => terminal.clone().into_any_element(),
                 None => div().p_3().text_color(t.c("foreground.muted")).child(format!("No terminal is open. Press {} to start one.", crate::actions::key_label("ctrl-shift-`"))).into_any_element(),
@@ -112,6 +113,10 @@ impl Workbench {
         if self.hierarchy.is_some() && !panel_tabs.iter().any(|n| n == "hierarchy") {
             panel_tabs.push("hierarchy".into());
         }
+        // Benchmarks, once there are results (or it was asked for).
+        if (self.benchmarks.has_results() || self.panel == PanelView::Benchmarks) && !panel_tabs.iter().any(|n| n == "benchmarks") {
+            panel_tabs.push("benchmarks".into());
+        }
         for name in &panel_tabs {
             match name.as_str() {
                 "references" => {
@@ -119,6 +124,12 @@ impl Workbench {
                     header = header.child(
                         tab("ptab-references".into(), format!("REFERENCES ({count})"), self.panel == PanelView::References)
                             .on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::References, cx))),
+                    );
+                }
+                "benchmarks" => {
+                    header = header.child(
+                        tab("ptab-benchmarks".into(), "BENCHMARKS".into(), self.panel == PanelView::Benchmarks)
+                            .on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::Benchmarks, cx))),
                     );
                 }
                 "hierarchy" => {

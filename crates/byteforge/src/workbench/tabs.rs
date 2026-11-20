@@ -171,6 +171,11 @@ impl Workbench {
                     self.run_test_at(&path, *line, *debug, window, cx);
                 }
             }
+            EditorEvent::RunBenchmarkAt { line } => {
+                if let Some(path) = self.tabs.iter().find(|t| t.editor == *editor).and_then(|t| t.path.clone()) {
+                    self.run_benchmark_at(&path, *line, window, cx);
+                }
+            }
             _ => cx.notify(),
         }
     }

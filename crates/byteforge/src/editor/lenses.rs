@@ -20,6 +20,15 @@ pub(crate) enum LensAction {
     References(Point),
     /// Run (or debug) the test or test class declared on this line.
     RunTest { line: usize, debug: bool },
+    /// Run the benchmark (or every benchmark of the class) declared on this line.
+    RunBenchmark { line: usize },
+}
+
+/// Something in the file a lens runs: a test or a BenchmarkDotNet benchmark (`class`: all of a class's).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Runnable {
+    Test { class: bool },
+    Benchmark { class: bool },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,9 +83,9 @@ pub(crate) fn anchor_line(lines: &[&str], decl: usize) -> usize {
     line
 }
 
-/// The rows for `lenses` (server lenses, their declaration line and title so far) and the tests declared in the
-/// file (`(line, is_class)`), one row per anchor line, references first.
-pub(crate) fn build_rows(lines: &[&str], lenses: &[(Point, String)], tests: &[(usize, bool)]) -> Vec<LensRow> {
+/// The rows for `lenses` (server lenses, their declaration line and title so far) and the tests and benchmarks
+/// declared in the file, one row per anchor line, references first.
+pub(crate) fn build_rows(lines: &[&str], lenses: &[(Point, String)], runnables: &[(usize, Runnable)]) -> Vec<LensRow> {
     let mut rows: Vec<LensRow> = Vec::new();
     let push = |rows: &mut Vec<LensRow>, decl: usize, item: LensItem| {
         let line = anchor_line(lines, decl);
@@ -88,10 +97,18 @@ pub(crate) fn build_rows(lines: &[&str], lenses: &[(Point, String)], tests: &[(u
     for (at, title) in lenses {
         push(&mut rows, at.line, LensItem { title: title.clone(), action: LensAction::References(*at) });
     }
-    for &(line, class) in tests {
-        let (run, debug) = if class { ("Run All Tests", "Debug All Tests") } else { ("Run Test", "Debug Test") };
-        push(&mut rows, line, LensItem { title: run.into(), action: LensAction::RunTest { line, debug: false } });
-        push(&mut rows, line, LensItem { title: debug.into(), action: LensAction::RunTest { line, debug: true } });
+    for &(line, runnable) in runnables {
+        match runnable {
+            Runnable::Test { class } => {
+                let (run, debug) = if class { ("Run All Tests", "Debug All Tests") } else { ("Run Test", "Debug Test") };
+                push(&mut rows, line, LensItem { title: run.into(), action: LensAction::RunTest { line, debug: false } });
+                push(&mut rows, line, LensItem { title: debug.into(), action: LensAction::RunTest { line, debug: true } });
+            }
+            Runnable::Benchmark { class } => {
+                let title = if class { "Run All Benchmarks" } else { "Run Benchmark" };
+                push(&mut rows, line, LensItem { title: title.into(), action: LensAction::RunBenchmark { line } });
+            }
+        }
     }
     rows.sort_by_key(|r| r.line);
     rows
@@ -134,12 +151,16 @@ impl EditorView {
                 let Some(text) = text else { return };
                 cx.background_executor()
                     .spawn(async move {
-                        let mut tests = Vec::new();
+                        let mut found = Vec::new();
                         for class in bf_core::testing::scan_source(&text, &path) {
-                            tests.push((class.line, true));
-                            tests.extend(class.tests.iter().map(|t| (t.line, false)));
+                            found.push((class.line, Runnable::Test { class: true }));
+                            found.extend(class.tests.iter().map(|t| (t.line, Runnable::Test { class: false })));
                         }
-                        tests
+                        for class in bf_core::benchmarks::scan_source(&text) {
+                            found.push((class.line, Runnable::Benchmark { class: true }));
+                            found.extend(class.methods.iter().map(|(_, line)| (*line, Runnable::Benchmark { class: false })));
+                        }
+                        found
                     })
                     .await
             };
@@ -180,7 +201,8 @@ impl EditorView {
     }
 
     /// Shows `lenses` (server, unresolved ones keep the title their row had) and `tests`.
-    fn set_lenses(&mut self, lenses: &[bf_lsp::CodeLens], tests: &[(usize, bool)], cx: &mut Context<Self>) {
+    fn set_lenses(&mut self, lenses: &[bf_lsp::CodeLens], runnables: &[(usize, Runnable)], cx: &mut Context<Self>) {
+        self.has_benchmarks = runnables.iter().any(|(_, r)| matches!(r, Runnable::Benchmark { .. }));
         let buffer = &self.state.buffer;
         let found: Vec<(Point, String)> = lenses
             .iter()
@@ -202,7 +224,7 @@ impl EditorView {
             .collect();
         let text = buffer.text();
         let lines: Vec<&str> = text.lines().collect();
-        let rows = build_rows(&lines, &found, tests);
+        let rows = build_rows(&lines, &found, runnables);
         if rows != self.lens_rows {
             self.lens_rows = rows;
             self.rebuild_lens_spacers();
@@ -237,7 +259,7 @@ impl EditorView {
             for item in &mut row.items {
                 match &mut item.action {
                     LensAction::References(p) => *p = super::inlays::shift_point(*p, c),
-                    LensAction::RunTest { line, .. } => *line = shift(*line),
+                    LensAction::RunTest { line, .. } | LensAction::RunBenchmark { line } => *line = shift(*line),
                 }
             }
         }
@@ -267,6 +289,7 @@ impl EditorView {
         match action {
             LensAction::References(at) => self.find_references_at(at, cx),
             LensAction::RunTest { line, debug } => cx.emit(EditorEvent::RunTestAt { line, debug }),
+            LensAction::RunBenchmark { line } => cx.emit(EditorEvent::RunBenchmarkAt { line }),
         }
     }
 
@@ -311,11 +334,22 @@ mod tests {
     }
 
     #[test]
+    fn benchmarks_get_a_run_lens_above_their_attributes() {
+        let text = "public class Sorts\n{\n    [Benchmark]\n    public void ArraySort() { }\n}";
+        let lines: Vec<&str> = text.lines().collect();
+        let rows = build_rows(&lines, &[], &[(0, Runnable::Benchmark { class: true }), (3, Runnable::Benchmark { class: false })]);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].label().0, "Run All Benchmarks");
+        assert_eq!((rows[1].line, rows[1].label().0.as_str()), (2, "Run Benchmark"), "above [Benchmark]");
+        assert_eq!(rows[1].items[0].action, LensAction::RunBenchmark { line: 3 });
+    }
+
+    #[test]
     fn rows_go_above_attributes_and_join_tests() {
         let text = "class CalcTests\n{\n    [Fact]\n    [Trait(\"a\", \"b\")]\n    public void Adds() { }\n}";
         let lines: Vec<&str> = text.lines().collect();
         let lenses = vec![(Point::new(0, 6), "2 references".to_owned()), (Point::new(4, 16), "0 references".to_owned())];
-        let rows = build_rows(&lines, &lenses, &[(0, true), (4, false)]);
+        let rows = build_rows(&lines, &lenses, &[(0, Runnable::Test { class: true }), (4, Runnable::Test { class: false })]);
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].line, 0);
         assert_eq!(rows[0].label().0, "2 references  |  Run All Tests  |  Debug All Tests");
@@ -336,7 +370,7 @@ mod tests {
         let (view, cx) = cx.add_window_view(|_, cx| EditorView::new(text, None, cx));
         view.update(cx, |v, _| {
             let lines: Vec<&str> = text.lines().collect();
-            v.lens_rows = build_rows(&lines, &[(Point::new(3, 16), "1 reference".into())], &[(3, false)]);
+            v.lens_rows = build_rows(&lines, &[(Point::new(3, 16), "1 reference".into())], &[(3, Runnable::Test { class: false })]);
             v.rebuild_lens_spacers();
             v.update_wrap();
             // The row goes above `[Fact]` (line 2): lines 0 and 1, the lens row, then line 2.

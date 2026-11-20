@@ -1,6 +1,7 @@
 //! The workbench: window layout, tabs, panels, title bar, menus, status bar and all workbench commands.
 
 mod bars;
+mod benchmarks;
 mod debug;
 mod dotnet;
 mod editor_area;
@@ -49,6 +50,7 @@ use gpui::{
 use serde_json::json;
 
 use crate::actions::*;
+use benchmarks::BenchmarksState;
 use ef_view::EfViewState;
 use tasks::TasksState;
 use crate::assets::{self, icon};
@@ -152,6 +154,7 @@ enum PanelView {
     Terminal,
     References,
     Hierarchy,
+    Benchmarks,
 }
 
 #[derive(Clone, Copy)]
@@ -250,6 +253,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "debug.startInContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
         "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.scaffold", "ef.dropDatabase", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
+        "benchmark.runAtCursor", "view.benchmarks", "-",
         "tasks.run", "tasks.rerun", "tasks.configure", "-",
         "csharp.reload",
     ]),
@@ -321,6 +325,8 @@ pub struct Workbench {
     tasks: TasksState,
     /// The EF Core view (see `workbench/ef_view.rs`).
     ef_view: EfViewState,
+    /// Benchmark results (see `workbench/benchmarks.rs`).
+    benchmarks: BenchmarksState,
     dotnet: Option<DotnetProcess>,
     /// The running dotnet process was stopped with Shift+F5 (a test queue ends there instead of going on).
     dotnet_stopped: bool,
@@ -554,6 +560,10 @@ impl Workbench {
                             if wb.side_visible && wb.side == SideView::EfCore {
                                 wb.refresh_ef_view(false, cx);
                             }
+                            // A benchmark run writing its reports.
+                            if wb.benchmarks.watching() {
+                                wb.reload_benchmarks(cx);
+                            }
                         }
                     })
                     .is_ok();
@@ -613,6 +623,7 @@ impl Workbench {
             lsp_reload: None,
             tasks: TasksState::default(),
             ef_view: EfViewState::default(),
+            benchmarks: BenchmarksState::default(),
             dotnet: None,
             dotnet_stopped: false,
             dotnet_task: None,
@@ -970,6 +981,9 @@ impl Workbench {
         // (or clicked into earlier) stays put and the new lines land out of view.
         if matches!(view, PanelView::Output) {
             self.output.update(cx, |o, cx| o.scroll_to_end(cx));
+        }
+        if view == PanelView::Benchmarks && self.panel != PanelView::Benchmarks {
+            self.reload_benchmarks(cx);
         }
         self.panel = view;
         self.panel_visible = true;

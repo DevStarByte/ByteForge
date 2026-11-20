@@ -86,6 +86,8 @@ pub enum EditorEvent {
     /// A test marker in the gutter or a "Run Test / Debug Test" lens was clicked: run (or debug) the test
     /// declared on `line`.
     RunTestAt { line: usize, debug: bool },
+    /// A "Run Benchmark" lens was clicked: run the benchmark (or class) declared on `line`.
+    RunBenchmarkAt { line: usize },
 }
 
 /// A breakpoint in the gutter (0-based line). `verified` is false while the debugger couldn't bind it.
@@ -281,6 +283,8 @@ pub struct EditorView {
     pub code_lens_enabled: bool,
     /// Editing a tag name edits the matching tag's name too ("editor.linkedEditing").
     pub linked_editing: bool,
+    /// The file declares BenchmarkDotNet benchmarks (found with the lenses): the right-click menu offers to run one.
+    pub(crate) has_benchmarks: bool,
     /// One spacer row above each line with lenses (the row map uses them unless `spacers` is set).
     pub(crate) lens_spacers: Option<Arc<Vec<usize>>>,
     /// Where the visible lens entries were drawn, for clicks; and the one under the pointer.
@@ -425,6 +429,7 @@ impl EditorView {
             lens_rows: Vec::new(),
             code_lens_enabled: true,
             linked_editing: true,
+            has_benchmarks: false,
             lens_spacers: None,
             lens_hits: Vec::new(),
             lens_hover: None,

@@ -293,6 +293,8 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &ShowSolution, w, cx| wb.toggle_side(SideView::Solution, w, cx)))
             .on_action(cx.listener(|wb, _: &ShowTasks, w, cx| wb.toggle_side(SideView::Tasks, w, cx)))
             .on_action(cx.listener(|wb, _: &ShowEfCore, w, cx| wb.toggle_side(SideView::EfCore, w, cx)))
+            .on_action(cx.listener(|wb, _: &RunBenchmarkAtCursor, w, cx| wb.run_benchmark_at_cursor(w, cx)))
+            .on_action(cx.listener(|wb, _: &ShowBenchmarks, _, cx| wb.show_panel(PanelView::Benchmarks, cx)))
             .on_action(cx.listener(|wb, _: &RunTaskPicker, _, cx| wb.open_task_picker(cx)))
             .on_action(cx.listener(|wb, _: &RerunLastTask, w, cx| wb.rerun_last_task(w, cx)))
             .on_action(cx.listener(|wb, _: &ConfigureTasks, w, cx| wb.configure_tasks(w, cx)))

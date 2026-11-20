@@ -102,6 +102,8 @@ actions!(tasks, [ShowTasks, RunTaskPicker, RerunLastTask, ConfigureTasks, Refres
 
 actions!(ef_view, [ShowEfCore]);
 
+actions!(benchmark, [RunBenchmarkAtCursor, ShowBenchmarks]);
+
 /// Runs the task with this key (`bf_core::tasks::Task::key`), picked in "Tasks: Run Task…".
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
 #[action(namespace = tasks, no_json)]
@@ -387,6 +389,8 @@ fn builtin() -> Vec<Builtin> {
         ("view.solution", "Solution", "View", Box::new(ShowSolution), None),
         ("view.tasks", "Tasks", "View", Box::new(ShowTasks), None),
         ("view.efCore", "EF Core", "View", Box::new(ShowEfCore), None),
+        ("view.benchmarks", "Benchmarks", "View", Box::new(ShowBenchmarks), None),
+        ("benchmark.runAtCursor", "Run Benchmark at Cursor", "Benchmark", Box::new(RunBenchmarkAtCursor), None),
         ("tasks.run", "Run Task…", "Tasks", Box::new(RunTaskPicker), None),
         ("tasks.rerun", "Rerun Last Task", "Tasks", Box::new(RerunLastTask), None),
         ("tasks.configure", "Configure Tasks", "Tasks", Box::new(ConfigureTasks), None),

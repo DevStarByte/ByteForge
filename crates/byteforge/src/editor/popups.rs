@@ -288,6 +288,10 @@ impl EditorView {
             }
             entries.push(None);
         }
+        if self.has_benchmarks {
+            command(&mut entries, "benchmark.runAtCursor");
+            entries.push(None);
+        }
         if self.glyph_margin && !self.read_only {
             for id in ["debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount"] {
                 command(&mut entries, id);
