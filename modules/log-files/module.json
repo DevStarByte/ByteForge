@@ -1,0 +1,77 @@
+{
+  // Log Files for ByteForge: highlighting for .log files and commands to list, filter and follow them.
+  "id": "byteforge.log-files",
+  "name": "Log Files",
+  "version": "0.1.0",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
+  "category": "Languages",
+  "description": "Highlighting for .log files (also app.log.1 and app.log.2024-05-01): levels in the theme's error, warning and info colors with debug and trace dimmed, timestamps, exception types, .NET, Java, JavaScript and Python stack frames (file and line), GUIDs, URLs, IPs, HTTP methods and status codes, key=value pairs, quoted strings. Understands ASP.NET Core's console logger (fail: / warn: / info:), Serilog ([ERR] [WRN]), NLog, log4net, syslog and GitHub Actions logs (##[error]). \"Log: List Errors\" puts every error with its exception in the Output (click to go there), \"Log: Filter…\" opens only errors, warnings and up, everything but debug and trace, or the exceptions; \"Log: Follow\" runs tail -f in a terminal. The status bar counts errors and warnings of the open log. Needs python3.",
+  "command": "python3",
+  "args": ["log_files.py"],
+  "fileIcons": [
+    {
+      "icon": "M6,2H14L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2Z M14,3.5V8H18.5Z M7,11H9V12.5H7Z M10,11H17V12.5H10Z M7,14H9V15.5H7Z M10,14H15V15.5H10Z M7,17H9V18.5H7Z M10,17H16V18.5H10Z",
+      "color": "#8b949e",
+      "extensions": ["log"],
+      "patterns": ["*.log.*"]
+    }
+  ],
+  "languages": [
+    {
+      "id": "log",
+      "name": "Log",
+      "extensions": ["log"],
+      "patterns": ["*.log.*"],
+      "lineComment": "#",
+      "detect": [
+        "^\\s*\\[?\\d{4}-\\d\\d-\\d\\d[T ]\\d\\d:\\d\\d:\\d\\d",
+        "^(fail|warn|info|dbug|trce|crit): [\\w.]+\\[\\d+\\]",
+        "\\[(ERR|WRN|INF|DBG|VRB|FTL)\\]",
+        "^\\s+at [\\w.<>`]+\\(.*\\)( in .+:line \\d+)?$",
+        "^##\\[(error|warning|group|endgroup)\\]"
+      ],
+      // Applied per line; where matches overlap, the earlier rule wins. Tokens are picked for their colors in
+      // most themes: regex - character class is red, string - escape character yellow, keyword blue,
+      // excluded code dimmed.
+      "rules": [
+        {"match": "^##\\[(?:error)\\].*$", "token": "regex - character class"},
+        {"match": "^##\\[(?:warning)\\].*$", "token": "string - escape character"},
+        {"match": "^##\\[(?:group|endgroup|section|command|notice|debug)\\]", "token": "keyword - control"},
+        {"match": "^.*(?:^|[\\s\\[|(<])(?:DEBUG|TRACE|VERBOSE|DBG|VRB|TRC)(?:[\\]\\s:|)>]|$).*$", "token": "excluded code"},
+        {"match": "^(?:dbug|trce): .*$", "token": "excluded code"},
+        {"match": "^.*[\\[|]\\s*(Debug|Trace|Verbose)\\s*[\\]|].*$", "token": "excluded code"},
+        {"match": "(?:^|[\\s\\[|(<])(FATAL|CRITICAL|CRIT|EMERG|ALERT|PANIC|ERROR|ERR|EROR|SEVERE|FTL)(?:[\\]\\s:|)>]|$)", "group": 1, "token": "regex - character class"},
+        {"match": "^(fail|crit):", "group": 1, "token": "regex - character class"},
+        {"match": "[\\[|]\\s*(Error|Critical|Fatal)\\s*[\\]|]", "group": 1, "token": "regex - character class"},
+        {"match": "(?:^|[\\s\\[|(<])(WARNING|WARN|WRN)(?:[\\]\\s:|)>]|$)", "group": 1, "token": "string - escape character"},
+        {"match": "^(warn):", "group": 1, "token": "string - escape character"},
+        {"match": "[\\[|]\\s*(Warning|Warn)\\s*[\\]|]", "group": 1, "token": "string - escape character"},
+        {"match": "(?:^|[\\s\\[|(<])(INFORMATION|INFO|INF|NOTICE)(?:[\\]\\s:|)>]|$)", "group": 1, "token": "keyword"},
+        {"match": "^(info):", "group": 1, "token": "keyword"},
+        {"match": "[\\[|]\\s*(Information|Info|Notice)\\s*[\\]|]", "group": 1, "token": "keyword"},
+        {"match": "\\d{4}-\\d\\d-\\d\\d[T ]\\d\\d:\\d\\d:\\d\\d(?:[.,]\\d+)?(?:Z|[+-]\\d\\d:?\\d\\d)?", "token": "comment"},
+        {"match": "\\b\\d{4}-\\d\\d-\\d\\d\\b|\\b\\d\\d:\\d\\d:\\d\\d(?:[.,]\\d+)?\\b|\\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [ \\d]\\d \\d\\d:\\d\\d:\\d\\d\\b", "token": "comment"},
+        {"match": "^\\s+at ([^(]+?)\\(", "group": 1, "token": "method name"},
+        {"match": "^\\s+at ([\\w.$<>`\\[\\]]+)\\s*$", "group": 1, "token": "method name"},
+        {"match": " in (.+?):line (\\d+)\\s*$", "group": 1, "token": "string"},
+        {"match": " in .+?:line (\\d+)\\s*$", "group": 1, "token": "number"},
+        {"match": "\\(([^()\\s]+?\\.(?:java|js|ts|mjs|cjs|kt|scala|go|rs|cs)):(\\d+)(?::\\d+)?\\)", "group": 1, "token": "string"},
+        {"match": "^\\s+File \"([^\"]+)\", line (\\d+)", "group": 1, "token": "string"},
+        {"match": "^\\s*--- End of .*$", "token": "comment"},
+        {"match": "\\b((?:[A-Za-z_]\\w*\\.)*[A-Z]\\w*(?:Exception|Error))\\b", "group": 1, "token": "class name"},
+        {"match": "\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b", "token": "constant name"},
+        {"match": "\\bhttps?://[^\\s\"'<>)\\]]+", "token": "string"},
+        {"match": "\\b(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?\\b", "token": "constant name"},
+        {"match": "\\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\\s+/", "group": 1, "token": "keyword - control"},
+        {"match": "\\b(?:status(?:Code)?|HTTP/\\d(?:\\.\\d)?)[\\s=:]+([45]\\d\\d)\\b", "group": 1, "token": "regex - character class"},
+        {"match": "\\b(?:status(?:Code)?|HTTP/\\d(?:\\.\\d)?)[\\s=:]+([123]\\d\\d)\\b", "group": 1, "token": "number"},
+        {"match": "\\b([A-Za-z_][\\w.-]*)=", "group": 1, "token": "property name"},
+        {"match": "\"(?:[^\"\\\\]|\\\\.)*\"", "token": "string"},
+        {"match": "'(?:[^'\\\\]|\\\\.)*'", "token": "string"},
+        {"match": "^(fail|warn|info|dbug|trce|crit): ([\\w.]+)\\[\\d+\\]", "group": 2, "token": "namespace name"},
+        {"match": "\\b\\d+(?:\\.\\d+)?(?:ms|s|MB|KB|GB|B)?\\b", "token": "number"}
+      ]
+    }
+  ]
+}

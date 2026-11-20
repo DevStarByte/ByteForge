@@ -66,6 +66,23 @@
       ]
     },
     {
+      "id": "byteforge.csv",
+      "name": "CSV",
+      "version": "0.1.0",
+      "description": "Rainbow columns for .csv, .tsv and .psv files: each column in its own color (20 columns, then the colors repeat), quoted fields kept together, and semicolon files as Excel writes them in Germany or France split at the semicolons. A CSV view lists the active file's columns with their type (integer, decimal, date, boolean, text), range, empty and distinct values; the separator, header row, decimal commas and ANSI files are recognized by themselves. \"CSV: Show as Table\" opens an aligned table (numbers right-aligned), \"CSV: Convert to JSON\" an array of objects with numbers and booleans as JSON values. Needs python3.",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
+      "category": "Languages",
+      "dir": "csv",
+      "files": [
+        "csv_tools.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
       "id": "byteforge.discord",
       "name": "Discord Rich Presence",
       "version": "1.3.0",
@@ -215,6 +232,23 @@
       "dir": "json-format",
       "files": [
         "json_format.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
+      "id": "byteforge.log-files",
+      "name": "Log Files",
+      "version": "0.1.0",
+      "description": "Highlighting for .log files (also app.log.1 and app.log.2024-05-01): levels in the theme's error, warning and info colors with debug and trace dimmed, timestamps, exception types, .NET, Java, JavaScript and Python stack frames (file and line), GUIDs, URLs, IPs, HTTP methods and status codes, key=value pairs, quoted strings. Understands ASP.NET Core's console logger (fail: / warn: / info:), Serilog ([ERR] [WRN]), NLog, log4net, syslog and GitHub Actions logs (##[error]). \"Log: List Errors\" puts every error with its exception in the Output (click to go there), \"Log: Filter…\" opens only errors, warnings and up, everything but debug and trace, or the exceptions; \"Log: Follow\" runs tail -f in a terminal. The status bar counts errors and warnings of the open log. Needs python3.",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
+      "category": "Languages",
+      "dir": "log-files",
+      "files": [
+        "log_files.py",
         "module.json"
       ],
       "requires": [
