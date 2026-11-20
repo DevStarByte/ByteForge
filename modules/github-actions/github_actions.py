@@ -1,12 +1,14 @@
-"""GitHub Actions module for ByteForge: the workflow runs of the folder's GitHub repository.
+"""GitHub module for ByteForge: pipelines, pull requests, issues and releases of the folder's GitHub repository.
 
-The Actions view shows the runs of the current branch and, per workflow, the latest runs of every branch.
+The GitHub view shows the runs of the current branch and, per workflow, the latest runs of every branch; the
+open pull requests with their checks (the current branch's pull request also in the status bar); the open
+issues ("Create Branch" from one); and the latest releases.
 A click on a run lists its jobs and steps; a click on a job opens its log in an editor (at the first error).
 Right-click a run: Open in Browser, Re-run, Re-run Failed Jobs, Cancel. "Run Workflow…" starts a workflow
 that has a workflow_dispatch trigger on the current branch. The status bar shows the latest run of the branch.
 
 Talks to the GitHub REST API directly (no gh needed). Public repositories work without a token (60 requests
-an hour); re-running, cancelling, starting workflows and private repositories need one: "github.token" in
+an hour); logs, re-running, cancelling, starting workflows and private repositories need one: "github.token" in
 settings, the GH_TOKEN or GITHUB_TOKEN environment variable, or a logged-in gh CLI.
 """
 
@@ -319,6 +321,99 @@ def job_item(job):
     }
 
 
+def checks_state(checks):
+    """The combined state of a commit's check runs."""
+    states = [state(c) for c in checks]
+    if not states:
+        return None
+    if "failure" in states:
+        return "failure"
+    if "running" in states or "queued" in states:
+        return "running"
+    if "cancelled" in states:
+        return "cancelled"
+    return "success"
+
+
+def check_item(check):
+    s = state(check)
+    icon, color = STATE_ICONS[s]
+    app = (check.get("app") or {}).get("slug")
+    return {"id": f"check:{check['id']}:{'actions' if app == 'github-actions' else 'other'}",
+            "label": check.get("name") or "", "icon": icon, "iconColor": color,
+            "description": duration(check.get("started_at"), check.get("completed_at")),
+            "tooltip": f"{check.get('name')}: {STATE_WORDS[s]}" + (f" ({app})" if app else "") +
+                       (". Click: its log." if app == "github-actions" else ". Click: its details in the browser.")}
+
+
+def pr_item(pr, checks=None, expanded=False, current_branch=None):
+    head = pr.get("head") or {}
+    s = checks_state(checks) if checks is not None else None
+    icon, color = STATE_ICONS[s] if s else ("sourceControl", GREY if pr.get("draft") else GREEN)
+    parts = [(pr.get("user") or {}).get("login") or "", f"{head.get('ref')} → {(pr.get('base') or {}).get('ref')}",
+             ago(pr.get("updated_at"))]
+    if pr.get("draft"):
+        parts.insert(0, "draft")
+    if current_branch and head.get("ref") == current_branch:
+        parts.insert(0, "this branch")
+    labels = ", ".join(l.get("name", "") for l in pr.get("labels") or [])
+    tooltip = "\n".join(x for x in [f"#{pr['number']} {pr.get('title')}", labels and f"Labels: {labels}",
+                                    s and f"Checks {STATE_WORDS[s]}", "Click: its checks."] if x)
+    item = {"id": f"pr:{pr['number']}", "label": f"#{pr['number']} {pr.get('title')}",
+            "description": " · ".join(p for p in parts if p), "tooltip": tooltip, "icon": icon, "iconColor": color,
+            "actions": [{"id": "open", "icon": "openPreview", "tooltip": "Open in Browser"}],
+            "menu": [{"id": "open", "label": "Open in Browser"}, {"id": "checkout", "label": "Check Out"}]}
+    if checks is not None:
+        item["children"] = [check_item(c) for c in checks] or [
+            {"id": f"nochecks:{pr['number']}", "label": "No checks", "icon": "info", "iconColor": GREY}]
+        item["expanded"] = expanded
+    return item
+
+
+def issue_item(issue, me=None):
+    labels = [l.get("name", "") for l in issue.get("labels") or []]
+    assignees = [a.get("login") for a in issue.get("assignees") or []]
+    mine = me is not None and me in assignees
+    parts = (["assigned to you"] if mine else []) + labels[:3] + [ago(issue.get("updated_at"))]
+    if issue.get("comments"):
+        parts.append(f"{issue['comments']} comments")
+    return {"id": f"issue:{issue['number']}", "label": f"#{issue['number']} {issue.get('title')}",
+            "description": " · ".join(p for p in parts if p), "icon": "info", "iconColor": BLUE if mine else GREEN,
+            "tooltip": "\n".join(x for x in [f"#{issue['number']} {issue.get('title')}",
+                                             f"by {(issue.get('user') or {}).get('login')}",
+                                             assignees and "Assigned to " + ", ".join(assignees),
+                                             "Click: open in the browser."] if x),
+            "actions": [{"id": "branch", "icon": "add", "tooltip": "Create Branch"}],
+            "menu": [{"id": "open", "label": "Open in Browser"}, {"id": "branch", "label": "Create Branch"}]}
+
+
+def release_item(release, latest=False):
+    kind = "draft" if release.get("draft") else "pre-release" if release.get("prerelease") else "latest" if latest else ""
+    downloads = sum(a.get("download_count") or 0 for a in release.get("assets") or [])
+    parts = [kind, ago(release.get("published_at") or release.get("created_at")),
+             f"{downloads} downloads" if downloads else ""]
+    name = release.get("name") or release.get("tag_name")
+    label = release.get("tag_name") + (f" {name}" if name and name != release.get("tag_name") else "")
+    return {"id": f"release:{release['id']}", "label": label, "description": " · ".join(p for p in parts if p),
+            "icon": "layers", "iconColor": GREEN if kind == "latest" else YELLOW if kind == "pre-release" else GREY,
+            "tooltip": f"{label}\n{len(release.get('assets') or [])} assets. Click: open in the browser."}
+
+
+def branch_name(pattern, issue):
+    title = re.sub(r"[^a-z0-9]+", "-", (issue.get("title") or "").lower()).strip("-")[:40].strip("-")
+    name = (pattern or "feature/{number}-{title}").replace("{number}", str(issue["number"])).replace("{title}", title)
+    name = re.sub(r"[^\w./-]+", "-", name).strip("-/.")
+    return re.sub(r"\.{2,}|/{2,}", "-", name) or f"issue-{issue['number']}"
+
+
+def checkout_command(pr, repo_slug):
+    head = pr.get("head") or {}
+    ref = head.get("ref") or ""
+    if (head.get("repo") or {}).get("full_name") == repo_slug and re.fullmatch(r"[\w./-]+", ref):
+        return f"git fetch origin {ref} && git switch {ref}"
+    return f"git fetch origin pull/{pr['number']}/head:pr-{pr['number']} && git switch pr-{pr['number']}"
+
+
 TIMESTAMP = re.compile(r"^\ufeff?\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z ?", re.M)
 
 
@@ -358,6 +453,13 @@ class Actions:
         self.all_runs = []
         self.jobs = {}              # run id -> (run updated_at, jobs)
         self.open_runs = set()
+        self.pulls = []
+        self.issues = []
+        self.releases = []
+        self.checks = {}            # head sha -> check runs
+        self.open_prs = set()
+        self.me = None              # the token's login
+        self.polls = 0
         self.error = None
         self.visible = False
         self.pending = {}
@@ -377,7 +479,7 @@ class Actions:
     def slug(self):
         return f"{self.repo[0]}/{self.repo[1]}"
 
-    def fetch(self):
+    def fetch(self, full=True):
         if not self.repo:
             return
         try:
@@ -392,8 +494,41 @@ class Actions:
             self.error = None
             for run_id in list(self.open_runs):
                 self.fetch_jobs(run_id)
+            if full:
+                self.fetch_rest()
         except ApiError as e:
             self.error = e.args[0]
+
+    def fetch_rest(self):
+        """Pull requests (with the checks of the current branch's and the opened ones), issues, releases."""
+        repo = f"/repos/{self.slug()}"
+        self.pulls = self.api.request("GET", f"{repo}/pulls?state=open&per_page=30&sort=updated&direction=desc") or []
+        issues = self.api.request("GET", f"{repo}/issues?state=open&per_page=30&sort=updated&direction=desc") or []
+        self.issues = [i for i in issues if "pull_request" not in i]  # the issues API lists pull requests too
+        self.releases = self.api.request("GET", f"{repo}/releases?per_page=5") or []
+        if self.api.token and self.me is None:
+            self.me = (self.api.request("GET", "/user") or {}).get("login") or ""
+        wanted = {pr["number"] for pr in self.pulls if pr["number"] in self.open_prs}
+        branch_pr = self.branch_pull()
+        if branch_pr:
+            wanted.add(branch_pr["number"])
+        for pr in self.pulls:
+            if pr["number"] in wanted:
+                self.fetch_checks(pr)
+
+    def fetch_checks(self, pr):
+        sha = (pr.get("head") or {}).get("sha")
+        data = self.api.request("GET", f"/repos/{self.slug()}/commits/{sha}/check-runs?per_page=100") or {}
+        self.checks[sha] = data.get("check_runs", [])
+        return self.checks[sha]
+
+    def branch_pull(self):
+        branch = self.repo[2] if self.repo else None
+        return next((pr for pr in self.pulls if (pr.get("head") or {}).get("ref") == branch
+                     and ((pr.get("head") or {}).get("repo") or {}).get("full_name") == self.slug()), None)
+
+    def find_pull(self, number):
+        return next((pr for pr in self.pulls if pr["number"] == number), None)
 
     def fetch_jobs(self, run_id):
         run = self.find_run(run_id)
@@ -423,7 +558,7 @@ class Actions:
 
     def tree(self):
         if not self.root:
-            return {"type": "setTree", "view": VIEW, "items": [], "message": "Open a folder to see its GitHub Actions."}
+            return {"type": "setTree", "view": VIEW, "items": [], "message": "Open a folder to see its GitHub repository."}
         if not self.repo:
             return {"type": "setTree", "view": VIEW, "items": [],
                     "message": "This folder isn't a GitHub repository (no github.com remote)."}
@@ -448,12 +583,31 @@ class Actions:
         if rows:
             items.append({"id": "workflows", "label": "Workflows", "header": True, "expanded": True,
                           "count": len(rows), "children": rows})
+        if self.pulls:
+            branch_pr = self.branch_pull()
+            ordered = ([branch_pr] if branch_pr else []) + [pr for pr in self.pulls if pr is not branch_pr]
+            children = [pr_item(pr, self.checks.get((pr.get("head") or {}).get("sha"))
+                                if pr["number"] in self.open_prs or pr is branch_pr else None,
+                                expanded=pr["number"] in self.open_prs, current_branch=self.repo[2]) for pr in ordered]
+            items.insert(1 if self.repo[2] else 0, {"id": "pulls", "label": "Pull Requests", "header": True,
+                                                    "expanded": True, "count": len(children), "children": children})
+        if self.issues:
+            mine = [i for i in self.issues if self.me and self.me in [a.get("login") for a in i.get("assignees") or []]]
+            ordered = mine + [i for i in self.issues if i not in mine]
+            items.append({"id": "issues", "label": "Issues", "header": True, "expanded": True,
+                          "count": len(ordered), "children": [issue_item(i, self.me) for i in ordered],
+                          "actions": [{"id": "newIssue", "icon": "add", "tooltip": "New Issue (browser)"}]})
+        if self.releases:
+            latest = next((r for r in self.releases if not r.get("draft") and not r.get("prerelease")), None)
+            items.append({"id": "releases", "label": "Releases", "header": True, "expanded": False,
+                          "count": len(self.releases),
+                          "children": [release_item(r, latest=r is latest) for r in self.releases]})
         actions = [{"id": "dispatch", "icon": "play", "tooltip": "Run Workflow…"},
                    {"id": "browser", "icon": "openPreview", "tooltip": "Open Actions in the Browser"},
                    {"id": "refresh", "icon": "refresh", "tooltip": "Refresh"}]
         message = None
         if not items and not self.error:
-            message = f"No workflow runs in {self.slug()} yet."
+            message = f"Nothing in {self.slug()} yet: no workflow runs, pull requests, issues or releases."
         error = self.error
         if not error and self.api.remaining is not None and self.api.remaining < 10 and not self.api.token:
             error = (f"{self.api.remaining} GitHub requests left this hour. "
@@ -466,6 +620,7 @@ class Actions:
         return run_item(run, jobs, expanded=run["id"] in self.open_runs, with_workflow=with_workflow)
 
     def update_status(self):
+        self.update_pr_status()
         if self.settings.get("github.showStatus") is False or not self.repo or not self.branch_runs:
             send({"type": "status", "id": "github.run", "text": ""})
             return
@@ -476,16 +631,27 @@ class Actions:
               "tooltip": f"GitHub Actions: {latest.get('name')} #{latest.get('run_number')} on {self.repo[2]} "
                          f"{STATE_WORDS[s]} ({ago(latest.get('created_at'))}). Click: the Actions view."})
 
-    def refresh(self, reconfigure=False):
+    def update_pr_status(self):
+        pr = self.branch_pull() if self.repo else None
+        if self.settings.get("github.showStatus") is False or not pr:
+            send({"type": "status", "id": "github.pr", "text": ""})
+            return
+        s = checks_state(self.checks.get((pr.get("head") or {}).get("sha")) or [])
+        send({"type": "status", "id": "github.pr", "text": f"PR #{pr['number']}" + (f" {STATE_SYMBOLS[s]}" if s else ""),
+              "command": "github.openPullRequest",
+              "tooltip": f"#{pr['number']} {pr.get('title')}" + (f": checks {STATE_WORDS[s]}" if s else "") +
+                         ". Click: open it in the browser."})
+
+    def refresh(self, reconfigure=False, full=True):
         with self.refresh_lock:
             if reconfigure:
                 self.configure()
-            self.fetch()
+            self.fetch(full)
             send(self.tree())
             self.update_status()
 
-    def refresh_async(self, reconfigure=False):
-        threading.Thread(target=self.refresh, args=(reconfigure,), daemon=True).start()
+    def refresh_async(self, reconfigure=False, full=True):
+        threading.Thread(target=self.refresh, args=(reconfigure, full), daemon=True).start()
 
     def poll(self):
         """Refreshes on a timer: often while runs are going, rarely otherwise (or never, with the view hidden
@@ -493,24 +659,26 @@ class Actions:
         while True:
             interval = float(self.settings.get("github.refreshSeconds") or 60)
             if not self.api.token:
-                interval = max(interval, 180)  # 60 requests an hour without a token; a refresh is two
+                interval = max(interval, 240)  # 60 requests an hour without a token
             if not self.active():
                 interval *= 5
             self.wake.wait(interval)
             self.wake.clear()
             if self.repo and (self.visible or self.active() or self.settings.get("github.showStatus") is not False):
+                self.polls += 1
                 try:
-                    self.refresh()
+                    # Pipelines every time; pull requests, issues and releases every third time.
+                    self.refresh(full=self.polls % 3 == 0)
                 except Exception as e:  # keep polling
-                    log(f"github-actions: {type(e).__name__}: {e}")
+                    log(f"github: {type(e).__name__}: {e}")
 
     # actions
 
     def needs_token(self, what):
         if self.api.token:
             return False
-        log(f"github-actions: {what} needs a GitHub token: set \"github.token\" in settings (a fine-grained token "
-            "with Actions: read and write), or GH_TOKEN, or log in with gh.")
+        log(f"github: {what} needs a GitHub token: set \"github.token\" in settings (a fine-grained token "
+            "with Actions: read and write; Contents, Pull requests and Issues: read), or GH_TOKEN, or log in with gh.")
         send({"type": "showView", "id": "output"})
         return True
 
@@ -529,7 +697,7 @@ class Actions:
                     self.fetch_jobs(run_id)
                 except ApiError as e:
                     self.open_runs.discard(run_id)
-                    log(f"github-actions: {e}")
+                    log(f"github: {e}")
             send(self.tree())
             return
         paths = {"rerun": "/rerun", "rerunFailed": "/rerun-failed-jobs", "cancel": "/cancel"}
@@ -538,12 +706,44 @@ class Actions:
             return
         try:
             self.api.request("POST", base + paths[action], {})
-            log(f"github-actions: {words[action]} {run.get('name') if run else ''} #{run.get('run_number') if run else run_id}")
+            log(f"github: {words[action]} {run.get('name') if run else ''} #{run.get('run_number') if run else run_id}")
         except ApiError as e:
-            log(f"github-actions: {e}")
+            log(f"github: {e}")
             send({"type": "showView", "id": "output"})
         time.sleep(2)
         self.refresh()
+
+    def pull_action(self, number, action):
+        pr = self.find_pull(number)
+        if not pr:
+            return
+        if action == "open":
+            webbrowser.open(pr["html_url"])
+        elif action == "checkout":
+            send({"type": "runInTerminal", "title": f"PR #{number}", "command": checkout_command(pr, self.slug()),
+                  "cwd": self.root})
+        elif action == "click":
+            if number in self.open_prs:
+                self.open_prs.discard(number)
+            else:
+                self.open_prs.add(number)
+                try:
+                    self.fetch_checks(pr)
+                except ApiError as e:
+                    self.open_prs.discard(number)
+                    log(f"github: {e}")
+            send(self.tree())
+
+    def issue_action(self, number, action):
+        issue = next((i for i in self.issues if i["number"] == number), None)
+        if not issue:
+            return
+        if action in ("click", "open"):
+            webbrowser.open(issue["html_url"])
+        elif action == "branch":
+            name = branch_name(self.settings.get("github.branchName"), issue)
+            send({"type": "runInTerminal", "title": f"branch {name}", "command": f"git switch -c {name}",
+                  "cwd": self.root})
 
     def open_log(self, job_id):
         job = self.find_job(job_id)
@@ -556,7 +756,7 @@ class Actions:
             if e.status == 404:
                 log("github-actions: the log isn't there (yet, or any more: logs are kept for 90 days).")
             else:
-                log(f"github-actions: {e}")
+                log(f"github: {e}")
             send({"type": "showView", "id": "output"})
             return
         text, first_error = clean_log(text)
@@ -580,7 +780,7 @@ class Actions:
         try:
             data = self.api.request("GET", f"/repos/{self.slug()}/actions/workflows?per_page=100") or {}
         except ApiError as e:
-            log(f"github-actions: {e}")
+            log(f"github: {e}")
             return
         local = dispatchable_workflows(self.root)
         workflows = [w for w in data.get("workflows", []) if w.get("state") == "active"
@@ -599,9 +799,9 @@ class Actions:
         try:
             self.api.request("POST", f"/repos/{self.slug()}/actions/workflows/{workflow_id}/dispatches",
                              {"ref": self.repo[2]})
-            log(f"github-actions: started the workflow on {self.repo[2]} (inputs take their defaults)")
+            log(f"github: started the workflow on {self.repo[2]} (inputs take their defaults)")
         except ApiError as e:
-            log(f"github-actions: {e}")
+            log(f"github: {e}")
             send({"type": "showView", "id": "output"})
             return
         time.sleep(3)  # the run shows up in the API a moment later
@@ -620,6 +820,7 @@ class Actions:
             if name == "folderOpened":
                 self.root = message.get("path")
                 self.branch_runs, self.all_runs, self.jobs, self.open_runs = [], [], {}, set()
+                self.pulls, self.issues, self.releases, self.checks, self.open_prs = [], [], [], {}, set()
                 self.refresh_async(reconfigure=True)
             elif name == "settingsChanged":
                 self.settings = message.get("settings") or {}
@@ -644,6 +845,14 @@ class Actions:
                 threading.Thread(target=self.dispatch, daemon=True).start()
             elif command == "github.openInBrowser" and self.repo:
                 webbrowser.open(f"https://github.com/{self.slug()}/actions")
+            elif command == "github.openPullRequest":
+                pr = self.branch_pull() if self.repo else None
+                if pr:
+                    webbrowser.open(pr["html_url"])
+                else:
+                    send({"type": "showView", "id": VIEW})
+            elif command == "github.openRepository" and self.repo:
+                webbrowser.open(f"https://github.com/{self.slug()}")
         elif kind == "quickPickResult":
             if self.pending.pop(message.get("requestId"), None) == "dispatch" and message.get("value"):
                 threading.Thread(target=self.do_dispatch, args=(message["value"],), daemon=True).start()
@@ -657,8 +866,27 @@ class Actions:
                 elif action == "browser" and self.repo:
                     webbrowser.open(f"https://github.com/{self.slug()}/actions")
                 return
+            if item == "issues" and action == "newIssue":
+                webbrowser.open(f"https://github.com/{self.slug()}/issues/new")
+                return
             prefix, _, rest = item.partition(":")
-            if prefix == "run":
+            if prefix == "pr":
+                threading.Thread(target=self.pull_action, args=(int(rest), action), daemon=True).start()
+            elif prefix == "issue":
+                self.issue_action(int(rest), action)
+            elif prefix == "release" and action == "click":
+                release = next((r for r in self.releases if str(r["id"]) == rest), None)
+                if release:
+                    webbrowser.open(release["html_url"])
+            elif prefix == "check" and action == "click":
+                check_id, kind = rest.split(":")
+                if kind == "actions":  # a GitHub Actions check run is a job: same id
+                    threading.Thread(target=self.open_log, args=(int(check_id),), daemon=True).start()
+                else:
+                    check = next((c for cs in self.checks.values() for c in cs if str(c["id"]) == check_id), None)
+                    if check:
+                        webbrowser.open(check.get("details_url") or check.get("html_url"))
+            elif prefix == "run":
                 threading.Thread(target=self.run_action, args=(int(rest), action), daemon=True).start()
             elif prefix == "job" and action in ("click", "log"):
                 threading.Thread(target=self.open_log, args=(int(rest),), daemon=True).start()
@@ -676,8 +904,10 @@ class Actions:
 
 
 def main():
-    for command, title in (("github.show", "Show Actions"), ("github.refresh", "Refresh Actions"),
-                           ("github.dispatch", "Run Workflow…"), ("github.openInBrowser", "Open Actions in the Browser")):
+    for command, title in (("github.show", "Show GitHub View"), ("github.refresh", "Refresh"),
+                           ("github.dispatch", "Run Workflow…"), ("github.openInBrowser", "Open Actions in the Browser"),
+                           ("github.openPullRequest", "Open This Branch's Pull Request"),
+                           ("github.openRepository", "Open Repository in the Browser")):
         send({"type": "registerCommand", "id": command, "title": title, "category": "GitHub"})
     actions = Actions()
     threading.Thread(target=actions.poll, daemon=True).start()
@@ -689,7 +919,7 @@ def main():
         try:
             actions.handle(message)
         except Exception as e:  # keep the module alive; say what went wrong
-            log(f"github-actions: {type(e).__name__}: {e}")
+            log(f"github: {type(e).__name__}: {e}")
 
 
 if __name__ == "__main__":

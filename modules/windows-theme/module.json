@@ -1,0 +1,24 @@
+{
+  // Windows Theme for ByteForge: a theme that looks like Windows 11 and follows Windows' settings live.
+  "id": "byteforge.windows-theme",
+  "name": "Windows Theme",
+  "version": "0.1.0",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
+  "category": "Themes",
+  "description": "A theme that looks like Windows 11 and follows your Windows settings live: the app mode (Light or Dark), the accent color with the shades Windows derives from it, transparency effects, \"Show accent color on title bars and window borders\" and high contrast. Fluent colors on Mica (acrylic on Windows 10), the accent pill on selected rows, Visual Studio 2022's Dark and Light syntax colors, Segoe UI Variable and Cascadia Mono, wide caption buttons. \"Windows Theme: Use Windows Theme\" switches to it (it's chosen once when installed). Works on other systems too, with the mode and accent from its settings. Needs python3.",
+  "command": "python3",
+  "args": ["windows_theme.py"],
+  "settings": [
+    {"key": "windowsTheme.appearance", "title": "Mode", "type": "string", "choices": ["system", "dark", "light"],
+     "default": "system", "description": "Light or Dark: system follows \"Choose your default app mode\"."},
+    {"key": "windowsTheme.accent", "title": "Accent color", "type": "string",
+     "choices": ["system", "blue", "purple", "pink", "red", "orange", "yellow", "green", "teal", "gray"],
+     "default": "system", "description": "The accent: system follows Settings > Personalization > Colors."},
+    {"key": "windowsTheme.translucent", "title": "Mica", "type": "boolean", "default": true,
+     "description": "Let the desktop show through the window (Mica; acrylic on Windows 10). Always off when Windows' transparency effects are."},
+    {"key": "windowsTheme.accentTitleBar", "title": "Accent color on the title bar", "type": "string",
+     "choices": ["system", "on", "off"], "default": "system",
+     "description": "system follows \"Show accent color on title bars and window borders\"."}
+  ]
+}

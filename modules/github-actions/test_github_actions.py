@@ -30,6 +30,12 @@ def run(id, name="CI", branch="master", status="completed", conclusion="success"
             "actor": {"login": "dev"}}
 
 
+def pull(number, ref, title, fork=False, draft=False):
+    return {"number": number, "title": title, "draft": draft, "user": {"login": "dev"}, "labels": [],
+            "head": {"ref": ref, "sha": f"sha{number}", "repo": {"full_name": "someone/r" if fork else "o/r"}},
+            "base": {"ref": "master"}, "updated_at": iso(20), "html_url": f"https://github.com/o/r/pull/{number}"}
+
+
 class FakeApi(ga.Api):
     def __init__(self, token=None):
         super().__init__(token)
@@ -37,6 +43,12 @@ class FakeApi(ga.Api):
         self.runs = [run(3, status="in_progress", conclusion=None, number=3, minutes_ago=1),
                      run(2, conclusion="failure", number=2, minutes_ago=30),
                      run(1, name="Release", branch="v1.0", number=1, minutes_ago=600)]
+        self.pulls = [pull(12, "feature/x", "Add export"), pull(7, "master", "Fix typo", fork=True, draft=True)]
+        self.issues = [{"number": 30, "title": "Crash on start!", "labels": [{"name": "bug"}], "assignees": [],
+                        "user": {"login": "a"}, "updated_at": iso(5), "comments": 2, "html_url": "https://i30"},
+                       {"number": 31, "title": "Dark mode", "labels": [], "assignees": [{"login": "dev"}],
+                        "user": {"login": "b"}, "updated_at": iso(50), "comments": 0, "html_url": "https://i31"},
+                       {"number": 12, "title": "Add export", "pull_request": {}, "labels": [], "assignees": []}]
 
     def request(self, method, path, body=None):
         self.calls.append((method, path, body))
@@ -44,6 +56,23 @@ class FakeApi(ga.Api):
             if not self.token:
                 raise ga.ApiError(403, "needs a token")
             return None
+        if "/pulls" in path:
+            return self.pulls
+        if "/issues" in path:
+            return self.issues
+        if "/releases" in path:
+            return [{"id": 9, "tag_name": "v1.1.2", "name": "1.1.2", "draft": False, "prerelease": False,
+                     "published_at": iso(60), "html_url": "https://r", "assets": [{"download_count": 5}, {"download_count": 2}]},
+                    {"id": 8, "tag_name": "v1.2.0-beta.1", "name": "", "draft": False, "prerelease": True,
+                     "published_at": iso(30), "html_url": "https://r8", "assets": []}]
+        if path == "/user":
+            return {"login": "dev"}
+        if "/check-runs" in path:
+            return {"check_runs": [
+                {"id": 501, "name": "tests", "status": "completed", "conclusion": "success", "app": {"slug": "github-actions"},
+                 "started_at": iso(5), "completed_at": iso(3)},
+                {"id": 502, "name": "codecov", "status": "in_progress", "conclusion": None, "app": {"slug": "codecov"},
+                 "details_url": "https://codecov", "started_at": iso(2), "completed_at": None}]}
         if "/jobs" in path:
             return {"jobs": [{"id": 77, "name": "build", "status": "completed", "conclusion": "failure",
                               "started_at": iso(30), "completed_at": iso(28), "html_url": "https://x",
@@ -132,7 +161,8 @@ class ModuleTests(unittest.TestCase):
         a = self.module()
         a.fetch()
         tree = a.tree()
-        branch, workflows = tree["items"]
+        self.assertEqual([i["label"] for i in tree["items"]], ["Branch master", "Pull Requests", "Workflows", "Issues", "Releases"])
+        branch, _, workflows, _, _ = tree["items"]
         self.assertEqual(branch["label"], "Branch master")
         self.assertEqual([c["label"] for c in branch["children"]], ["CI #3", "CI #2"])
         self.assertEqual(branch["children"][0]["iconColor"], ga.YELLOW)
@@ -175,16 +205,92 @@ class ModuleTests(unittest.TestCase):
     def test_status_bar_shows_the_latest_branch_run(self):
         a = self.module()
         a.fetch()
+        run = lambda messages: next(m for m in messages if m["id"] == "github.run")
         _, messages = capture(a.update_status)
-        self.assertEqual(messages[0]["text"], "● CI")
+        self.assertEqual(run(messages)["text"], "● CI")
         a.settings = {"github.showStatus": False}
         _, messages = capture(a.update_status)
-        self.assertEqual(messages[0]["text"], "")
+        self.assertEqual(run(messages)["text"], "")
 
     def test_not_a_github_folder(self):
         a = ga.Actions()
         a.root = "/x"
         self.assertIn("isn't a GitHub repository", a.tree()["message"])
+
+
+class GitHubTests(unittest.TestCase):
+    def module(self, token=None, branch="feature/x"):
+        a = ga.Actions()
+        a.root = "/x"
+        a.repo = ("o", "r", branch)
+        a.api = FakeApi(token)
+        return a
+
+    def test_branch_pull_request_comes_first_with_its_checks(self):
+        a = self.module()
+        a.fetch()
+        pulls = a.tree()["items"][1]
+        self.assertEqual(pulls["label"], "Pull Requests")
+        first = pulls["children"][0]
+        self.assertEqual(first["label"], "#12 Add export")
+        self.assertTrue(first["description"].startswith("this branch"))
+        self.assertEqual(first["iconColor"], ga.YELLOW)  # one check still running
+        self.assertEqual([c["label"] for c in first["children"]], ["tests", "codecov"])
+        self.assertIn("draft", pulls["children"][1]["description"])
+        self.assertNotIn("children", pulls["children"][1])  # checks are asked for on a click
+
+    def test_status_bar_shows_the_pull_request(self):
+        a = self.module()
+        a.fetch()
+        _, messages = capture(a.update_status)
+        pr = next(m for m in messages if m["id"] == "github.pr")
+        self.assertEqual(pr["text"], "PR #12 ●")
+
+    def test_click_on_a_pull_request_loads_its_checks(self):
+        a = self.module(branch="master")
+        a.fetch()
+        _, messages = capture(a.pull_action, 7, "click")
+        row = next(c for c in messages[-1]["items"][1]["children"] if c["id"] == "pr:7")
+        self.assertTrue(row["expanded"])
+        self.assertEqual(len(row["children"]), 2)
+
+    def test_checkout_commands(self):
+        a = self.module()
+        a.fetch()
+        self.assertEqual(ga.checkout_command(a.find_pull(12), "o/r"), "git fetch origin feature/x && git switch feature/x")
+        self.assertEqual(ga.checkout_command(a.find_pull(7), "o/r"), "git fetch origin pull/7/head:pr-7 && git switch pr-7")
+
+    def test_issues_leave_out_pull_requests_and_put_yours_first(self):
+        a = self.module(token="t")
+        a.fetch()
+        issues = next(i for i in a.tree()["items"] if i["id"] == "issues")
+        self.assertEqual([c["label"] for c in issues["children"]], ["#31 Dark mode", "#30 Crash on start!"])
+        self.assertTrue(issues["children"][0]["description"].startswith("assigned to you"))
+
+    def test_create_branch_from_issue(self):
+        a = self.module()
+        a.fetch()
+        _, messages = capture(a.issue_action, 30, "branch")
+        self.assertEqual(messages[0]["command"], "git switch -c feature/30-crash-on-start")
+        a.settings = {"github.branchName": "{number}_{title}"}
+        _, messages = capture(a.issue_action, 31, "branch")
+        self.assertEqual(messages[0]["command"], "git switch -c 31_dark-mode")
+
+    def test_releases(self):
+        a = self.module()
+        a.fetch()
+        releases = next(i for i in a.tree()["items"] if i["id"] == "releases")
+        stable, beta = sorted(releases["children"], key=lambda r: r["label"])
+        self.assertEqual(stable["label"], "v1.1.2 1.1.2")
+        self.assertTrue(stable["description"].startswith("latest"))
+        self.assertIn("7 downloads", stable["description"])
+        self.assertTrue(beta["description"].startswith("pre-release"))
+
+    def test_pipelines_only_refresh_skips_the_rest(self):
+        a = self.module()
+        a.fetch(full=False)
+        self.assertEqual(a.pulls, [])
+        self.assertFalse([c for c in a.api.calls if "/pulls" in c[1]])
 
 
 class ApiTests(unittest.TestCase):
