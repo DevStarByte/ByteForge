@@ -210,6 +210,9 @@ impl Workbench {
         if compiles {
             self.build_problems.clear();
         }
+        // These restore first. The C# server doesn't notice a restore (packages of a fresh clone stay
+        // unresolved), so a restore that wrote new results restarts it.
+        let mut stamps = (compiles || (program == "dotnet" && verb == "restore")).then(|| bf_core::dotnet::restore_stamps(&root));
         // A scaffold's connection string (it may hold a password) stays out of the log.
         let shown: Vec<&str> = args.iter().enumerate().map(|(i, a)| if i > 0 && args[i - 1] == "scaffold" { "<connection string>" } else { a.as_str() }).collect();
         self.log(format!("> {program} {}", shown.join(" ")));
@@ -228,12 +231,17 @@ impl Workbench {
                                 if let Some(hook) = on_line.as_mut() {
                                     let _ = this.update_in(cx, |wb, window, cx| hook(wb, &line, window, cx));
                                 }
+                                // `run` and `watch` keep going after their restore: check when it reports in.
+                                if line.contains("Restored ") || line.contains("Restore complete") {
+                                    let _ = this.update(cx, |wb, cx| wb.reload_csharp_after_restore(&root, &mut stamps, cx));
+                                }
                                 let _ = tx.send(line);
                             }
                             RunEvent::Exited { code, seconds } => {
                                 let _ = tx.send(log_line(format!("{program} {verb} exited with code {} after {seconds:.1}s", code.map_or("?".into(), |c| c.to_string()))));
                                 let _ = this.update_in(cx, |wb, window, cx| {
                                     wb.dotnet = None;
+                                    wb.reload_csharp_after_restore(&root, &mut stamps, cx);
                                     if compiles {
                                         wb.apply_build_diagnostics(cx);
                                     }
@@ -256,6 +264,27 @@ impl Workbench {
                 false
             }
         }
+    }
+
+    /// Restarts the C# language server when a restore since `stamps` was taken wrote new results
+    /// (`obj/project.assets.json`), so it sees the packages; `stamps` then holds the new state. dotnet
+    /// restores project by project: the restart waits until no project has been restored for a moment.
+    fn reload_csharp_after_restore(&mut self, root: &Path, stamps: &mut Option<bf_core::dotnet::RestoreStamps>, cx: &mut Context<Self>) {
+        let Some(before) = stamps.as_mut() else { return };
+        let now = bf_core::dotnet::restore_stamps(root);
+        if now == *before || self.lsp.is_none() {
+            return;
+        }
+        *before = now;
+        // Replacing the task drops (cancels) a restart still waiting.
+        self.lsp_reload = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(std::time::Duration::from_millis(1500)).await;
+            let _ = this.update(cx, |wb, cx| {
+                wb.lsp_reload = None;
+                wb.log("C#: the packages were restored; restarting the language server so it sees them.");
+                wb.start_lsp(cx);
+            });
+        }));
     }
 
     pub(super) fn add_build_problem(&mut self, d: bf_core::debug::BuildDiagnostic) {

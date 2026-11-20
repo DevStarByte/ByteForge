@@ -19,7 +19,10 @@ the git history.
       in the terminal; Problems lists build errors of closed C# files while a language server runs; Linux packages
       install the app icon (1.1.1); a diff keeps showing unsaved edits through a git status refresh (1.1.2); on
       Windows, updating an install for all users asks for admin rights instead of failing with "access denied"
-      (1.1.3). Done as a roadmap item: from here on, bugs found in daily use are fixed as they come.
+      (1.1.3); after a restore the C# server restarts so restored packages resolve, and the Solution view lists
+      solution items (1.1.4, from a dogfooding session on a real Aspire + Blazor solution: open, edit with
+      completion, restore, build, run, debug, Debug Console, commit). Done as a roadmap item: from here on, bugs
+      found in daily use are fixed as they come.
 - [x] Branch picker: clicking a branch doesn't switch to it. Confirmed working in the app (and the status bar follows). A switch git refuses (local changes in the way) asks, with
       "Stash Changes and Switch", and a switch while git is busy says so in the Output.
 - [x] The Roslyn language server (the one VS Code's C# extension uses) next to csharp-ls: `"csharp.server": "roslyn"` or

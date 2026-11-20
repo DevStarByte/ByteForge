@@ -34,6 +34,22 @@ pub fn projects(root: &Path) -> Vec<PathBuf> {
     projects
 }
 
+/// When each project below `root` was last restored: the time `obj/project.assets.json` was written
+/// (`None` when it has never been restored). A restore that changes nothing leaves the file alone, so a
+/// different stamp means the project's packages or references changed.
+pub type RestoreStamps = Vec<(PathBuf, Option<std::time::SystemTime>)>;
+
+pub fn restore_stamps(root: &Path) -> RestoreStamps {
+    projects(root)
+        .into_iter()
+        .map(|p| {
+            let assets = p.parent().unwrap_or(Path::new("")).join("obj").join("project.assets.json");
+            let stamp = std::fs::metadata(assets).and_then(|m| m.modified()).ok();
+            (p, stamp)
+        })
+        .collect()
+}
+
 /// Whether the project builds an app (console, ASP.NET Core, worker) rather than a library.
 pub fn is_app(project: &Path) -> bool {
     is_executable(project)
@@ -198,6 +214,21 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(300));
         assert!(!running(), "the child process survived");
         assert!(!process.is_running());
+    }
+
+    #[test]
+    fn restore_stamps_follow_the_assets_file() {
+        let dir = std::env::temp_dir().join(format!("bf-dotnet-stamps-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Api/obj")).unwrap();
+        std::fs::write(dir.join("Api/Api.csproj"), "<Project />").unwrap();
+        let before = restore_stamps(&dir);
+        assert_eq!(before, [(dir.join("Api/Api.csproj"), None)], "never restored");
+        std::fs::write(dir.join("Api/obj/project.assets.json"), "{}").unwrap();
+        let after = restore_stamps(&dir);
+        assert!(after[0].1.is_some() && after != before, "a restore changes the stamp");
+        assert_eq!(restore_stamps(&dir), after, "nothing written, nothing changed");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

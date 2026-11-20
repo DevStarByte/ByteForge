@@ -3,6 +3,18 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.1.4
+
+Found by using ByteForge on a real solution (Aspire, an API and a Blazor frontend, `.slnx`).
+
+- After a restore (Restore, Build, Run, Test or Watch), the C# language server restarts by itself when the
+  packages changed, so their APIs resolve. Before, a fresh clone kept its package errors ("does not contain a
+  definition for 'AddOpenApi'") after the first build, until "Restart C# Language Server". Builds that restore
+  nothing new don't restart it.
+- The Solution view lists solution items: files a solution folder holds (`<File>` in a `.slnx`,
+  `SolutionItems` in a `.sln`), under their folder, opened with a click. A folder with only files says "3 files"
+  instead of "0 projects".
+
 ## 1.1.3
 
 - Windows: updating a ByteForge installed for all users (in Program Files) works. The update's setup ran

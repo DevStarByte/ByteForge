@@ -308,6 +308,8 @@ pub struct Workbench {
     lsp_task: Option<Task<()>>,
     /// The Roslyn server's checks, running in the background before it starts.
     lsp_setup: Option<Task<()>>,
+    /// A language server restart waiting for a restore to finish (see `reload_csharp_after_restore`).
+    lsp_reload: Option<Task<()>>,
     dotnet: Option<DotnetProcess>,
     /// The running dotnet process was stopped with Shift+F5 (a test queue ends there instead of going on).
     dotnet_stopped: bool,
@@ -593,6 +595,7 @@ impl Workbench {
             lsp_status: String::new(),
             lsp_task: None,
             lsp_setup: None,
+            lsp_reload: None,
             dotnet: None,
             dotnet_stopped: false,
             dotnet_task: None,

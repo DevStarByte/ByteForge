@@ -1742,3 +1742,20 @@ mod container_tests {
         drop(guard);
     }
 }
+
+#[cfg(test)]
+mod console_input_tests {
+    use crate::workbench::settings_page::view_tests::workbench;
+
+    /// The Debug Console's expression input takes typing (dogfooding: typed text didn't show).
+    #[gpui::test]
+    fn typing_in_the_debug_console_input(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "debug-console-input");
+        cx.dispatch_action(crate::actions::ShowDebugConsole);
+        cx.run_until_parked();
+        cx.simulate_input("args.Length");
+        cx.run_until_parked();
+        assert_eq!(wb.update(cx, |wb, cx| wb.debug_input.read(cx).text().to_owned()), "args.Length");
+        drop(guard);
+    }
+}

@@ -36,7 +36,8 @@ pub enum SolutionEvent {
 
 #[derive(Clone)]
 enum Entry {
-    Folder { key: String, name: String, count: usize, depth: usize },
+    /// `detail`: how many projects it holds (or, with none, how many files).
+    Folder { key: String, name: String, detail: String, depth: usize },
     Project { project: Project, depth: usize },
     Group { key: String, label: &'static str, count: usize, depth: usize, project: PathBuf },
     Package { project: PathBuf, name: String, version: Option<String>, latest: Option<String>, depth: usize },
@@ -152,7 +153,14 @@ impl SolutionView {
     fn push_folder(&self, folder: &Folder, path: &str, depth: usize, out: &mut Vec<Entry>) {
         for sub in &folder.folders {
             let key = format!("folder:{path}/{}", sub.name);
-            out.push(Entry::Folder { key: key.clone(), name: sub.name.clone(), count: sub.project_count(), depth });
+            let detail = match (sub.project_count(), sub.files.len()) {
+                (0, 0) => "empty".to_owned(),
+                (0, 1) => "1 file".to_owned(),
+                (0, n) => format!("{n} files"),
+                (1, _) => "1 project".to_owned(),
+                (n, _) => format!("{n} projects"),
+            };
+            out.push(Entry::Folder { key: key.clone(), name: sub.name.clone(), detail, depth });
             if !self.collapsed.contains(&key) {
                 self.push_folder(sub, &format!("{path}/{}", sub.name), depth + 1, out);
             }
@@ -171,6 +179,11 @@ impl SolutionView {
             if let Some(dir) = project.path.parent() {
                 self.push_files(dir, true, depth + 1, out);
             }
+        }
+        // Solution items, after the projects like in Visual Studio; a click opens them.
+        for path in &folder.files {
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            out.push(Entry::Item { path: path.clone(), name, is_dir: false, key: None, open: false, depth });
         }
     }
 
@@ -484,14 +497,14 @@ impl Render for SolutionView {
                     let chevron = |open: bool| icon(if open { "chevronDown" } else { "chevronRight" }, px(14.), t.c("icon.foreground"));
                     let blank = || div().w(px(14.)).flex_none();
                     match view.entries[ix].clone() {
-                        Entry::Folder { key, name, count, depth } => {
+                        Entry::Folder { key, name, detail: text, depth } => {
                             let open = !view.collapsed.contains(&key);
                             let e = entity.clone();
                             row(depth)
                                 .child(chevron(open))
                                 .child(icon(if open { "folderOpen" } else { "folder" }, px(14.), t.c_or("icon.folder", 0xdcb67aff)))
                                 .child(name_cell(name))
-                                .child(detail(if count == 1 { "1 project".into() } else { format!("{count} projects") }))
+                                .child(detail(text))
                                 .on_click(move |_, _, cx| e.update(cx, |v, cx| v.toggle_collapsed(key.clone(), cx)))
                                 .into_any_element()
                         }
