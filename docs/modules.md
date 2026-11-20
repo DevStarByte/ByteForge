@@ -83,7 +83,7 @@ ByteForge starts the command in the module's folder and exchanges one JSON objec
 - `{"type":"formatResult","requestId","text"}` or `{…,"error"}`: the answer to a `format` request
 - `{"type":"status","id","text","tooltip","command","alignment":"left|right"}`
 - `{"type":"log","text"}`
-- `{"type":"openFile","path","line","column"}`
+- `{"type":"openFile","path","line","column"}`: `line` and `column` count from 0
 - `{"type":"showView","id"}`
 - `{"type":"insertText","text"}`: insert at the caret(s) of the active editor
 - `{"type":"setTheme","name"}`: switch to a color theme (for example one the module wrote to `~/.config/byteforge/themes/`)
