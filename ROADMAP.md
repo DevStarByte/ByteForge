@@ -93,6 +93,12 @@ Section 1 above is what still has to be checked by hand; this is what the releas
 - [ ] Highlighting beyond C#, Razor, JSON, XML and YAML: JavaScript / TypeScript, CSS / SCSS, HTML, SQL, Markdown,
       PowerShell and shell scripts.
 - [ ] Linked editing: renaming an XML or HTML tag renames its closing tag (`.csproj`, `.razor`, `.cshtml`).
+- [ ] Tasks, built in (not a module): a Tasks view and "Tasks: Run Task…" (quick pick; Rerun Last Task) that run
+      each task in a terminal. ByteForge's own tasks live in `.byteforge/tasks.json` in the workspace root (the
+      first file of a per-folder `.byteforge/` folder; no `.vscode/tasks.json`): `name`, `command`, `cwd`
+      (relative to the root), `group` (a header in the view), `saveAll` (default true), comments allowed;
+      "Tasks: Configure Tasks" creates it with an example. Next to them, found in the workspace: package.json
+      scripts (npm, pnpm, yarn or bun, from the lock file), Makefile targets and justfile recipes.
 
 ## 7. Later
 
