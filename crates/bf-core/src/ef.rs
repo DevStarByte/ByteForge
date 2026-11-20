@@ -33,8 +33,8 @@ pub enum Op {
     Remove,
     /// `database update [<migration>]`: to the latest, or to this migration id (`0` reverts all).
     Update(Option<String>),
-    /// `migrations script --idempotent --output <file>`.
-    Script(PathBuf),
+    /// `migrations script [<from>] --idempotent --output <file>`: every migration, or those after `from`.
+    Script { output: PathBuf, from: Option<String> },
     /// `database drop --force`.
     Drop,
     /// `dbcontext scaffold <connection> <provider> --output-dir <dir>`: entity classes and a DbContext
@@ -216,7 +216,12 @@ pub fn args(op: &Op, project: &Path, startup: &Path, context: &str) -> Vec<Strin
         Op::Remove => vec!["ef".into(), "migrations".into(), "remove".into()],
         Op::Update(None) => vec!["ef".into(), "database".into(), "update".into()],
         Op::Update(Some(target)) => vec!["ef".into(), "database".into(), "update".into(), target.clone()],
-        Op::Script(out) => vec!["ef".into(), "migrations".into(), "script".into(), "--idempotent".into(), "--output".into(), out.to_string_lossy().into_owned()],
+        Op::Script { output, from } => {
+            let mut a: Vec<String> = vec!["ef".into(), "migrations".into(), "script".into()];
+            a.extend(from.clone());
+            a.extend(["--idempotent".into(), "--output".into(), output.to_string_lossy().into_owned()]);
+            a
+        }
         Op::Drop => vec!["ef".into(), "database".into(), "drop".into(), "--force".into()],
         Op::Scaffold { connection, provider, output_dir } => {
             vec!["ef".into(), "dbcontext".into(), "scaffold".into(), connection.clone(), provider.clone(), "--output-dir".into(), output_dir.clone()]
@@ -285,6 +290,9 @@ mod tests {
         );
         assert_eq!(args(&Op::Update(Some("0".into())), p, p, ""), ["ef", "database", "update", "0", "--project", "/w/Data/Data.csproj", "--no-color"]);
         assert_eq!(args(&Op::Drop, p, p, "")[..4], ["ef", "database", "drop", "--force"]);
+        let script = |from: Option<&str>| args(&Op::Script { output: "/t/x.sql".into(), from: from.map(str::to_owned) }, p, p, "");
+        assert_eq!(script(None)[..6], ["ef", "migrations", "script", "--idempotent", "--output", "/t/x.sql"]);
+        assert_eq!(script(Some("20260101_Init"))[..7], ["ef", "migrations", "script", "20260101_Init", "--idempotent", "--output", "/t/x.sql"]);
     }
 
     #[test]

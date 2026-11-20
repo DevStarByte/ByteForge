@@ -79,7 +79,7 @@ impl Workbench {
 
     /// The startup project `dotnet ef` runs through for `project`: itself when it is an app, else the
     /// folder's startup project (its configuration has the connection string).
-    fn ef_startup(&self, project: &Path) -> PathBuf {
+    pub(super) fn ef_startup(&self, project: &Path) -> PathBuf {
         if bf_core::dotnet::is_app(project) { project.to_path_buf() } else { self.startup_project().unwrap_or_else(|| project.to_path_buf()) }
     }
 
@@ -208,7 +208,10 @@ impl Workbench {
                 let dir = std::env::temp_dir().join("byteforge-ef");
                 let _ = std::fs::create_dir_all(&dir);
                 let stem = if cmd.context.is_empty() { project.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default() } else { cmd.context.clone() };
-                Op::Script(dir.join(format!("{stem}-migrations.sql")))
+                // From a migration (the view's "Script from Here"): the migrations after it.
+                let from = (!cmd.arg.is_empty()).then(|| cmd.arg.clone());
+                let suffix = from.as_deref().map(|f| format!("-from-{f}")).unwrap_or_default();
+                Op::Script { output: dir.join(format!("{stem}-migrations{suffix}.sql")), from }
             }
             other => {
                 self.log(format!("EF Core: unknown command \"{other}\"."));
@@ -243,7 +246,7 @@ impl Workbench {
                     }
                     wb.log(format!("EF Core: added migration {name}. Apply it with \"EF Core: Update Database\"."));
                 }
-                Op::Script(file) => wb.open_file(file, None, window, cx),
+                Op::Script { output, .. } => wb.open_file(output, None, window, cx),
                 Op::Remove => wb.log("EF Core: removed the last migration."),
                 Op::Update(None) => wb.log("EF Core: the database is up to date."),
                 Op::Update(Some(target)) if target == "0" => wb.log("EF Core: reverted all migrations."),
@@ -252,6 +255,9 @@ impl Workbench {
                 Op::Scaffold { output_dir, .. } => wb.log(format!("EF Core: scaffolded the entity classes and the DbContext into {output_dir}/. The connection string is in the DbContext's OnConfiguring: move it to configuration (user secrets) before committing.")),
             }
             wb.explorer.update(cx, |e, cx| e.refresh(cx));
+            if wb.ef_view.loaded {
+                wb.refresh_ef_view(true, cx);
+            }
         });
         self.show_panel(PanelView::Output, cx);
         self.start_dotnet_with(root, args, Vec::new(), Some(on_line), Some(then), window, cx);

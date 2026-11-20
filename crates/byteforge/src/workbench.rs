@@ -5,6 +5,7 @@ mod debug;
 mod dotnet;
 mod editor_area;
 mod ef;
+mod ef_view;
 mod files;
 mod git;
 mod hierarchy;
@@ -48,6 +49,7 @@ use gpui::{
 use serde_json::json;
 
 use crate::actions::*;
+use ef_view::EfViewState;
 use tasks::TasksState;
 use crate::assets::{self, icon};
 use crate::solution::SolutionView;
@@ -136,6 +138,7 @@ enum SideView {
     Testing,
     Solution,
     Tasks,
+    EfCore,
     /// A module's view (which one: `module_view`).
     Module,
     Modules,
@@ -238,7 +241,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "refactor.extractBaseClass", "-", "refactor.introduceVariable", "refactor.introduceConstant", "refactor.introduceField", "refactor.introduceParameter",
         "-", "refactor.inline", "refactor.moveTypeToFile", "-", "refactor.removeAndSortUsings", "refactor.sortUsings",
     ]),
-    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.tasks", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.splitEditor", "view.openInOtherGroup", "-", "view.toggleWordWrap", "view.toggleSideBar", "view.togglePanel"]),
+    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.tasks", "view.efCore", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.splitEditor", "view.openInOtherGroup", "-", "view.toggleWordWrap", "view.toggleSideBar", "view.togglePanel"]),
     ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "edit.showCallHierarchy", "edit.showTypeHierarchy", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.fileHistory", "git.showLineCommit", "git.toggleBlame", "git.toggleBlameGutter", "-",
         "merge.editor", "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
@@ -316,6 +319,8 @@ pub struct Workbench {
     lsp_reload: Option<Task<()>>,
     /// The Tasks view and "Tasks: Run Task…" (see `workbench/tasks.rs`).
     tasks: TasksState,
+    /// The EF Core view (see `workbench/ef_view.rs`).
+    ef_view: EfViewState,
     dotnet: Option<DotnetProcess>,
     /// The running dotnet process was stopped with Shift+F5 (a test queue ends there instead of going on).
     dotnet_stopped: bool,
@@ -545,6 +550,10 @@ impl Workbench {
                             if wb.solution.read(cx).is_loaded() {
                                 wb.solution.update(cx, |s, cx| s.load(cx));
                             }
+                            // Migrations added or removed outside ByteForge (the source only; the database isn't asked).
+                            if wb.side_visible && wb.side == SideView::EfCore {
+                                wb.refresh_ef_view(false, cx);
+                            }
                         }
                     })
                     .is_ok();
@@ -603,6 +612,7 @@ impl Workbench {
             lsp_setup: None,
             lsp_reload: None,
             tasks: TasksState::default(),
+            ef_view: EfViewState::default(),
             dotnet: None,
             dotnet_stopped: false,
             dotnet_task: None,
@@ -934,6 +944,11 @@ impl Workbench {
         if view == SideView::Tasks {
             self.refresh_tasks(None, cx);
         }
+        if view == SideView::EfCore {
+            // The first time also asks the database; later the source is enough (Refresh asks again).
+            let ask = !self.ef_view.loaded;
+            self.refresh_ef_view(ask, cx);
+        }
         cx.notify();
     }
 
@@ -1068,6 +1083,7 @@ fn side_view_named(name: &str) -> Option<SideView> {
         "testing" | "tests" | "test" => Some(SideView::Testing),
         "solution" | "projects" => Some(SideView::Solution),
         "tasks" => Some(SideView::Tasks),
+        "ef" | "efcore" => Some(SideView::EfCore),
         "modules" => Some(SideView::Modules),
         _ => None,
     }

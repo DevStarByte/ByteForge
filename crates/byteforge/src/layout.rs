@@ -8,7 +8,7 @@
 //! "sideBar.order": ["header", "content"],                          // add "activityBar" for a horizontal one
 //! "titleBar.left": ["logo", "menu"], "titleBar.center": ["commandCenter"], "titleBar.right": [...],
 //! "statusBar.left": [...], "statusBar.center": [], "statusBar.right": [...],
-//! "activityBar.items": ["explorer", "search", "scm", "debug", "testing", "solution", "tasks", "modules", "spacer", "settings"],
+//! "activityBar.items": ["explorer", "search", "scm", "debug", "testing", "solution", "tasks", "ef", "modules", "spacer", "settings"],
 //! (module views go where the list names their id, else before the first spacer)
 //! ```
 //!
@@ -115,7 +115,7 @@ impl LayoutConfig {
             status_left: list(s, "statusBar.left", &["branch", "sync", "problems", "run", "launchProfile", "modules"]),
             status_center: list(s, "statusBar.center", &[]),
             status_right: list(s, "statusBar.right", &["update", "modules", "position", "indent", "encoding", "eol", "language", "lsp"]),
-            activity_items: list(s, "activityBar.items", &["explorer", "search", "scm", "debug", "testing", "solution", "tasks", "modules", "spacer", "settings"]),
+            activity_items: list(s, "activityBar.items", &["explorer", "search", "scm", "debug", "testing", "solution", "tasks", "ef", "modules", "spacer", "settings"]),
             panel_tabs: list(s, "panel.tabs", &["problems", "output", "debugConsole", "terminal"]),
             menus: list(s, "menuBar.menus", &["File", "Edit", "View", "Go", "Git", "Run", "Preferences", "Help"]),
             welcome: list(s, "welcome.order", &["logo", "title", "shortcuts"]),

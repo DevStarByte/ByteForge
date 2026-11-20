@@ -85,7 +85,7 @@ public static class Program { public static void Main() { } }
     assert!(found[0].file.exists() && !found[0].file.to_string_lossy().contains("Designer"));
 
     let script = dir.join("out.sql");
-    let (ok, out) = dotnet(&dir, &ef::args(&Op::Script(script.clone()), &project, &project, context));
+    let (ok, out) = dotnet(&dir, &ef::args(&Op::Script { output: script.clone(), from: None }, &project, &project, context));
     assert!(ok, "migrations script failed:\n{out}");
     let sql = std::fs::read_to_string(&script).unwrap();
     assert!(sql.contains("CREATE TABLE [Orders]"), "{sql}");
