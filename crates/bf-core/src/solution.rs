@@ -21,8 +21,6 @@ pub struct Folder {
     pub name: String,
     pub folders: Vec<Folder>,
     pub projects: Vec<Project>,
-    /// Solution items: files the solution lists in this folder (`<File>` in a `.slnx`, `SolutionItems` in a `.sln`).
-    pub files: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -135,24 +133,13 @@ pub fn parse_sln(text: &str, dir: &Path) -> Folder {
         guid: String,
         name: String,
         project: Option<PathBuf>,
-        files: Vec<PathBuf>,
     }
     let mut items: Vec<Item> = Vec::new();
     let mut parents: HashMap<String, String> = HashMap::new();
     let mut in_nested = false;
-    let mut in_items = false;
     for line in text.lines() {
         let line = line.trim();
-        if in_items {
-            // `path\to\file = path\to\file` lines up to EndProjectSection, in the folder's Project block.
-            if line.starts_with("EndProjectSection") {
-                in_items = false;
-            } else if let (Some((file, _)), Some(item)) = (line.split_once('='), items.last_mut()) {
-                item.files.push(resolve(dir, file.trim()));
-            }
-        } else if line.starts_with("ProjectSection(SolutionItems)") {
-            in_items = items.last().is_some_and(|i| i.project.is_none());
-        } else if let Some(rest) = line.strip_prefix("Project(") {
+        if let Some(rest) = line.strip_prefix("Project(") {
             let quoted: Vec<&str> = rest.split('"').skip(1).step_by(2).collect();
             // [type guid, name, path, project guid]
             if quoted.len() < 4 {
@@ -164,7 +151,7 @@ pub fn parse_sln(text: &str, dir: &Path) -> Folder {
             if kind != SLN_FOLDER && project.is_none() {
                 continue; // website folders, shared projects without a project file, …
             }
-            items.push(Item { guid, name: quoted[1].to_owned(), project, files: Vec::new() });
+            items.push(Item { guid, name: quoted[1].to_owned(), project });
         } else if line.starts_with("GlobalSection(NestedProjects)") {
             in_nested = true;
         } else if line.starts_with("EndGlobalSection") {
@@ -187,8 +174,6 @@ pub fn parse_sln(text: &str, dir: &Path) -> Folder {
                 None => {
                     let mut sub = build(Some(&item.guid), items, parents, depth + 1);
                     sub.name = item.name.clone();
-                    sub.files = item.files.clone();
-                    sort(&mut sub);
                     folder.folders.push(sub);
                 }
             }
@@ -220,7 +205,7 @@ pub fn parse_slnx(text: &str, dir: &Path) -> Folder {
         }
         folder.projects.push(project_stub(&resolve(dir, rel)));
     }
-    // Empty folders are listed too, and every folder gets its files.
+    // Empty folders are listed too.
     for node in doc.descendants().filter(|n| n.has_tag_name("Folder")) {
         let mut folder = &mut root;
         for part in node.attribute("Name").unwrap_or_default().split('/').filter(|p| !p.is_empty()) {
@@ -233,8 +218,6 @@ pub fn parse_slnx(text: &str, dir: &Path) -> Folder {
             };
             folder = &mut folder.folders[ix];
         }
-        let files = node.children().filter(|n| n.has_tag_name("File")).filter_map(|n| n.attribute("Path"));
-        folder.files.extend(files.map(|rel| resolve(dir, rel)));
     }
     sort_deep(&mut root);
     root
@@ -243,7 +226,6 @@ pub fn parse_slnx(text: &str, dir: &Path) -> Folder {
 fn sort(folder: &mut Folder) {
     folder.folders.sort_by_key(|f| f.name.to_lowercase());
     folder.projects.sort_by_key(|p| p.name.to_lowercase());
-    folder.files.sort_by_key(|f| f.file_name().map(|n| n.to_string_lossy().to_lowercase()));
 }
 
 fn sort_deep(folder: &mut Folder) {
@@ -343,12 +325,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{11111111-111
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "src\App\App.csproj", "{22222222-2222-2222-2222-222222222222}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{44444444-4444-4444-4444-444444444444}"
-	ProjectSection(SolutionItems) = preProject
-		README.md = README.md
-		build\Directory.Build.props = build\Directory.Build.props
-	EndProjectSection
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "App.Tests", "tests\App.Tests\App.Tests.csproj", "{33333333-3333-3333-3333-333333333333}"
 EndProject
 Global
@@ -364,12 +340,9 @@ EndGlobal
         assert_eq!(f.projects.len(), 1);
         assert_eq!(f.projects[0].name, "App.Tests");
         assert_eq!(f.projects[0].path, PathBuf::from("/w/tests/App.Tests/App.Tests.csproj"));
-        assert_eq!(f.folders.len(), 2);
-        assert_eq!(f.folders[0].name, "Solution Items");
-        assert_eq!(f.folders[0].files, [PathBuf::from("/w/build/Directory.Build.props"), PathBuf::from("/w/README.md")]);
-        assert_eq!(f.folders[1].name, "src");
-        assert!(f.folders[1].files.is_empty());
-        assert_eq!(f.folders[1].projects[0].path, PathBuf::from("/w/src/App/App.csproj"));
+        assert_eq!(f.folders.len(), 1);
+        assert_eq!(f.folders[0].name, "src");
+        assert_eq!(f.folders[0].projects[0].path, PathBuf::from("/w/src/App/App.csproj"));
         assert_eq!(f.project_count(), 2);
     }
 
@@ -378,13 +351,12 @@ EndGlobal
         let xml = r#"<Solution>
   <Folder Name="/src/" />
   <Folder Name="/src/libs/"><Project Path="src/libs/Core/Core.csproj" /></Folder>
-  <Folder Name="/docs/"><File Path="docs/readme.md" /><File Path="docs\Guide.md" /></Folder>
+  <Folder Name="/docs/" />
   <Project Path="App/App.csproj" />
 </Solution>"#;
         let f = parse_slnx(xml, Path::new("/w"));
         assert_eq!(f.projects[0].name, "App");
         assert_eq!(f.folders.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["docs", "src"]);
-        assert_eq!(f.folders[0].files, [PathBuf::from("/w/docs/Guide.md"), PathBuf::from("/w/docs/readme.md")]);
         let libs = &f.folders[1].folders[0];
         assert_eq!(libs.name, "libs");
         assert_eq!(libs.projects[0].path, PathBuf::from("/w/src/libs/Core/Core.csproj"));
