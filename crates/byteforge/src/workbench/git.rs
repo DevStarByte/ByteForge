@@ -85,6 +85,17 @@ impl Workbench {
             if e.is_modified() || e.read_only {
                 continue;
             }
+            // A diff shows the file as it is in its open editor, unsaved edits included (see show_diff_tab):
+            // the file on disk would drop them from the diff.
+            if tab.path.is_none()
+                && let Some(doc) = self.tabs.iter().find(|t| t.is_document() && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, path)))
+            {
+                let text = doc.editor.read(cx).state.buffer.text();
+                if text != e.state.buffer.text() {
+                    tab.editor.update(cx, |e, cx| e.reload_text(&text, cx));
+                }
+                continue;
+            }
             let Ok(bytes) = std::fs::read(path) else { continue };
             let body = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF][..]).unwrap_or(&bytes);
             let text = String::from_utf8_lossy(body);
@@ -1197,6 +1208,10 @@ mod tests {
         cx.dispatch_action(crate::actions::GitOpenChanges);
         wait_for(cx, "the diff tab", |cx| diff_tab(&wb, cx).is_some_and(|(_, d, _)| d.read_with(cx, |d, cx| d.state_for_test(cx).0) == 2));
         let (_, diff, _) = diff_tab(&wb, cx).unwrap();
+        // A git status refresh reloads changed files; the diff keeps showing the unsaved change.
+        wb.update(cx, |wb, cx| wb.reload_changed_tabs(cx));
+        cx.run_until_parked();
+        assert_eq!(diff.read_with(cx, |d, cx| d.state_for_test(cx).0), 2, "the unsaved change survives a status refresh");
         assert_eq!(diff.read_with(cx, |d, cx| d.state_for_test(cx).1), Some(0), "on the unsaved change");
         click(cx, "diff-stage");
         wait_for(cx, "the staged change", |cx| diff.read_with(cx, |d, cx| d.state_for_test(cx).0) == 1);

@@ -3,11 +3,16 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
-## 1.1.1
+## 1.1.2
+
+1.1.1 wasn't released (a test caught the diff bug below); 1.1.2 has its change too.
 
 - Linux: ByteForge has its app icon in the app launcher, the taskbar and the window switcher. The pacman packages,
   `packaging/arch` and `install.sh` install it into the hicolor icon theme (SVG plus PNGs from 16 to 512 px),
   and the desktop entry points to it.
+- The diff editor keeps showing unsaved edits of the file: when git's status refreshed (after a commit, a
+  checkout, or git touching its index), the diff went back to the file on disk and the unsaved change vanished
+  from it, along with its Stage and Revert buttons.
 
 ## 1.1.0
 
