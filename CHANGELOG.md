@@ -3,6 +3,13 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.1.3
+
+- Windows: updating a ByteForge installed for all users (in Program Files) works. The update's setup ran
+  without admin rights and failed with "access denied"; now it asks for them once (a UAC prompt), installs,
+  and starts ByteForge again as you. Updating out of an older version gets this too, since the new version's
+  setup does the installing.
+
 ## 1.1.2
 
 1.1.1 wasn't released (a test caught the diff bug below); 1.1.2 has its change too.

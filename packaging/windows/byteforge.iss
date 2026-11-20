@@ -66,7 +66,47 @@ Filename: "{app}\byteforge.exe"; Description: "{cm:LaunchProgram,ByteForge}"; Fl
 Filename: "{app}\byteforge.exe"; Flags: nowait runasoriginaluser; Check: ShouldRelaunch
 
 [Code]
+const
+  UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{6E0B4C1E-2F3A-4D8B-9B7E-B7F0FE1D2C42}_is1';
+
 function ShouldRelaunch: Boolean;
 begin
   Result := WizardSilent and (ExpandConstant('{param:RELAUNCH|0}') = '1');
+end;
+
+function HasParam(const Name: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 1 to ParamCount do
+    if CompareText(ParamStr(I), Name) = 0 then
+      Result := True;
+end;
+
+{ The built-in updater starts this setup silently and without admin rights. Setup then reuses the install
+  mode of the installed version; for an install for all users (Program Files) it would run without the rights
+  to replace its files and fail with "access denied". So in that case it starts itself again with admin
+  rights (one UAC prompt) and waits, and ByteForge comes back without admin rights afterwards. }
+function InitializeSetup: Boolean;
+var
+  Dir: String;
+  Code: Integer;
+begin
+  Result := True;
+  if IsAdmin or not (HasParam('/SILENT') or HasParam('/VERYSILENT')) or HasParam('/CURRENTUSER') then
+    Exit;
+  if RegKeyExists(HKCU, UninstallKey) then
+    Exit;
+  if not (RegQueryStringValue(HKLM64, UninstallKey, 'InstallLocation', Dir)
+          or RegQueryStringValue(HKLM32, UninstallKey, 'InstallLocation', Dir)) then
+    Exit;
+  if not ShellExec('runas', ExpandConstant('{srcexe}'),
+                   '/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /ALLUSERS /RELAUNCH=0',
+                   '', SW_SHOWNORMAL, ewWaitUntilTerminated, Code) then
+    Log('Starting Setup with admin rights failed: ' + SysErrorMessage(Code));
+  { Updated or not (the UAC prompt can be declined), ByteForge comes back. }
+  if ExpandConstant('{param:RELAUNCH|0}') = '1' then
+    Exec(AddBackslash(Dir) + 'byteforge.exe', '', '', SW_SHOWNORMAL, ewNoWait, Code);
+  Result := False;
 end;
