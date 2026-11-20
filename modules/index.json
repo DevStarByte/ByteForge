@@ -152,6 +152,23 @@
       ]
     },
     {
+      "id": "byteforge.http-client",
+      "name": "HTTP Client",
+      "version": "0.1.0",
+      "description": "Sends the requests in .http and .rest files, the format Visual Studio and Rider use for ASP.NET Core APIs: an HTTP view lists every request in the workspace (click to send), \"HTTP: Send Request…\" (Ctrl+Alt+Enter) picks one from the active file, \"Send All Requests in File\" sends them in order. Variables (@host = …), environments from http-client.env.json and http-client.private.env.json (pick one in the status bar), values from earlier responses ({{login.response.body.$.token}}), {{$guid}}, {{$timestamp}}, {{$datetime …}}, {{$processEnv NAME}} and {{$dotenv NAME}}. Each response opens in an editor with its status, headers, timing and pretty-printed JSON. Highlighting and a file icon for .http files. Needs python3.",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
+      "category": "Web",
+      "dir": "http-client",
+      "files": [
+        "http_client.py",
+        "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
       "id": "byteforge.json-format",
       "name": "JSON Formatter",
       "version": "1.0.1",
@@ -171,7 +188,7 @@
     {
       "id": "byteforge.lua",
       "name": "Lua",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "Lua support: highlighting for .lua, .rockspec and .luacheckrc files (keywords, functions, locals, the standard library, strings and long strings, comments, numbers), a Lua file icon, \"Lua: Run File\" in a terminal, \"Lua: Check Syntax\" (goes to the error) and Format Document with StyLua. Runs files with lua, luajit or the interpreter in \"lua.interpreter\". Needs python3.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
@@ -180,6 +197,23 @@
       "files": [
         "lua.py",
         "module.json"
+      ],
+      "requires": [
+        "python3"
+      ]
+    },
+    {
+      "id": "byteforge.protobuf",
+      "name": "Protocol Buffers",
+      "version": "0.1.0",
+      "description": "Protocol Buffers support for gRPC: highlighting for .proto files (syntax, packages, imports, options, messages, enums, services and rpc methods, field types and numbers, comments and strings), a .proto file icon, and Format Document with buf or clang-format, whichever is installed (\"protobuf.formatter\"). Needs python3 for formatting.",
+      "author": "DevStarByte",
+      "authorUrl": "https://github.com/DevStarByte",
+      "category": "Languages",
+      "dir": "protobuf",
+      "files": [
+        "module.json",
+        "protobuf.py"
       ],
       "requires": [
         "python3"

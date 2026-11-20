@@ -1,0 +1,65 @@
+{
+  // Protocol Buffers for ByteForge: highlighting and an icon for .proto files (gRPC services in ASP.NET Core),
+  // and Format Document with buf or clang-format.
+  "id": "byteforge.protobuf",
+  "name": "Protocol Buffers",
+  "version": "0.1.0",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
+  "category": "Languages",
+  "description": "Protocol Buffers support for gRPC: highlighting for .proto files (syntax, packages, imports, options, messages, enums, services and rpc methods, field types and numbers, comments and strings), a .proto file icon, and Format Document with buf or clang-format, whichever is installed (\"protobuf.formatter\"). Needs python3 for formatting.",
+  "command": "python3",
+  "args": ["protobuf.py"],
+  "settings": [
+    {"key": "protobuf.formatter", "title": "Formatter", "type": "string", "choices": ["auto", "buf", "clang-format"],
+     "default": "auto", "description": "What formats .proto files: auto uses buf if it's installed, else clang-format."}
+  ],
+  "fileIcons": [
+    {
+      "icon": "M6,2H14L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2Z M14,3.5V8H18.5Z M7.5,11H10V12.5H9V16.5H10V18H7.5Z M16.5,11H14V12.5H15V16.5H14V18H16.5Z M11,13.5H13V15.5H11Z",
+      "color": "#4285f4",
+      "extensions": ["proto"]
+    }
+  ],
+  "languages": [
+    {
+      "id": "proto",
+      "name": "Protocol Buffers",
+      "extensions": ["proto"],
+      "lineComment": "//",
+      "detect": [
+        "^\\s*syntax\\s*=\\s*\"proto[23]\"\\s*;",
+        "^\\s*edition\\s*=\\s*\"\\d+\"\\s*;",
+        "^\\s*package\\s+[\\w.]+\\s*;",
+        "^\\s*(message|service|enum)\\s+[A-Za-z_]\\w*\\s*\\{",
+        "^\\s*rpc\\s+\\w+\\s*\\(",
+        "^\\s*option\\s+csharp_namespace\\s*="
+      ],
+      // Applied per line; where matches overlap, the earlier rule wins. Block comments are recognized on the
+      // line they start on and on lines that start with *.
+      "rules": [
+        {"match": "//.*$", "token": "comment"},
+        {"match": "/\\*.*?(?:\\*/|$)", "token": "comment"},
+        {"match": "^\\s*\\*.*$", "token": "comment"},
+        {"match": "\"(?:[^\"\\\\]|\\\\.)*\"?", "token": "string"},
+        {"match": "'(?:[^'\\\\]|\\\\.)*'?", "token": "string"},
+        {"match": "\\b(syntax|edition|package|import|option|weak|public)\\b", "group": 1, "token": "keyword - control"},
+        {"match": "\\b(message|enum|service|rpc|returns|stream|oneof|map|extend|extensions|reserved|to|max|optional|required|repeated|group)\\b", "group": 1, "token": "keyword"},
+        {"match": "\\b(true|false|inf|nan)\\b", "group": 1, "token": "keyword"},
+        {"match": "\\b(double|float|int32|int64|uint32|uint64|sint32|sint64|fixed32|fixed64|sfixed32|sfixed64|bool|string|bytes)\\b", "group": 1, "token": "keyword"},
+        {"match": "\\b(?:message|enum|service|extend)\\s+([A-Za-z_][\\w.]*)", "group": 1, "token": "class name"},
+        {"match": "\\brpc\\s+([A-Za-z_]\\w*)", "group": 1, "token": "method name"},
+        {"match": "\\b(?:returns\\s*)?\\(\\s*(?:stream\\s+)?\\.?([A-Za-z_][\\w.]*)\\s*\\)", "group": 1, "token": "class name"},
+        {"match": "^\\s*package\\s+([\\w.]+)", "group": 1, "token": "namespace name"},
+        {"match": "^\\s*option\\s+\\(?([\\w.]+)\\)?", "group": 1, "token": "property name"},
+        {"match": "\\[\\s*\\(?([\\w.]+)\\)?\\s*=", "group": 1, "token": "property name"},
+        {"match": ",\\s*\\(?([\\w.]+)\\)?\\s*=", "group": 1, "token": "property name"},
+        {"match": "\\b([A-Za-z_]\\w*)\\s*=\\s*-?\\d", "group": 1, "token": "field name"},
+        {"match": "\\b(google\\.protobuf\\.\\w+|\\.?[A-Z]\\w*(?:\\.[A-Z]\\w*)*)\\b", "group": 1, "token": "class name"},
+        {"match": "-?\\b(?:0[xX][0-9A-Fa-f]+|\\d+(?:\\.\\d*)?(?:[eE][+-]?\\d+)?)\\b", "token": "number"},
+        {"match": "[=<>]", "token": "operator"},
+        {"match": "[{}()\\[\\];,.]", "token": "punctuation"}
+      ]
+    }
+  ]
+}

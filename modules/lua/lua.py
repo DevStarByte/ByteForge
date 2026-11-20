@@ -93,7 +93,8 @@ class Module:
         log(f"lua: {message}")
         send({"type": "showView", "id": "output"})
         if line:
-            send({"type": "openFile", "path": path, "line": line, "column": 1})
+            # Lua reports 1-based lines; openFile takes 0-based ones.
+            send({"type": "openFile", "path": path, "line": line - 1, "column": 0})
 
     def execute(self, command):
         if command == "lua.runFile":
