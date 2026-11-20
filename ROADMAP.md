@@ -99,6 +99,11 @@ Section 1 above is what still has to be checked by hand; this is what the releas
       (relative to the root), `group` (a header in the view), `saveAll` (default true), comments allowed;
       "Tasks: Configure Tasks" creates it with an example. Next to them, found in the workspace: package.json
       scripts (npm, pnpm, yarn or bun, from the lock file), Makefile targets and justfile recipes.
+- [ ] EF Core view, built in: a side bar view with each project's `DbContext`s and their migrations, marked
+      applied or pending once EF has asked the database (shown at once from the source, as "Update Database to
+      Migration…" does). Click a migration: its file. Right-click: Update Database to Here, Script from Here,
+      Remove (the last one). Top row: Add Migration, Update Database, Drop Database, Scaffold DbContext, Refresh.
+      Uses the Run menu's EF commands; refreshes after each one and when a Migrations folder changes.
 
 ## 7. Later
 
