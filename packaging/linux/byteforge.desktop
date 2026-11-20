@@ -6,4 +6,5 @@ Exec=byteforge %F
 Terminal=false
 Categories=Development;IDE;TextEditor;
 MimeType=text/x-csharp;text/plain;
+Icon=byteforge
 StartupWMClass=byteforge

@@ -5,7 +5,7 @@
 #   makepkg -sfi                          # rebuild and reinstall after pulling changes
 # The cargo build lives in ./src/target, so later builds are incremental; `makepkg -C` starts clean.
 pkgname=byteforge
-pkgver=1.1.0  # keep in sync with Cargo.toml [workspace.package] version
+pkgver=1.1.1  # keep in sync with Cargo.toml [workspace.package] version
 pkgrel=1
 pkgdesc="A modular, themeable IDE for C# built with Rust and GPUI"
 arch=('x86_64' 'aarch64')
@@ -43,5 +43,11 @@ package() {
   install -dm755 "$pkgdir/usr/bin"
   ln -s /usr/lib/byteforge/byteforge "$pkgdir/usr/bin/byteforge"
   install -Dm644 "$root/packaging/linux/byteforge.desktop" "$pkgdir/usr/share/applications/byteforge.desktop"
+  install -Dm644 "$root"/packaging/linux/byteforge.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/byteforge.svg"
+  local size
+  for size in 16 24 32 48 64 128 256 512; do
+    install -Dm644 "$root"/packaging/linux/icons/byteforge-$size.png \
+      "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/byteforge.png"
+  done
   install -Dm644 "$root/README.md" "$pkgdir/usr/share/doc/byteforge/README.md"
 }

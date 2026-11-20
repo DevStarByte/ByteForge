@@ -55,5 +55,11 @@ package() {
   install -dm755 "$pkgdir/usr/bin"
   ln -s /usr/lib/byteforge/byteforge "$pkgdir/usr/bin/byteforge"
   install -Dm644 packaging/linux/byteforge.desktop "$pkgdir/usr/share/applications/byteforge.desktop"
+  install -Dm644 packaging/linux/byteforge.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/byteforge.svg"
+  local size
+  for size in 16 24 32 48 64 128 256 512; do
+    install -Dm644 packaging/linux/icons/byteforge-$size.png \
+      "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/byteforge.png"
+  done
   install -Dm644 README.md "$pkgdir/usr/share/doc/byteforge/README.md"
 }

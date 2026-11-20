@@ -3,6 +3,12 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.1.1
+
+- Linux: ByteForge has its app icon in the app launcher, the taskbar and the window switcher. The pacman packages,
+  `packaging/arch` and `install.sh` install it into the hicolor icon theme (SVG plus PNGs from 16 to 512 px),
+  and the desktop entry points to it.
+
 ## 1.1.0
 
 Released as betas while section 1 of the roadmap (everyday use) is finished; the next full release follows.
