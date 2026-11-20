@@ -1,0 +1,29 @@
+{
+  // GitHub Actions for ByteForge: the workflow runs of the folder's GitHub repository, their jobs, steps and
+  // logs; re-run, cancel and start workflows. Talks to the GitHub REST API directly.
+  "id": "byteforge.github-actions",
+  "name": "GitHub Actions",
+  "version": "0.1.0",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
+  "category": "Source Control",
+  "description": "An Actions view with the workflow runs of the folder's GitHub repository: the current branch's runs and every workflow's latest runs, with state, trigger, age and duration (refreshed while runs are going; the badge counts them). Click a run for its jobs and steps, a job for its log in an editor at the first error. Right-click a run: Open in Browser, Re-run, Re-run Failed Jobs, Cancel. \"GitHub: Run Workflow…\" starts a workflow_dispatch workflow on the current branch. The status bar shows the branch's latest run. Public repositories work without a token; re-running, cancelling, starting workflows and private repositories need one (\"github.token\", GH_TOKEN, or a logged-in gh). Needs python3 and git.",
+  "command": "python3",
+  "args": ["github_actions.py"],
+  "requires": ["git"],
+  "settings": [
+    {"key": "github.token", "title": "Token", "type": "string", "default": "",
+     "description": "A GitHub token (fine-grained: Actions read and write, Contents read) for private repositories, re-running, cancelling and starting workflows, and 5000 requests an hour. Empty: GH_TOKEN, GITHUB_TOKEN or gh's login. It's stored in settings.json as plain text."},
+    {"key": "github.refreshSeconds", "title": "Refresh every (seconds)", "type": "number", "default": 60,
+     "description": "How often runs are checked while one is going (five times as long otherwise; at least 180 without a token)."},
+    {"key": "github.showStatus", "title": "Show the latest run in the status bar", "type": "boolean", "default": true,
+     "description": "The current branch's latest run, with its state. Off also stops refreshing while the view is hidden."}
+  ],
+  "views": [
+    {
+      "id": "github-actions",
+      "title": "GitHub Actions",
+      "icon": "M12,2A10,10 0 1,0 12,22A10,10 0 1,0 12,2Z M12,4A8,8 0 1,1 12,20A8,8 0 1,1 12,4Z M10,8V16L16,12Z"
+    }
+  ]
+}
