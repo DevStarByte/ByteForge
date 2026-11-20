@@ -368,11 +368,7 @@ impl EditorView {
         let language = path.as_deref().and_then(Language::from_path);
         let mut state = EditorState::new(Buffer::new(text));
         state.line_comment = language.and_then(Language::line_comment);
-        state.block_comment = match language {
-            Some(Language::Razor) => Some(("@*", "*@")),
-            Some(Language::Xml) => Some(("<!--", "-->")),
-            _ => None,
-        };
+        state.block_comment = language.and_then(Language::block_comment);
         // Parse the buffer's text, not the raw file: CRLF is normalized to LF, and highlight byte offsets
         // must match the text that is displayed.
         let normalized = state.buffer.text();
@@ -754,6 +750,7 @@ impl EditorView {
         }
         self.language = language;
         self.state.line_comment = language.and_then(Language::line_comment);
+        self.state.block_comment = language.and_then(Language::block_comment);
         let text = self.state.buffer.text();
         self.syntax = language.map(|lang| {
             let mut highlighter = Highlighter::new(lang);

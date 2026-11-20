@@ -647,3 +647,170 @@ fn module_languages_detect_their_text() {
     assert_eq!(detect("using System.Linq;\nvar adults = from p in people\n    where p.Age > 17\n    select p;"), Some("csharp"));
     set_module_languages(Vec::new());
 }
+
+/// The kind of the span covering the first byte of `needle` (the `nth` occurrence).
+fn kind_at(spans: &[Span], text: &str, needle: &str, nth: usize) -> Option<&'static str> {
+    let at = text.match_indices(needle).nth(nth).unwrap_or_else(|| panic!("{needle:?} #{nth} not in text")).0;
+    spans.iter().find(|s| s.start <= at && at < s.end).map(|s| s.kind)
+}
+
+#[test]
+fn web_and_script_languages_from_path() {
+    let cases = [
+        ("app.js", Language::JavaScript),
+        ("vite.config.mjs", Language::JavaScript),
+        ("Button.jsx", Language::JavaScript),
+        ("main.ts", Language::TypeScript),
+        ("App.tsx", Language::Tsx),
+        ("wwwroot/css/site.css", Language::Css),
+        ("_variables.scss", Language::Scss),
+        ("wwwroot/index.html", Language::Html),
+        ("Migrations/001.sql", Language::Sql),
+        ("README.md", Language::Markdown),
+        ("build.ps1", Language::PowerShell),
+        ("deploy.sh", Language::Shell),
+        ("PKGBUILD", Language::Shell),
+        (".bashrc", Language::Shell),
+        (".zshrc", Language::Shell),
+    ];
+    for (name, language) in cases {
+        assert_eq!(Language::from_path(Path::new(name)), Some(language), "{name}");
+        assert_eq!(Language::from_id(language.id()), Some(language), "{name}: id round trip");
+        // Every query compiles, with its injections.
+        let mut h = Highlighter::new(language);
+        h.parse("x");
+    }
+    assert_eq!(Language::from_id("bash"), Some(Language::Shell));
+    assert_eq!(Language::from_id("ts"), Some(Language::TypeScript));
+    assert_eq!(Language::Sql.line_comment(), Some("--"));
+}
+
+#[test]
+fn detects_scripts_by_their_first_line() {
+    assert_eq!(Language::detect("#!/bin/bash\necho hi\n"), Some(Language::Shell));
+    assert_eq!(Language::detect("#!/usr/bin/env sh\nset -e\n"), Some(Language::Shell));
+    assert_eq!(Language::detect("#!/usr/bin/env node\nconsole.log(1)\n"), Some(Language::JavaScript));
+    assert_eq!(Language::detect("#!/usr/bin/env pwsh\nWrite-Host hi\n"), Some(Language::PowerShell));
+    assert_eq!(Language::detect("<!DOCTYPE html>\n<html></html>\n"), Some(Language::Html));
+    assert_eq!(Language::detect("<?xml version=\"1.0\"?><a/>"), Some(Language::Xml));
+}
+
+#[test]
+fn javascript_and_typescript_kinds() {
+    let js = "// note\nimport x from \"y\";\nfunction add(a, b) { return a + b; }\nconst o = { name: 'n', n: 42 };\no.call(true);\n";
+    let spans = highlight_all(Language::JavaScript, js);
+    assert_well_formed(&spans, 0..js.len());
+    let k = |needle: &str| kind_at(&spans, js, needle, 0);
+    assert_eq!(k("// note"), Some("comment"));
+    assert_eq!(k("import"), Some("keyword"));
+    assert_eq!(k("\"y\""), Some("string"));
+    assert_eq!(k("add"), Some("method name"));
+    assert_eq!(k("return"), Some("keyword"));
+    assert_eq!(k("42"), Some("number"));
+    assert_eq!(k("call"), Some("method name"));
+    assert_eq!(k("true"), Some("keyword"));
+
+    let ts = "interface User { id: number; name?: string }\nexport class Repo<T> { private items: T[] = []; }\n";
+    let spans = highlight_all(Language::TypeScript, ts);
+    assert_well_formed(&spans, 0..ts.len());
+    let k = |needle: &str| kind_at(&spans, ts, needle, 0);
+    assert_eq!(k("interface"), Some("keyword"));
+    assert_eq!(k("User"), Some("class name"));
+    assert_eq!(k("number"), Some("keyword"));
+    assert_eq!(k("private"), Some("keyword"));
+    assert_eq!(k("Repo"), Some("class name"));
+
+    let tsx = "const App = () => <div className=\"x\">{count}</div>;\n";
+    let spans = highlight_all(Language::Tsx, tsx);
+    assert_eq!(kind_at(&spans, tsx, "div", 0), Some("html element name"));
+    assert_eq!(kind_at(&spans, tsx, "className", 0), Some("html attribute name"));
+}
+
+#[test]
+fn css_scss_and_html_kinds() {
+    let css = "/* c */\n.card > a:hover { color: #fff; margin: 4px !important; }\n@media (min-width: 600px) { body { display: grid; } }\n";
+    let spans = highlight_all(Language::Css, css);
+    assert_well_formed(&spans, 0..css.len());
+    let k = |needle: &str| kind_at(&spans, css, needle, 0);
+    assert_eq!(k("/* c */"), Some("comment"));
+    assert_eq!(k("color"), Some("property name"));
+    assert_eq!(k("4px"), Some("number"));
+    assert_eq!(k("@media"), Some("keyword"));
+
+    let scss = "$gap: 8px;\n@mixin pad { padding: $gap; }\n.a { @include pad; &:hover { color: red; } }\n";
+    let spans = highlight_all(Language::Scss, scss);
+    assert_well_formed(&spans, 0..scss.len());
+    assert_eq!(kind_at(&spans, scss, "@mixin", 0), Some("keyword"));
+    assert_eq!(kind_at(&spans, scss, "padding", 0), Some("property name"));
+
+    let html = "<!-- c -->\n<div class=\"x\">Hi</div>\n<script>const n = 1;</script>\n<style>p { color: red; }</style>\n";
+    let spans = highlight_all(Language::Html, html);
+    assert_well_formed(&spans, 0..html.len());
+    let k = |needle: &str| kind_at(&spans, html, needle, 0);
+    assert_eq!(k("<!-- c -->"), Some("comment"));
+    assert_eq!(k("div"), Some("html element name"));
+    assert_eq!(k("class"), Some("html attribute name"));
+    assert_eq!(k("\"x\""), Some("html attribute value"));
+    assert_eq!(k("<div"), Some("html tag delimiter"));
+    // The injected grammars: JavaScript in <script>, CSS in <style>.
+    assert_eq!(k("const"), Some("keyword"));
+    assert_eq!(k("1;"), Some("number"));
+    assert_eq!(k("color"), Some("property name"));
+}
+
+#[test]
+fn sql_powershell_and_shell_kinds() {
+    let sql = "-- users\nSELECT id, name FROM users WHERE id = 42 AND name LIKE 'a%';\n";
+    let spans = highlight_all(Language::Sql, sql);
+    assert_well_formed(&spans, 0..sql.len());
+    let k = |needle: &str| kind_at(&spans, sql, needle, 0);
+    assert_eq!(k("-- users"), Some("comment"));
+    assert_eq!(k("SELECT"), Some("keyword"));
+    assert_eq!(k("FROM"), Some("keyword"));
+    assert_eq!(k("42"), Some("number"));
+    assert_eq!(k("'a%'"), Some("string"));
+
+    let ps = "# build\nparam([string]$Configuration = \"Release\")\nif ($Configuration -eq 'Debug') { Write-Host \"debug\" }\n";
+    let spans = highlight_all(Language::PowerShell, ps);
+    assert_well_formed(&spans, 0..ps.len());
+    let k = |needle: &str| kind_at(&spans, ps, needle, 0);
+    assert_eq!(k("# build"), Some("comment"));
+    assert_eq!(k("if"), Some("keyword"));
+    assert_eq!(k("\"Release\""), Some("string"));
+    assert_eq!(k("Write-Host"), Some("method name"));
+
+    let sh = "#!/bin/bash\n# deploy\nset -e\nfor f in *.txt; do echo \"$f\"; done\nNAME=x\n";
+    let spans = highlight_all(Language::Shell, sh);
+    assert_well_formed(&spans, 0..sh.len());
+    let k = |needle: &str| kind_at(&spans, sh, needle, 0);
+    assert_eq!(k("# deploy"), Some("comment"));
+    assert_eq!(k("for"), Some("keyword"));
+    assert_eq!(k("echo"), Some("method name"));
+    assert_eq!(k("\"$f\""), Some("string"));
+}
+
+#[test]
+fn markdown_blocks_and_inline() {
+    let md = "# Title\n\nSome **bold**, *italic* and `code` with a [link](https://x.y).\n\n```cs\nvar x = 1;\n```\n\n- item\n";
+    let spans = highlight_all(Language::Markdown, md);
+    assert_well_formed(&spans, 0..md.len());
+    let k = |needle: &str| kind_at(&spans, md, needle, 0);
+    assert_eq!(k("Title"), Some("markup heading"));
+    assert_eq!(k("bold"), Some("markup bold"));
+    assert_eq!(k("italic"), Some("markup italic"));
+    assert_eq!(kind_at(&spans, md, "code", 0), Some("markup code"));
+    assert_eq!(k("https://x.y"), Some("markup link"));
+    assert_eq!(k("var x"), Some("markup code"));
+    assert_eq!(k("Some"), None, "plain text stays plain");
+}
+
+#[test]
+fn injections_follow_edits() {
+    let before = "<p>x</p>\n";
+    let mut h = Highlighter::new(Language::Html);
+    h.parse(before);
+    let after = "<p>x</p>\n<script>let a = 2;</script>\n";
+    h.edit(insertion(before, before.len(), &after[before.len()..]), after);
+    let spans = h.highlight(after, 0..after.len());
+    assert_eq!(kind_at(&spans, after, "let", 0), Some("keyword"), "the new <script> is highlighted as JavaScript");
+}

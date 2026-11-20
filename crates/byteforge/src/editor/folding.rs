@@ -354,7 +354,17 @@ fn indent_regions(lines: &[String]) -> Vec<(usize, usize)> {
 impl EditorView {
     fn fold_style(&self) -> Style {
         match self.language {
-            Some(bf_syntax::Language::CSharp | bf_syntax::Language::Json | bf_syntax::Language::Razor) => Style::Braces,
+            Some(
+                bf_syntax::Language::CSharp
+                | bf_syntax::Language::Json
+                | bf_syntax::Language::Razor
+                | bf_syntax::Language::JavaScript
+                | bf_syntax::Language::TypeScript
+                | bf_syntax::Language::Tsx
+                | bf_syntax::Language::Css
+                | bf_syntax::Language::Scss
+                | bf_syntax::Language::PowerShell,
+            ) => Style::Braces,
             _ => Style::Indent,
         }
     }

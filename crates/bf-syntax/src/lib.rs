@@ -6,6 +6,7 @@
 
 use std::ops::Range;
 use std::path::Path;
+use std::sync::LazyLock;
 
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{InputEdit, Parser, Point, Query, QueryCursor, Tree};
@@ -16,6 +17,41 @@ const XML_QUERY: &str = include_str!("../queries/xml.scm");
 const YAML_QUERY: &str = include_str!("../queries/yaml.scm");
 /// Razor embeds C# with the C# grammar's node names, so its query is the C# one plus Razor rules.
 const RAZOR_QUERY: &str = concat!(include_str!("../queries/csharp.scm"), "\n", include_str!("../queries/razor.scm"));
+
+// The grammars' own queries, written like ByteForge's: general patterns first, a later pattern wins.
+// TypeScript's and JSX's add to JavaScript's, so they come after it.
+static JAVASCRIPT_QUERY: LazyLock<String> =
+    LazyLock::new(|| [tree_sitter_javascript::HIGHLIGHT_QUERY, tree_sitter_javascript::JSX_HIGHLIGHT_QUERY].join("\n"));
+static TYPESCRIPT_QUERY: LazyLock<String> =
+    LazyLock::new(|| [tree_sitter_javascript::HIGHLIGHT_QUERY, tree_sitter_typescript::HIGHLIGHTS_QUERY].join("\n"));
+static HTML_QUERY: LazyLock<String> = LazyLock::new(|| [tree_sitter_html::HIGHLIGHTS_QUERY, include_str!("../queries/html.scm")].join("\n"));
+/// SCSS's query only adds to CSS's (SCSS is a superset of CSS).
+static SCSS_QUERY: LazyLock<String> = LazyLock::new(|| [tree_sitter_css::HIGHLIGHTS_QUERY, tree_sitter_scss::HIGHLIGHTS_QUERY].join("\n"));
+static TSX_QUERY: LazyLock<String> = LazyLock::new(|| {
+    [tree_sitter_javascript::HIGHLIGHT_QUERY, tree_sitter_javascript::JSX_HIGHLIGHT_QUERY, tree_sitter_typescript::HIGHLIGHTS_QUERY].join("\n")
+});
+
+/// A grammar parsed over some nodes of another: `kinds` (children of `parent` when it isn't empty).
+struct Injection {
+    parent: &'static str,
+    kinds: &'static [&'static str],
+    language: fn() -> tree_sitter::Language,
+    query: fn() -> &'static str,
+}
+
+const HTML_INJECTIONS: [Injection; 2] = [
+    Injection { parent: "script_element", kinds: &["raw_text"], language: || tree_sitter_javascript::LANGUAGE.into(), query: || JAVASCRIPT_QUERY.as_str() },
+    Injection { parent: "style_element", kinds: &["raw_text"], language: || tree_sitter_css::LANGUAGE.into(), query: || tree_sitter_css::HIGHLIGHTS_QUERY },
+];
+
+/// Markdown's inline syntax (emphasis, code spans, links) has a grammar of its own, run over the block
+/// grammar's `inline` nodes.
+const MARKDOWN_INJECTIONS: [Injection; 1] = [Injection {
+    parent: "",
+    kinds: &["inline", "pipe_table_cell"],
+    language: || tree_sitter_md::INLINE_LANGUAGE.into(),
+    query: || tree_sitter_md::HIGHLIGHT_QUERY_INLINE,
+}];
 
 /// Maps query capture names to theme kind names. Captures not listed here
 /// (e.g. `@_helper`) only serve predicates and produce no spans.
@@ -58,7 +94,54 @@ const CAPTURE_KINDS: &[(&str, &str)] = &[
     ("html_attribute_value", "html attribute value"),
     ("html_tag_delimiter", "html tag delimiter"),
     ("msbuild_reference", "xml - msbuild reference"),
+    // The standard capture names of the grammars' own queries. A dotted name not listed falls back to its
+    // prefix (`keyword.return` → `keyword`); `variable` and other unlisted names stay uncolored.
+    ("function", "method name"),
+    ("constructor", "class name"),
+    ("type", "class name"),
+    ("type.builtin", "keyword"),
+    ("type.qualifier", "keyword"),
+    ("storageclass", "keyword"),
+    ("conditional", "keyword - control"),
+    ("repeat", "keyword - control"),
+    ("keyword.return", "keyword - control"),
+    ("keyword.repeat", "keyword - control"),
+    ("property", "property name"),
+    ("field", "field name"),
+    ("variable.parameter", "parameter name"),
+    ("parameter", "parameter name"),
+    ("variable.builtin", "keyword"),
+    ("constant", "constant name"),
+    ("constant.builtin", "keyword"),
+    ("boolean", "keyword"),
+    ("float", "number"),
+    ("string.special", "string"),
+    ("string.escape", "string - escape character"),
+    ("escape", "string - escape character"),
+    ("tag", "html element name"),
+    ("attribute", "html attribute name"),
+    ("namespace", "namespace name"),
+    ("label", "label name"),
+    ("delimiter", "punctuation"),
+    ("text.title", "markup heading"),
+    ("text.strong", "markup bold"),
+    ("text.emphasis", "markup italic"),
+    ("text.literal", "markup code"),
+    ("text.uri", "markup link"),
+    ("text.reference", "markup link"),
 ];
+
+/// The kind id for a capture name: an exact entry, else its dotted prefixes (`function.method.call` →
+/// `function`). `None`: the capture only serves predicates or isn't colored.
+fn capture_kind(name: &str) -> Option<u8> {
+    let mut key = name;
+    loop {
+        if let Some(i) = CAPTURE_KINDS.iter().position(|(capture, _)| *capture == key) {
+            return Some(i as u8);
+        }
+        key = &key[..key.rfind('.')?];
+    }
+}
 
 /// A language supported by the highlighter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -71,6 +154,22 @@ pub enum Language {
     Xml,
     /// YAML, including Docker Compose files.
     Yaml,
+    /// JavaScript, including JSX (`.js`, `.mjs`, `.cjs`, `.jsx`).
+    JavaScript,
+    /// TypeScript (`.ts`, `.mts`, `.cts`).
+    TypeScript,
+    /// TypeScript with JSX (`.tsx`).
+    Tsx,
+    Css,
+    Scss,
+    /// HTML; `<script>` and `<style>` contents are highlighted as JavaScript and CSS.
+    Html,
+    Sql,
+    /// Markdown: block structure plus inline emphasis, code spans and links.
+    Markdown,
+    PowerShell,
+    /// Shell scripts: bash, sh, zsh (`.sh`, `.bashrc`, `PKGBUILD`, a `#!/bin/sh` line, …).
+    Shell,
     /// A language from a module (index into the registered module languages).
     Module(u16),
     /// A small built-in regex language: ignore files, `.gitattributes`, INI-style config, `.env` ([`builtin_lang`]).
@@ -90,6 +189,9 @@ impl Language {
         if let Some(index) = builtin_lang::find(name) {
             return Some(Language::Builtin(index));
         }
+        if Self::is_shell_file(name) {
+            return Some(Language::Shell);
+        }
         let ext = path.extension()?.to_str()?.to_ascii_lowercase();
         match ext.as_str() {
             "cs" | "csx" => Some(Language::CSharp),
@@ -100,8 +202,27 @@ impl Language {
                 Some(Language::Xml)
             }
             "yml" | "yaml" => Some(Language::Yaml),
+            "js" | "mjs" | "cjs" | "jsx" => Some(Language::JavaScript),
+            "ts" | "mts" | "cts" => Some(Language::TypeScript),
+            "tsx" => Some(Language::Tsx),
+            "css" => Some(Language::Css),
+            "scss" => Some(Language::Scss),
+            "html" | "htm" | "xhtml" => Some(Language::Html),
+            "sql" => Some(Language::Sql),
+            "md" | "markdown" | "mdx" => Some(Language::Markdown),
+            "ps1" | "psm1" | "psd1" => Some(Language::PowerShell),
+            "sh" | "bash" | "zsh" | "ksh" => Some(Language::Shell),
             _ => None,
         }
+    }
+
+    /// Shell scripts known by name rather than extension.
+    fn is_shell_file(name: &str) -> bool {
+        const NAMES: &[&str] = &[
+            ".bashrc", ".bash_profile", ".bash_login", ".bash_logout", ".bash_aliases", ".profile", ".zshrc", ".zshenv", ".zprofile",
+            ".zlogin", ".zlogout", "PKGBUILD", "APKBUILD", ".xinitrc", ".xprofile",
+        ];
+        NAMES.contains(&name)
     }
 
     /// Guesses the language from the text itself, for a buffer without a file name (an untitled editor).
@@ -138,7 +259,22 @@ impl Language {
         if lines().any(|l| RAZOR.iter().any(|d| l.starts_with(d))) {
             return Some(Language::Razor);
         }
+        if let Some(line) = sample.strip_prefix("#!") {
+            let line = line.lines().next().unwrap_or_default();
+            let program = line.split_whitespace().find(|w| !w.ends_with("/env") && !w.starts_with('-')).unwrap_or_default();
+            let program = program.rsplit('/').next().unwrap_or_default();
+            match program {
+                "sh" | "bash" | "zsh" | "ksh" | "dash" => return Some(Language::Shell),
+                "node" | "deno" | "bun" => return Some(Language::JavaScript),
+                "pwsh" | "powershell" => return Some(Language::PowerShell),
+                _ => {}
+            }
+        }
         if first == '<' {
+            let head = sample[..sample.len().min(64)].to_ascii_lowercase();
+            if head.starts_with("<!doctype html") || head.starts_with("<html") {
+                return Some(Language::Html);
+            }
             return Some(Language::Xml);
         }
         if first == '{' || first == '[' {
@@ -205,6 +341,16 @@ impl Language {
             "json" | "jsonc" => Some(Language::Json),
             "xml" | "csproj" | "msbuild" => Some(Language::Xml),
             "yaml" | "yml" | "compose" => Some(Language::Yaml),
+            "javascript" | "js" | "jsx" | "javascriptreact" | "mjs" | "cjs" | "node" => Some(Language::JavaScript),
+            "typescript" | "ts" | "mts" | "cts" => Some(Language::TypeScript),
+            "tsx" | "typescriptreact" => Some(Language::Tsx),
+            "css" => Some(Language::Css),
+            "scss" => Some(Language::Scss),
+            "html" | "htm" | "xhtml" => Some(Language::Html),
+            "sql" | "tsql" | "mssql" | "postgresql" | "postgres" | "psql" | "mysql" | "sqlite" | "plsql" => Some(Language::Sql),
+            "markdown" | "md" => Some(Language::Markdown),
+            "powershell" | "pwsh" | "ps1" | "ps" => Some(Language::PowerShell),
+            "shellscript" | "shell" | "bash" | "sh" | "zsh" | "ksh" | "console" | "shell-session" => Some(Language::Shell),
             other => module_lang::find_id(other).map(Language::Module).or_else(|| builtin_lang::find_id(other).map(Language::Builtin)),
         }
     }
@@ -217,17 +363,41 @@ impl Language {
             Language::Razor => "razor",
             Language::Xml => "xml",
             Language::Yaml => "yaml",
+            Language::JavaScript => "javascript",
+            Language::TypeScript => "typescript",
+            Language::Tsx => "typescriptreact",
+            Language::Css => "css",
+            Language::Scss => "scss",
+            Language::Html => "html",
+            Language::Sql => "sql",
+            Language::Markdown => "markdown",
+            Language::PowerShell => "powershell",
+            Language::Shell => "shellscript",
             Language::Module(i) => module_lang::get(i).map_or("plaintext", |l| l.id),
             Language::Builtin(i) => builtin_lang::get(i).map_or("plaintext", |l| l.id),
+        }
+    }
+
+    /// The block comment tokens (`/*` `*/`, `<!--` `-->`, …), if the language has them.
+    pub fn block_comment(self) -> Option<(&'static str, &'static str)> {
+        match self {
+            Language::CSharp | Language::JavaScript | Language::TypeScript | Language::Tsx | Language::Css | Language::Scss | Language::Sql => {
+                Some(("/*", "*/"))
+            }
+            Language::Razor => Some(("@*", "*@")),
+            Language::Xml | Language::Html | Language::Markdown => Some(("<!--", "-->")),
+            Language::PowerShell => Some(("<#", "#>")),
+            Language::Json | Language::Yaml | Language::Shell | Language::Module(_) | Language::Builtin(_) => None,
         }
     }
 
     /// The line comment token (`//`, `#`), if the language has one.
     pub fn line_comment(self) -> Option<&'static str> {
         match self {
-            Language::CSharp | Language::Json => Some("//"),
-            Language::Yaml => Some("#"),
-            Language::Razor | Language::Xml => None,
+            Language::CSharp | Language::Json | Language::JavaScript | Language::TypeScript | Language::Tsx | Language::Scss => Some("//"),
+            Language::Yaml | Language::PowerShell | Language::Shell => Some("#"),
+            Language::Sql => Some("--"),
+            Language::Razor | Language::Xml | Language::Css | Language::Html | Language::Markdown => None,
             Language::Module(i) => module_lang::get(i).and_then(|l| l.line_comment),
             Language::Builtin(i) => builtin_lang::get(i).and_then(|l| l.line_comment),
         }
@@ -241,6 +411,16 @@ impl Language {
             Language::Razor => "Razor",
             Language::Xml => "XML",
             Language::Yaml => "YAML",
+            Language::JavaScript => "JavaScript",
+            Language::TypeScript => "TypeScript",
+            Language::Tsx => "TypeScript JSX",
+            Language::Css => "CSS",
+            Language::Scss => "SCSS",
+            Language::Html => "HTML",
+            Language::Sql => "SQL",
+            Language::Markdown => "Markdown",
+            Language::PowerShell => "PowerShell",
+            Language::Shell => "Shell Script",
             Language::Module(i) => module_lang::get(i).map_or("Plain Text", |l| l.name),
             Language::Builtin(i) => builtin_lang::get(i).map_or("Plain Text", |l| l.name),
         }
@@ -254,7 +434,26 @@ impl Language {
             Language::Razor => Some(tree_sitter_razor_modern::LANGUAGE.into()),
             Language::Xml => Some(tree_sitter_xml::LANGUAGE_XML.into()),
             Language::Yaml => Some(tree_sitter_yaml::LANGUAGE.into()),
+            Language::JavaScript => Some(tree_sitter_javascript::LANGUAGE.into()),
+            Language::TypeScript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+            Language::Tsx => Some(tree_sitter_typescript::LANGUAGE_TSX.into()),
+            Language::Css => Some(tree_sitter_css::LANGUAGE.into()),
+            Language::Scss => Some(tree_sitter_scss::language()),
+            Language::Html => Some(tree_sitter_html::LANGUAGE.into()),
+            Language::Sql => Some(tree_sitter_sequel::LANGUAGE.into()),
+            Language::Markdown => Some(tree_sitter_md::LANGUAGE.into()),
+            Language::PowerShell => Some(tree_sitter_powershell::LANGUAGE.into()),
+            Language::Shell => Some(tree_sitter_bash::LANGUAGE.into()),
             Language::Module(_) | Language::Builtin(_) => None,
+        }
+    }
+
+    /// Grammars parsed inside this one: (parent node kind or "" for any, node kinds, grammar, query).
+    fn injections(self) -> &'static [Injection] {
+        match self {
+            Language::Html => &HTML_INJECTIONS,
+            Language::Markdown => &MARKDOWN_INJECTIONS,
+            _ => &[],
         }
     }
 
@@ -265,6 +464,16 @@ impl Language {
             Language::Razor => RAZOR_QUERY,
             Language::Xml => XML_QUERY,
             Language::Yaml => YAML_QUERY,
+            Language::JavaScript => JAVASCRIPT_QUERY.as_str(),
+            Language::TypeScript => TYPESCRIPT_QUERY.as_str(),
+            Language::Tsx => TSX_QUERY.as_str(),
+            Language::Css => tree_sitter_css::HIGHLIGHTS_QUERY,
+            Language::Scss => SCSS_QUERY.as_str(),
+            Language::Html => HTML_QUERY.as_str(),
+            Language::Sql => tree_sitter_sequel::HIGHLIGHTS_QUERY,
+            Language::Markdown => tree_sitter_md::HIGHLIGHT_QUERY_BLOCK,
+            Language::PowerShell => tree_sitter_powershell::HIGHLIGHTS_QUERY,
+            Language::Shell => tree_sitter_bash::HIGHLIGHT_QUERY,
             Language::Module(_) | Language::Builtin(_) => "",
         }
     }
@@ -335,6 +544,21 @@ pub struct Highlighter {
     query: Option<Query>,
     /// Index into [`CAPTURE_KINDS`] per query capture index (`None` for helper captures).
     capture_kinds: Vec<Option<u8>>,
+    /// Grammars parsed inside this one (HTML `<script>`, Markdown inline text).
+    injected: Vec<Injected>,
+}
+
+/// An [`Injection`] being highlighted: reparsed in full over its nodes after every edit.
+struct Injected {
+    spec: &'static Injection,
+    parser: Parser,
+    query: Query,
+    capture_kinds: Vec<Option<u8>>,
+    tree: Option<Tree>,
+}
+
+fn kinds_of(query: &Query) -> Vec<Option<u8>> {
+    query.capture_names().iter().map(|name| capture_kind(name)).collect()
 }
 
 impl Highlighter {
@@ -342,7 +566,7 @@ impl Highlighter {
     /// (guarded by unit tests).
     pub fn new(language: Language) -> Self {
         let Some(ts_language) = language.ts_language() else {
-            return Self { language, parser: None, tree: None, query: None, capture_kinds: Vec::new() };
+            return Self { language, parser: None, tree: None, query: None, capture_kinds: Vec::new(), injected: Vec::new() };
         };
         let mut parser = Parser::new();
         parser
@@ -350,14 +574,16 @@ impl Highlighter {
             .expect("tree-sitter grammar ABI mismatch");
         let query = Query::new(&ts_language, language.query_source())
             .unwrap_or_else(|e| panic!("invalid {} highlight query: {e}", language.name()));
-        let capture_kinds = query
-            .capture_names()
+        let capture_kinds = kinds_of(&query);
+        let injected = language
+            .injections()
             .iter()
-            .map(|name| {
-                CAPTURE_KINDS
-                    .iter()
-                    .position(|(capture, _)| capture == name)
-                    .map(|i| i as u8)
+            .map(|spec| {
+                let ts = (spec.language)();
+                let mut parser = Parser::new();
+                parser.set_language(&ts).expect("tree-sitter grammar ABI mismatch");
+                let query = Query::new(&ts, (spec.query)()).unwrap_or_else(|e| panic!("invalid {} injected highlight query: {e}", language.name()));
+                Injected { spec, parser, capture_kinds: kinds_of(&query), query, tree: None }
             })
             .collect();
         Self {
@@ -366,6 +592,22 @@ impl Highlighter {
             tree: None,
             query: Some(query),
             capture_kinds,
+            injected,
+        }
+    }
+
+    /// Parses the injected grammars over their nodes in the current tree.
+    fn parse_injections(&mut self, text: &str) {
+        let Some(tree) = &self.tree else { return };
+        for injected in &mut self.injected {
+            let mut ranges = Vec::new();
+            collect_ranges(tree.root_node(), injected.spec, &mut ranges);
+            // No ranges would mean the whole document to tree-sitter.
+            injected.tree = if ranges.is_empty() || injected.parser.set_included_ranges(&ranges).is_err() {
+                None
+            } else {
+                injected.parser.parse(text, None)
+            };
         }
     }
 
@@ -379,6 +621,7 @@ impl Highlighter {
         if let Some(parser) = self.parser.as_mut() {
             self.tree = parser.parse(text, None);
         }
+        self.parse_injections(text);
     }
 
     /// Applies an edit to the existing tree, then incrementally reparses `new_text`.
@@ -388,6 +631,7 @@ impl Highlighter {
             Some(tree) => {
                 tree.edit(&edit.into());
                 self.tree = parser.parse(new_text, Some(tree));
+                self.parse_injections(new_text);
             }
             None => self.parse(new_text),
         }
@@ -411,34 +655,13 @@ impl Highlighter {
             return Vec::new();
         }
 
-        // Collect clipped captures as (start, end, pattern index, kind id).
-        let mut captures: Vec<(usize, usize, usize, u8)> = Vec::new();
-        let mut cursor = QueryCursor::new();
-        cursor.set_byte_range(start..end);
-        let mut matches = cursor.matches(query, tree.root_node(), text.as_bytes());
-        while let Some(m) = matches.next() {
-            for capture in m.captures {
-                let Some(kind) = self.capture_kinds[capture.index as usize] else {
-                    continue;
-                };
-                let range = capture.node.byte_range();
-                let (s, e) = (range.start.max(start), range.end.min(end));
-                if s < e {
-                    captures.push((s, e, m.pattern_index, kind));
-                }
-            }
-        }
-
-        // Paint outer captures first so inner ones overwrite them; for identical
-        // ranges the later pattern wins. Byte-wise painting of the window is cheap
-        // (the window is small) and makes overlap resolution trivial.
-        captures.sort_unstable_by(|a, b| {
-            let (la, lb) = (a.1 - a.0, b.1 - b.0);
-            lb.cmp(&la).then(a.2.cmp(&b.2))
-        });
         let mut paint = vec![NO_KIND; end - start];
-        for &(s, e, _, kind) in &captures {
-            paint[s - start..e - start].fill(kind);
+        paint_captures(query, &self.capture_kinds, tree, text, start..end, &mut paint);
+        // Injected grammars paint over their host (they own the nodes they were parsed in).
+        for injected in &self.injected {
+            if let Some(tree) = &injected.tree {
+                paint_captures(&injected.query, &injected.capture_kinds, tree, text, start..end, &mut paint);
+            }
         }
         // Razor markup goes last: the C# rules would otherwise color a tag's `<` and `>` as operators.
         // The lexer only touches bytes outside the elements' child nodes.
@@ -472,6 +695,49 @@ impl Highlighter {
 }
 
 const NO_KIND: u8 = u8::MAX;
+
+/// Paints the captures of `query` in `range` into `paint` (which starts at `range.start`): outer captures
+/// first so inner ones overwrite them; for identical ranges the later pattern wins. Byte-wise painting of
+/// the window is cheap (the window is small) and makes overlap resolution trivial.
+fn paint_captures(query: &Query, kinds: &[Option<u8>], tree: &Tree, text: &str, range: Range<usize>, paint: &mut [u8]) {
+    let (start, end) = (range.start, range.end);
+    // (start, end, pattern index, kind id), clipped to the range.
+    let mut captures: Vec<(usize, usize, usize, u8)> = Vec::new();
+    let mut cursor = QueryCursor::new();
+    cursor.set_byte_range(start..end);
+    let mut matches = cursor.matches(query, tree.root_node(), text.as_bytes());
+    while let Some(m) = matches.next() {
+        for capture in m.captures {
+            let Some(kind) = kinds[capture.index as usize] else {
+                continue;
+            };
+            let r = capture.node.byte_range();
+            let (s, e) = (r.start.max(start), r.end.min(end));
+            if s < e {
+                captures.push((s, e, m.pattern_index, kind));
+            }
+        }
+    }
+    captures.sort_unstable_by(|a, b| {
+        let (la, lb) = (a.1 - a.0, b.1 - b.0);
+        lb.cmp(&la).then(a.2.cmp(&b.2))
+    });
+    for &(s, e, _, kind) in &captures {
+        paint[s - start..e - start].fill(kind);
+    }
+}
+
+/// The ranges of the nodes an injection is parsed over, in document order.
+fn collect_ranges(node: tree_sitter::Node, spec: &Injection, out: &mut Vec<tree_sitter::Range>) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if spec.kinds.contains(&child.kind()) && (spec.parent.is_empty() || node.kind() == spec.parent) {
+            out.push(child.range());
+        } else {
+            collect_ranges(child, spec, out);
+        }
+    }
+}
 
 /// Colors MSBuild references — `$(Property)`, `@(Item)`, `%(Metadata)` — in attribute values and text
 /// (not in comments or tags). `paint` starts at byte `start`.

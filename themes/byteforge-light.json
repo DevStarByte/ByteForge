@@ -235,6 +235,11 @@
     "html attribute name": "#e50000",
     "html attribute value": "#0000ff",
     "html tag delimiter": "#800000",
+    "markup heading": { "foreground": "#0451a5", "fontStyle": "bold" },
+    "markup bold": { "fontStyle": "bold" },
+    "markup italic": { "fontStyle": "italic" },
+    "markup code": "#a31515",
+    "markup link": { "foreground": "#006ab1", "fontStyle": "underline" },
     "razor transition": "#af00db",
     "razor directive": "#af00db",
     "xml - msbuild reference": "#795e26"

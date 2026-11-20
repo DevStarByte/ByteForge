@@ -322,6 +322,10 @@ impl Theme {
             "html tag delimiter" => "punctuation",
             "razor transition" | "razor directive" => "preprocessor keyword",
             "xml" => "string - escape character",
+            // Markdown, for themes made before it was highlighted.
+            "markup heading" => "keyword",
+            "markup code" => "string",
+            "markup link" => "method name",
             _ => return None,
         };
         self.token(fallback)
