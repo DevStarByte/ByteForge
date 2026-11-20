@@ -107,6 +107,23 @@ Section 1 above is what still has to be checked by hand; this is what the releas
       Migration…" does). Click a migration: its file. Right-click: Update Database to Here, Script from Here,
       Remove (the last one). Top row: Add Migration, Update Database, Drop Database, Scaffold DbContext, Refresh.
       Uses the Run menu's EF commands; refreshes after each one and when a Migrations folder changes.
+- [ ] Benchmarks, built in: BenchmarkDotNet classes and their `[Benchmark]` methods found in the source, with
+      Run Benchmark (Code Lens and right-click) building in Release and running just that one in a terminal
+      (`--filter`). Results from `BenchmarkDotNet.Artifacts/results/*-report-full.json` in a Benchmarks panel
+      tab: mean, error, allocated per method, and the change since the previous run (green faster, red slower).
+- [ ] Live metrics, built in: the running .NET processes (`dotnet-counters ps`; the app being run or debugged
+      first) and, for the chosen one, CPU, working set, GC heap, GC counts, thread pool queue, exceptions and
+      ASP.NET Core requests per second as sparklines in a panel tab (`dotnet-counters monitor --format json`;
+      offers to install the tool). The status bar shows CPU and memory of the app while it runs. A first step
+      toward the profiling item under Later.
+- [ ] Resource editor, built in: `.resx` files open in a table with one row per key and one column per language
+      (`Strings.resx`, `Strings.de.resx`, …): edit values in place, add and remove keys in every language at
+      once, missing translations marked and filterable, comments as a column. Saving writes each `.resx` with
+      only the changed `<data>` entries touched. Problems lists keys missing in a language.
+- [ ] Central Package Management, built in: in the Solution view's NuGet, each package's version from
+      `Directory.Packages.props` and the projects that use it; `PackageReference`s that still carry their own
+      `Version` (or `VersionOverride`) are listed with "Move to Directory.Packages.props". "Enable Central Package
+      Management" writes the props file from the projects' current versions and removes them from the projects.
 
 ## 7. Later
 

@@ -34,6 +34,22 @@ pub fn projects(root: &Path) -> Vec<PathBuf> {
     projects
 }
 
+/// When each project below `root` was last restored: the time `obj/project.assets.json` was written
+/// (`None` when it has never been restored). A restore that changes nothing leaves the file alone, so a
+/// different stamp means the project's packages or references changed.
+pub type RestoreStamps = Vec<(PathBuf, Option<std::time::SystemTime>)>;
+
+pub fn restore_stamps(root: &Path) -> RestoreStamps {
+    projects(root)
+        .into_iter()
+        .map(|p| {
+            let assets = p.parent().unwrap_or(Path::new("")).join("obj").join("project.assets.json");
+            let stamp = std::fs::metadata(assets).and_then(|m| m.modified()).ok();
+            (p, stamp)
+        })
+        .collect()
+}
+
 /// Whether the project builds an app (console, ASP.NET Core, worker) rather than a library.
 pub fn is_app(project: &Path) -> bool {
     is_executable(project)
