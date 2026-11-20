@@ -71,6 +71,7 @@ pub(super) fn all_settings() -> Vec<SettingInfo> {
         s!("Editor", "editor.minimap", "Minimap", Bool, true, "An overview of the file at the right edge."),
         s!("Editor", "editor.inlayHints", "Inlay hints", Bool, true, "Inferred types and parameter names inside the code (C#)."),
         s!("Editor", "editor.codeLens", "Code Lens", Bool, true, "Reference counts and Run Test / Debug Test above declarations (C#); click one to list the references or run the test."),
+        s!("Editor", "editor.linkedEditing", "Linked editing", Bool, true, "Renaming an XML, HTML or Razor tag renames its closing tag too."),
         s!("Editor", "editor.smoothScrolling", "Smooth scrolling", Bool, true, "Scrolling glides instead of jumping."),
         s!("Editor", "editor.cursorBlinking", "Blinking cursor", Bool, true, "The caret blinks."),
         s!("Editor", "editor.formatOnSave", "Format on save", Bool, false, "Ctrl+S formats the file first."),

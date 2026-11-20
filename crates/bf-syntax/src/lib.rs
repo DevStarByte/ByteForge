@@ -776,6 +776,8 @@ fn paint_msbuild_references(text: &[u8], start: usize, paint: &mut [u8]) {
 }
 
 mod builtin_lang;
+mod linked;
+pub use linked::{is_tag_name_text, linked_tag_names};
 mod markup;
 pub mod module_lang;
 

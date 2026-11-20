@@ -799,6 +799,7 @@ impl Workbench {
         e.cursor_blinking = s.get("editor.cursorBlinking", true);
         e.inlay_hints_enabled = s.get("editor.inlayHints", true);
         e.code_lens_enabled = s.get("editor.codeLens", true);
+        e.linked_editing = s.get("editor.linkedEditing", true);
         e.folding_enabled = s.get("editor.folding", true);
         e.minimap_enabled = s.get("editor.minimap", true) && !e.read_only;
         e.word_wrap = s.get_string("editor.wordWrap").is_some_and(|w| w == "on");

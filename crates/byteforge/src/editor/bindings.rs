@@ -77,10 +77,10 @@ impl EditorView {
                 v.scroll_to(t, false);
                 cx.notify();
             }))
-            .on_action(cx.listener(|v, _: &Backspace, _, cx| v.edit(cx, |s| s.backspace(false))))
-            .on_action(cx.listener(|v, _: &DeleteWordLeft, _, cx| v.edit(cx, |s| s.backspace(true))))
-            .on_action(cx.listener(|v, _: &Delete, _, cx| v.edit(cx, |s| s.delete_forward(false))))
-            .on_action(cx.listener(|v, _: &DeleteWordRight, _, cx| v.edit(cx, |s| s.delete_forward(true))))
+            .on_action(cx.listener(|v, _: &Backspace, _, cx| v.linked_edit(LinkedEdit::DeleteLeft, cx, |s| s.backspace(false))))
+            .on_action(cx.listener(|v, _: &DeleteWordLeft, _, cx| v.linked_edit(LinkedEdit::DeleteLeft, cx, |s| s.backspace(true))))
+            .on_action(cx.listener(|v, _: &Delete, _, cx| v.linked_edit(LinkedEdit::DeleteRight, cx, |s| s.delete_forward(false))))
+            .on_action(cx.listener(|v, _: &DeleteWordRight, _, cx| v.linked_edit(LinkedEdit::DeleteRight, cx, |s| s.delete_forward(true))))
             .on_action(cx.listener(|v, _: &Newline, _, cx| {
                 if !v.commit_action(None, cx) && !v.commit_completion(cx) {
                     v.edit(cx, |s| s.newline())

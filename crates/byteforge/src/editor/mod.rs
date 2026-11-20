@@ -176,6 +176,16 @@ struct FindState {
     _subs: Vec<Subscription>,
 }
 
+#[cfg(test)]
+mod linked_tests;
+
+/// What an edit does, for linked editing (see [`EditorView::linked_edit`]).
+pub(crate) enum LinkedEdit<'a> {
+    Type(&'a str),
+    DeleteLeft,
+    DeleteRight,
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum DragMode {
     None,
@@ -269,6 +279,8 @@ pub struct EditorView {
     /// Code Lens rows above declarations ("editor.codeLens"), sorted by line.
     pub(crate) lens_rows: Vec<lenses::LensRow>,
     pub code_lens_enabled: bool,
+    /// Editing a tag name edits the matching tag's name too ("editor.linkedEditing").
+    pub linked_editing: bool,
     /// One spacer row above each line with lenses (the row map uses them unless `spacers` is set).
     pub(crate) lens_spacers: Option<Arc<Vec<usize>>>,
     /// Where the visible lens entries were drawn, for clicks; and the one under the pointer.
@@ -412,6 +424,7 @@ impl EditorView {
             inlay_hints_enabled: true,
             lens_rows: Vec::new(),
             code_lens_enabled: true,
+            linked_editing: true,
             lens_spacers: None,
             lens_hits: Vec::new(),
             lens_hover: None,
@@ -877,6 +890,47 @@ impl EditorView {
         self.after_edit(cx);
     }
 
+    /// Linked editing: while the caret (or selection) is in a tag name and `edit` keeps it a name, `f` runs
+    /// with a second cursor at the same place in the matching tag's name, so both names change alike.
+    /// `edit` describes the change: typed text, or a deletion to the left or right of the caret.
+    pub(crate) fn linked_edit(&mut self, edit: LinkedEdit, cx: &mut Context<Self>, f: impl FnOnce(&mut EditorState)) {
+        let partner = self.linked_partner(&edit);
+        if let Some(mirror) = partner {
+            let (anchor, caret) = (self.state.anchor().unwrap_or(self.state.caret()), self.state.caret());
+            self.state.set_selections(&[(anchor, caret), mirror], 0);
+        }
+        self.edit(cx, f);
+        if partner.is_some() {
+            self.state.collapse_cursors();
+            self.after_move(cx);
+        }
+    }
+
+    /// The selection to mirror `edit` in the matching tag's name, as (anchor, caret).
+    fn linked_partner(&self, edit: &LinkedEdit) -> Option<(Point, Point)> {
+        if !self.linked_editing || self.read_only || self.state.cursors().len() > 1 {
+            return None;
+        }
+        let language = self.language?;
+        let buffer = &self.state.buffer;
+        let caret = buffer.point_to_byte(self.state.caret());
+        let anchor = self.state.anchor().map_or(caret, |a| buffer.point_to_byte(a));
+        let (start, end) = (anchor.min(caret), anchor.max(caret));
+        let text = buffer.text();
+        let (own, other) = bf_syntax::linked_tag_names(language, &text, start..end)?;
+        // The edit has to stay inside the name: typed name characters, or a deletion of name characters.
+        let inside = match edit {
+            LinkedEdit::Type(typed) => bf_syntax::is_tag_name_text(typed),
+            LinkedEdit::DeleteLeft => start < end || start > own.start,
+            LinkedEdit::DeleteRight => start < end || end < own.end,
+        };
+        if !inside {
+            return None;
+        }
+        let at = |byte: usize| buffer.byte_to_point(other.start + (byte - own.start));
+        Some((at(anchor), at(caret)))
+    }
+
     fn mv(&mut self, cx: &mut Context<Self>, f: impl FnOnce(&mut EditorState)) {
         f(&mut self.state);
         self.after_move(cx);
@@ -895,8 +949,7 @@ impl EditorView {
         if text.is_empty() {
             return;
         }
-        self.state.type_text(&text);
-        self.after_edit(cx);
+        self.linked_edit(LinkedEdit::Type(&text), cx, |s| s.type_text(&text));
         self.maybe_trigger_completion(&text, cx);
         if self.signature.is_none() && text.ends_with(['(', ',', '<']) {
             self.request_signature_help(cx);
