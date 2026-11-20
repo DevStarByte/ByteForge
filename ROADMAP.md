@@ -5,7 +5,7 @@ the git history.
 
 ## 1. Make what's there trustworthy
 
-- [ ] Dogfooding: use ByteForge for real work and fix what turns up. Every feature was clicked through headlessly
+- [x] Dogfooding: use ByteForge for real work and fix what turns up. Every feature was clicked through headlessly
       (real mouse and key events on the real workbench, against csharp-ls and dotnet where needed), and checked by
       hand in the app (0.11.0): the diff and merge editors, conflict notes and Ctrl+. in a conflict, the blame
       gutter, tab dragging, breadcrumbs and their dropdowns, toolbars at narrow widths, the Refactor popup, the
@@ -16,7 +16,10 @@ the git history.
       that key, so comments and nesting in secrets.json stay; Run All goes on past a test project that doesn't
       build (Shift+F5 ends the queue); every breadcrumb opens a dropdown (folder entries, siblings, symbols); the
       commit message box spans the side bar and takes several lines; text boxes scroll to the caret; Space types
-      in the terminal; Problems lists build errors of closed C# files while a language server runs.
+      in the terminal; Problems lists build errors of closed C# files while a language server runs; Linux packages
+      install the app icon (1.1.1); a diff keeps showing unsaved edits through a git status refresh (1.1.2); on
+      Windows, updating an install for all users asks for admin rights instead of failing with "access denied"
+      (1.1.3). Done as a roadmap item: from here on, bugs found in daily use are fixed as they come.
 - [x] Branch picker: clicking a branch doesn't switch to it. Confirmed working in the app (and the status bar follows). A switch git refuses (local changes in the way) asks, with
       "Stash Changes and Switch", and a switch while git is busy says so in the Output.
 - [x] The Roslyn language server (the one VS Code's C# extension uses) next to csharp-ls: `"csharp.server": "roslyn"` or
