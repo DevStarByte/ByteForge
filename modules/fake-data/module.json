@@ -1,0 +1,18 @@
+{
+  // Fake Data for ByteForge: realistic test data inserted at the cursor, one value or whole records.
+  "id": "byteforge.fake-data",
+  "name": "Fake Data",
+  "version": "0.1.0",
+  "author": "DevStarByte",
+  "authorUrl": "https://github.com/DevStarByte",
+  "category": "Snippets",
+  "description": "Realistic test data at the cursor. \"Fake Data: Insert…\" (Ctrl+Alt+F) inserts a name, email, user name, phone number, address, company, job, IBAN, test credit card, VAT ID, product, SKU, price, order number, GUID, date, URL, IP or MAC address, password, color, coordinates, user agent or lorem ipsum; \"Insert Again\" gives a new one of the same kind. \"Fake Data: Insert Records…\" inserts 3 to 100 people, customers, user accounts, products, orders or companies as JSON, C# (new List<T> { … }), CSV, SQL INSERT or YAML: seed data, tests and .http bodies. German or English data (\"fakeData.locale\"), repeatable with \"fakeData.seed\". Nothing reaches a real person: example.com emails, the phone numbers reserved for films and TV, payment providers' test cards, documentation IP ranges. Needs python3.",
+  "command": "python3",
+  "args": ["fake_data.py"],
+  "settings": [
+    {"key": "fakeData.locale", "title": "Language of the data", "type": "string", "choices": ["auto", "de", "en"],
+     "default": "auto", "description": "German or English names, addresses, phone numbers and companies. auto: from the system language."},
+    {"key": "fakeData.seed", "title": "Seed", "type": "number", "default": 0,
+     "description": "Not 0: the same values every session (the n-th insertion is always the same), for repeatable tests."}
+  ]
+}

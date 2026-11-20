@@ -47,6 +47,7 @@ AVAILABLE and installs, updates and uninstalls them in `~/.config/byteforge/modu
 | [Log Files](modules/log-files) | 0.1.0 | `.log` highlighting (levels, timestamps, exceptions, stack frames; ASP.NET Core, Serilog, NLog, GitHub Actions), "Log: List Errors" with clickable locations, "Log: Filter…", "Log: Follow" (tail -f), error and warning counts in the status bar. |
 | [TODO Finder](modules/todos) | 1.0.1 | TODO / FIXME / HACK comments: count in the status bar, "TODOs: List All" with clickable locations. |
 | [JSON Formatter](modules/json-format) | 1.0.1 | Format Document for `.json` (appsettings, launchSettings, …); leaves JSON with comments alone. |
+| [Fake Data](modules/fake-data) | 0.1.0 | Realistic test data at the cursor: "Fake Data: Insert…" (Ctrl+Alt+F) for names, emails, phones, addresses, companies, IBANs, test cards, products, dates, IPs, passwords and more; "Insert Records…" for 3–100 people, customers, users, products, orders or companies as JSON, C#, CSV, SQL INSERT or YAML. German or English; only example.com emails, fictional phone ranges and test cards. |
 | [GUID Generator](modules/guid) | 1.0.1 | "GUID: Insert New GUID" (Ctrl+Alt+G), uppercase, `{braced}` and `new Guid("…")` variants. |
 | [.NET Project Files](modules/dotnet-files) | 1.0.1 | Adds .gitignore, .editorconfig, Directory.Build.props, global.json, .gitattributes. |
 | [Focus Timer](modules/focus) | 1.0.1 | Pomodoro countdown in the status bar with desktop notifications. |
