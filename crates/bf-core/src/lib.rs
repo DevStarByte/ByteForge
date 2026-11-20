@@ -18,6 +18,7 @@ pub mod registry;
 pub mod search;
 pub mod settings;
 pub mod snippets;
+pub mod tasks;
 pub mod solution;
 pub mod testing;
 pub mod templates;

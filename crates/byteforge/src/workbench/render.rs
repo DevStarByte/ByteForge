@@ -291,6 +291,12 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &Test, w, cx| wb.run_all_tests(w, cx)))
             .on_action(cx.listener(|wb, _: &ShowTesting, w, cx| wb.toggle_side(SideView::Testing, w, cx)))
             .on_action(cx.listener(|wb, _: &ShowSolution, w, cx| wb.toggle_side(SideView::Solution, w, cx)))
+            .on_action(cx.listener(|wb, _: &ShowTasks, w, cx| wb.toggle_side(SideView::Tasks, w, cx)))
+            .on_action(cx.listener(|wb, _: &RunTaskPicker, _, cx| wb.open_task_picker(cx)))
+            .on_action(cx.listener(|wb, _: &RerunLastTask, w, cx| wb.rerun_last_task(w, cx)))
+            .on_action(cx.listener(|wb, _: &ConfigureTasks, w, cx| wb.configure_tasks(w, cx)))
+            .on_action(cx.listener(|wb, _: &RefreshTasks, _, cx| wb.refresh_tasks(None, cx)))
+            .on_action(cx.listener(|wb, a: &RunTaskByKey, w, cx| wb.run_task_by_key(&a.key, w, cx)))
             .on_action(cx.listener(|wb, _: &AddPackage, w, cx| wb.add_package_command(w, cx)))
             .on_action(cx.listener(|wb, a: &AddPackageTo, w, cx| wb.open_package_search(PathBuf::from(&a.project), w, cx)))
             .on_action(cx.listener(|wb, _: &CheckPackageUpdates, _, cx| {

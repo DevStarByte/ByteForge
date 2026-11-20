@@ -113,6 +113,7 @@ impl Workbench {
             "debug" => "Run and Debug",
             "testing" | "tests" => "Testing",
             "solution" => "Solution",
+            "tasks" => "Tasks",
             "modules" => "Modules",
             "settings" => "Settings",
             "spacer" => return None,
@@ -342,6 +343,7 @@ impl Workbench {
                 "debug" => Some((SideView::Debug, "debug", "Run and Debug".to_owned(), "Debug")),
                 "testing" | "tests" => Some((SideView::Testing, "beaker", "Testing".to_owned(), "Tests")),
                 "solution" => Some((SideView::Solution, "fileSolution", "Solution".to_owned(), "Solution")),
+                "tasks" => Some((SideView::Tasks, "tasks", "Tasks".to_owned(), "Tasks")),
                 "modules" => Some((SideView::Modules, "puzzle", "Modules".to_owned(), "Modules")),
                 _ => None,
             };
@@ -376,6 +378,7 @@ impl Workbench {
             SideView::Debug => "Run and Debug".into(),
             SideView::Testing => "Testing".into(),
             SideView::Solution => "Solution".into(),
+            SideView::Tasks => "Tasks".into(),
             SideView::Module => self.module_views.iter().find(|v| Some(&v.id) == self.module_view.as_ref()).map_or("Module".into(), |v| v.title.clone()),
             SideView::Modules => "Modules".into(),
         };
@@ -387,6 +390,7 @@ impl Workbench {
             SideView::Debug => self.render_debug_view(cx),
             SideView::Testing => self.tests.clone().into_any_element(),
             SideView::Solution => self.solution.clone().into_any_element(),
+            SideView::Tasks => self.render_tasks_view(cx),
             SideView::Module => self.render_module_view(cx),
             SideView::Modules => self.render_modules(cx).into_any_element(),
         });

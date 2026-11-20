@@ -259,6 +259,11 @@ impl Workbench {
                     self.refresh_code_lenses(cx);
                 }
                 self.scm.update(cx, |s, cx| s.refresh(cx));
+                // A file tasks come from: the Tasks view shows the change.
+                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                if matches!(name.as_str(), "tasks.json" | "package.json" | "Makefile" | "makefile" | "GNUmakefile" | "justfile" | "Justfile" | ".justfile") {
+                    self.refresh_tasks(None, cx);
+                }
                 if self.themes.current().file_path.as_deref() == Some(path.as_path()) || path.starts_with(self.paths.user_themes()) {
                     self.reload_theme(window, cx);
                 }

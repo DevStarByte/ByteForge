@@ -378,7 +378,7 @@
     "titleBar.right": ["launchProfile", "run", "debug", "command:view.commandPalette:search", "command:settings.open:settings", "windowControls"],
 
     // Tool window stripe: the main tool windows on top, the bottom ones (Terminal, Problems) below.
-    "activityBar.items": ["solution", "explorer", "scm", "testing", "debug", "modules", "spacer", "command:terminal.toggle:terminal", "command:view.problems:warning"],
+    "activityBar.items": ["solution", "explorer", "scm", "testing", "debug", "tasks", "modules", "spacer", "command:terminal.toggle:terminal", "command:view.problems:warning"],
 
     // No breadcrumb bar: the status bar shows where the file is.
     "editor.order": ["tabs", "content", "panel"],

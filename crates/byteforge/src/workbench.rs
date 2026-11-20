@@ -27,6 +27,7 @@ mod tabs;
 mod templates;
 mod terminals;
 mod testing;
+mod tasks;
 mod title_bar;
 mod update;
 
@@ -47,6 +48,7 @@ use gpui::{
 use serde_json::json;
 
 use crate::actions::*;
+use tasks::TasksState;
 use crate::assets::{self, icon};
 use crate::solution::SolutionView;
 use crate::testing::TestView;
@@ -133,6 +135,7 @@ enum SideView {
     Debug,
     Testing,
     Solution,
+    Tasks,
     /// A module's view (which one: `module_view`).
     Module,
     Modules,
@@ -235,7 +238,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "refactor.extractBaseClass", "-", "refactor.introduceVariable", "refactor.introduceConstant", "refactor.introduceField", "refactor.introduceParameter",
         "-", "refactor.inline", "refactor.moveTypeToFile", "-", "refactor.removeAndSortUsings", "refactor.sortUsings",
     ]),
-    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.splitEditor", "view.openInOtherGroup", "-", "view.toggleWordWrap", "view.toggleSideBar", "view.togglePanel"]),
+    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.tasks", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.splitEditor", "view.openInOtherGroup", "-", "view.toggleWordWrap", "view.toggleSideBar", "view.togglePanel"]),
     ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "edit.showCallHierarchy", "edit.showTypeHierarchy", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.fileHistory", "git.showLineCommit", "git.toggleBlame", "git.toggleBlameGutter", "-",
         "merge.editor", "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
@@ -244,6 +247,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "debug.startInContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
         "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.scaffold", "ef.dropDatabase", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
+        "tasks.run", "tasks.rerun", "tasks.configure", "-",
         "csharp.reload",
     ]),
     ("Preferences", &["settings.open", "settings.openJson", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
@@ -310,6 +314,8 @@ pub struct Workbench {
     lsp_setup: Option<Task<()>>,
     /// A language server restart waiting for a restore to finish (see `reload_csharp_after_restore`).
     lsp_reload: Option<Task<()>>,
+    /// The Tasks view and "Tasks: Run Task…" (see `workbench/tasks.rs`).
+    tasks: TasksState,
     dotnet: Option<DotnetProcess>,
     /// The running dotnet process was stopped with Shift+F5 (a test queue ends there instead of going on).
     dotnet_stopped: bool,
@@ -596,6 +602,7 @@ impl Workbench {
             lsp_task: None,
             lsp_setup: None,
             lsp_reload: None,
+            tasks: TasksState::default(),
             dotnet: None,
             dotnet_stopped: false,
             dotnet_task: None,
@@ -924,6 +931,9 @@ impl Workbench {
     fn show_side(&mut self, view: SideView, cx: &mut Context<Self>) {
         self.side = view;
         self.side_visible = true;
+        if view == SideView::Tasks {
+            self.refresh_tasks(None, cx);
+        }
         cx.notify();
     }
 
@@ -1057,6 +1067,7 @@ fn side_view_named(name: &str) -> Option<SideView> {
         "debug" | "run" => Some(SideView::Debug),
         "testing" | "tests" | "test" => Some(SideView::Testing),
         "solution" | "projects" => Some(SideView::Solution),
+        "tasks" => Some(SideView::Tasks),
         "modules" => Some(SideView::Modules),
         _ => None,
     }

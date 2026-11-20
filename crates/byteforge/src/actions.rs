@@ -98,6 +98,15 @@ actions!(
     [ShowTesting, ShowSolution, RunAllTests, RerunFailedTests, RunTestAtCursor, DebugTestAtCursor, RefreshTests]
 );
 
+actions!(tasks, [ShowTasks, RunTaskPicker, RerunLastTask, ConfigureTasks, RefreshTasks]);
+
+/// Runs the task with this key (`bf_core::tasks::Task::key`), picked in "Tasks: Run Task…".
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = tasks, no_json)]
+pub struct RunTaskByKey {
+    pub key: String,
+}
+
 actions!(
     editor,
     [
@@ -374,6 +383,11 @@ fn builtin() -> Vec<Builtin> {
         ("view.debugConsole", "Debug Console", "View", Box::new(ShowDebugConsole), Some("ctrl-shift-y")),
         ("view.testing", "Testing", "View", Box::new(ShowTesting), None),
         ("view.solution", "Solution", "View", Box::new(ShowSolution), None),
+        ("view.tasks", "Tasks", "View", Box::new(ShowTasks), None),
+        ("tasks.run", "Run Task…", "Tasks", Box::new(RunTaskPicker), None),
+        ("tasks.rerun", "Rerun Last Task", "Tasks", Box::new(RerunLastTask), None),
+        ("tasks.configure", "Configure Tasks", "Tasks", Box::new(ConfigureTasks), None),
+        ("tasks.refresh", "Refresh Tasks", "Tasks", Box::new(RefreshTasks), None),
         ("nuget.add", "Add Package…", "NuGet", Box::new(AddPackage), None),
         ("nuget.checkUpdates", "Check for Package Updates", "NuGet", Box::new(CheckPackageUpdates), None),
         ("test.runAll", "Run All Tests", "Test", Box::new(RunAllTests), None),
