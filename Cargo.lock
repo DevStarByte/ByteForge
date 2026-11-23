@@ -590,7 +590,6 @@ dependencies = [
  "tree-sitter-powershell",
  "tree-sitter-razor-modern",
  "tree-sitter-scss",
- "tree-sitter-sequel",
  "tree-sitter-typescript",
  "tree-sitter-xml",
  "tree-sitter-yaml",
@@ -6288,16 +6287,6 @@ checksum = "33909a9ca86390ebbf3461e9949c4bbe2767d2d024b486306d27616641d4ba24"
 dependencies = [
  "cc",
  "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-sequel"
-version = "0.3.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "711e236e1ae0708f911d8413c3b5656f522416cba683ea91589aebc49eda1b5a"
-dependencies = [
- "cc",
- "tree-sitter-language",
 ]
 
 [[package]]

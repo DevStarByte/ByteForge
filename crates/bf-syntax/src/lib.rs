@@ -440,7 +440,8 @@ impl Language {
             Language::Css => Some(tree_sitter_css::LANGUAGE.into()),
             Language::Scss => Some(tree_sitter_scss::language()),
             Language::Html => Some(tree_sitter_html::LANGUAGE.into()),
-            Language::Sql => Some(tree_sitter_sequel::LANGUAGE.into()),
+            // A lexer instead (see `sql.rs`).
+            Language::Sql => None,
             Language::Markdown => Some(tree_sitter_md::LANGUAGE.into()),
             Language::PowerShell => Some(tree_sitter_powershell::LANGUAGE.into()),
             Language::Shell => Some(tree_sitter_bash::LANGUAGE.into()),
@@ -470,7 +471,7 @@ impl Language {
             Language::Css => tree_sitter_css::HIGHLIGHTS_QUERY,
             Language::Scss => SCSS_QUERY.as_str(),
             Language::Html => HTML_QUERY.as_str(),
-            Language::Sql => tree_sitter_sequel::HIGHLIGHTS_QUERY,
+            Language::Sql => "",
             Language::Markdown => tree_sitter_md::HIGHLIGHT_QUERY_BLOCK,
             Language::PowerShell => tree_sitter_powershell::HIGHLIGHTS_QUERY,
             Language::Shell => tree_sitter_bash::HIGHLIGHT_QUERY,
@@ -646,6 +647,9 @@ impl Highlighter {
         if let Language::Builtin(index) = self.language {
             return builtin_lang::get(index).map(|l| module_lang::highlight(l, text, byte_range)).unwrap_or_default();
         }
+        if self.language == Language::Sql {
+            return sql::highlight(text, byte_range);
+        }
         let (Some(tree), Some(query)) = (&self.tree, &self.query) else {
             return Vec::new();
         };
@@ -779,6 +783,7 @@ mod builtin_lang;
 mod linked;
 pub use linked::{is_tag_name_text, linked_tag_names};
 mod markup;
+mod sql;
 pub mod module_lang;
 
 #[cfg(test)]

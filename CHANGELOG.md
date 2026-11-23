@@ -9,7 +9,9 @@ Section 6 of the roadmap: the rest of a .NET project. Released as a beta first: 
 through by hand yet.
 
 - Highlighting for JavaScript, TypeScript, CSS, SCSS, HTML (with its `<script>` and `<style>`), SQL, Markdown,
-  PowerShell and shell scripts.
+  PowerShell and shell scripts. SQL uses a small built-in lexer (comments across lines, strings, quoted names,
+  T-SQL `@variables`, PostgreSQL `$$` bodies) rather than a grammar: the SQL grammar's 47 MB of C didn't
+  build on Windows, which stopped 1.2.0-beta.1.
 - Linked editing: renaming an XML, HTML or Razor tag renames its closing tag ("editor.linkedEditing").
 - Tasks, built in: a Tasks view and "Tasks: Run Task…" / "Rerun Last Task" for `.byteforge/tasks.json`,
   package.json scripts, Makefile targets and justfile recipes, each run in a terminal; "Configure Tasks" writes
