@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/bf-core", "crates/bf-text", "crates/bf-syntax", "crates/bf-lsp", "crates/bf-dap", "crates/byteforge"]
+# Patched copies of crates.io packages (see [patch.crates-io]); not workspace members.
+exclude = ["vendor"]
 
 [workspace.package]
 version = "1.2.0"
@@ -32,3 +34,8 @@ codegen-units = 4
 
 [profile.dev.package."*"]
 opt-level = 2
+
+# tree-sitter-scss 1.0.0 (the latest) passes "-Wno-unused-parameter" to every C compiler, and MSVC rejects it
+# (D8021), which broke the Windows build. vendor/tree-sitter-scss is that release with the flag made conditional.
+[patch.crates-io]
+tree-sitter-scss = { path = "vendor/tree-sitter-scss" }
