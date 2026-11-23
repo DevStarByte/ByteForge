@@ -3,6 +3,32 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.2.0
+
+Section 6 of the roadmap: the rest of a .NET project. Released as a beta first: none of it has been clicked
+through by hand yet.
+
+- Highlighting for JavaScript, TypeScript, CSS, SCSS, HTML (with its `<script>` and `<style>`), SQL, Markdown,
+  PowerShell and shell scripts.
+- Linked editing: renaming an XML, HTML or Razor tag renames its closing tag ("editor.linkedEditing").
+- Tasks, built in: a Tasks view and "Tasks: Run Task…" / "Rerun Last Task" for `.byteforge/tasks.json`,
+  package.json scripts, Makefile targets and justfile recipes, each run in a terminal; "Configure Tasks" writes
+  an example file.
+- The EF Core view: each project's `DbContext`s and their migrations, applied or pending, with Update Database
+  to Here, Script from Here and Remove, and Add Migration, Update, Drop, Scaffold and Refresh on top.
+- Benchmarks: "Run Benchmark" above BenchmarkDotNet classes and methods (and Run Benchmark at Cursor) runs just
+  that one in Release; a Benchmarks panel tab shows mean, error and allocated, and the change since the last run.
+- Live metrics: a Metrics panel tab with the running .NET processes and, for the one picked, CPU, working set, GC
+  heap, GC collections, thread pool queue, exceptions and requests per second as sparklines, from
+  `dotnet-counters` (offered for install when missing). The app you run or debug is watched by itself and its
+  CPU and memory show in the status bar ("metrics.statusBar" turns that off).
+- The resource editor: a `.resx` file opens as a table of its resource in every language. Values are edited in
+  place, keys added and removed in every language at once, languages added, missing translations marked and
+  filterable; saving touches only the entries that changed. Problems lists keys a language lacks.
+- Central Package Management: the Solution view's NuGet node shows each version in `Directory.Packages.props`
+  and the projects using it, lists references that still carry their own version with "Move to
+  Directory.Packages.props", and "Enable Central Package Management" sets it up from the projects' versions.
+
 ## 1.1.4
 
 Found by using ByteForge on a real solution (Aspire, an API and a Blazor frontend, `.slnx`).

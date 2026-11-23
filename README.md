@@ -22,7 +22,8 @@ live, and modules written in any language can extend it.
 ## Features
 
 - **Editor:** multiple cursors, folding, minimap, snippets, find & replace, and tree-sitter highlighting that
-  runs in the background
+  runs in the background (C#, Razor, JSON, XML, YAML, JavaScript / TypeScript, CSS / SCSS, HTML, SQL, Markdown,
+  PowerShell and shell scripts); renaming an XML, HTML or Razor tag renames its closing tag
 - **Sessions:** reopens the last folder with its open files (split included), each at its caret, in the window's
   last place and size
 - **Go Back / Go Forward:** the mouse's back and forward buttons (or Alt+←/→, Ctrl+-/Ctrl+Shift+- on macOS)
@@ -41,15 +42,25 @@ live, and modules written in any language can extend it.
   with their launch profile (shown in the status bar; click it or use "Select Launch Profile…" to switch); attach
   to a running process, also inside a Docker container (netcoredbg is put into the container for you)
 - **EF Core migrations:** add, remove, update the database (to any migration), generate SQL scripts and drop the
-  database from the Run menu, with the `DbContext` and migrations found in the source
+  database from the Run menu, with the `DbContext` and migrations found in the source; the EF Core view lists each
+  context's migrations, applied or pending
 - **Hot reload:** "Run with Watch" (Alt+F5) runs the app under `dotnet watch`, applies edits while it runs and
   restarts by itself when an edit can't be applied
 - **Templates:** New Project from any `dotnet new` template (added to the solution), New Item with C# class,
   interface, record, enum and struct (namespace from the project and folder) plus the SDK's item templates
 - **User secrets:** "Manage User Secrets" opens the project's `secrets.json`, setting it up first if needed
 - **Tests:** a Test Explorer for xUnit, NUnit and MSTest, with run and debug for any test
+- **Benchmarks:** Run Benchmark above BenchmarkDotNet methods (Release, just that one), results in a Benchmarks tab
+  with the change since the last run
+- **Live metrics:** CPU, memory, GC, thread pool, exceptions and requests of a running .NET app as sparklines
+  (through `dotnet-counters`), and the app's CPU and memory in the status bar while it runs
+- **Tasks:** `.byteforge/tasks.json`, package.json scripts, Makefile targets and justfile recipes in a Tasks view
+  and "Run Task…", each in a terminal
+- **Resource editor:** `.resx` files as one table per resource, a column per language: edit in place, add and
+  remove keys everywhere at once, missing translations marked and in Problems
 - **Solution and NuGet:** a Solution view with the projects of the `.sln`/`.slnx`, their packages and project
-  references; search, add, update and remove NuGet packages, and see which ones have updates
+  references; search, add, update and remove NuGet packages, and see which ones have updates; Central Package
+  Management (`Directory.Packages.props`): turn it on, see each version and who uses it, move stray versions in
 - **Git:** a Source Control view, change markers in the gutter, a diff editor (side by side or inline, syntax
   highlighted, changed words marked, F7 / Shift+F7 between changes, the working tree editable in place), blame of the current line, file history,
   merge-conflict resolution (accept current / incoming / both), branches, and pull (merge, or rebase with
