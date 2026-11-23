@@ -21,6 +21,7 @@ mod panel;
 mod plugins;
 mod preview;
 mod references;
+mod resx;
 mod render;
 pub(crate) mod session;
 mod settings_page;
@@ -102,6 +103,8 @@ enum Page {
     Merge(Entity<crate::merge_view::MergeView>),
     /// The user secrets of a project, as a form (`file` is its secrets.json).
     Secrets { project: PathBuf, file: PathBuf },
+    /// A `.resx` resource in all its languages, as a table.
+    Resx(Entity<crate::resx_view::ResxView>),
 }
 
 impl Tab {
@@ -116,6 +119,14 @@ impl Tab {
             Some(Page::Diff(d)) => d.read(cx).editable_file().map(Path::to_path_buf),
             _ => None,
         })
+    }
+
+    /// Unsaved edits: the editor's, or the resource editor's.
+    fn modified(&self, cx: &App) -> bool {
+        match &self.page {
+            Some(Page::Resx(v)) => v.read(cx).is_dirty(),
+            _ => self.editor.read(cx).is_modified(),
+        }
     }
 
     fn module_page(&self) -> Option<&str> {
@@ -348,6 +359,9 @@ pub struct Workbench {
     watch_target: Option<PathBuf>,
     /// Compiler errors and warnings from the last build (Razor files only get diagnostics this way).
     build_problems: Vec<(PathBuf, crate::editor::Diagnostic)>,
+    /// Keys missing in a language of a `.resx` resource (see `workbench/resx.rs`).
+    resx_problems: Vec<(PathBuf, crate::editor::Diagnostic)>,
+    resx_check: Option<Task<()>>,
     debug: Option<debug::DebugSession>,
     debug_generation: u64,
     /// netcoredbg being downloaded because none was found (then F5 or the attach goes on).
@@ -565,6 +579,8 @@ impl Workbench {
                             if wb.side_visible && wb.side == SideView::EfCore {
                                 wb.refresh_ef_view(false, cx);
                             }
+                            wb.reload_resx_views(cx);
+                            wb.refresh_resx_problems(cx);
                             // A benchmark run writing its reports.
                             if wb.benchmarks.watching() {
                                 wb.reload_benchmarks(cx);
@@ -639,6 +655,8 @@ impl Workbench {
             settings_scroll: gpui::ScrollHandle::new(),
             settings_nav_clicked: None,
             build_problems: Vec::new(),
+            resx_problems: Vec::new(),
+            resx_check: None,
             debug: None,
             debug_generation: 0,
             debugger_download: None,
@@ -868,6 +886,8 @@ impl Workbench {
                 e.link_cache.clear();
             });
         }
+        self.resx_problems.clear();
+        self.refresh_resx_problems(cx);
         self.load_breakpoints(cx);
         self.load_watches();
         self.start_lsp(cx);
@@ -905,7 +925,7 @@ impl Workbench {
             self.shutdown(cx);
             return true;
         }
-        let dirty = self.tabs.iter().filter(|t| t.editor.read(cx).is_modified()).count();
+        let dirty = self.tabs.iter().filter(|t| t.modified(cx)).count();
         if dirty == 0 {
             self.shutdown(cx);
             return true;
@@ -1008,7 +1028,9 @@ impl Workbench {
                 }
             }
         }
-        merge_problems(editors, &self.build_problems)
+        let mut other = self.build_problems.clone();
+        other.extend(self.resx_problems.iter().cloned());
+        merge_problems(editors, &other)
     }
 }
 

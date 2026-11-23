@@ -126,6 +126,7 @@ impl Workbench {
             Some(Page::Settings) => self.render_settings_page(cx).into_any_element(),
             Some(Page::Merge(merge)) => merge.into_any_element(),
             Some(Page::Secrets { project, file }) => self.render_secrets_page(&project, &file, cx).into_any_element(),
+            Some(Page::Resx(view)) => view.into_any_element(),
             None => editor.into_any_element(),
         }
     }
@@ -144,7 +145,7 @@ impl Workbench {
             .filter(|(_, tab)| tab.group == group)
             .map(|(i, tab)| {
                 let is_active = active == Some(i);
-                let modified = tab.editor.read(cx).is_modified();
+                let modified = tab.modified(cx);
                 let fg = if is_active { t.c("tab.activeForeground") } else { t.c("tab.inactiveForeground") };
                 let bg = if is_active { t.bg("tab.activeBackground") } else { t.bg("tab.inactiveBackground") };
                 let hover = t.c("tab.hoverBackground");

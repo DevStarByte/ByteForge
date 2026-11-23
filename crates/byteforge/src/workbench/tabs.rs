@@ -4,6 +4,15 @@ use super::*;
 
 impl Workbench {
     pub fn open_file(&mut self, path: PathBuf, at: Option<Point>, window: &mut Window, cx: &mut Context<Self>) {
+        // A resource opens in the resource editor ("Open XML" there shows the file as text).
+        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("resx")) && path.is_file() {
+            return self.open_resx(&normalize_path(&path), window, cx);
+        }
+        self.open_file_text(path, at, window, cx);
+    }
+
+    /// Opens `path` in a text editor, whatever its kind.
+    pub(super) fn open_file_text(&mut self, path: PathBuf, at: Option<Point>, window: &mut Window, cx: &mut Context<Self>) {
         let path = normalize_path(&path);
         let open = |t: &Tab| t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path));
         // Open in both groups: the view in the focused group.
@@ -224,6 +233,9 @@ impl Workbench {
 
     pub(super) fn save_tab(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
         let Some(tab) = self.tabs.get(ix) else { return };
+        if let Some(Page::Resx(view)) = &tab.page {
+            return self.save_resx(view.clone(), window, cx);
+        }
         if tab.editor.read(cx).read_only {
             return;
         }
@@ -357,7 +369,7 @@ impl Workbench {
     pub(super) fn save_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         for ix in 0..self.tabs.len() {
             let tab = &self.tabs[ix];
-            if tab.save_path(cx).is_some() && tab.editor.read(cx).is_modified() {
+            if (tab.save_path(cx).is_some() || matches!(tab.page, Some(Page::Resx(_)))) && tab.modified(cx) {
                 self.save_tab(ix, window, cx);
             }
         }
@@ -367,7 +379,7 @@ impl Workbench {
         let Some(tab) = self.tabs.get(ix) else { return };
         // Another view of the file stays open with the same unsaved edits: nothing is lost, so don't ask.
         let other_view = tab.save_path(cx).is_some_and(|p| self.tabs.iter().any(|t| t.editor != tab.editor && t.save_path(cx).is_some_and(|q| bf_core::paths::same_path(&p, &q))));
-        if tab.editor.read(cx).is_modified() && !other_view {
+        if tab.modified(cx) && !other_view {
             let title = tab.title.clone();
             let rx = window.prompt(PromptLevel::Warning, &format!("Do you want to save the changes you made to {title}?"), None, &["Save", "Don't Save", "Cancel"], cx);
             cx.spawn_in(window, async move |this, cx| {

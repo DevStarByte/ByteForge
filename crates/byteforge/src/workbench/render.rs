@@ -7,7 +7,7 @@ impl Render for Workbench {
         let t = Theme::global(cx);
         let title = match self.active.and_then(|i| self.tabs.get(i)) {
             Some(tab) => {
-                let dirty = if tab.editor.read(cx).is_modified() { "● " } else { "" };
+                let dirty = if tab.modified(cx) { "● " } else { "" };
                 format!("{dirty}{} — ByteForge", tab.title)
             }
             None => "ByteForge".into(),

@@ -14,6 +14,7 @@ mod markdown;
 mod markdown_preview;
 mod menu;
 mod merge_view;
+mod resx_view;
 #[cfg(target_os = "macos")]
 mod native_icons;
 mod palette;

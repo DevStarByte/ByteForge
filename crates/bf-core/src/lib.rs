@@ -17,6 +17,7 @@ pub mod plugins;
 pub mod process;
 pub mod roslyn;
 pub mod registry;
+pub mod resx;
 pub mod search;
 pub mod settings;
 pub mod snippets;
