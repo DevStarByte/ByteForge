@@ -38,6 +38,9 @@ impl Workbench {
                     args.extend(["--launch-profile".into(), profile]);
                 }
                 self.watch_target = (verb == "watch").then(|| target.to_path_buf());
+                if target.extension().is_some_and(|e| e.eq_ignore_ascii_case("csproj")) {
+                    self.watch_app_metrics(target, cx);
+                }
                 if verb == "watch" {
                     // No terminal to answer "restart?" prompts: restart by itself after edits hot reload can't apply.
                     env.push(("DOTNET_WATCH_RESTART_ON_RUDE_EDIT".to_owned(), "1".to_owned()));

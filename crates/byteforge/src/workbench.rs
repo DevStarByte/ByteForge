@@ -11,6 +11,7 @@ mod files;
 mod git;
 mod hierarchy;
 mod lsp;
+mod metrics;
 mod module_views;
 mod modules;
 mod navigation;
@@ -51,6 +52,7 @@ use serde_json::json;
 
 use crate::actions::*;
 use benchmarks::BenchmarksState;
+use metrics::MetricsState;
 use ef_view::EfViewState;
 use tasks::TasksState;
 use crate::assets::{self, icon};
@@ -155,6 +157,7 @@ enum PanelView {
     References,
     Hierarchy,
     Benchmarks,
+    Metrics,
 }
 
 #[derive(Clone, Copy)]
@@ -253,7 +256,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "debug.startInContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
         "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.scaffold", "ef.dropDatabase", "-",
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
-        "benchmark.runAtCursor", "view.benchmarks", "-",
+        "benchmark.runAtCursor", "view.benchmarks", "view.metrics", "-",
         "tasks.run", "tasks.rerun", "tasks.configure", "-",
         "csharp.reload",
     ]),
@@ -327,6 +330,8 @@ pub struct Workbench {
     ef_view: EfViewState,
     /// Benchmark results (see `workbench/benchmarks.rs`).
     benchmarks: BenchmarksState,
+    /// Live metrics (see `workbench/metrics.rs`).
+    metrics: MetricsState,
     dotnet: Option<DotnetProcess>,
     /// The running dotnet process was stopped with Shift+F5 (a test queue ends there instead of going on).
     dotnet_stopped: bool,
@@ -624,6 +629,7 @@ impl Workbench {
             tasks: TasksState::default(),
             ef_view: EfViewState::default(),
             benchmarks: BenchmarksState::default(),
+            metrics: MetricsState::default(),
             dotnet: None,
             dotnet_stopped: false,
             dotnet_task: None,
@@ -984,6 +990,9 @@ impl Workbench {
         }
         if view == PanelView::Benchmarks && self.panel != PanelView::Benchmarks {
             self.reload_benchmarks(cx);
+        }
+        if view == PanelView::Metrics && self.panel != PanelView::Metrics {
+            self.list_metrics_processes(cx);
         }
         self.panel = view;
         self.panel_visible = true;

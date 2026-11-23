@@ -10,6 +10,7 @@ pub mod dotnet;
 pub mod ef;
 pub mod git;
 pub mod links;
+pub mod metrics;
 pub mod nuget;
 pub mod paths;
 pub mod plugins;

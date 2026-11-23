@@ -386,7 +386,7 @@
 
     "statusBar.left": ["path"],
     "statusBar.center": [],
-    "statusBar.right": ["update", "modules", "position", "eol", "encoding", "indent", "lsp"],
+    "statusBar.right": ["update", "metrics", "modules", "position", "eol", "encoding", "indent", "lsp"],
     "statusBar.positionFormat": "{line}:{col}"
   }
 }

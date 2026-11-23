@@ -28,6 +28,7 @@ impl Workbench {
             PanelView::References => self.render_references(cx),
             PanelView::Hierarchy => self.render_hierarchy(cx),
             PanelView::Benchmarks => self.render_benchmarks(cx),
+            PanelView::Metrics => self.render_metrics(cx),
             PanelView::Terminal => match self.terminals.get(self.active_terminal) {
                 Some((terminal, _)) => terminal.clone().into_any_element(),
                 None => div().p_3().text_color(t.c("foreground.muted")).child(format!("No terminal is open. Press {} to start one.", crate::actions::key_label("ctrl-shift-`"))).into_any_element(),
@@ -117,6 +118,10 @@ impl Workbench {
         if (self.benchmarks.has_results() || self.panel == PanelView::Benchmarks) && !panel_tabs.iter().any(|n| n == "benchmarks") {
             panel_tabs.push("benchmarks".into());
         }
+        // Metrics, while a process is (or was) watched, or when it was asked for.
+        if (self.metrics.has_subject() || self.panel == PanelView::Metrics) && !panel_tabs.iter().any(|n| n == "metrics") {
+            panel_tabs.push("metrics".into());
+        }
         for name in &panel_tabs {
             match name.as_str() {
                 "references" => {
@@ -124,6 +129,12 @@ impl Workbench {
                     header = header.child(
                         tab("ptab-references".into(), format!("REFERENCES ({count})"), self.panel == PanelView::References)
                             .on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::References, cx))),
+                    );
+                }
+                "metrics" => {
+                    header = header.child(
+                        tab("ptab-metrics".into(), "METRICS".into(), self.panel == PanelView::Metrics)
+                            .on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::Metrics, cx))),
                     );
                 }
                 "benchmarks" => {
@@ -298,6 +309,17 @@ impl Workbench {
                         .update_status()
                         .map(|(text, tip)| {
                             item(name, id("up"), Some("arrowDown"), text).tooltip(tooltip(tip)).on_click(cx.listener(|wb, _, w, cx| wb.update_clicked(w, cx))).into_any_element()
+                        })
+                        .into_iter()
+                        .collect(),
+                    "metrics" => self
+                        .metrics
+                        .status_text()
+                        .map(|text| {
+                            item(name, id("mx"), Some("pulse"), text)
+                                .tooltip(tooltip("CPU and memory of the app (click for its live metrics)"))
+                                .on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::Metrics, cx)))
+                                .into_any_element()
                         })
                         .into_iter()
                         .collect(),

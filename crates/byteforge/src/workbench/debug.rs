@@ -481,7 +481,10 @@ impl Workbench {
                     return;
                 }
                 match program {
-                    Ok(program) => wb.debug_connect(generation, Target::Launch { project, program }, adapter, window, cx),
+                    Ok(program) => {
+                        wb.watch_app_metrics(&program, cx);
+                        wb.debug_connect(generation, Target::Launch { project, program }, adapter, window, cx)
+                    }
                     Err(e) => {
                         wb.debug_print(format!("Could not find the program to debug: {e:#}\n"), cx);
                         wb.debug_end(cx);
