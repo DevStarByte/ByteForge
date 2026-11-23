@@ -194,6 +194,85 @@ impl Workbench {
     }
 }
 
+impl Workbench {
+    /// "Enable Central Package Management": writes `Directory.Packages.props` with every package's
+    /// version (the highest where projects differ) and removes the versions from the projects.
+    pub(super) fn enable_cpm(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(props) = self.solution.read(cx).cpm().map(|c| c.props.clone()) else { return };
+        let projects: Vec<(PathBuf, String)> = self.solution.read(cx).project_paths().into_iter().filter_map(|p| Some((p.clone(), std::fs::read_to_string(&p).ok()?))).collect();
+        let props_text = std::fs::read_to_string(&props).ok();
+        let plan = match bf_core::cpm::enable(&props, props_text.as_deref(), &projects) {
+            Ok(plan) => plan,
+            Err(e) => {
+                self.log(format!("Could not enable Central Package Management: {e:#}"));
+                self.show_panel(PanelView::Output, cx);
+                return;
+            }
+        };
+        let changed = plan.writes.len().saturating_sub(1);
+        let mut detail = format!("{} gets every package's version; {changed} project file{} lose{} their own.", props.display(), if changed == 1 { "" } else { "s" }, if changed == 1 { "s" } else { "" });
+        if !plan.notes.is_empty() {
+            detail.push_str("\n\nDifferent versions become the highest:\n");
+            detail.push_str(&plan.notes.join("\n"));
+        }
+        let rx = window.prompt(PromptLevel::Info, "Enable Central Package Management?", Some(&detail), &["Enable", "Cancel"], cx);
+        cx.spawn_in(window, async move |this, cx| {
+            if let Ok(0) = rx.await {
+                let _ = this.update_in(cx, |wb, window, cx| {
+                    // Unsaved edits in a project file would be overwritten.
+                    wb.save_all(window, cx);
+                    wb.write_package_files(&plan.writes, cx);
+                    for note in &plan.notes {
+                        wb.log(format!("Central Package Management: {note}"));
+                    }
+                    wb.log(format!("Central Package Management is on: {}.", props.display()));
+                });
+            }
+        })
+        .detach();
+    }
+
+    /// "Move to Directory.Packages.props": the project's own version of `id` goes to the props file (unless
+    /// that has one already, which then applies) and leaves the project.
+    pub(super) fn move_to_central(&mut self, project: PathBuf, id: String, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(props) = self.solution.read(cx).cpm().map(|c| c.props.clone()) else { return };
+        self.save_all(window, cx);
+        let props_text = std::fs::read_to_string(&props).ok();
+        let result = std::fs::read_to_string(&project).map_err(anyhow::Error::from).and_then(|text| bf_core::cpm::move_to_props(props_text.as_deref(), &text, &id));
+        match result {
+            Ok((new_props, new_project)) => {
+                let before = props_text.as_deref().map(bf_core::cpm::central).unwrap_or_default();
+                let mut writes = vec![(project.clone(), new_project)];
+                if props_text.as_deref() != Some(new_props.as_str()) {
+                    writes.insert(0, (props.clone(), new_props));
+                }
+                self.write_package_files(&writes, cx);
+                match before.iter().find(|c| c.id.eq_ignore_ascii_case(&id)) {
+                    Some(c) => self.log(format!("{} now uses {id} {} from {}.", project_name(&project), c.version, bf_core::cpm::PROPS)),
+                    None => self.log(format!("Moved {id}'s version from {} to {}.", project_name(&project), bf_core::cpm::PROPS)),
+                }
+            }
+            Err(e) => {
+                self.log(format!("Could not move {id} to {}: {e:#}", bf_core::cpm::PROPS));
+                self.show_panel(PanelView::Output, cx);
+            }
+        }
+    }
+
+    /// Writes project and props files, then reloads the editors showing them and the Solution view.
+    fn write_package_files(&mut self, writes: &[(PathBuf, String)], cx: &mut Context<Self>) {
+        for (path, text) in writes {
+            if let Err(e) = std::fs::write(path, text) {
+                self.log(format!("Could not write {}: {e}", path.display()));
+                self.show_panel(PanelView::Output, cx);
+            }
+        }
+        self.reload_changed_tabs(cx);
+        self.solution.update(cx, |s, cx| s.load(cx));
+        cx.notify();
+    }
+}
+
 /// The nearest `.csproj` in the file's folder or a parent folder (up to the workspace root).
 pub(super) fn owning_project(file: &Path, root: &Path) -> Option<PathBuf> {
     if file.extension().is_some_and(|e| e == "csproj") {
@@ -210,4 +289,69 @@ pub(super) fn owning_project(file: &Path, root: &Path) -> Option<PathBuf> {
         dir = d.parent();
     }
     None
+}
+
+#[cfg(test)]
+mod cpm_tests {
+    use crate::workbench::SideView;
+    use crate::workbench::settings_page::view_tests::workbench;
+
+    const API: &str = "<Project Sdk=\"Microsoft.NET.Sdk.Web\">\n  <ItemGroup>\n    <PackageReference Include=\"Serilog\" Version=\"4.0.0\" />\n    <PackageReference Include=\"Dapper\" Version=\"2.1.35\" />\n  </ItemGroup>\n</Project>\n";
+    const WORKER: &str = "<Project Sdk=\"Microsoft.NET.Sdk.Worker\">\n  <ItemGroup>\n    <PackageReference Include=\"Serilog\" Version=\"3.1.1\" />\n  </ItemGroup>\n</Project>\n";
+
+    /// The Solution view's NuGet node turns Central Package Management on (props file written, versions
+    /// gone from the projects) and moves a version a project still carries into the props file.
+    #[gpui::test]
+    fn enables_central_package_management_and_moves_versions(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "cpm");
+        let root = guard.dir.join("shop");
+        for (name, text) in [("Api", API), ("Worker", WORKER)] {
+            std::fs::create_dir_all(root.join(name)).unwrap();
+            std::fs::write(root.join(format!("{name}/{name}.csproj")), text).unwrap();
+        }
+        let load = |cx: &mut gpui::VisualTestContext| {
+            wb.update(cx, |wb, cx| wb.solution.update(cx, |s, cx| s.load(cx)));
+            for _ in 0..200 {
+                cx.run_until_parked();
+                if wb.update(cx, |wb, cx| wb.solution.read(cx).cpm().is_some()) {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        };
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(root.clone(), window, cx);
+            wb.toggle_side(SideView::Solution, window, cx);
+        });
+        load(cx);
+        assert!(!wb.update(cx, |wb, cx| wb.solution.read(cx).cpm().unwrap().enabled));
+        // Open the NuGet node and click "Enable Central Package Management".
+        let node = cx.debug_bounds("solution-nuget").expect("the NuGet node is drawn");
+        cx.simulate_click(node.center(), gpui::Modifiers::none());
+        cx.run_until_parked();
+        let enable = cx.debug_bounds("solution-enable-cpm").expect("the enable row is drawn");
+        cx.simulate_click(enable.center(), gpui::Modifiers::none());
+        cx.run_until_parked();
+        assert!(cx.has_pending_prompt(), "asks first");
+        cx.simulate_prompt_answer("Enable");
+        cx.run_until_parked();
+        let props = std::fs::read_to_string(root.join("Directory.Packages.props")).unwrap();
+        assert!(bf_core::cpm::enabled(&props));
+        assert_eq!(bf_core::cpm::central(&props).iter().map(|c| (c.id.as_str(), c.version.as_str())).collect::<Vec<_>>(), [("Dapper", "2.1.35"), ("Serilog", "4.0.0")]);
+        let api = std::fs::read_to_string(root.join("Api/Api.csproj")).unwrap();
+        assert!(api.contains("<PackageReference Include=\"Serilog\" />"), "{api}");
+
+        // A version added back by hand shows up with "Move to Directory.Packages.props".
+        std::fs::write(root.join("Worker/Worker.csproj"), WORKER.replace("Serilog\" Version=\"3.1.1\"", "Polly\" Version=\"8.4.0\"")).unwrap();
+        wb.update(cx, |wb, cx| wb.solution.update(cx, |s, _| s.forget_cpm_for_tests()));
+        load(cx);
+        cx.run_until_parked();
+        assert!(cx.debug_bounds("solution-own-Polly").is_some(), "the own version is listed");
+        let worker = root.join("Worker/Worker.csproj");
+        wb.update_in(cx, |wb, window, cx| wb.move_to_central(worker.clone(), "Polly".into(), window, cx));
+        let props = std::fs::read_to_string(root.join("Directory.Packages.props")).unwrap();
+        assert!(bf_core::cpm::central(&props).iter().any(|c| c.id == "Polly" && c.version == "8.4.0"), "{props}");
+        assert!(std::fs::read_to_string(&worker).unwrap().contains("<PackageReference Include=\"Polly\" />"));
+        drop(guard);
+    }
 }

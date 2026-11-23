@@ -32,6 +32,12 @@ pub enum SolutionEvent {
     RemovePackage(PathBuf, String),
     /// Pick another version of an installed package (project, package id, installed version).
     ChangePackageVersion(PathBuf, String, String),
+    /// Open a file at a 0-based line.
+    OpenFileAt(PathBuf, usize),
+    /// "Enable Central Package Management".
+    EnableCpm,
+    /// "Move to Directory.Packages.props": a project's own version of a package (project, package id).
+    MoveToCentral(PathBuf, String),
 }
 
 #[derive(Clone)]
@@ -44,6 +50,14 @@ enum Entry {
     Reference { name: String, path: PathBuf, depth: usize },
     /// The project's Dependencies node (packages and project references).
     Dependencies { key: String, count: usize, depth: usize },
+    /// The solution's NuGet node (Central Package Management).
+    Nuget { detail: String },
+    /// A version in `Directory.Packages.props` and the projects that use it.
+    CentralPackage { id: String, version: String, users: String, line: usize },
+    /// A reference with a version of its own while central management is on.
+    OwnVersion { project: PathBuf, id: String, detail: String },
+    /// The row that turns central management on.
+    EnableCpm { detail: String },
     /// A folder or file of a project. `key` toggles it (folders, and files with nested files).
     Item { path: PathBuf, name: String, is_dir: bool, key: Option<String>, open: bool, depth: usize },
 }
@@ -72,6 +86,8 @@ pub struct SolutionView {
     hovered: Option<usize>,
     /// The file in the active editor tab.
     active: Option<PathBuf>,
+    /// The packages as central package management sees them (read with the solution).
+    cpm: Option<bf_core::cpm::Overview>,
 }
 
 impl EventEmitter<SolutionEvent> for SolutionView {}
@@ -94,6 +110,7 @@ impl SolutionView {
             check_task: None,
             hovered: None,
             active: None,
+            cpm: None,
         }
     }
 
@@ -132,9 +149,17 @@ impl SolutionView {
         let Some(root) = self.workspace.root() else { return };
         let preferred = self.preferred.clone();
         self.load_task = Some(cx.spawn(async move |this, cx| {
-            let solution = cx.background_executor().spawn(async move { solution::load(&root, preferred.as_deref()) }).await;
+            let (solution, cpm) = cx
+                .background_executor()
+                .spawn(async move {
+                    let solution = solution::load(&root, preferred.as_deref());
+                    let cpm = cpm_overview(&solution, &root);
+                    (solution, cpm)
+                })
+                .await;
             let _ = this.update(cx, |v, cx| {
                 v.solution = Some(solution);
+                v.cpm = Some(cpm);
                 v.loaded = true;
                 v.rebuild();
                 cx.notify();
@@ -145,9 +170,62 @@ impl SolutionView {
     fn rebuild(&mut self) {
         let mut entries = Vec::new();
         if let Some(solution) = &self.solution {
+            if solution.root.project_count() > 0 {
+                self.push_nuget(&mut entries);
+            }
             self.push_folder(&solution.root, "", 0, &mut entries);
         }
         self.entries = entries;
+    }
+
+    /// The NuGet node: the central versions and the projects using each, references that still carry
+    /// their own version; or, without central management, the row that turns it on.
+    fn push_nuget(&self, out: &mut Vec<Entry>) {
+        let Some(cpm) = &self.cpm else { return };
+        let detail = if cpm.enabled {
+            let own = if cpm.own.is_empty() { String::new() } else { format!(", {} with own version", cpm.own.len()) };
+            format!("central · {} package{}{own}", cpm.central.len(), if cpm.central.len() == 1 { "" } else { "s" })
+        } else {
+            "versions in each project".to_owned()
+        };
+        out.push(Entry::Nuget { detail });
+        if !self.expanded.contains(NUGET_KEY) {
+            return;
+        }
+        if !cpm.enabled {
+            let count = cpm.own.len();
+            out.push(Entry::EnableCpm { detail: format!("moves {count} version{} into {}", if count == 1 { "" } else { "s" }, bf_core::cpm::PROPS) });
+            return;
+        }
+        for (c, users) in &cpm.central {
+            let names: Vec<String> = users.iter().filter_map(|p| p.file_stem().map(|s| s.to_string_lossy().into_owned())).collect();
+            let users = if names.is_empty() { "unused".to_owned() } else { names.join(", ") };
+            out.push(Entry::CentralPackage { id: c.id.clone(), version: c.version.clone(), users, line: c.line });
+        }
+        for (project, r) in &cpm.own {
+            let name = project.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+            let detail = match (&r.version_override, &r.version) {
+                (Some(v), _) => format!("{name}: VersionOverride {v}"),
+                (None, Some(v)) => format!("{name}: own Version {v}"),
+                (None, None) => name,
+            };
+            out.push(Entry::OwnVersion { project: project.clone(), id: r.id.clone(), detail });
+        }
+    }
+
+    /// The central package management overview of the last load.
+    pub fn cpm(&self) -> Option<&bf_core::cpm::Overview> {
+        self.cpm.as_ref()
+    }
+
+    #[cfg(test)]
+    pub fn forget_cpm_for_tests(&mut self) {
+        self.cpm = None;
+    }
+
+    /// The projects of the last load.
+    pub fn project_paths(&self) -> Vec<PathBuf> {
+        self.solution.as_ref().map(|s| s.root.all_projects().into_iter().filter(|p| p.exists).map(|p| p.path.clone()).collect()).unwrap_or_default()
     }
 
     fn push_folder(&self, folder: &Folder, path: &str, depth: usize, out: &mut Vec<Entry>) {
@@ -400,6 +478,18 @@ fn nest_parent<'a>(name: &str, files: &HashSet<&'a str>) -> Option<&'a str> {
         return files.get(format!("{}{ext}", &name[..first]).as_str()).copied();
     }
     None
+}
+
+const NUGET_KEY: &str = "nuget";
+
+/// Where `Directory.Packages.props` is (or goes): the nearest one from the solution's folder (or the
+/// workspace root) up, and what the projects reference.
+pub fn cpm_overview(solution: &Solution, root: &Path) -> bf_core::cpm::Overview {
+    let dir = solution.path.as_ref().and_then(|p| p.parent()).unwrap_or(root);
+    let props = bf_core::cpm::props_for(dir);
+    let props_text = std::fs::read_to_string(&props).ok();
+    let projects: Vec<(PathBuf, String)> = solution.root.all_projects().into_iter().filter(|p| p.exists).filter_map(|p| Some((p.path.clone(), std::fs::read_to_string(&p.path).ok()?))).collect();
+    bf_core::cpm::overview(&props, props_text.as_deref(), &projects)
 }
 
 fn project_key(path: &Path) -> String {
@@ -655,6 +745,62 @@ impl Render for SolutionView {
                                     (Some(toggle), true) => toggle(ev, w, cx),
                                     _ => e.update(cx, |_, cx| cx.emit(SolutionEvent::OpenFile(path.clone()))),
                                 })
+                                .into_any_element()
+                        }
+                        Entry::Nuget { detail: text } => {
+                            let open = view.expanded.contains(NUGET_KEY);
+                            let e = entity.clone();
+                            row(0)
+                                .debug_selector(|| "solution-nuget".into())
+                                .child(chevron(open))
+                                .child(icon("layers", px(14.), t.c("icon.foreground")))
+                                .child(name_cell("NuGet".into()).font_weight(gpui::FontWeight::SEMIBOLD))
+                                .child(detail(text))
+                                .on_click(move |_, _, cx| e.update(cx, |v, cx| v.toggle_expanded(NUGET_KEY.to_owned(), cx)))
+                                .into_any_element()
+                        }
+                        Entry::EnableCpm { detail: text } => {
+                            let e = entity.clone();
+                            row(1)
+                                .debug_selector(|| "solution-enable-cpm".into())
+                                .tooltip(tooltip("Write Directory.Packages.props with every package's version and remove the versions from the projects"))
+                                .child(blank())
+                                .child(icon("add", px(14.), t.c_or("solution.updateForeground", 0x3794ffff)))
+                                .child(name_cell("Enable Central Package Management".into()))
+                                .child(detail(text))
+                                .on_click(move |_, _, cx| e.update(cx, |_, cx| cx.emit(SolutionEvent::EnableCpm)))
+                                .into_any_element()
+                        }
+                        Entry::CentralPackage { id, version, users, line } => {
+                            let e = entity.clone();
+                            let props = view.cpm.as_ref().map(|c| c.props.clone()).unwrap_or_default();
+                            row(1)
+                                .tooltip(tooltip(format!("{id} {version}\nUsed by: {users}")))
+                                .child(blank())
+                                .child(icon("layers", px(12.), t.c("foreground.muted")))
+                                .child(name_cell(id))
+                                .child(detail(format!("{version} · {users}")))
+                                .on_click(move |_, _, cx| e.update(cx, |_, cx| cx.emit(SolutionEvent::OpenFileAt(props.clone(), line))))
+                                .into_any_element()
+                        }
+                        Entry::OwnVersion { project, id, detail: text } => {
+                            let (e1, e2) = (entity.clone(), entity.clone());
+                            let (p1, p2, i2) = (project.clone(), project, id.clone());
+                            let warn = t.c_or("editorWarning.foreground", 0xcca700ff);
+                            let sel = format!("solution-own-{id}");
+                            row(1)
+                                .debug_selector(move || sel.clone())
+                                .child(blank())
+                                .child(icon("warning", px(12.), warn))
+                                .child(name_cell(id))
+                                .child(detail(text))
+                                .child(
+                                    div().flex_none().when(hovered != Some(ix), |d| d.hidden()).child(small("move", "arrowUp", "Move to Directory.Packages.props").on_click(move |_, _, cx| {
+                                        cx.stop_propagation();
+                                        e2.update(cx, |_, cx| cx.emit(SolutionEvent::MoveToCentral(p2.clone(), i2.clone())))
+                                    })),
+                                )
+                                .on_click(move |_, _, cx| e1.update(cx, |_, cx| cx.emit(SolutionEvent::OpenFile(p1.clone()))))
                                 .into_any_element()
                         }
                         Entry::Reference { name, path, depth } => {

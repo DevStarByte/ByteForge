@@ -8,6 +8,9 @@ impl Workbench {
     pub(super) fn on_solution_event(&mut self, _: &Entity<SolutionView>, event: &SolutionEvent, window: &mut Window, cx: &mut Context<Self>) {
         match event {
             SolutionEvent::OpenFile(path) => self.open_file(path.clone(), None, window, cx),
+            SolutionEvent::OpenFileAt(path, line) => self.open_file(path.clone(), Some(Point::new(*line, 0)), window, cx),
+            SolutionEvent::EnableCpm => self.enable_cpm(window, cx),
+            SolutionEvent::MoveToCentral(project, id) => self.move_to_central(project.clone(), id.clone(), window, cx),
             SolutionEvent::Build(path) => self.dotnet_on("build", path, window, cx),
             SolutionEvent::Run(path) => self.dotnet_on("run", path, window, cx),
             SolutionEvent::Watch(path) => self.dotnet_on("watch", path, window, cx),

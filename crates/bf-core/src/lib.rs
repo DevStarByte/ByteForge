@@ -4,6 +4,7 @@
 pub mod conflicts;
 pub mod benchmarks;
 pub mod container;
+pub mod cpm;
 pub mod debug;
 pub mod diff;
 pub mod dotnet;

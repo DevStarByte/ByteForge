@@ -256,7 +256,13 @@ fn read_project(project: &mut Project, central: &HashMap<String, String>) {
     let Ok(text) = std::fs::read_to_string(&project.path) else { return };
     project.exists = true;
     let dir = project.path.parent().unwrap_or(Path::new("")).to_path_buf();
-    parse_project(project, &text, &dir, central);
+    // The props file MSBuild uses for this project: the nearest one up from its folder.
+    let props = crate::cpm::props_for(&dir);
+    if !central.is_empty() || !props.is_file() {
+        return parse_project(project, &text, &dir, central);
+    }
+    let own = std::fs::read_to_string(&props).map(|t| parse_central_versions(&t)).unwrap_or_default();
+    parse_project(project, &text, &dir, &own);
 }
 
 pub fn parse_project(project: &mut Project, text: &str, dir: &Path, central: &HashMap<String, String>) {
