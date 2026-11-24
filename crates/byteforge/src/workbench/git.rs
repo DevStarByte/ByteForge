@@ -27,6 +27,7 @@ impl Workbench {
             ScmEvent::OpenDiff(change, staged) => self.open_diff(change.clone(), *staged, window, cx),
             ScmEvent::OpenCommitDiff(commit, file) => self.open_commit_diff(commit.clone(), file.clone(), window, cx),
             ScmEvent::Log(text) => self.log(text),
+            ScmEvent::ShowOutput => self.show_panel(PanelView::Output, cx),
             ScmEvent::CheckoutFailed(branch, message) => self.checkout_failed(branch.clone(), message.clone(), window, cx),
             ScmEvent::StatusChanged => {
                 let s = scm.read(cx);
@@ -636,6 +637,65 @@ mod tests {
         let out = std::process::Command::new("git").args(args).current_dir(dir).output().expect("git");
         assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
         String::from_utf8_lossy(&out.stdout).trim().to_owned()
+    }
+
+    /// After a commit the main button turns into Push (the commit is marked as not pushed); clicking it
+    /// pushes, says so, and the button is Commit again. A push that fails shows its error in the view.
+    #[gpui::test]
+    fn the_main_button_pushes_what_was_committed(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "scm-push");
+        let remote = guard.dir.join("remote.git");
+        let repo = guard.dir.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        git(&guard.dir, &["init", "-q", "--bare", "-b", "main", remote.to_str().unwrap()]);
+        git(&repo, &["init", "-q", "-b", "main"]);
+        for (k, v) in [("user.name", "T"), ("user.email", "t@example.com"), ("commit.gpgsign", "false"), ("core.autocrlf", "false")] {
+            git(&repo, &["config", k, v]);
+        }
+        std::fs::write(repo.join("a.txt"), "a\n").unwrap();
+        git(&repo, &["add", "."]);
+        git(&repo, &["commit", "-qm", "first"]);
+        git(&repo, &["remote", "add", "origin", remote.to_str().unwrap()]);
+        git(&repo, &["push", "-qu", "origin", "main"]);
+        std::fs::write(repo.join("a.txt"), "b\n").unwrap();
+        git(&repo, &["commit", "-qam", "second"]);
+        let second = git(&repo, &["rev-parse", "HEAD"]);
+
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(repo.clone(), window, cx);
+            wb.show_side(SideView::SourceControl, cx);
+        });
+        let wait = |cx: &mut gpui::VisualTestContext, what: &str, done: &dyn Fn(&mut gpui::VisualTestContext) -> bool| {
+            for _ in 0..100 {
+                cx.run_until_parked();
+                if done(cx) {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            panic!("waited for {what}");
+        };
+        let outgoing = |cx: &mut gpui::VisualTestContext| wb.read_with(cx, |wb, cx| wb.scm.read(cx).outgoing_for_test());
+        let primary = |cx: &mut gpui::VisualTestContext| wb.read_with(cx, |wb, cx| wb.scm.read(cx).primary_for_test(cx));
+        let error = |cx: &mut gpui::VisualTestContext| wb.read_with(cx, |wb, cx| wb.scm.read(cx).error.clone());
+        wait(cx, "the Push button", &|cx| primary(cx).0 == "Push(1)" && cx.debug_bounds("scm-sync").is_some());
+        wait(cx, "the unpushed mark", &|cx| outgoing(cx) == [second.clone()]);
+
+        let push = cx.debug_bounds("scm-sync").unwrap();
+        cx.simulate_click(push.center(), gpui::Modifiers::none());
+        wait(cx, "the push", &|_| git(&remote, &["rev-parse", "main"]) == second);
+        wait(cx, "the confirmation and the Commit button", &|cx| primary(cx) == ("Commit".into(), Some("Pushed 1 commit to origin/main.".into())) && outgoing(cx).is_empty());
+
+        // A remote that isn't there: the push fails, and the view says so.
+        git(&repo, &["remote", "set-url", "origin", guard.dir.join("gone.git").to_str().unwrap()]);
+        std::fs::write(repo.join("a.txt"), "c\n").unwrap();
+        git(&repo, &["commit", "-qam", "third"]);
+        wait(cx, "the Push button again", &|cx| primary(cx).0 == "Push(1)");
+        let push = cx.debug_bounds("scm-sync").unwrap();
+        cx.simulate_click(push.center(), gpui::Modifiers::none());
+        wait(cx, "the error", &|cx| error(cx).is_some() && cx.debug_bounds("scm-error").is_some());
+        assert_eq!(primary(cx).1, None, "no confirmation for a failed push");
+        drop(guard);
     }
 
     /// Picking a branch in the branch picker (what a click on its row does) switches to it.

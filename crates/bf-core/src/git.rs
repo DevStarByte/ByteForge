@@ -620,6 +620,12 @@ impl Git {
         Ok(parse_log(&text))
     }
 
+    /// The commits HEAD has that its upstream doesn't (what a push sends), newest first; empty without an
+    /// upstream.
+    pub fn outgoing(&self) -> Vec<String> {
+        run(&self.root, &["rev-list", "@{upstream}..HEAD"]).map(|t| t.lines().map(str::to_owned).collect()).unwrap_or_default()
+    }
+
     /// Files a commit changed, compared with its first parent (or everything, for a root commit).
     pub fn commit_files(&self, commit: &Commit) -> anyhow::Result<Vec<CommitFile>> {
         let mut args = vec!["diff-tree", "-r", "-z", "-M", "--name-status", "--no-commit-id"];
@@ -1212,10 +1218,14 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
 
         // No setting: a merge commit with both sides.
         diverge("B.cs", "b\n", "m1\n");
+        let head = mine.log(1, 0).unwrap()[0].id.clone();
+        assert_eq!(mine.outgoing(), [head], "my commit is outgoing");
         mine.pull().unwrap();
         assert_eq!(parents(&mine), 2, "a merge commit");
         assert_eq!((read("B.cs").as_str(), read("Mine.cs").as_str()), ("b\n", "m1\n"));
+        assert_eq!(mine.outgoing().len(), 2, "my commit and the merge");
         run(mine.root(), &["push", "-q"]).unwrap();
+        assert!(mine.outgoing().is_empty(), "pushed");
 
         // pull.rebase: my commit goes on top of theirs, no merge commit.
         run(mine.root(), &["config", "pull.rebase", "true"]).unwrap();

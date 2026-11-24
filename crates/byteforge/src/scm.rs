@@ -27,6 +27,8 @@ pub enum ScmEvent {
     /// Switching to the branch failed (git's message): the workbench shows it, and offers to stash local
     /// changes that are in the way.
     CheckoutFailed(bf_core::git::Branch, String),
+    /// "Show Output" on an error in the view.
+    ShowOutput,
 }
 
 #[derive(Clone)]
@@ -34,11 +36,67 @@ enum Entry {
     Header { staged: bool, count: usize },
     File { change: FileChange, staged: bool },
     HistoryHeader,
+    /// Commits on the upstream that aren't here yet (click: pull).
+    Incoming(u32),
     Commit { commit: Commit, expanded: bool },
     CommitFile { commit: Commit, file: CommitFile },
     /// Placeholder under an expanded commit while its files load.
     CommitLoading,
     LoadMore,
+}
+
+/// "1 commit", "3 commits".
+fn commits(n: u32) -> String {
+    if n == 1 { "1 commit".into() } else { format!("{n} commits") }
+}
+
+/// How a ref of a commit shows in HISTORY.
+#[derive(Clone, Debug, PartialEq)]
+enum RefKind {
+    /// A local branch (bold when it's the checked-out one).
+    Local { current: bool },
+    /// A local branch with its remote branch at the same commit ("master · origin").
+    Synced { current: bool, remote: String },
+    /// A remote branch whose local branch is elsewhere.
+    Remote,
+    Tag,
+}
+
+/// The badges for a commit's refs (git's `%D`: "HEAD -> master, origin/master, origin/HEAD, tag: v1"):
+/// a local branch and its remote branch at the same commit become one badge; `<remote>/HEAD` and a bare
+/// detached `HEAD` are left out. `remotes` names the remotes (a ref starting with one is remote).
+fn ref_badges(refs: &str, remotes: &[&str]) -> Vec<(String, RefKind)> {
+    let mut locals: Vec<(String, bool)> = Vec::new();
+    let mut remote_refs: Vec<(String, String)> = Vec::new();
+    let mut tags: Vec<String> = Vec::new();
+    for part in refs.split(", ").map(str::trim).filter(|p| !p.is_empty()) {
+        if let Some(tag) = part.strip_prefix("tag: ") {
+            tags.push(tag.to_owned());
+        } else if let Some(branch) = part.strip_prefix("HEAD -> ") {
+            locals.push((branch.to_owned(), true));
+        } else if part == "HEAD" {
+            continue;
+        } else if let Some((remote, branch)) = part.split_once('/').filter(|(r, _)| remotes.contains(r)) {
+            if branch != "HEAD" {
+                remote_refs.push((remote.to_owned(), branch.to_owned()));
+            }
+        } else {
+            locals.push((part.to_owned(), false));
+        }
+    }
+    let mut out = Vec::new();
+    for (branch, current) in &locals {
+        match remote_refs.iter().position(|(_, b)| b == branch) {
+            Some(i) => {
+                let (remote, _) = remote_refs.remove(i);
+                out.push((branch.clone(), RefKind::Synced { current: *current, remote }));
+            }
+            None => out.push((branch.clone(), RefKind::Local { current: *current })),
+        }
+    }
+    out.extend(remote_refs.into_iter().map(|(r, b)| (format!("{r}/{b}"), RefKind::Remote)));
+    out.extend(tags.into_iter().map(|t| (t, RefKind::Tag)));
+    out
 }
 
 /// Commits loaded per page of the History section.
@@ -53,6 +111,10 @@ struct History {
     more: bool,
     loading: bool,
     expanded: HashSet<String>,
+    /// Commits a push would send (marked in the list).
+    outgoing: HashSet<String>,
+    /// The upstream, ahead and behind the list was loaded for (a push or fetch reloads it).
+    sync: (Option<String>, u32, u32),
     files: HashMap<String, Vec<CommitFile>>,
     task: Option<Task<()>>,
     files_tasks: HashMap<String, Task<()>>,
@@ -66,6 +128,10 @@ pub struct ScmView {
     message: Entity<TextInput>,
     busy: Option<String>,
     pub(crate) error: Option<String>,
+    /// What the last push, pull or sync did ("Pushed 1 commit to origin/master").
+    notice: Option<String>,
+    /// The notice the running operation shows when it succeeds.
+    pending_notice: Option<String>,
     loaded: bool,
     history: History,
     refresh_task: Option<Task<()>>,
@@ -184,6 +250,8 @@ impl ScmView {
             message,
             busy: None,
             error: None,
+            notice: None,
+            pending_notice: None,
             loaded: false,
             history: History { open: true, ..Default::default() },
             refresh_task: None,
@@ -245,7 +313,8 @@ impl ScmView {
         }
         let changed = status != self.status;
         self.status = status;
-        if self.git.is_some() && self.history.head != self.status.head {
+        let sync = (self.status.upstream.clone(), self.status.ahead, self.status.behind);
+        if self.git.is_some() && (self.history.head != self.status.head || self.history.sync != sync) {
             self.load_history(false, cx);
         }
         self.rebuild_entries();
@@ -269,6 +338,9 @@ impl ScmView {
         if status.has_commits {
             let h = &self.history;
             entries.push(Entry::HistoryHeader);
+            if h.open && status.upstream.is_some() && status.behind > 0 {
+                entries.push(Entry::Incoming(status.behind));
+            }
             if h.open {
                 for commit in &h.commits {
                     let expanded = h.expanded.contains(&commit.id);
@@ -295,17 +367,28 @@ impl ScmView {
         let skip = if more { self.history.commits.len() } else { 0 };
         if !more {
             self.history.head = head.clone();
+            self.history.sync = (self.status.upstream.clone(), self.status.ahead, self.status.behind);
         }
+        let ahead = self.status.ahead > 0;
         self.history.loading = true;
         self.history.task = Some(cx.spawn(async move |this, cx| {
-            let result = cx.background_executor().spawn(async move { git.log(HISTORY_PAGE, skip) }).await;
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let outgoing = if ahead && !more { Some(git.outgoing()) } else { None };
+                    git.log(HISTORY_PAGE, skip).map(|c| (c, outgoing))
+                })
+                .await;
             let _ = this.update(cx, |v, cx| {
                 v.history.loading = false;
                 if v.history.head != head {
                     return; // HEAD moved meanwhile; a newer load is on its way.
                 }
                 match result {
-                    Ok(commits) => {
+                    Ok((commits, outgoing)) => {
+                        if !more {
+                            v.history.outgoing = outgoing.unwrap_or_default().into_iter().collect();
+                        }
                         v.history.more = commits.len() == HISTORY_PAGE;
                         if more {
                             v.history.commits.extend(commits);
@@ -375,6 +458,7 @@ impl ScmView {
         }
         self.busy = Some(label.into());
         self.error = None;
+        self.notice = None;
         cx.notify();
         self.op_task = Some(cx.spawn(async move |this, cx| {
             let result = cx.background_executor().spawn(async move { op(&git) }).await;
@@ -382,6 +466,7 @@ impl ScmView {
                 v.busy = None;
                 match result {
                     Ok(out) => {
+                        v.notice = v.pending_notice.take();
                         if clear_message {
                             v.message.update(cx, |m, cx| m.set_text("", cx));
                         }
@@ -392,6 +477,7 @@ impl ScmView {
                         }
                     }
                     Err(e) => {
+                        v.pending_notice = None;
                         cx.emit(ScmEvent::Log(format!("git {label} failed: {e}")));
                         v.error = Some(e.to_string());
                     }
@@ -498,6 +584,13 @@ impl ScmView {
     }
 
     pub fn pull(&mut self, cx: &mut Context<Self>) {
+        if self.busy.is_none() {
+            self.pending_notice = Some(match (self.status.behind, &self.status.upstream) {
+                (0, Some(u)) => format!("Pulled from {u}: nothing new."),
+                (n, Some(u)) => format!("Pulled {} from {u}.", commits(n)),
+                (_, None) => "Pulled.".into(),
+            });
+        }
         self.run_op("pull", false, |g| g.pull().map_err(|e| explain_stopped_pull(g, e)), cx);
     }
 
@@ -545,6 +638,14 @@ impl ScmView {
 
     pub fn push(&mut self, cx: &mut Context<Self>) {
         let status = self.status.clone();
+        if self.busy.is_none() {
+            let branch = status.branch.clone().unwrap_or_default();
+            self.pending_notice = Some(match &status.upstream {
+                Some(u) if status.ahead > 0 => format!("Pushed {} to {u}.", commits(status.ahead)),
+                Some(u) => format!("Pushed to {u}: it was up to date."),
+                None => format!("Published {branch} to origin."),
+            });
+        }
         self.run_op("push", false, move |g| g.push(&status), cx);
     }
 
@@ -555,6 +656,10 @@ impl ScmView {
     /// Pull, then push (a pull that stops at conflicts pushes nothing).
     pub fn sync(&mut self, cx: &mut Context<Self>) {
         let status = self.status.clone();
+        if self.busy.is_none() {
+            let to = status.upstream.clone().unwrap_or_else(|| "origin".into());
+            self.pending_notice = Some(format!("Synced with {to}: pulled {}, pushed {}.", commits(status.behind), commits(status.ahead)));
+        }
         self.run_op("sync", false, move |g| {
             let mut out = if status.upstream.is_some() { g.pull().map_err(|e| explain_stopped_pull(g, e))? } else { String::new() };
             let status = g.status().unwrap_or(status);
@@ -788,15 +893,60 @@ impl ScmView {
     }
 
     /// The current branch (for Rename Branch's prompt).
+    /// The commits HISTORY marks as not pushed yet.
+    #[cfg(test)]
+    pub fn outgoing_for_test(&self) -> Vec<String> {
+        self.history.outgoing.iter().cloned().collect()
+    }
+
+    /// What the main button does now, and the confirmation shown (tests).
+    #[cfg(test)]
+    pub fn primary_for_test(&self, cx: &App) -> (String, Option<String>) {
+        (format!("{:?}", self.primary(cx)), self.notice.clone())
+    }
+
     pub fn branch(&self) -> Option<&str> {
         self.status.branch.as_deref()
+    }
+}
+
+/// What a click on the main button runs.
+type PrimaryRun = fn(&mut ScmView, &mut Window, &mut Context<ScmView>);
+
+/// What the main button of the view does.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Primary {
+    Commit,
+    Push(u32),
+    Pull(u32),
+    Sync(u32, u32),
+    Publish,
+}
+
+impl ScmView {
+    /// Commit while there is something to commit (or a message is being typed); otherwise what brings the
+    /// branch in line with its remote: push, pull, both, or publish a branch that has none.
+    fn primary(&self, cx: &App) -> Primary {
+        let s = &self.status;
+        let typing = !self.message.read(cx).text().trim().is_empty();
+        let rebasing = self.git.as_ref().is_some_and(|g| g.is_rebasing());
+        if !s.changes.is_empty() || typing || rebasing || !s.has_commits {
+            return Primary::Commit;
+        }
+        match (s.upstream.is_some(), s.ahead, s.behind) {
+            (false, _, _) if s.branch.is_some() => Primary::Publish,
+            (true, a, b) if a > 0 && b > 0 => Primary::Sync(b, a),
+            (true, a, 0) if a > 0 => Primary::Push(a),
+            (true, 0, b) if b > 0 => Primary::Pull(b),
+            _ => Primary::Commit,
+        }
     }
 }
 
 impl Render for ScmView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = Theme::global(cx);
-        let button = |id: &'static str, label: &'static str| {
+        let button = |id: &'static str, label: gpui::SharedString| {
             div()
                 .id(id)
                 .px_3()
@@ -825,7 +975,7 @@ impl Render for ScmView {
                 .flex_col()
                 .gap_3()
                 .child(message(if self.loaded { "The opened folder is not a git repository.".into() } else { "Looking for a git repository…".into() }))
-                .when(self.loaded, |d| d.child(button("scm-init", "Initialize Repository").on_click(cx.listener(|v, _, _, cx| v.init(cx)))))
+                .when(self.loaded, |d| d.child(button("scm-init", "Initialize Repository".into()).on_click(cx.listener(|v, _, _, cx| v.init(cx)))))
                 .when_some(self.error.clone(), |d, e| d.child(div().text_size(px(12.)).text_color(t.c("errorForeground")).child(e)))
                 .into_any_element();
         }
@@ -1011,14 +1161,71 @@ impl Render for ScmView {
                                 .on_click(move |_, _, cx| e2.update(cx, |v, cx| v.toggle_history(cx)))
                                 .into_any_element()
                         }
+                        Entry::Incoming(n) => {
+                            let e = entity.clone();
+                            let color = t.c_or("gitDecoration.modifiedResourceForeground", 0xe2c08dff);
+                            div()
+                                .id(ix)
+                                .debug_selector(|| "scm-incoming".into())
+                                .w_full()
+                                .h(px(row_h))
+                                .px_3()
+                                .pl(px(20.))
+                                .flex()
+                                .items_center()
+                                .gap_1()
+                                .cursor_pointer()
+                                .text_size(px(12.))
+                                .text_color(color)
+                                .hover(|s| s.bg(t.c("list.hoverBackground")))
+                                .tooltip(tooltip("Not here yet: on the remote only. Click to pull them."))
+                                .child(icon("arrowDown", px(14.), color))
+                                .child(format!("{} incoming (click to pull)", commits(n)))
+                                .on_click(move |_, _, cx| e.update(cx, |v, cx| v.pull(cx)))
+                                .into_any_element()
+                        }
                         Entry::Commit { commit, expanded } => {
                             let muted = t.c("foreground.muted");
-                            let refs = commit.refs.replace("HEAD -> ", "");
+                            let outgoing = view.history.outgoing.contains(&commit.id);
+                            let remote = view.status.upstream.as_deref().and_then(|u| u.split('/').next()).unwrap_or("origin");
+                            let badges = ref_badges(&commit.refs, &[remote, "origin", "upstream"]);
                             let merge = commit.parents.len() > 1;
                             let mut tip = format!("{}\n\n{} <{}>\n{} ({})\n{}", commit.subject, commit.author, commit.email, commit.date, commit.when, commit.id);
                             if !commit.refs.is_empty() {
                                 tip.push_str(&format!("\n{}", commit.refs));
                             }
+                            if outgoing {
+                                tip.push_str("\n\nNot pushed yet.");
+                            }
+                            let added = t.c_or("gitDecoration.addedResourceForeground", 0x73c991ff);
+                            let extra = badges.len().saturating_sub(2);
+                            let badge = |text: String, kind: RefKind| {
+                                let (fill, current) = match &kind {
+                                    RefKind::Local { current } | RefKind::Synced { current, .. } => (true, *current),
+                                    RefKind::Remote | RefKind::Tag => (false, false),
+                                };
+                                let label = match &kind {
+                                    RefKind::Synced { remote, .. } => format!("{text} · {remote}"),
+                                    RefKind::Tag => format!("tag {text}"),
+                                    _ => text,
+                                };
+                                div()
+                                    .flex_shrink()
+                                    .min_w(px(20.))
+                                    .max_w(px(110.))
+                                    .overflow_hidden()
+                                    .whitespace_nowrap()
+                                    .text_ellipsis()
+                                    .px(px(5.))
+                                    .rounded(px(9.))
+                                    .text_size(px(10.))
+                                    .border_1()
+                                    .border_color(t.c("badge.background"))
+                                    .when(fill, |d| d.bg(t.bg("badge.background")).text_color(t.c("badge.foreground")))
+                                    .when(!fill, |d| d.text_color(muted))
+                                    .when(current, |d| d.font_weight(gpui::FontWeight::BOLD))
+                                    .child(label)
+                            };
                             let e = entity.clone();
                             let c = commit.clone();
                             div()
@@ -1035,23 +1242,26 @@ impl Render for ScmView {
                                 .overflow_hidden()
                                 .tooltip(tooltip(tip))
                                 .child(icon(if expanded { "chevronDown" } else { "chevronRight" }, px(14.), t.c("icon.foreground")))
-                                .child(icon("gitCommit", px(14.), if merge { muted } else { t.c("icon.foreground") }))
-                                .child(div().flex_1().min_w(px(60.)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(commit.subject.clone()))
-                                .when(!refs.is_empty(), |d| {
+                                .child(if outgoing {
+                                    // Not on the remote yet: what Push would send.
+                                    icon("arrowUp", px(14.), added)
+                                } else {
+                                    icon("gitCommit", px(14.), if merge { muted } else { t.c("icon.foreground") })
+                                })
+                                // The message gets the room; the badges shrink first.
+                                .child(div().flex_1().min_w(px(90.)).overflow_hidden().whitespace_nowrap().text_ellipsis().when(outgoing, |d| d.text_color(added)).child(commit.subject.clone()))
+                                .when(!badges.is_empty(), |d| {
                                     d.child(
                                         div()
                                             .flex_shrink()
-                                            .min_w(px(24.))
-                                            .max_w(px(110.))
+                                            .min_w(px(20.))
+                                            .max_w(px(150.))
                                             .overflow_hidden()
-                                            .whitespace_nowrap()
-                                            .text_ellipsis()
-                                            .px(px(5.))
-                                            .rounded(px(9.))
-                                            .text_size(px(10.))
-                                            .bg(t.bg("badge.background"))
-                                            .text_color(t.c("badge.foreground"))
-                                            .child(refs),
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(3.))
+                                            .children(badges.into_iter().take(2).map(|(text, kind)| badge(text, kind)))
+                                            .when(extra > 0, |d| d.child(div().flex_none().text_size(px(10.)).text_color(muted).child(format!("+{extra}")))),
                                     )
                                 })
                                 .child(div().flex_none().whitespace_nowrap().text_size(px(11.)).text_color(muted).child(short_age(&commit.when)))
@@ -1182,18 +1392,81 @@ impl Render for ScmView {
                     )),
             )
             .child(div().px_3().flex().flex_col().debug_selector(|| "scm-message".into()).child(self.message.clone()))
-            .child(
-                div().px_3().flex().flex_col().child(
-                    button("scm-commit", if self.busy.is_some() { "Working…" } else { "✓ Commit" })
-                        .debug_selector(|| "scm-commit".into())
-                        .w_full()
-                        .when(self.busy.is_some(), |d| d.opacity(0.6))
-                        .tooltip(tooltip(format!("Commit the staged changes ({COMMIT_KEY} in the message box)")))
-                        .on_click(cx.listener(|v, _, window, cx| v.commit(window, cx))),
-                ),
-            )
+            .child(div().px_3().flex().flex_col().child({
+                let busy = self.busy.is_some();
+                let (id, label, tip, run): (&'static str, String, String, PrimaryRun) = match self.primary(cx) {
+                    _ if busy => ("scm-commit", "Working…".into(), String::new(), |_, _, _| {}),
+                    Primary::Commit => ("scm-commit", "✓ Commit".into(), format!("Commit the staged changes ({COMMIT_KEY} in the message box)"), |v, w, cx| v.commit(w, cx)),
+                    Primary::Push(n) => ("scm-sync", format!("↑ Push {}", commits(n)), "Send your commits to the remote".into(), |v, _, cx| v.push(cx)),
+                    Primary::Pull(n) => ("scm-sync", format!("↓ Pull {}", commits(n)), "Get the new commits from the remote".into(), |v, _, cx| v.pull(cx)),
+                    Primary::Sync(down, up) => ("scm-sync", format!("⇅ Sync Changes  ↓{down} ↑{up}"), "Pull the incoming commits, then push yours".into(), |v, _, cx| v.sync(cx)),
+                    Primary::Publish => ("scm-sync", "↑ Publish Branch".into(), "Push this branch to origin and track it there".into(), |v, _, cx| v.push(cx)),
+                };
+                button(id, label.into())
+                    .debug_selector(move || id.into())
+                    .w_full()
+                    .when(busy, |d| d.opacity(0.6))
+                    .when(!tip.is_empty(), |d| d.tooltip(tooltip(tip)))
+                    .on_click(cx.listener(move |v, _, window, cx| run(v, window, cx)))
+            }))
             .when_some(self.busy.clone(), |d, b| d.child(div().px_3().child(message(format!("git {b}…")))))
-            .when_some(self.error.clone(), |d, e| d.child(div().px_3().text_size(px(12.)).text_color(t.c("errorForeground")).child(e)))
+            .when_some(self.error.clone(), |d, e| {
+                // A failure stays in view until dismissed (not only in Output, where it is easy to miss).
+                let text: String = e.lines().take(8).collect::<Vec<_>>().join("\n");
+                d.child(
+                    div()
+                        .id("scm-error")
+                        .debug_selector(|| "scm-error".into())
+                        .mx_3()
+                        .p_2()
+                        .rounded(px(4.))
+                        .border_1()
+                        .border_color(t.c("errorForeground"))
+                        .bg(t.c_or("inputValidation.errorBackground", 0x5a1d1d80))
+                        .flex()
+                        .flex_col()
+                        .gap_1()
+                        .text_size(px(12.))
+                        .child(
+                            div()
+                                .flex()
+                                .items_start()
+                                .gap_1()
+                                .child(div().flex_1().min_w_0().text_color(t.c("sideBar.foreground")).child(text))
+                                .child(tool("scm-error-close", "close", "Dismiss").on_click(cx.listener(|v, _, _, cx| {
+                                    v.error = None;
+                                    cx.notify();
+                                }))),
+                        )
+                        .child(
+                            div()
+                                .id("scm-error-output")
+                                .text_color(t.c_or("textLink.foreground", 0x3794ffff))
+                                .cursor_pointer()
+                                .hover(|s| s.underline())
+                                .child("Show Output")
+                                .on_click(cx.listener(|_, _, _, cx| cx.emit(ScmEvent::ShowOutput))),
+                        ),
+                )
+            })
+            .when_some(self.notice.clone(), |d, n| {
+                d.child(
+                    div()
+                        .id("scm-notice")
+                        .debug_selector(|| "scm-notice".into())
+                        .px_3()
+                        .flex()
+                        .items_center()
+                        .gap_1()
+                        .text_size(px(12.))
+                        .text_color(t.c_or("gitDecoration.addedResourceForeground", 0x73c991ff))
+                        .child(div().flex_1().min_w_0().child(format!("✓ {n}")))
+                        .child(tool("scm-notice-close", "close", "Dismiss").on_click(cx.listener(|v, _, _, cx| {
+                            v.notice = None;
+                            cx.notify();
+                        }))),
+                )
+            })
             .child(list)
             .children(self.render_menus(cx))
             .into_any_element()
@@ -1364,6 +1637,27 @@ fn remote_actions(view: &ScmView, t: &Theme, entity: &Entity<ScmView>) -> Vec<gp
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn ref_badges_merge_a_branch_with_its_remote() {
+        use super::{RefKind, ref_badges};
+        let remotes = ["origin"];
+        assert_eq!(
+            ref_badges("HEAD -> master, origin/master, origin/HEAD", &remotes),
+            [("master".to_owned(), RefKind::Synced { current: true, remote: "origin".into() })]
+        );
+        assert_eq!(ref_badges("HEAD -> master", &remotes), [("master".to_owned(), RefKind::Local { current: true })]);
+        assert_eq!(ref_badges("origin/master, origin/HEAD", &remotes), [("origin/master".to_owned(), RefKind::Remote)]);
+        assert_eq!(
+            ref_badges("tag: v1.0, feature/x, origin/feature/x, dev", &remotes),
+            [
+                ("feature/x".to_owned(), RefKind::Synced { current: false, remote: "origin".into() }),
+                ("dev".to_owned(), RefKind::Local { current: false }),
+                ("v1.0".to_owned(), RefKind::Tag),
+            ]
+        );
+        assert!(ref_badges("HEAD", &remotes).is_empty(), "a detached HEAD needs no badge");
+    }
+
     #[test]
     fn short_ages() {
         assert_eq!(super::short_age("14 minutes ago"), "14m");

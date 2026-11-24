@@ -17,6 +17,11 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
   changes nothing. ByteForge draws the form itself, so the designer works on Linux and macOS too.
 - Go to File (Ctrl+P) takes a line, as in VS Code: `Form1.cs:42` or `Form1:42:7` opens the file at that line
   (and column).
+- Source Control: with nothing to commit, the main button says what's next: "Push 1 commit", "Pull 2
+  commits", "Sync Changes ↓2 ↑1" or "Publish Branch". A failed push, pull or commit shows its message in the
+  view (with Show Output) until dismissed, and a successful one confirms what it did. HISTORY marks the
+  commits not pushed yet, lists incoming ones (click to pull), and gives the messages the room: a branch and its
+  remote at the same commit share one badge ("master · origin"), `origin/HEAD` is left out, tags are outlined.
 
 ## 1.2.0
 
