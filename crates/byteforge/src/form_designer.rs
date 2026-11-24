@@ -14,11 +14,11 @@ use std::rc::Rc;
 
 use bf_core::winforms::{self as wf, Designer, Layout, Placed, PropInfo, PropKind, Rect};
 use gpui::{
-    AnyElement, App, ClickEvent, Context, Entity, EventEmitter, FocusHandle, Focusable, Hsla, KeyDownEvent, MouseButton, MouseDownEvent,
+    AnyElement, App, ClickEvent, ClipboardItem, Context, Entity, EventEmitter, FocusHandle, Focusable, Hsla, KeyDownEvent, MouseButton, MouseDownEvent,
     MouseMoveEvent, MouseUpEvent, Pixels, Point, SharedString, Subscription, Window, div, prelude::*, px,
 };
 
-use crate::actions::{Redo, Undo, ViewCode};
+use crate::actions::{Copy, Cut, Paste, Redo, SelectAll, Undo, ViewCode};
 use crate::editor::{EditorEvent, EditorView};
 use crate::text_input::{InputEvent, TextInput};
 use crate::theme::Theme;
@@ -68,7 +68,21 @@ struct Drag {
     start: (i32, i32),
     now: (i32, i32),
     moved: bool,
+    /// Snap to snap lines (not while Alt is held).
+    snap: bool,
 }
+
+/// Controls copied in a designer (any designer: they paste into other forms too), with the code that was
+/// put on the system clipboard for them; when the clipboard holds something else, there is nothing to paste.
+struct DesignerClipboard {
+    code: String,
+    fragment: wf::Fragment,
+}
+
+impl gpui::Global for DesignerClipboard {}
+
+/// How near (in pixels) an edge must come to a snap line to snap to it.
+const SNAP_THRESHOLD: i32 = 6;
 
 /// A row of the property grid.
 #[derive(Clone)]
@@ -133,6 +147,8 @@ pub struct FormDesigner {
     /// The toolbox entry the next click on the form places.
     tool: Option<&'static str>,
     drag: Option<Drag>,
+    /// The snap lines of the drag going on.
+    guides: Vec<wf::Guide>,
     /// The form while a drag is going on (the model isn't changed until the mouse is let go).
     preview: Option<Designer>,
     /// The page each TabControl shows.
@@ -193,6 +209,7 @@ impl FormDesigner {
             selection: Vec::new(),
             tool: None,
             drag: None,
+            guides: Vec::new(),
             preview: None,
             tabs: HashMap::new(),
             layout: Layout::default(),
@@ -227,6 +244,11 @@ impl FormDesigner {
     #[cfg(test)]
     pub fn selection(&self) -> &[String] {
         &self.selection
+    }
+
+    #[cfg(test)]
+    pub fn guides(&self) -> &[wf::Guide] {
+        &self.guides
     }
 
     /// Reads the file's text again if it isn't what the designer wrote (typed in the code, undone, reloaded).
@@ -339,6 +361,101 @@ impl FormDesigner {
         self.change(cx, |d| {
             for n in &names {
                 d.remove(n);
+            }
+            Ok(())
+        });
+    }
+
+    /// Ctrl+C: the selected controls (with what is in them) go on the clipboard.
+    fn copy_selection(&mut self, cx: &mut Context<Self>) -> bool {
+        let Some(doc) = &self.doc else { return false };
+        let fragment = doc.copy(&self.selection);
+        if fragment.is_empty() {
+            return false;
+        }
+        let code = fragment.to_code();
+        cx.write_to_clipboard(ClipboardItem::new_string(code.clone()));
+        cx.set_global(DesignerClipboard { code, fragment });
+        true
+    }
+
+    fn cut_selection(&mut self, cx: &mut Context<Self>) {
+        if self.copy_selection(cx) {
+            self.delete_selection(cx);
+        }
+    }
+
+    /// Ctrl+V: what was copied goes into the selected container (or next to the selected control, or onto
+    /// the form), and is selected.
+    fn paste(&mut self, cx: &mut Context<Self>) {
+        let Some(doc) = &self.doc else { return };
+        let Some(clip) = cx.try_global::<DesignerClipboard>() else { return };
+        // Something else was copied since (in ByteForge or another app).
+        if cx.read_from_clipboard().and_then(|i| i.text()).is_some_and(|t| t.replace("\r\n", "\n") != clip.code) {
+            return;
+        }
+        let fragment = clip.fragment.clone();
+        let same_form = fragment.class_name == doc.class_name;
+        let root = doc.root().name.clone();
+        let primary = self.primary().unwrap_or(&root).to_owned();
+        let is_container = |n: &str| doc.get(n).is_some_and(|c| wf::info(&c.type_name).is_some_and(|i| i.container));
+        let (owner, slot) = match doc.get(&primary) {
+            _ if doc.is_root(&primary) => (root.clone(), String::new()),
+            // A copied container still selected: its copy goes next to it.
+            _ if same_form && fragment.top.contains(&primary) => doc.parent(&primary).map_or((root.clone(), String::new()), |(p, s)| (p.to_owned(), s.to_owned())),
+            Some(c) if c.short_type() == "TabControl" => {
+                let shown = self.tabs.get(&primary).copied().unwrap_or(0);
+                c.children.get(shown).or(c.children.first()).map_or((root.clone(), String::new()), |p| (p.name.clone(), String::new()))
+            }
+            Some(c) if c.short_type() == "SplitContainer" => (primary.clone(), "Panel1".into()),
+            Some(_) if is_container(&primary) => (primary.clone(), String::new()),
+            _ => doc.parent(&primary).map_or((root.clone(), String::new()), |(p, s)| (p.to_owned(), s.to_owned())),
+        };
+        let mut pasted = Vec::new();
+        let out = &mut pasted;
+        self.change(cx, |d| {
+            *out = d.paste(&fragment, &owner, &slot);
+            Ok(())
+        });
+        if !pasted.is_empty() {
+            self.selection = pasted;
+            cx.notify();
+        }
+    }
+
+    /// Ctrl+A: every control on the form (not what is inside containers) and every component.
+    fn select_all(&mut self, cx: &mut Context<Self>) {
+        let Some(doc) = &self.doc else { return };
+        let mut all: Vec<String> = doc.root().children.iter().map(|c| c.name.clone()).collect();
+        all.extend(doc.tray().iter().map(|c| c.name.clone()));
+        if !all.is_empty() {
+            self.finish_edit(true, cx);
+            self.selection = all;
+            cx.notify();
+        }
+    }
+
+    /// Lines the selected controls up with the primary one (or gives them its size).
+    fn align(&mut self, how: wf::Align, cx: &mut Context<Self>) {
+        let Some(doc) = &self.doc else { return };
+        let layout = wf::layout(doc, &self.tabs);
+        let names: Vec<&String> = self.selection.iter().filter(|n| !doc.is_root(n)).collect();
+        let Some(primary) = names.first().and_then(|n| layout.get(n)).map(|p| p.rect) else { return };
+        let moves: Vec<(String, Rect, Rect)> = names[1..]
+            .iter()
+            .filter_map(|n| layout.get(n).filter(|p| !p.arranged))
+            .map(|p| (p.name.clone(), p.rect, wf::aligned(primary, p.rect, how)))
+            .filter(|(_, from, to)| from != to)
+            .collect();
+        self.change(cx, |d| {
+            for (n, from, to) in &moves {
+                if (to.x, to.y) != (from.x, from.y) {
+                    let (x, y) = d.location(n);
+                    d.set_location(n, (x + to.x - from.x, y + to.y - from.y));
+                }
+                if (to.w, to.h) != (from.w, from.h) {
+                    d.set_size(n, (to.w, to.h));
+                }
             }
             Ok(())
         });
@@ -566,12 +683,12 @@ impl FormDesigner {
         self.picker_open = false;
         let (Some(doc), Some(p)) = (self.doc.clone(), self.to_form(event.position)) else { return };
         if let Some(tool) = self.tool {
-            self.drag = Some(Drag { kind: DragKind::Create { type_name: tool }, start: p, now: p, moved: false });
+            self.drag = Some(Drag { kind: DragKind::Create { type_name: tool }, start: p, now: p, moved: false, snap: false });
             return;
         }
         let hs = Theme::global(cx).n("formDesigner.handleSize", 7.0) as i32 + 2;
         if let Some((name, handle, _, rect)) = self.handles(&doc, hs).into_iter().find(|(_, _, r, _)| r.inset(-1, -1, -1, -1).contains(p.0, p.1)) {
-            self.drag = Some(Drag { kind: DragKind::Resize { name, handle, rect }, start: p, now: p, moved: false });
+            self.drag = Some(Drag { kind: DragKind::Resize { name, handle, rect }, start: p, now: p, moved: false, snap: !event.modifiers.alt });
             return;
         }
         let hit = self.layout.hit(p.0, p.1).cloned();
@@ -617,7 +734,7 @@ impl FormDesigner {
         }
         let names: Vec<String> = self.selection.iter().filter(|n| !doc.is_root(n)).cloned().collect();
         if !names.is_empty() {
-            self.drag = Some(Drag { kind: DragKind::Move { names }, start: p, now: p, moved: false });
+            self.drag = Some(Drag { kind: DragKind::Move { names }, start: p, now: p, moved: false, snap: !event.modifiers.alt });
         }
         cx.notify();
     }
@@ -629,21 +746,50 @@ impl FormDesigner {
             return;
         }
         drag.now = p;
+        if !matches!(drag.kind, DragKind::Create { .. }) {
+            drag.snap = !event.modifiers.alt;
+        }
         if !drag.moved && ((p.0 - drag.start.0).abs() > DRAG_THRESHOLD || (p.1 - drag.start.1).abs() > DRAG_THRESHOLD) {
             drag.moved = true;
         }
         if drag.moved {
-            self.preview = self.drag.as_ref().and_then(|d| self.dragged_model(d));
+            let (preview, guides) = self.drag.as_ref().and_then(|d| self.dragged_model(d)).map_or((None, Vec::new()), |(d, g)| (Some(d), g));
+            self.preview = preview;
+            self.guides = guides;
             cx.notify();
         }
     }
 
-    /// The form as it would be if the mouse were let go now.
-    fn dragged_model(&self, drag: &Drag) -> Option<Designer> {
-        let mut d = self.doc.clone()?;
-        let (dx, dy) = (drag.now.0 - drag.start.0, drag.now.1 - drag.start.1);
+    /// The controls in `area` something snaps to, leaving out `skip`.
+    fn snap_targets(layout: &Layout, root: &str, area: &wf::Area, skip: &[String]) -> Vec<Rect> {
+        layout
+            .controls
+            .iter()
+            .filter(|c| c.parent.as_deref().unwrap_or(root) == area.owner && c.slot == area.slot && !skip.contains(&c.name) && c.visible.w > 0 && c.visible.h > 0)
+            .map(|c| c.rect)
+            .collect()
+    }
+
+    /// The form as it would be if the mouse were let go now, and the snap lines it lines up with.
+    fn dragged_model(&self, drag: &Drag) -> Option<(Designer, Vec<wf::Guide>)> {
+        let doc = self.doc.as_ref()?;
+        let mut d = doc.clone();
+        let (mut dx, mut dy) = (drag.now.0 - drag.start.0, drag.now.1 - drag.start.1);
+        let mut guides = Vec::new();
+        let base = if drag.snap { Some(wf::layout(doc, &self.tabs)) } else { None };
+        let root = doc.root().name.clone();
         match &drag.kind {
             DragKind::Move { names } => {
+                // The first one snaps (in the container it would be dropped in); the others move with it.
+                if let Some(base) = &base
+                    && let Some(p) = names.first().and_then(|n| base.get(n)).filter(|p| !p.arranged)
+                    && let Some(area) = base.area_at(doc, drag.now.0, drag.now.1, names).or_else(|| base.area(p.parent.as_deref().unwrap_or(&root), &p.slot))
+                {
+                    let moved = Rect::new(p.rect.x + dx, p.rect.y + dy, p.rect.w, p.rect.h);
+                    let others = Self::snap_targets(base, &root, area, names);
+                    let (sx, sy, g) = wf::snap(moved, wf::Edges::ALL, &others, area.bounds, wf::snap_padding(doc, &area.owner), SNAP_THRESHOLD);
+                    (dx, dy, guides) = (dx + sx, dy + sy, g);
+                }
                 for n in names {
                     // Only what isn't inside another moved control moves itself.
                     if names.iter().any(|o| o != n && d.is_within(n, o)) {
@@ -654,7 +800,17 @@ impl FormDesigner {
                 }
             }
             DragKind::Resize { name, handle, rect } => {
-                let r = resized(*rect, *handle, dx, dy);
+                let mut r = resized(*rect, *handle, dx, dy);
+                if let Some(base) = &base
+                    && let Some(p) = base.get(name).filter(|p| !p.arranged)
+                    && let Some(area) = base.area(p.parent.as_deref().unwrap_or(&root), &p.slot)
+                {
+                    let edges = wf::Edges { left: handle.0 == -1, top: handle.1 == -1, right: handle.0 == 1, bottom: handle.1 == 1 };
+                    let others = Self::snap_targets(base, &root, area, std::slice::from_ref(name));
+                    let (sx, sy, g) = wf::snap(r, edges, &others, area.bounds, wf::snap_padding(doc, &area.owner), SNAP_THRESHOLD);
+                    r = resized(r, *handle, sx, sy);
+                    guides = g;
+                }
                 if !d.is_root(name) {
                     let (x, y) = d.location(name);
                     d.set_location(name, (x + r.x - rect.x, y + r.y - rect.y));
@@ -663,11 +819,12 @@ impl FormDesigner {
             }
             DragKind::Create { .. } => return None,
         }
-        Some(d)
+        Some((d, guides))
     }
 
     fn on_mouse_up(&mut self, event: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
         let Some(mut drag) = self.drag.take() else { return };
+        self.guides.clear();
         if let Some(p) = self.to_form(event.position) {
             drag.now = p;
         }
@@ -688,7 +845,7 @@ impl FormDesigner {
             }
             DragKind::Move { names } if drag.moved => {
                 let names = names.clone();
-                let Some(mut d) = self.dragged_model(&drag) else { return };
+                let Some((mut d, _)) = self.dragged_model(&drag) else { return };
                 // Dropped on another container: it moves there.
                 let layout = wf::layout(&d, &self.tabs);
                 let target = self.layout.area_at(&doc, drag.now.0, drag.now.1, &names).cloned();
@@ -708,7 +865,7 @@ impl FormDesigner {
                 self.commit(d, cx);
             }
             DragKind::Resize { .. } if drag.moved => {
-                if let Some(d) = self.dragged_model(&drag) {
+                if let Some((d, _)) = self.dragged_model(&drag) {
                     self.commit(d, cx);
                 }
             }
@@ -784,6 +941,22 @@ impl FormDesigner {
             }
             "y" if secondary => {
                 self.editor.update(cx, |e, cx| e.undo_redo(true, cx));
+                cx.stop_propagation();
+            }
+            "c" if secondary && !m.shift => {
+                self.copy_selection(cx);
+                cx.stop_propagation();
+            }
+            "x" if secondary && !m.shift => {
+                self.cut_selection(cx);
+                cx.stop_propagation();
+            }
+            "v" if secondary && !m.shift => {
+                self.paste(cx);
+                cx.stop_propagation();
+            }
+            "a" if secondary && !m.shift => {
+                self.select_all(cx);
                 cx.stop_propagation();
             }
             "enter" if !m.modified() => {
@@ -1240,6 +1413,11 @@ impl FormDesigner {
             .children(self.handles(&doc, hs).into_iter().map(|(_, _, r, _)| {
                 div().absolute().left(px(r.x as f32)).top(px(r.y as f32)).size(px(r.w as f32)).bg(handle_bg).border_1().border_color(handle_border)
             }))
+            .children(self.guides.iter().map(|g| {
+                let c = if g.margin { t.c_or("formDesigner.marginLine", 0xb000b0ff) } else { t.c_or("formDesigner.snapLine", 0x0078d4ff) };
+                let (x, y) = (g.x0.min(g.x1), g.y0.min(g.y1));
+                div().absolute().left(px(x as f32)).top(px(y as f32)).w(px((g.x1 - g.x0).abs().max(1) as f32)).h(px((g.y1 - g.y0).abs().max(1) as f32)).bg(c)
+            }))
             .when_some(self.drag.as_ref().filter(|d| d.moved), |el, drag| {
                 let accent = color(&t, "formDesigner.dropTargetBorder", "focusBorder");
                 match &drag.kind {
@@ -1647,6 +1825,7 @@ impl Render for FormDesigner {
         let hover = t.c("toolbar.hoverBackground");
         let has_doc = self.doc.is_some();
         let selection_is_control = self.doc.as_ref().is_some_and(|d| self.selection.iter().any(|n| !d.is_root(n)));
+        let several = self.doc.as_ref().is_some_and(|d| self.selection.iter().filter(|n| !d.is_root(n)).count() > 1);
         let button = |id: &'static str, label: &'static str| {
             div().id(id).debug_selector(move || id.into()).px(px(6.)).py(px(1.)).rounded(px(4.)).cursor_pointer().hover(move |s| s.bg(hover)).child(label)
         };
@@ -1666,6 +1845,20 @@ impl Render for FormDesigner {
             .child(div().whitespace_nowrap().child(format!("{name} [Design]")))
             .when_some(self.tool, |d, tool| d.child(div().text_color(t.c("foreground.muted")).child(format!("Click or drag on the form to place a {tool} (Esc: cancel)"))))
             .child(div().flex_1())
+            .when(several, |d| {
+                let aligns = [
+                    ("designer-align-lefts", "Lefts", "Align the left edges with the primary control's", wf::Align::Lefts),
+                    ("designer-align-centers", "Centers", "Align the centers with the primary control's", wf::Align::Centers),
+                    ("designer-align-rights", "Rights", "Align the right edges with the primary control's", wf::Align::Rights),
+                    ("designer-align-tops", "Tops", "Align the top edges with the primary control's", wf::Align::Tops),
+                    ("designer-align-middles", "Middles", "Align the middles with the primary control's", wf::Align::Middles),
+                    ("designer-align-bottoms", "Bottoms", "Align the bottom edges with the primary control's", wf::Align::Bottoms),
+                    ("designer-same-size", "Same Size", "Give them the primary control's size", wf::Align::SameSize),
+                ];
+                d.child(div().text_color(t.c("foreground.muted")).child("Align:")).children(aligns.map(|(id, label, tip, how)| {
+                    button(id, label).tooltip(crate::workbench::tooltip(tip)).on_click(cx.listener(move |this, _, _, cx| this.align(how, cx)))
+                }))
+            })
             .when(selection_is_control, |d| {
                 d.child(button("designer-front", "Bring to Front").on_click(cx.listener(|this, _, _, cx| this.reorder(true, cx))))
                     .child(button("designer-back", "Send to Back").on_click(cx.listener(|this, _, _, cx| this.reorder(false, cx))))
@@ -1701,6 +1894,12 @@ impl Render for FormDesigner {
             .on_action(cx.listener(|_, _: &ViewCode, _, cx| cx.emit(DesignerEvent::ViewCode)))
             .on_action(cx.listener(|this, _: &Undo, _, cx| this.editor.update(cx, |e, cx| e.undo_redo(false, cx))))
             .on_action(cx.listener(|this, _: &Redo, _, cx| this.editor.update(cx, |e, cx| e.undo_redo(true, cx))))
+            .on_action(cx.listener(|this, _: &Copy, _, cx| {
+                this.copy_selection(cx);
+            }))
+            .on_action(cx.listener(|this, _: &Cut, _, cx| this.cut_selection(cx)))
+            .on_action(cx.listener(|this, _: &Paste, _, cx| this.paste(cx)))
+            .on_action(cx.listener(|this, _: &SelectAll, _, cx| this.select_all(cx)))
             .child(toolbar)
             .child(div().flex_1().min_h_0().flex().when(has_doc, |d| d.child(self.render_toolbox(cx))).child(canvas).when(has_doc, |d| d.child(self.render_grid(cx))))
     }

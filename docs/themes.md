@@ -48,6 +48,7 @@ from the base theme.
 - **Windows Forms designer** (in `colors`): `formDesigner.background` (the canvas around the form),
   `formDesigner.foreground`, `formDesigner.border`, `formDesigner.selectionBorder`,
   `formDesigner.handleBackground` / `handleBorder` (resize handles), `formDesigner.dropTargetBorder`,
+  `formDesigner.snapLine` / `marginLine` (snap lines while dragging: aligned edges / recommended spacing),
   `formDesigner.trayBackground`, `formDesigner.windowTitleBackground` / `windowTitleForeground` /
   `windowBorder` (the form's frame); in `metrics`: `formDesigner.toolboxWidth`, `formDesigner.propertiesWidth`,
   `formDesigner.rowHeight`, `formDesigner.handleSize`. The controls themselves keep Windows' colors (they show

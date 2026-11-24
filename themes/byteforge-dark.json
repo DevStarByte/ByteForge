@@ -168,6 +168,8 @@
     "formDesigner.handleBackground": "#ffffff",
     "formDesigner.handleBorder": "#0078d4",
     "formDesigner.dropTargetBorder": "#3fb950",
+    "formDesigner.snapLine": "#0078d4",
+    "formDesigner.marginLine": "#c040c0",
     "formDesigner.trayBackground": "#1f1f1f",
     "formDesigner.windowTitleBackground": "#ffffff",
     "formDesigner.windowTitleForeground": "#000000",

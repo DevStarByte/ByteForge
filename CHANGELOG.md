@@ -15,6 +15,16 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
   component tray holds timers, tooltips and dialogs. Changes go into `InitializeComponent` in the file's own
   style, through the file's editor, so undo, save and autosave work as for any file and a save without changes
   changes nothing. ByteForge draws the form itself, so the designer works on Linux and macOS too.
+- Designer: copy, cut and paste controls (Ctrl+C / Ctrl+X / Ctrl+V, also in the Edit menu), with what is in
+  them (a group box's controls, a menu's items, a list's items) and in the same form or another one: each keeps
+  its name when it is free there, else gets the next one (`button2`); a copy pasted where the original is moves
+  10 px down and right; it goes into the selected container, next to the selected control, or onto the form,
+  in that file's code style; event handlers stay hooked up within the same form. Ctrl+A selects every control.
+- Designer: snap lines. A control dragged or resized snaps to the edges of the controls next to it, to the
+  recommended 6 px between controls and to 12 px from the form's edge (3 in a container), and the lines show
+  while dragging (`formDesigner.snapLine` / `marginLine`); Alt drags without snapping. With several controls
+  selected, the toolbar's Align (Lefts, Centers, Rights, Tops, Middles, Bottoms) and Same Size line them up
+  with the primary one (the one clicked first).
 - Go to File (Ctrl+P) takes a line, as in VS Code: `Form1.cs:42` or `Form1:42:7` opens the file at that line
   (and column).
 - Source Control: with nothing to commit, the main button says what's next: "Push 1 commit", "Pull 2

@@ -266,3 +266,166 @@ fn place_children(d: &Designer, owner: &str, slot: &str, origin: (i32, i32), are
         place_children(d, &ch.name, "", origin, dock_area, clip, depth + 1, tabs, out);
     }
 }
+
+/// A snap line drawn while dragging: from (x0, y0) to (x1, y1) in the form's client coordinates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Guide {
+    pub x0: i32,
+    pub y0: i32,
+    pub x1: i32,
+    pub y1: i32,
+    /// The recommended space between controls or to the container's edge, not an alignment.
+    pub margin: bool,
+}
+
+/// Which edges of a rectangle are being dragged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Edges {
+    pub left: bool,
+    pub top: bool,
+    pub right: bool,
+    pub bottom: bool,
+}
+
+impl Edges {
+    pub const ALL: Edges = Edges { left: true, top: true, right: true, bottom: true };
+}
+
+/// The space Visual Studio's snap lines keep between two controls (their Margin of 3 each).
+pub const SNAP_SPACING: i32 = 6;
+
+fn overlaps(a0: i32, a1: i32, b0: i32, b1: i32) -> bool {
+    a0 < b1 && b0 < a1
+}
+
+/// The smallest move (within `threshold`) that puts one of `moving` on one of `targets`.
+fn nearest(moving: &[i32], targets: &[i32], threshold: i32) -> i32 {
+    let mut best: Option<i32> = None;
+    for &m in moving {
+        for &t in targets {
+            let d = t - m;
+            if d.abs() <= threshold && best.is_none_or(|b| d.abs() < b.abs()) {
+                best = Some(d);
+            }
+        }
+    }
+    best.unwrap_or(0)
+}
+
+/// Where `rect`'s dragged edges snap to: the same edge of another control, the recommended space next to
+/// it, or the recommended distance to the container's edge (`padding`), whichever is nearest within
+/// `threshold` on each axis. Returns how far to move them and the snap lines of the result.
+pub fn snap(rect: Rect, edges: Edges, others: &[Rect], area: Rect, padding: i32, threshold: i32) -> (i32, i32, Vec<Guide>) {
+    let pick = |on: [(bool, i32); 2]| on.iter().filter(|(on, _)| *on).map(|(_, v)| *v).collect::<Vec<i32>>();
+    let xs_moving = pick([(edges.left, rect.x), (edges.right, rect.x + rect.w)]);
+    let ys_moving = pick([(edges.top, rect.y), (edges.bottom, rect.y + rect.h)]);
+    let mut xs = vec![area.x + padding, area.x + area.w - padding];
+    let mut ys = vec![area.y + padding, area.y + area.h - padding];
+    for o in others {
+        xs.extend([o.x, o.x + o.w]);
+        ys.extend([o.y, o.y + o.h]);
+        if overlaps(rect.y, rect.y + rect.h, o.y, o.y + o.h) {
+            xs.extend([o.x + o.w + SNAP_SPACING, o.x - SNAP_SPACING]);
+        }
+        if overlaps(rect.x, rect.x + rect.w, o.x, o.x + o.w) {
+            ys.extend([o.y + o.h + SNAP_SPACING, o.y - SNAP_SPACING]);
+        }
+    }
+    let dx = nearest(&xs_moving, &xs, threshold);
+    let dy = nearest(&ys_moving, &ys, threshold);
+    // The lines of where it ends up.
+    let l = rect.x + if edges.left { dx } else { 0 };
+    let t = rect.y + if edges.top { dy } else { 0 };
+    let rt = rect.x + rect.w + if edges.right { dx } else { 0 };
+    let b = rect.y + rect.h + if edges.bottom { dy } else { 0 };
+    let mut guides: Vec<Guide> = Vec::new();
+    let mut push = |g: Guide| {
+        if !guides.contains(&g) {
+            guides.push(g);
+        }
+    };
+    for o in others {
+        let (ol, ot, or, ob) = (o.x, o.y, o.x + o.w, o.y + o.h);
+        for (x, on) in [(l, edges.left), (rt, edges.right)] {
+            if on && (x == ol || x == or) {
+                push(Guide { x0: x, y0: t.min(ot), x1: x, y1: b.max(ob), margin: false });
+            }
+        }
+        for (y, on) in [(t, edges.top), (b, edges.bottom)] {
+            if on && (y == ot || y == ob) {
+                push(Guide { x0: l.min(ol), y0: y, x1: rt.max(or), y1: y, margin: false });
+            }
+        }
+        if overlaps(t, b, ot, ob) {
+            let y = (t.max(ot) + b.min(ob)) / 2;
+            if edges.left && l == or + SNAP_SPACING {
+                push(Guide { x0: or, y0: y, x1: l, y1: y, margin: true });
+            }
+            if edges.right && rt == ol - SNAP_SPACING {
+                push(Guide { x0: rt, y0: y, x1: ol, y1: y, margin: true });
+            }
+        }
+        if overlaps(l, rt, ol, or) {
+            let x = (l.max(ol) + rt.min(or)) / 2;
+            if edges.top && t == ob + SNAP_SPACING {
+                push(Guide { x0: x, y0: ob, x1: x, y1: t, margin: true });
+            }
+            if edges.bottom && b == ot - SNAP_SPACING {
+                push(Guide { x0: x, y0: b, x1: x, y1: ot, margin: true });
+            }
+        }
+    }
+    let (my, mx) = ((t + b) / 2, (l + rt) / 2);
+    if edges.left && l == area.x + padding {
+        push(Guide { x0: area.x, y0: my, x1: l, y1: my, margin: true });
+    }
+    if edges.right && rt == area.x + area.w - padding {
+        push(Guide { x0: rt, y0: my, x1: area.x + area.w, y1: my, margin: true });
+    }
+    if edges.top && t == area.y + padding {
+        push(Guide { x0: mx, y0: area.y, x1: mx, y1: t, margin: true });
+    }
+    if edges.bottom && b == area.y + area.h - padding {
+        push(Guide { x0: mx, y0: b, x1: mx, y1: area.y + area.h, margin: true });
+    }
+    (dx, dy, guides)
+}
+
+/// How to line controls up with the primary one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Align {
+    Lefts,
+    Centers,
+    Rights,
+    Tops,
+    Middles,
+    Bottoms,
+    SameWidth,
+    SameHeight,
+    SameSize,
+}
+
+/// `r` lined up with `primary`.
+pub fn aligned(primary: Rect, r: Rect, how: Align) -> Rect {
+    let mut out = r;
+    match how {
+        Align::Lefts => out.x = primary.x,
+        Align::Centers => out.x = primary.x + primary.w / 2 - r.w / 2,
+        Align::Rights => out.x = primary.x + primary.w - r.w,
+        Align::Tops => out.y = primary.y,
+        Align::Middles => out.y = primary.y + primary.h / 2 - r.h / 2,
+        Align::Bottoms => out.y = primary.y + primary.h - r.h,
+        Align::SameWidth => out.w = primary.w,
+        Align::SameHeight => out.h = primary.h,
+        Align::SameSize => {
+            out.w = primary.w;
+            out.h = primary.h;
+        }
+    }
+    out
+}
+
+/// The distance Visual Studio keeps from a container's edge: 12 on a form, 3 elsewhere.
+pub fn snap_padding(d: &Designer, owner: &str) -> i32 {
+    if d.is_root(owner) { 12 } else { 3 }
+}

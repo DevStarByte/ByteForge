@@ -9,6 +9,7 @@
 //! nothing changed are written exactly as they were read, so a save without changes changes nothing.
 
 mod catalog;
+mod clip;
 mod code;
 mod grid;
 mod layout;
@@ -16,6 +17,7 @@ mod lex;
 mod values;
 
 pub use catalog::*;
+pub use clip::*;
 pub use code::*;
 pub use grid::*;
 pub use layout::*;
@@ -701,23 +703,7 @@ impl Designer {
         let info = info(&short);
         let name = self.unique_name(&short);
         let written = if self.style.qualified || short == "Timer" { format!("System.Windows.Forms.{short}") } else { short.clone() };
-        let ctor = if info.is_some_and(|i| i.needs_container) {
-            self.ensure_components_container();
-            format!("{}components", self.this())
-        } else {
-            String::new()
-        };
-        self.comps.push(Component { name: name.clone(), type_name: written.clone(), ctor, create: None, members: Vec::new(), children: Vec::new() });
-        let last_create = self.setup.iter().rposition(|s| matches!(s, Setup::Create(_)));
-        let first_layout = self.setup.iter().position(|s| matches!(s, Setup::Raw { text, .. } if is_layout_call(text)));
-        let at_setup = last_create.map(|i| i + 1).or(first_layout).unwrap_or(self.setup.len());
-        self.setup.insert(at_setup, Setup::Create(name.clone()));
-        let root_block = self.blocks.iter().position(|b| *b == self.class_name).unwrap_or(self.blocks.len());
-        self.blocks.insert(root_block, name.clone());
-        self.add_field(&written, &name);
-        if info.is_some_and(|i| i.init) {
-            self.add_init_calls(&name);
-        }
+        self.create(&name, &written, info.is_some_and(|i| i.needs_container), info.is_some_and(|i| i.init));
 
         let component = is_component(&short);
         if !component {
@@ -770,6 +756,28 @@ impl Designer {
             _ => {}
         }
         name
+    }
+
+    /// Creates a component with nothing set on it yet: its creation statement, its (empty) block before the
+    /// form's, its field and, for ISupportInitialize types, BeginInit/EndInit.
+    fn create(&mut self, name: &str, written_type: &str, needs_container: bool, init: bool) {
+        let ctor = if needs_container {
+            self.ensure_components_container();
+            format!("{}components", self.this())
+        } else {
+            String::new()
+        };
+        self.comps.push(Component { name: name.to_owned(), type_name: written_type.to_owned(), ctor, create: None, members: Vec::new(), children: Vec::new() });
+        let last_create = self.setup.iter().rposition(|s| matches!(s, Setup::Create(_)));
+        let first_layout = self.setup.iter().position(|s| matches!(s, Setup::Raw { text, .. } if is_layout_call(text)));
+        let at_setup = last_create.map(|i| i + 1).or(first_layout).unwrap_or(self.setup.len());
+        self.setup.insert(at_setup, Setup::Create(name.to_owned()));
+        let root_block = self.blocks.iter().position(|b| *b == self.class_name).unwrap_or(self.blocks.len());
+        self.blocks.insert(root_block, name.to_owned());
+        self.add_field(written_type, name);
+        if init {
+            self.add_init_calls(name);
+        }
     }
 
     fn add_child(&mut self, parent: &str, slot: &str, name: &str, front: bool) {

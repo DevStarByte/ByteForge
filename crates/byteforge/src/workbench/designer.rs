@@ -237,4 +237,91 @@ mod tests {
             assert!(designer_tab.editor.read(cx).state.buffer.text().contains("        button1.Click += button1_Click;"));
         });
     }
+
+    /// Ctrl+C / Ctrl+V duplicate a control next to the original; dragging it snaps to the form's edge and to
+    /// the recommended space below the other; Align and Same Size line two up; Ctrl+X / Ctrl+V move one.
+    #[gpui::test]
+    fn copies_pastes_snaps_and_aligns(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "designer-clip");
+        let dir = guard.dir.join("ws");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("Form1.cs"), CODE).unwrap();
+        std::fs::write(dir.join("Form1.Designer.cs"), DESIGNER).unwrap();
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(dir.clone(), window, cx);
+            wb.open_file(dir.join("Form1.cs"), None, window, cx);
+        });
+        cx.run_until_parked();
+        cx.dispatch_action(ViewDesigner);
+        cx.run_until_parked();
+        let designer = designer_of(&wb, cx);
+        let form = bounds(cx, "designer-form-client");
+        let at = |x: f32, y: f32| form.origin + gpui::point(px(x), px(y));
+        let ctrl = gpui::Modifiers::secondary_key();
+
+        // Select the button, copy and paste: button2, 10 px down and right, selected.
+        cx.simulate_click(at(30., 20.), gpui::Modifiers::none());
+        cx.press("ctrl-c");
+        cx.press("ctrl-v");
+        cx.run_until_parked();
+        designer.read_with(cx, |d, _| {
+            assert_eq!(d.selection(), ["button2"]);
+            let m = d.model().unwrap();
+            assert_eq!((m.location("button2"), m.text_of("button2").as_deref()), ((22, 22), Some("OK")));
+        });
+
+        // Drag it 8 left and 17 down: it snaps to 12 from the form's edge and 6 below button1.
+        let p = at(60., 30.);
+        let to = p + gpui::point(px(-8.), px(17.));
+        cx.simulate_mouse_down(p, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_move(p + gpui::point(px(-4.), px(8.)), Some(MouseButton::Left), gpui::Modifiers::none());
+        cx.simulate_mouse_move(to, Some(MouseButton::Left), gpui::Modifiers::none());
+        cx.run_until_parked();
+        designer.read_with(cx, |d, _| assert!(!d.guides().is_empty(), "snap lines show while dragging"));
+        cx.simulate_mouse_up(to, MouseButton::Left, gpui::Modifiers::none());
+        cx.run_until_parked();
+        designer.read_with(cx, |d, _| {
+            assert_eq!(d.model().unwrap().location("button2"), (12, 41));
+            assert!(d.guides().is_empty());
+        });
+
+        // Make button2 wider, move button1 right; with both selected (button2 first), Lefts and Same Size.
+        cx.press("ctrl-shift-right");
+        cx.simulate_click(at(50., 20.), gpui::Modifiers::none());
+        for _ in 0..5 {
+            cx.press("right");
+        }
+        designer.read_with(cx, |d, _| assert_eq!(d.model().unwrap().location("button1"), (17, 12)));
+        cx.simulate_click(at(50., 50.), gpui::Modifiers::none());
+        cx.simulate_click(at(50., 20.), ctrl);
+        designer.read_with(cx, |d, _| assert_eq!(d.selection(), ["button2", "button1"]));
+        click(cx, "designer-align-lefts");
+        click(cx, "designer-same-size");
+        designer.read_with(cx, |d, _| {
+            let m = d.model().unwrap();
+            assert_eq!((m.location("button1"), m.size("button1")), ((12, 12), (83, 23)));
+        });
+
+        // Cut button1 and paste it back: its name is free again, and so is its place.
+        cx.simulate_click(at(300., 200.), gpui::Modifiers::none());
+        cx.simulate_click(at(50., 20.), gpui::Modifiers::none());
+        cx.press("ctrl-x");
+        designer.read_with(cx, |d, _| assert!(d.model().unwrap().get("button1").is_none()));
+        cx.press("ctrl-v");
+        designer.read_with(cx, |d, _| {
+            assert_eq!(d.selection(), ["button1"]);
+            assert_eq!(d.model().unwrap().location("button1"), (12, 12));
+        });
+        cx.press("ctrl-a");
+        designer.read_with(cx, |d, _| assert_eq!(d.selection().len(), 2));
+
+        // Saved, the file reads back to the same two buttons.
+        cx.dispatch_action(Save);
+        cx.run_until_parked();
+        let text = std::fs::read_to_string(dir.join("Form1.Designer.cs")).unwrap();
+        let m = winforms::Designer::parse(&text, "Form").unwrap();
+        assert_eq!(m.root().children.len(), 2, "{text}");
+        assert!(text.contains("        button2.Location = new Point(12, 41);"), "{text}");
+        assert!(text.contains("    private Button button2;"), "{text}");
+    }
 }

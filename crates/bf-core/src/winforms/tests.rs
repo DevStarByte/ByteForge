@@ -409,3 +409,105 @@ fn other_root_types_and_errors() {
     assert!(Designer::parse("class A { }", "Form").is_err());
     assert!(Designer::parse("class A { void InitializeComponent() { x(); ", "Form").is_err());
 }
+
+#[test]
+fn copies_and_pastes_in_the_same_form() {
+    let mut d = net8();
+    let f = d.copy(&["groupBox1".into(), "checkBox1".into(), "Form1".into()]);
+    assert_eq!(f.top, ["groupBox1"], "what is inside a copied container comes with it; the form doesn't");
+    let pasted = d.paste(&f, "Form1", "");
+    assert_eq!(pasted, ["groupBox2"]);
+    assert_eq!(d.parent("checkBox2"), Some(("groupBox2", "")), "the check box comes along, renamed");
+    assert_eq!(d.location("groupBox2"), (22, 50), "on the original's place it moves aside");
+    assert_eq!(d.location("checkBox2"), (6, 22), "inside, nothing moves");
+    assert_eq!(d.text_of("groupBox2").as_deref(), Some("Options"));
+    assert_eq!(d.root().children.first().map(|c| c.name.as_str()), Some("groupBox2"), "in front");
+    let text = d.to_text();
+    assert!(text.contains("            groupBox2.Controls.Add(checkBox2);"), "{text}");
+    assert!(text.contains("            groupBox2.Name = \"groupBox2\";"), "{text}");
+    assert!(text.contains("            groupBox2.SuspendLayout();") && text.contains("            groupBox2.ResumeLayout(false);"), "{text}");
+    assert!(text.contains("        private GroupBox groupBox2;\n        private CheckBox checkBox2;\n"), "{text}");
+    // Read back, it is the same form.
+    let again = Designer::parse(&text, "Form").unwrap();
+    assert_eq!(again.to_text(), text);
+    assert_eq!(again.parent("checkBox2"), Some(("groupBox2", "")));
+
+    // Events stay hooked up in the same form; lists and components come along.
+    let f = d.copy(&["button1".into(), "comboBox1".into(), "timer1".into()]);
+    let pasted = d.paste(&f, "groupBox1", "");
+    assert_eq!(pasted, ["button2", "comboBox2", "timer2"]);
+    assert_eq!(d.events("button2"), [("Click", "button1_Click")]);
+    assert_eq!(d.list_items("comboBox2"), ["One", "Two"]);
+    assert_eq!(d.parent("button2"), Some(("groupBox1", "")));
+    assert_eq!(d.location("button2"), (713, 415), "nothing in the group box is there");
+    assert!(d.tray().iter().any(|c| c.name == "timer2"));
+    assert!(d.to_text().contains("            timer2 = new System.Windows.Forms.Timer(components);"));
+}
+
+#[test]
+fn pastes_into_another_form_in_its_style() {
+    let src = net8();
+    let f = src.copy(&["menuStrip1".into(), "button1".into()]);
+    let mut d = framework();
+    let pasted = d.paste(&f, "MainForm", "");
+    assert_eq!(pasted, ["button1", "menuStrip1"], "free names stay");
+    assert_eq!(d.events("button1"), [], "button1_Click isn't in MainForm");
+    assert_eq!(d.strip_items("menuStrip1"), ["fileToolStripMenuItem"]);
+    let text = d.to_text();
+    assert!(text.contains("            this.button1 = new System.Windows.Forms.Button();"), "{text}");
+    assert!(text.contains("            this.button1.Location = new System.Drawing.Point(713, 415);"), "{text}");
+    assert!(text.contains("            this.menuStrip1.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem });"), "{text}");
+    assert!(text.contains("        private System.Windows.Forms.ToolStripMenuItem fileToolStripMenuItem;"), "{text}");
+    assert!(text.contains("            this.Controls.Add(this.button1);\n            this.Controls.Add(this.menuStrip1);\n            this.Controls.Add(this.pictureBox1);"), "{text}");
+    assert_eq!(Designer::parse(&text, "Form").unwrap().to_text(), text);
+
+    // The other way round: an ISupportInitialize control gets BeginInit/EndInit and .NET 6 style.
+    let f = framework().copy(&["pictureBox1".into(), "label1".into()]);
+    let mut d = net8();
+    let pasted = d.paste(&f, "Form1", "");
+    assert_eq!(pasted, ["label1", "pictureBox1"]);
+    let text = d.to_text();
+    assert!(text.contains("            pictureBox1 = new PictureBox();"), "{text}");
+    assert!(text.contains("            ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();"), "{text}");
+    assert!(text.contains("            ((System.ComponentModel.ISupportInitialize)pictureBox1).EndInit();"), "{text}");
+    assert!(text.contains("            label1.Location = new Point(12, 9);"), "{text}");
+    assert!(f.to_code().contains("label1 = new System.Windows.Forms.Label();\n"));
+}
+
+#[test]
+fn snaps_to_edges_spacing_and_the_container() {
+    let area = Rect::new(0, 0, 400, 300);
+    let other = Rect::new(100, 100, 75, 23);
+    // 2 px off the other's left edge, far from it vertically: lines up with it.
+    let (dx, dy, guides) = snap(Rect::new(102, 150, 75, 23), Edges::ALL, &[other], area, 12, 6);
+    assert_eq!((dx, dy), (-2, 0));
+    assert!(guides.contains(&Guide { x0: 100, y0: 100, x1: 100, y1: 173, margin: false }), "{guides:?}");
+    // Right of it, 8 px apart and about as high: the recommended 6 px, and the tops line up.
+    let (dx, dy, guides) = snap(Rect::new(183, 101, 75, 23), Edges::ALL, &[other], area, 12, 6);
+    assert_eq!((dx, dy), (-2, -1));
+    assert!(guides.contains(&Guide { x0: 175, y0: 111, x1: 181, y1: 111, margin: true }), "{guides:?}");
+    assert!(guides.contains(&Guide { x0: 100, y0: 100, x1: 256, y1: 100, margin: false }), "{guides:?}");
+    // Near the form's corner: 12 px from both edges.
+    let (dx, dy, guides) = snap(Rect::new(10, 15, 75, 23), Edges::ALL, &[], area, 12, 6);
+    assert_eq!((dx, dy), (2, -3));
+    assert_eq!(guides.len(), 2);
+    // Resizing the right edge: only it moves (to the other's left edge); the left one gives no line.
+    let right = Edges { left: false, top: false, right: true, bottom: false };
+    let (dx, dy, guides) = snap(Rect::new(30, 200, 72, 23), right, &[other], area, 12, 6);
+    assert_eq!((dx, dy), (-2, 0));
+    assert_eq!(guides, [Guide { x0: 100, y0: 100, x1: 100, y1: 223, margin: false }]);
+    // Nothing near: nothing moves.
+    assert_eq!(snap(Rect::new(250, 200, 50, 20), Edges::ALL, &[other], area, 12, 6), (0, 0, vec![]));
+}
+
+#[test]
+fn aligns_with_the_primary_control() {
+    let p = Rect::new(10, 20, 100, 40);
+    let r = Rect::new(50, 70, 60, 10);
+    assert_eq!(aligned(p, r, Align::Lefts), Rect::new(10, 70, 60, 10));
+    assert_eq!(aligned(p, r, Align::Centers), Rect::new(30, 70, 60, 10));
+    assert_eq!(aligned(p, r, Align::Rights), Rect::new(50, 70, 60, 10));
+    assert_eq!(aligned(p, r, Align::Middles), Rect::new(50, 35, 60, 10));
+    assert_eq!(aligned(p, r, Align::Bottoms), Rect::new(50, 50, 60, 10));
+    assert_eq!(aligned(p, r, Align::SameSize), Rect::new(50, 70, 100, 40));
+}

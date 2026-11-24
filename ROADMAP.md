@@ -139,8 +139,12 @@ Section 1 above is what still has to be checked by hand; this is what the releas
       a component tray. Changes are written into `InitializeComponent` through the file's editor (undo, save,
       autosave and git as for any file) in the file's style, statements it doesn't know kept as written; checked
       with `dotnet build` on .NET 11 (both styles).
-- [ ] Still to come: editing menu items and grid columns visually, copy/paste of controls, snap lines and
-      alignment, localized forms (`resources.ApplyResources`) beyond keeping them.
+- [x] Copy, cut and paste of controls (Ctrl+C / X / V, with what is inside them, within a form or into another
+      one, in that file's style), Select All; snap lines while dragging and resizing (edges, the recommended
+      spacing, the container's edge; Alt: off); Align Lefts / Centers / Rights / Tops / Middles / Bottoms and
+      Same Size on several selected controls.
+- [ ] Still to come: editing menu items and grid columns visually, localized forms (`resources.ApplyResources`)
+      beyond keeping them.
 
 ## 8. Later
 
