@@ -3,6 +3,7 @@
 mod bars;
 mod benchmarks;
 mod debug;
+mod designer;
 mod dotnet;
 mod editor_area;
 mod ef;
@@ -105,6 +106,8 @@ enum Page {
     Secrets { project: PathBuf, file: PathBuf },
     /// A `.resx` resource in all its languages, as a table.
     Resx(Entity<crate::resx_view::ResxView>),
+    /// The Windows Forms designer of a form (the tab's editor holds its .Designer.cs).
+    Designer(Entity<crate::form_designer::FormDesigner>),
 }
 
 impl Tab {
@@ -258,7 +261,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "refactor.extractBaseClass", "-", "refactor.introduceVariable", "refactor.introduceConstant", "refactor.introduceField", "refactor.introduceParameter",
         "-", "refactor.inline", "refactor.moveTypeToFile", "-", "refactor.removeAndSortUsings", "refactor.sortUsings",
     ]),
-    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.tasks", "view.efCore", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.splitEditor", "view.openInOtherGroup", "-", "view.toggleWordWrap", "view.toggleSideBar", "view.togglePanel"]),
+    ("View", &["view.commandPalette", "view.quickOpen", "-", "view.explorer", "view.search", "view.scm", "view.debug", "view.testing", "view.tasks", "view.efCore", "view.modules", "view.problems", "view.output", "view.debugConsole", "-", "terminal.toggle", "terminal.new", "terminal.selectDefaultShell", "-", "view.splitEditor", "view.openInOtherGroup", "-", "winforms.viewDesigner", "winforms.viewCode", "-", "view.toggleWordWrap", "view.toggleSideBar", "view.togglePanel"]),
     ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "edit.showCallHierarchy", "edit.showTypeHierarchy", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.fileHistory", "git.showLineCommit", "git.toggleBlame", "git.toggleBlameGutter", "-",
         "merge.editor", "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
@@ -391,6 +394,8 @@ pub struct Workbench {
     /// The module whose details are open in the Modules view.
     registry_task: Option<Task<()>>,
     md_cache: preview::DiskCache,
+    /// Whether a .cs file is a form the designer opens (it has a .Designer.cs), by path.
+    designable: HashMap<PathBuf, bool>,
     /// The Markdown preview of each previewed file (its scroll position and selection survive tab switches).
     md_views: HashMap<PathBuf, Entity<preview::MarkdownView>>,
     plugin_tx: Option<flume::Sender<PluginMessage>>,
@@ -676,6 +681,7 @@ impl Workbench {
             module_filter,
             registry_task: None,
             md_cache: HashMap::new(),
+            designable: HashMap::new(),
             md_views: HashMap::new(),
             plugin_tx: None,
             formatters: Vec::new(),
@@ -1169,6 +1175,8 @@ pub(crate) fn default_key(id: &str) -> String {
         "view.goToSymbol" => "alt-\\",
         "edit.rename" => "f2",
         "view.toggleWordWrap" => "alt-z",
+        "winforms.viewDesigner" => "shift-f7",
+        "winforms.viewCode" => "f7",
         "edit.quickFix" => "ctrl-.",
         "edit.formatDocument" => "ctrl-shift-d",
         "refactor.menu" => "ctrl-shift-r",

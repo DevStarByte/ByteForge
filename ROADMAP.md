@@ -128,7 +128,21 @@ Section 1 above is what still has to be checked by hand; this is what the releas
       `Version` (or `VersionOverride`) are listed with "Move to Directory.Packages.props". "Enable Central Package
       Management" writes the props file from the projects' current versions and removes them from the projects.
 
-## 7. Later
+## 7. Windows Forms
+
+- [x] A Windows Forms designer, built in: View Designer (Shift+F7, the tab strip's button on a form) opens a
+      form or user control from its `.Designer.cs`, drawn by ByteForge (Windows 11 look; works on Linux and
+      macOS). Toolbox (common controls, containers, menus, data, components) by click, double-click or drag;
+      select, move, resize (handles, arrow keys, Shift+arrows), drop into containers, Bring to Front / Send to
+      Back, Delete; a property grid by category with switches, choices, colors, anchors, fonts, list items and
+      every other property as code; events (double-click: `<name>_<Event>` added to the code file and opened);
+      a component tray. Changes are written into `InitializeComponent` through the file's editor (undo, save,
+      autosave and git as for any file) in the file's style, statements it doesn't know kept as written; checked
+      with `dotnet build` on .NET 11 (both styles).
+- [ ] Still to come: editing menu items and grid columns visually, copy/paste of controls, snap lines and
+      alignment, localized forms (`resources.ApplyResources`) beyond keeping them.
+
+## 8. Later
 
 - [ ] Code coverage in the gutter.
 - [ ] Sticky scroll (the current type and member pinned at the top of the editor).

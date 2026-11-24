@@ -29,6 +29,7 @@ pub mod templates;
 pub mod update;
 pub mod theme;
 pub mod watch;
+pub mod winforms;
 pub mod workspace;
 
 pub use paths::AppPaths;

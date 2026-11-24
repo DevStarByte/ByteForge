@@ -128,6 +128,9 @@ actions!(
 
 actions!(diff, [DiffNextChange, DiffPreviousChange, DiffToggleInline]);
 
+// The Windows Forms designer: Shift+F7 opens a form's designer, F7 (in it) its code.
+actions!(winforms, [ViewDesigner, ViewCode]);
+
 // Git in the editor: merge conflicts and blame (handled by the editor), file history (the workbench).
 actions!(merge, [AcceptCurrentChange, AcceptIncomingChange, AcceptBothChanges, NextConflict, PreviousConflict, ToggleMergeEditor]);
 actions!(git, [ShowLineCommit, GitFileHistory, GitToggleBlame, GitToggleBlameGutter]);
@@ -344,6 +347,8 @@ fn builtin() -> Vec<Builtin> {
         ("view.focusSecondGroup", "Focus Second Editor Group", "View", Box::new(FocusSecondGroup), Some("ctrl-2")),
         ("markdown.openPreview", "Open Preview", "Markdown", Box::new(MarkdownOpenPreview), Some("ctrl-shift-v")),
         ("markdown.openPreviewToSide", "Open Preview to the Side", "Markdown", Box::new(MarkdownOpenPreviewToSide), None),
+        ("winforms.viewDesigner", "View Designer", "Windows Forms", Box::new(ViewDesigner), Some("shift-f7")),
+        ("winforms.viewCode", "View Code", "Windows Forms", Box::new(ViewCode), None),
         ("theme.select", "Color Theme", "Preferences", Box::new(SelectTheme), Some("ctrl-k")),
         ("theme.customize", "Customize Current Theme", "Preferences", Box::new(CustomizeTheme), None),
         ("theme.edit", "Open Current Theme File", "Preferences", Box::new(EditTheme), None),
@@ -639,6 +644,7 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
         ]);
     }
     cx.bind_keys([kb("f7", DiffNextChange, Some("DiffView")), kb("shift-f7", DiffPreviousChange, Some("DiffView"))]);
+    cx.bind_keys([kb("f7", ViewCode, Some("FormDesigner"))]);
 
     let term = Some(TERMINAL);
     let mut terminal_bindings = if cfg!(target_os = "macos") {

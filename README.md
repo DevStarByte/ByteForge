@@ -56,6 +56,12 @@ live, and modules written in any language can extend it.
   (through `dotnet-counters`), and the app's CPU and memory in the status bar while it runs
 - **Tasks:** `.byteforge/tasks.json`, package.json scripts, Makefile targets and justfile recipes in a Tasks view
   and "Run Task…", each in a terminal
+- **Windows Forms designer:** View Designer (Shift+F7, or the button on a form's tab) shows the form of a
+  `Form1.cs` / `Form1.Designer.cs` with a toolbox, a property grid and the component tray. Place, move and resize
+  controls with the mouse or the arrow keys, drop them into panels, group boxes, tab pages and split containers,
+  set properties and hook events (double-click a control: its handler in the code). Everything is written into
+  `InitializeComponent` in the file's own style (.NET Framework or .NET 6+), so the designer file saves, undoes
+  and diffs like any file; it works on Linux and macOS too, as ByteForge draws the form itself
 - **Resource editor:** `.resx` files as one table per resource, a column per language: edit in place, add and
   remove keys everywhere at once, missing translations marked and in Problems
 - **Solution and NuGet:** a Solution view with the projects of the `.sln`/`.slnx`, their packages and project
@@ -193,6 +199,9 @@ themes and modules in that folder (to try a theme or a build without touching yo
 - Apps in Alpine (musl) containers can't be debugged (netcoredbg has no musl release). Blazor WebAssembly apps
   are debugged in Edge, Chrome or Chromium (Firefox isn't supported); a Blazor Web App's server project is
   debugged as usual, its WebAssembly client part not yet.
+- The Windows Forms designer draws controls itself, so they look close to, not exactly like, Windows Forms at run
+  time (images, custom controls and the cells of table layouts are approximate). It edits menu and tool strip
+  items, grid columns and data bindings as code only, and has no copy/paste of controls or snap lines yet.
 - Windows downloads aren't code-signed yet and the macOS app isn't notarized (see [Install](#install)).
 - Very large solutions take a while before diagnostics appear.
 

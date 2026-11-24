@@ -9,6 +9,7 @@ mod assets;
 mod diff_view;
 mod editor;
 mod explorer;
+mod form_designer;
 mod layout;
 mod markdown;
 mod markdown_preview;

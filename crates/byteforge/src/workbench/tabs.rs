@@ -14,7 +14,8 @@ impl Workbench {
     /// Opens `path` in a text editor, whatever its kind.
     pub(super) fn open_file_text(&mut self, path: PathBuf, at: Option<Point>, window: &mut Window, cx: &mut Context<Self>) {
         let path = normalize_path(&path);
-        let open = |t: &Tab| t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path));
+        // A form's designer holds its .Designer.cs, but opening that file shows its code.
+        let open = |t: &Tab| !matches!(t.page, Some(Page::Designer(_))) && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path));
         // Open in both groups: the view in the focused group.
         let existing = self.tabs.iter().position(|t| t.group == self.focus_group && open(t)).or_else(|| self.tabs.iter().position(open));
         if let Some(i) = existing {
@@ -211,7 +212,10 @@ impl Workbench {
             self.visible[group] = Some(ix);
             self.focus_group = group;
             let editor = self.tabs[ix].editor.clone();
-            editor.update(cx, |e, _| e.focus(window));
+            match &self.tabs[ix].page {
+                Some(Page::Designer(d)) => d.read(cx).focus(window),
+                _ => editor.update(cx, |e, _| e.focus(window)),
+            }
             let path = self.tabs[ix].path.clone();
             self.explorer.update(cx, |e, cx| e.set_active(path.as_deref(), cx));
             self.solution.update(cx, |s, cx| s.set_active(path.as_deref(), cx));

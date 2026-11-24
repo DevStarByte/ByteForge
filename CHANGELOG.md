@@ -3,6 +3,19 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.3.0
+
+- The Windows Forms designer: "View Designer" (Shift+F7, or the button on the tab of a form's code) opens a form
+  or user control from its `.Designer.cs`. A toolbox (Button, TextBox, Label, CheckBox, ComboBox, ListBox,
+  DataGridView, Panel, GroupBox, TabControl, SplitContainer, FlowLayoutPanel, TableLayoutPanel, MenuStrip,
+  StatusStrip, Timer, dialogs and more) places controls by click, drag or double-click; controls are moved and
+  resized with the mouse or the arrow keys and dropped into containers, which follows docking and anchors; the
+  property grid edits properties by category (switches, choices, colors, anchors, fonts, list items, and any
+  other property as code) and events (double-click: the handler is added to the code file and opened); a
+  component tray holds timers, tooltips and dialogs. Changes go into `InitializeComponent` in the file's own
+  style, through the file's editor, so undo, save and autosave work as for any file and a save without changes
+  changes nothing. ByteForge draws the form itself, so the designer works on Linux and macOS too.
+
 ## 1.2.0
 
 Section 6 of the roadmap: the rest of a .NET project. Released as a beta first: none of it has been clicked

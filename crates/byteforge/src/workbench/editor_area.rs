@@ -127,6 +127,7 @@ impl Workbench {
             Some(Page::Merge(merge)) => merge.into_any_element(),
             Some(Page::Secrets { project, file }) => self.render_secrets_page(&project, &file, cx).into_any_element(),
             Some(Page::Resx(view)) => view.into_any_element(),
+            Some(Page::Designer(designer)) => designer.into_any_element(),
             None => editor.into_any_element(),
         }
     }
@@ -136,6 +137,7 @@ impl Workbench {
         let indicator_bottom = t.layout.tab_indicator_bottom;
         let active = self.visible[group];
         let markdown_source = active.and_then(|i| self.tabs.get(i)).is_some_and(|t| t.is_document() && t.path.as_deref().is_some_and(preview::is_markdown));
+        let form_source = active.and_then(|i| self.tabs.get(i)).filter(|t| t.is_document()).and_then(|t| t.path.clone()).is_some_and(|p| self.is_designable(&p));
         let drop_color = t.c("focusBorder");
         let group_ix = group;
         let tab_els: Vec<_> = self
@@ -256,6 +258,21 @@ impl Workbench {
             ))
             // Empty space of the strip: to the end of this group.
             .on_drop(cx.listener(move |wb, d: &DraggedTab, w, cx| wb.move_tab(d.index, group_ix, None, w, cx)))
+            .when(form_source, |d| {
+                d.child(div().flex_none().h_full().flex().items_center().child(
+                    div()
+                        .id(SharedString::from(format!("designer-button-{group}")))
+                        .debug_selector(move || format!("designer-button-{group}"))
+                        .mx_2()
+                        .p(px(4.))
+                        .rounded(px(4.))
+                        .cursor_pointer()
+                        .hover(|s| s.bg(t.c("toolbar.hoverBackground")))
+                        .tooltip(tooltip(format!("View Designer ({})", crate::actions::key_label("shift-f7"))))
+                        .child(icon("layers", px(16.), t.c("icon.foreground")))
+                        .on_click(cx.listener(|wb, _, w, cx| wb.open_form_designer(w, cx))),
+                ))
+            })
             .when(markdown_source, |d| {
                 d.child(div().flex_none().h_full().flex().items_center().child(
                     div()

@@ -231,6 +231,8 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &SplitEditor, w, cx| wb.split_editor(w, cx)))
             .on_action(cx.listener(|wb, _: &MarkdownOpenPreview, w, cx| wb.open_markdown_preview(false, w, cx)))
             .on_action(cx.listener(|wb, _: &MarkdownOpenPreviewToSide, w, cx| wb.open_markdown_preview(true, w, cx)))
+            .on_action(cx.listener(|wb, _: &ViewDesigner, w, cx| wb.open_form_designer(w, cx)))
+            .on_action(cx.listener(|wb, _: &ViewCode, w, cx| wb.view_form_code(w, cx)))
             .on_action(cx.listener(|wb, _: &FocusFirstGroup, w, cx| wb.focus_group(0, w, cx)))
             .on_action(cx.listener(|wb, _: &FocusSecondGroup, w, cx| wb.focus_group(1, w, cx)))
             .on_action(cx.listener(|wb, _: &PreviousEditor, w, cx| wb.cycle_tab(-1, w, cx)))

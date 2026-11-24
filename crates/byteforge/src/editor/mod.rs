@@ -887,6 +887,12 @@ impl EditorView {
 
     // ───────────── language server ─────────────
 
+    /// Undoes (or `redo`es) the last edit, for views that edit the text without showing the editor (the form
+    /// designer).
+    pub fn undo_redo(&mut self, redo: bool, cx: &mut Context<Self>) {
+        self.edit(cx, |s| if redo { s.redo() } else { s.undo() });
+    }
+
     fn edit(&mut self, cx: &mut Context<Self>, f: impl FnOnce(&mut EditorState)) {
         if self.read_only {
             return;
