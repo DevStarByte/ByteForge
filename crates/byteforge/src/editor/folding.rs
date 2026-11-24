@@ -102,9 +102,10 @@ impl Folds {
     }
 
     /// Regions for the current text (recomputed when the buffer version changes).
-    pub fn regions(&mut self, version: u64, lines: impl FnOnce() -> Vec<String>, style: Style) -> &[(usize, usize)] {
+    pub fn regions(&mut self, version: u64, text: impl FnOnce() -> String, style: Style) -> &[(usize, usize)] {
         if self.regions_version != Some(version) {
-            let lines = lines();
+            let text = text();
+            let lines: Vec<&str> = text.split('\n').collect();
             self.regions = regions(&lines, style);
             self.regions_version = Some(version);
         }
@@ -153,7 +154,7 @@ impl Folds {
 }
 
 /// Foldable regions of `lines`, sorted by first line, at most one per first line (the largest).
-pub(crate) fn regions(lines: &[String], style: Style) -> Vec<(usize, usize)> {
+pub(crate) fn regions(lines: &[&str], style: Style) -> Vec<(usize, usize)> {
     let mut out = match style {
         Style::Braces => {
             let mut r = brace_regions(lines);
@@ -169,7 +170,7 @@ pub(crate) fn regions(lines: &[String], style: Style) -> Vec<(usize, usize)> {
 
 /// Runs of `//` (and `///` doc) comment lines, multi-line `/* … */` comments, and the block of `using`
 /// directives (blank lines between them included): each foldable when it spans two lines or more.
-fn comment_and_using_regions(lines: &[String]) -> Vec<(usize, usize)> {
+fn comment_and_using_regions(lines: &[&str]) -> Vec<(usize, usize)> {
     let is_using = |t: &str| {
         let t = t.strip_prefix("global ").unwrap_or(t);
         t.starts_with("using ") && t.ends_with(';') && !t.contains('(') && !t.starts_with("using var ")
@@ -214,7 +215,7 @@ fn comment_and_using_regions(lines: &[String]) -> Vec<(usize, usize)> {
     out
 }
 
-fn brace_regions(lines: &[String]) -> Vec<(usize, usize)> {
+fn brace_regions(lines: &[&str]) -> Vec<(usize, usize)> {
     #[derive(PartialEq)]
     enum State {
         Code,
@@ -317,7 +318,7 @@ fn brace_regions(lines: &[String]) -> Vec<(usize, usize)> {
     out
 }
 
-fn indent_regions(lines: &[String]) -> Vec<(usize, usize)> {
+fn indent_regions(lines: &[&str]) -> Vec<(usize, usize)> {
     let indent = |line: &str| -> Option<usize> {
         if line.trim().is_empty() {
             None
@@ -371,12 +372,17 @@ impl EditorView {
 
     /// Foldable regions of the current text.
     pub(crate) fn fold_regions(&mut self) -> Vec<(usize, usize)> {
+        self.refresh_fold_regions();
+        self.folds.cached_regions().to_vec()
+    }
+
+    /// Brings the cached regions up to the current text (once per change: one copy of the text, its lines
+    /// borrowed from it).
+    pub(crate) fn refresh_fold_regions(&mut self) {
         let version = self.state.buffer.version();
         let style = self.fold_style();
-        let buffer = &self.state.buffer;
-        self.folds
-            .regions(version, || (0..buffer.line_count()).map(|l| buffer.line(l).into_owned()).collect(), style)
-            .to_vec()
+        let rope = self.state.buffer.rope();
+        self.folds.regions(version, || rope.to_string(), style);
     }
 
     /// Folds or unfolds the region starting on `line` (gutter click).
@@ -495,8 +501,8 @@ impl EditorView {
 mod tests {
     use super::*;
 
-    fn lines(text: &str) -> Vec<String> {
-        text.lines().map(str::to_owned).collect()
+    fn lines(text: &str) -> Vec<&str> {
+        text.lines().collect()
     }
 
     #[test]

@@ -326,6 +326,11 @@ pub struct EditorView {
     pub(crate) caret_drawn: Option<(f32, f32)>,
     pub(crate) last_frame: Option<Instant>,
     pub(crate) blink_epoch: Instant,
+    /// The caret shows (the editor has focus in the active window), as of the last frame: only then does
+    /// blinking redraw.
+    pub(crate) caret_live: bool,
+    /// Counts new syntax or semantic colors (the minimap rebuilds when they change).
+    pub(crate) spans_generation: u64,
     pub(crate) layout: Layout,
     pub(crate) max_line_chars: usize,
     pub(crate) bracket_match: Option<(Point, Option<Point>)>,
@@ -461,6 +466,8 @@ impl EditorView {
             caret_drawn: None,
             last_frame: None,
             blink_epoch: Instant::now(),
+            caret_live: false,
+            spans_generation: 0,
             layout: Layout::default(),
             max_line_chars,
             bracket_match: None,
@@ -521,7 +528,10 @@ impl EditorView {
                 cx.background_executor().timer(Duration::from_millis(interval)).await;
                 let alive = this
                     .update(cx, |view, cx| {
-                        if view.cursor_blinking && Theme::global(cx).editor.caret_blink != crate::theme::CaretBlink::Solid {
+                        // No redraw while the caret is hidden or held solid after typing: a redraw draws the
+                        // whole window, and typing shouldn't compete with it.
+                        let blinking = view.cursor_blinking && Theme::global(cx).editor.caret_blink != crate::theme::CaretBlink::Solid;
+                        if blinking && view.caret_live && view.blink_epoch.elapsed() >= Duration::from_millis(SOLID_AFTER_TYPING_MS) {
                             cx.notify();
                         }
                     })
@@ -535,12 +545,13 @@ impl EditorView {
 
     pub(crate) fn caret_opacity(&self, cx: &App) -> f32 {
         let style = &Theme::global(cx).editor;
-        if !self.cursor_blinking {
+        // Not blinking (or in a window in the background, where blinking stops): solid.
+        if !self.cursor_blinking || !self.caret_live {
             return 1.0;
         }
         let period = (style.blink_interval_ms.max(100) * 2) as f32 / 1000.0;
         let elapsed = self.blink_epoch.elapsed().as_secs_f32();
-        if elapsed < 0.5 {
+        if elapsed < SOLID_AFTER_TYPING_MS as f32 / 1000.0 {
             return 1.0; // stay solid right after typing/moving
         }
         let t = (elapsed % period) / period;
@@ -812,6 +823,7 @@ impl EditorView {
             let _ = this.update(cx, |view, cx| {
                 if view.state.buffer.version() == version {
                     view.syntax_spans = Spans { list, covered };
+                    view.spans_generation += 1;
                     cx.notify();
                 }
             });
@@ -839,24 +851,43 @@ impl EditorView {
             let Ok(version) = this.update(cx, |v, _| v.state.buffer.version()) else { return };
             let rx = lsp.semantic_tokens(&path);
             let Ok(Ok(tokens)) = rx.recv_async().await else { return };
+            // The whole file's tokens are turned into byte spans on a background thread, against a copy of
+            // the text they were asked for.
+            let Ok(buffer) = this.update(cx, |view, cx| {
+                if view.state.buffer.version() != version {
+                    view.schedule_semantic(Duration::from_millis(200), cx);
+                    return None;
+                }
+                Some(view.state.buffer.rope().clone())
+            }) else {
+                return;
+            };
+            let Some(rope) = buffer else { return };
+            let (list, len) = cx
+                .background_executor()
+                .spawn(async move {
+                    let b = bf_text::Buffer::new(&rope.to_string());
+                    let mut list: Vec<Span> = tokens
+                        .iter()
+                        .filter(|t| (t.line as usize) < b.line_count())
+                        .map(|t| {
+                            let start = b.point_to_byte(b.utf16_to_point(t.line as usize, t.start as usize));
+                            let end = b.point_to_byte(b.utf16_to_point(t.line as usize, (t.start + t.length) as usize));
+                            Span { start, end, kind: t.kind }
+                        })
+                        .filter(|s| s.end > s.start)
+                        .collect();
+                    list.sort_by_key(|s| s.start);
+                    (list, b.len_bytes())
+                })
+                .await;
             let _ = this.update(cx, |view, cx| {
                 if view.state.buffer.version() != version {
                     view.schedule_semantic(Duration::from_millis(200), cx);
                     return;
                 }
-                let b = &view.state.buffer;
-                let mut list: Vec<Span> = tokens
-                    .iter()
-                    .filter(|t| (t.line as usize) < b.line_count())
-                    .map(|t| {
-                        let start = b.point_to_byte(b.utf16_to_point(t.line as usize, t.start as usize));
-                        let end = b.point_to_byte(b.utf16_to_point(t.line as usize, (t.start + t.length) as usize));
-                        Span { start, end, kind: t.kind }
-                    })
-                    .filter(|s| s.end > s.start)
-                    .collect();
-                list.sort_by_key(|s| s.start);
-                view.semantic_spans = Spans { list, covered: 0..b.len_bytes() };
+                view.semantic_spans = Spans { list, covered: 0..len };
+                view.spans_generation += 1;
                 cx.notify();
             });
         }));
@@ -1052,6 +1083,9 @@ impl EditorView {
     }
 
 }
+
+/// How long the caret stays solid after typing or moving it.
+const SOLID_AFTER_TYPING_MS: u64 = 500;
 
 impl Drop for EditorView {
     fn drop(&mut self) {
