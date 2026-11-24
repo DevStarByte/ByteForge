@@ -47,7 +47,7 @@ conventions: Ctrl+Space, Ctrl+Tab, Ctrl+G, Ctrl+F5 and Ctrl+\` stay on ⌃; Repl
 
 | Shortcut | Action | Shortcut | Action |
 |---|---|---|---|
-| Ctrl+Shift+P / F1 | Command palette | Ctrl+P | Go to file |
+| Ctrl+Shift+P / F1 | Command palette | Ctrl+P | Go to file (`name:line` or `name:line:column` opens it there) |
 | Ctrl+Shift+O | Open folder | Ctrl+G | Go to line |
 | Ctrl+S / Ctrl+Shift+S | Save / Save as | F12, Ctrl+Click | Go to definition |
 | Ctrl+F / Ctrl+H | Find / Replace | Ctrl+Space | Completion |

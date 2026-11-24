@@ -51,7 +51,7 @@ impl Workbench {
                         item
                     })
                     .collect();
-                (items, "Search files by name (type > for commands, : for line)", "")
+                (items, "Search files by name (name:line opens at a line; > for commands, : for a line here)", "")
             }
             Mode::Themes => {
                 let current = Theme::global(cx).data.name.clone();
@@ -272,5 +272,39 @@ impl Workbench {
             self.log(format!("Operation failed: {e}"));
             self.show_panel(PanelView::Output, cx);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::workbench::settings_page::view_tests::workbench;
+
+    /// Ctrl+P with `name:line:column` opens the file there.
+    #[gpui::test]
+    fn go_to_file_opens_at_a_line(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "goto-line");
+        let dir = guard.dir.join("ws");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("notes.txt"), "one\ntwo\nthree\nfour\n").unwrap();
+        std::fs::write(dir.join("other.txt"), "x\n").unwrap();
+        wb.update_in(cx, |wb, window, cx| wb.open_folder(dir.clone(), window, cx));
+        for _ in 0..50 {
+            cx.run_until_parked();
+            if wb.read_with(cx, |wb, _| wb.workspace.files().len()) >= 2 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        cx.dispatch_action(QuickOpen);
+        cx.run_until_parked();
+        cx.simulate_input("notes:3:2");
+        cx.press("enter");
+        cx.run_until_parked();
+        wb.read_with(cx, |wb, cx| {
+            let tab = &wb.tabs[wb.active.expect("a file opened")];
+            assert_eq!(tab.title, "notes.txt");
+            assert_eq!(tab.editor.read(cx).state.caret(), Point::new(2, 1));
+        });
     }
 }

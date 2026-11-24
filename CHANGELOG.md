@@ -15,6 +15,8 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
   component tray holds timers, tooltips and dialogs. Changes go into `InitializeComponent` in the file's own
   style, through the file's editor, so undo, save and autosave work as for any file and a save without changes
   changes nothing. ByteForge draws the form itself, so the designer works on Linux and macOS too.
+- Go to File (Ctrl+P) takes a line, as in VS Code: `Form1.cs:42` or `Form1:42:7` opens the file at that line
+  (and column).
 
 ## 1.2.0
 

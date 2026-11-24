@@ -157,6 +157,8 @@ impl Palette {
             Mode::GoToLine => text.trim_start_matches(':').trim().to_owned(),
             Mode::Symbols => text.trim_start_matches('@').trim().to_owned(),
             Mode::WorkspaceSymbols => text.trim_start_matches('#').trim().to_owned(),
+            // `Form1.cs:42`: the files are matched by the name, the line is for opening.
+            Mode::Files => split_location(text.trim()).0.to_owned(),
             _ => text.trim().to_owned(),
         }
     }
@@ -232,13 +234,44 @@ impl Palette {
             return;
         }
         if let Some(&i) = self.filtered.get(self.selected) {
-            let action = self.items[i].action.clone();
+            let mut action = self.items[i].action.clone();
             if matches!(action, PaletteAction::GoToLine(usize::MAX)) {
                 return;
+            }
+            // A file picked with `:line` (or `:line:column`) opens there.
+            if let (PaletteAction::OpenFile(path), (_, Some(at))) = (&action, split_location(self.input.read(cx).text().trim())) {
+                action = PaletteAction::GoTo(path.clone(), at);
             }
             cx.emit(PaletteEvent::Accept(action));
         }
     }
+}
+
+/// Splits a `:line` or `:line:column` (1-based) off the end of a Go to File query: `Form1.cs:42:7` →
+/// (`Form1.cs`, line 41, column 6 as 0-based). A colon still being typed (`Form1.cs:`) is dropped too.
+pub fn split_location(query: &str) -> (&str, Option<bf_text::Point>) {
+    let number = |s: &str| (!s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())).then(|| s.parse::<usize>().ok()).flatten();
+    let mut name = query;
+    let mut numbers = Vec::new();
+    while numbers.len() < 2 {
+        match name.rsplit_once(':') {
+            Some((head, tail)) if !head.is_empty() => match number(tail) {
+                Some(n) => {
+                    numbers.push(n);
+                    name = head;
+                }
+                None => break,
+            },
+            _ => break,
+        }
+    }
+    let name = name.trim_end_matches(':');
+    let at = match numbers.as_slice() {
+        [line] => Some(bf_text::Point::new(line.saturating_sub(1), 0)),
+        [col, line] => Some(bf_text::Point::new(line.saturating_sub(1), col.saturating_sub(1))),
+        _ => None,
+    };
+    (name, at)
 }
 
 /// Subsequence match with bonuses for word starts and consecutive characters.
@@ -345,5 +378,23 @@ impl Palette {
     /// The actions of the listed items (tests pick one and accept it).
     pub(crate) fn items_for_test(&self) -> Vec<PaletteAction> {
         self.items.iter().map(|i| i.action.clone()).collect()
+    }
+}
+
+#[cfg(test)]
+mod location_tests {
+    use super::split_location;
+    use bf_text::Point;
+
+    #[test]
+    fn a_line_and_column_after_the_name() {
+        assert_eq!(split_location("Form1.cs:42"), ("Form1.cs", Some(Point::new(41, 0))));
+        assert_eq!(split_location("Form1.cs:42:7"), ("Form1.cs", Some(Point::new(41, 6))));
+        assert_eq!(split_location("form1:1"), ("form1", Some(Point::new(0, 0))));
+        assert_eq!(split_location("Form1.cs:"), ("Form1.cs", None), "a colon being typed doesn't hide the file");
+        assert_eq!(split_location("Form1.cs:4x"), ("Form1.cs:4x", None));
+        assert_eq!(split_location("Form1.cs"), ("Form1.cs", None));
+        assert_eq!(split_location(":12"), (":12", None), "a bare :line is Go to Line, not a file");
+        assert_eq!(split_location("a:1:2:3"), ("a:1", Some(Point::new(1, 2))));
     }
 }
