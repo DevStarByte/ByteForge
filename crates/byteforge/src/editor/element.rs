@@ -134,6 +134,8 @@ pub struct Prepaint {
     links: Vec<(usize, Vec<(usize, usize)>)>,
     /// Code Lens rows: the line they sit above, their x from the text's left edge, their text.
     lenses: Vec<(usize, f32, ShapedLine)>,
+    /// Sticky scroll: each pinned line's text and line number (with its width).
+    sticky: Vec<(ShapedLine, Option<(ShapedLine, f32)>)>,
 }
 
 impl Element for EditorElement {
@@ -210,7 +212,7 @@ impl Element for EditorElement {
                 minimap: if view.minimap_enabled && f32::from(bounds.size.width) > 500.0 { theme.n("minimap.width", 80.0).round() } else { 0.0 },
                 blame,
             };
-            if fold_width > 0.0 {
+            if fold_width > 0.0 || view.sticky_enabled() {
                 // Cached per buffer version.
                 view.schedule_fold_regions(cx);
             }
@@ -238,6 +240,7 @@ impl Element for EditorElement {
             } else {
                 view.scroll = view.scroll_target;
             }
+            view.update_sticky();
             let caret = view.state.caret();
             let caret_line = view.state.buffer.line(caret.line);
             let _ = &caret_line;
@@ -293,17 +296,19 @@ impl Element for EditorElement {
         let note_color = theme.c_or("editorCodeLens.foreground", 0x99999999);
         let note_run = |len: usize| TextRun { len, font: inlay_font.clone(), color: note_color, background_color: None, underline: None, strikethrough: None };
 
-        let mut shaped_inputs: Vec<(usize, String, Vec<TextRun>, u64)> = Vec::new();
+        // The visible lines, then the pinned ones (`true`), shaped the same way.
+        let mut shaped_inputs: Vec<(usize, String, Vec<TextRun>, u64, bool)> = Vec::new();
         {
             let view = self.view.read(cx);
             let tab = view.state.tab_size;
-            for line_ix in first..=last {
-                if view.folds.is_hidden(line_ix) {
+            let targets = (first..=last).map(|l| (l, false)).chain(view.sticky.iter().map(|s| (s.line, true)));
+            for (line_ix, pinned) in targets {
+                if !pinned && view.folds.is_hidden(line_ix) {
                     continue;
                 }
                 let text = view.state.buffer.line(line_ix);
                 let note = view.end_of_line_note(line_ix);
-                if text.is_empty() && note.is_none() {
+                if text.is_empty() && note.is_none() && !pinned {
                     continue;
                 }
                 let kinds = view.line_kinds(line_ix, text.len());
@@ -369,14 +374,14 @@ impl Element for EditorElement {
                 kinds.hash(&mut hasher);
                 inlays.hash(&mut hasher);
                 note.hash(&mut hasher);
-                shaped_inputs.push((line_ix, display, runs, hasher.finish()));
+                shaped_inputs.push((line_ix, display, runs, hasher.finish(), pinned));
             }
         }
 
         // Resolve bracket colors (needs mutable depth cache).
         if use_brackets {
             self.view.update(cx, |view, _| {
-                for (line_ix, display, runs, hash) in &mut shaped_inputs {
+                for (line_ix, display, runs, hash, _) in &mut shaped_inputs {
                     let mut depth = view.depth_at(*line_ix);
                     depth.hash(&mut DefaultHasher::new());
                     *hash ^= (depth as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
@@ -413,7 +418,8 @@ impl Element for EditorElement {
         }
 
         let view_cache_len = self.view.read(cx).line_cache.len();
-        for (line_ix, display, runs, hash) in shaped_inputs {
+        let mut sticky_text = Vec::new();
+        for (line_ix, display, runs, hash, pinned) in shaped_inputs {
             let cached = self.view.read(cx).line_cache.get(&hash).cloned();
             let shaped = match cached {
                 Some(s) => s,
@@ -425,7 +431,11 @@ impl Element for EditorElement {
                     s
                 }
             };
-            lines.push((line_ix, 0.0, shaped));
+            if pinned {
+                sticky_text.push((line_ix, shaped));
+            } else {
+                lines.push((line_ix, 0.0, shaped));
+            }
         }
         if view_cache_len > 4000 {
             self.view.update(cx, |view, _| view.line_cache.clear());
@@ -545,7 +555,26 @@ impl Element for EditorElement {
             }
         }
 
-        Prepaint { lines, numbers, blame, links, lenses }
+        // Line numbers of the pinned lines.
+        let sticky = sticky_text
+            .into_iter()
+            .map(|(line_ix, shaped)| {
+                let number = show_numbers.then(|| {
+                    let label = match &labels {
+                        Some(labels) => labels.get(line_ix).copied().flatten().map(|n| n.to_string()).unwrap_or_default(),
+                        None => (line_ix + 1).to_string(),
+                    };
+                    let color = if line_ix == caret_line { active_number_color } else { number_color };
+                    let run = TextRun { len: label.len(), font: editor_font.clone(), color, background_color: None, underline: None, strikethrough: None };
+                    let shaped = text_system.shape_line(SharedString::from(label), px(number_size), &[run], None);
+                    let width = f32::from(shaped.width);
+                    (shaped, width)
+                });
+                (shaped, number)
+            })
+            .collect();
+
+        Prepaint { lines, numbers, blame, links, lenses, sticky }
     }
 
     fn paint(
@@ -610,7 +639,15 @@ impl Element for EditorElement {
 
         // Each area is painted exactly once so translucent themes stay translucent (alphas don't stack).
         window.paint_quad(fill(Bounds::new(point(px(gutter_right), bounds.top()), size(width - px(l.gutter), bounds.size.height)), theme.bg("editor.background")));
-        let text_clip = Bounds::new(point(px(gutter_right), bounds.top()), size(px(l.text_width() + (l.text_left - gutter_right)), bounds.size.height));
+        let full_text_clip = Bounds::new(point(px(gutter_right), bounds.top()), size(px(l.text_width() + (l.text_left - gutter_right)), bounds.size.height));
+        // Sticky scroll: nothing is drawn under the pinned lines (they have no background of their own, so a
+        // translucent theme stays translucent).
+        let band = view.sticky_height.min(l.height);
+        let below_band = |b: Bounds<Pixels>| {
+            let top = b.top().max(bounds.top() + px(band));
+            Bounds::new(point(b.left(), top), size(b.size.width, (b.bottom() - top).max(px(0.))))
+        };
+        let text_clip = below_band(full_text_clip);
 
         window.with_content_mask(Some(gpui::ContentMask { bounds: text_clip }), |window| {
             let caret = view.caret;
@@ -924,13 +961,17 @@ impl Element for EditorElement {
         let gutter_bounds = Bounds::new(bounds.origin, size(px(l.gutter), bounds.size.height));
         window.paint_quad(fill(gutter_bounds, theme.bg("editorGutter.background")));
         let caret_line = view.caret.line;
-        if (first..=last).contains(&caret_line) && !view.has_selection && matches!(style.line_highlight, LineHighlight::Gutter | LineHighlight::All) {
+        if (first..=last).contains(&caret_line)
+            && !view.has_selection
+            && matches!(style.line_highlight, LineHighlight::Gutter | LineHighlight::All)
+            && f32::from(line_top(caret_line)) >= l.top + band
+        {
             window.paint_quad(fill(Bounds::new(point(bounds.left(), line_top(caret_line)), size(px(l.gutter), px(lh))), theme.bg("editor.lineHighlightBackground")));
         }
         if theme.has("editorGutter.border") {
             window.paint_quad(fill(Bounds::new(point(px(gutter_right - 1.0), bounds.top()), size(px(1.), bounds.size.height)), theme.c("editorGutter.border")));
         }
-        window.with_content_mask(Some(gpui::ContentMask { bounds: gutter_bounds }), |window| {
+        window.with_content_mask(Some(gpui::ContentMask { bounds: below_band(gutter_bounds) }), |window| {
             // Git change markers along the right edge of the gutter.
             use bf_core::git::LineChangeKind;
             let mark_w = theme.n("editorGutter.changeWidth", 3.0);
@@ -1070,6 +1111,51 @@ impl Element for EditorElement {
             }
         });
 
+        // Sticky scroll: the pinned lines, each clipped below the one above it (a line being pushed out slides
+        // under it), a hover background and a shadow below them.
+        if !prepaint.sticky.is_empty() {
+            let hover_bg = theme.c_or("editorStickyScrollHover.background", 0x2a2d2eff);
+            let row_bounds = Bounds::new(bounds.origin, size(px(l.gutter) + full_text_clip.size.width, px(band)));
+            if theme.has("editorStickyScroll.background") {
+                window.paint_quad(fill(row_bounds, theme.bg("editorStickyScroll.background")));
+            }
+            let mut above = 0.0f32;
+            for (i, (pinned, (shaped, number))) in view.sticky.iter().zip(&prepaint.sticky).enumerate() {
+                let top = l.top + pinned.y.max(above);
+                let bottom = l.top + pinned.y + lh;
+                above = pinned.y + lh;
+                if bottom <= top {
+                    continue;
+                }
+                let row = Bounds::new(point(bounds.left(), px(top)), size(row_bounds.size.width, px(bottom - top)));
+                window.with_content_mask(Some(gpui::ContentMask { bounds: row }), |window| {
+                    if view.sticky_hover == Some(i) {
+                        window.paint_quad(fill(row, hover_bg));
+                    }
+                    let y = px(l.top + pinned.y);
+                    if let Some((number, w)) = number {
+                        let x = gutter_right - style.gutter_right - l.fold_width - w;
+                        let _ = number.paint(point(px(x), y), px(lh), window, cx);
+                    }
+                    let text_row = Bounds::new(point(full_text_clip.left(), px(top)), size(full_text_clip.size.width, px(bottom - top)));
+                    window.with_content_mask(Some(gpui::ContentMask { bounds: text_row }), |window| {
+                        let _ = shaped.paint(point(px(origin_x), y), px(lh), window, cx);
+                    });
+                });
+            }
+            let edge = bounds.top() + px(band);
+            if theme.has("editorStickyScroll.border") {
+                window.paint_quad(fill(Bounds::new(point(bounds.left(), edge), size(row_bounds.size.width, px(1.))), theme.c("editorStickyScroll.border")));
+            } else {
+                let shadow = theme.c_or("editorStickyScroll.shadow", 0x00000060);
+                for (k, fade) in [1.0f32, 0.55, 0.25].into_iter().enumerate() {
+                    let mut c = shadow;
+                    c.a *= fade;
+                    window.paint_quad(fill(Bounds::new(point(bounds.left(), edge + px(k as f32)), size(row_bounds.size.width, px(1.))), c));
+                }
+            }
+        }
+
         if let Some(map) = &view.minimap {
             let mm = Bounds::new(point(px(view.minimap_left), bounds.top()), size(px(l.minimap), bounds.size.height));
             window.with_content_mask(Some(gpui::ContentMask { bounds: mm }), |window| {
@@ -1156,6 +1242,9 @@ struct Snap {
     folded: Vec<(usize, usize)>,
     regions: Vec<(usize, usize)>,
     row_count: usize,
+    sticky: Vec<super::sticky::StickyLine>,
+    sticky_height: f32,
+    sticky_hover: Option<usize>,
 }
 
 impl Snap {
@@ -1207,6 +1296,9 @@ impl Snap {
             row_count: v.row_count(),
             wrap: v.wrap.clone(),
             spacer_background: v.spacer_background,
+            sticky: v.sticky.clone(),
+            sticky_height: v.sticky_height(),
+            sticky_hover: v.sticky_hover,
         }
     }
 

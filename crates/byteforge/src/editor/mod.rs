@@ -16,6 +16,7 @@ mod mouse;
 mod popups;
 mod refactor;
 mod snippet;
+mod sticky;
 mod viewport;
 mod wrap;
 
@@ -299,6 +300,12 @@ pub struct EditorView {
     /// Up/Down with word wrap: the caret after the last vertical move and the column it aims for.
     wrap_goal: Option<(Point, usize)>,
     pub minimap_enabled: bool,
+    /// The first lines of the blocks the top of the view is inside, pinned there ("editor.stickyScroll.enabled",
+    /// at most `sticky_max` of them).
+    pub sticky_scroll: bool,
+    pub sticky_max: usize,
+    pub(crate) sticky: Vec<sticky::StickyLine>,
+    pub(crate) sticky_hover: Option<usize>,
     /// Test Explorer states of the tests (and test classes) declared in this file, by line.
     test_marks: Vec<(usize, crate::testing::TestState)>,
     minimap: Option<Arc<minimap::MiniMap>>,
@@ -446,6 +453,10 @@ impl EditorView {
             wrap: None,
             wrap_goal: None,
             minimap_enabled: false,
+            sticky_scroll: false,
+            sticky_max: 5,
+            sticky: Vec::new(),
+            sticky_hover: None,
             test_marks: Vec::new(),
             minimap: None,
             minimap_hover: false,
@@ -1159,7 +1170,7 @@ impl Render for EditorView {
             .size_full()
             .relative()
             .overflow_hidden()
-            .cursor(if self.lens_hover.is_some() { gpui::CursorStyle::PointingHand } else { gpui::CursorStyle::IBeam })
+            .cursor(if self.lens_hover.is_some() || self.sticky_hover.is_some() { gpui::CursorStyle::PointingHand } else { gpui::CursorStyle::IBeam })
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_down(MouseButton::Right, cx.listener(Self::on_right_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
@@ -1168,7 +1179,7 @@ impl Render for EditorView {
             .on_hover(cx.listener(|view, hovered: &bool, _, cx| {
                 if !hovered {
                     view.clear_hover(cx);
-                    if view.lens_hover.take().is_some() {
+                    if view.lens_hover.take().is_some() | view.sticky_hover.take().is_some() {
                         cx.notify();
                     }
                 }

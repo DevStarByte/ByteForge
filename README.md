@@ -21,7 +21,7 @@ live, and modules written in any language can extend it.
 
 ## Features
 
-- **Editor:** multiple cursors, folding, minimap, snippets, find & replace, and tree-sitter highlighting that
+- **Editor:** multiple cursors, folding, sticky scroll, minimap, snippets, find & replace, and tree-sitter highlighting that
   runs in the background (C#, Razor, JSON, XML, YAML, JavaScript / TypeScript, CSS / SCSS, HTML, SQL, Markdown,
   PowerShell and shell scripts); renaming an XML, HTML or Razor tag renames its closing tag
 - **Sessions:** reopens the last folder with its open files (split included), each at its caret, in the window's

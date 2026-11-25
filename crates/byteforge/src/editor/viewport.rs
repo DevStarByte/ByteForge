@@ -13,8 +13,9 @@ impl EditorView {
         let mut target = self.scroll_target;
         if center {
             target.1 = y - (self.layout.height - lh) / 2.0;
-        } else if y < target.1 {
-            target.1 = y;
+        } else if y < target.1 + self.sticky_rows_above(p.line) as f32 * lh {
+            // Below the lines that will be pinned above it.
+            target.1 = y - self.sticky_rows_above(p.line) as f32 * lh;
         } else if y + lh > target.1 + self.layout.height {
             target.1 = y + lh - self.layout.height;
         }

@@ -862,6 +862,8 @@ impl Workbench {
         e.linked_editing = s.get("editor.linkedEditing", true);
         e.folding_enabled = s.get("editor.folding", true);
         e.minimap_enabled = s.get("editor.minimap", true) && !e.read_only;
+        e.sticky_scroll = s.get("editor.stickyScroll.enabled", true);
+        e.sticky_max = s.get("editor.stickyScroll.maxLineCount", 5usize).min(20);
         e.word_wrap = s.get_string("editor.wordWrap").is_some_and(|w| w == "on");
         e.snippets = match (e.language, e.read_only) {
             (Some(language), false) => std::sync::Arc::new(bf_core::snippets::for_language(&self.paths.user_snippets(), language.id())),

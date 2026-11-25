@@ -39,6 +39,9 @@ from the base theme.
   rulers and paddings.
 - **testing**: `testing.iconPassed`, `iconFailed`, `iconSkipped`, `iconQueued`, `iconUnset` (in `colors`).
 - **solution**: `solution.updateForeground` for packages with a newer version (in `colors`).
+- **sticky scroll** (in `colors`): `editorStickyScroll.background` (none by default: the editor's own),
+  `editorStickyScroll.shadow` (the shadow below the pinned lines) or `editorStickyScroll.border` (a line
+  instead), `editorStickyScrollHover.background`.
 - **minimap and groups**: `minimap.background`, `minimap.selectionHighlight`, `minimap.caretLine`,
   `minimapSlider.background` / `hoverBackground` and `editorGroup.border` (in `colors`), `minimap.width` (in
   `metrics`).

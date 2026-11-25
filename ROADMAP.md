@@ -157,7 +157,9 @@ Section 1 above is what still has to be checked by hand; this is what the releas
 ## 8. Later
 
 - [ ] Code coverage in the gutter.
-- [ ] Sticky scroll (the current type and member pinned at the top of the editor).
+- [x] Sticky scroll: the first lines of the blocks the top of the view is in (from the fold regions, without
+      comment runs and `using` blocks) pinned at the top, pushed out by their block's end; click: go there.
+      `"editor.stickyScroll.enabled"`, `"editor.stickyScroll.maxLineCount"` (5).
 - [ ] An AI assistant panel.
 - [ ] A keyboard shortcuts editor (today: `"keybindings"` in settings.json).
 - [ ] Vim mode.

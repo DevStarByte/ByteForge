@@ -69,6 +69,8 @@ pub(super) fn all_settings() -> Vec<SettingInfo> {
         s!("Editor", "editor.indentGuides", "Indent guides", Bool, true, "Vertical lines at each indent level."),
         s!("Editor", "editor.folding", "Folding", Bool, true, "Fold arrows in the gutter."),
         s!("Editor", "editor.minimap", "Minimap", Bool, true, "An overview of the file at the right edge."),
+        s!("Editor", "editor.stickyScroll.enabled", "Sticky scroll", Bool, true, "The first lines of the namespace, class and method the top of the view is in stay pinned at the top; click one to go there."),
+        s!("Editor", "editor.stickyScroll.maxLineCount", "Sticky scroll lines", Number, 5, "At most this many pinned lines (and no more than a third of the editor)."),
         s!("Editor", "editor.inlayHints", "Inlay hints", Bool, true, "Inferred types and parameter names inside the code (C#)."),
         s!("Editor", "editor.codeLens", "Code Lens", Bool, true, "Reference counts and Run Test / Debug Test above declarations (C#); click one to list the references or run the test."),
         s!("Editor", "editor.linkedEditing", "Linked editing", Bool, true, "Renaming an XML, HTML or Razor tag renames its closing tag too."),

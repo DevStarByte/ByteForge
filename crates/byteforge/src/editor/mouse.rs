@@ -40,6 +40,11 @@ impl EditorView {
             self.drag = if vertical { DragMode::VScroll(y) } else { DragMode::HScroll(x) };
             return;
         }
+        // A pinned line (sticky scroll): go to it.
+        if let Some(index) = self.sticky_at(x, y) {
+            self.click_sticky(index, x, cx);
+            return;
+        }
         // "Accept Current · Accept Incoming · Accept Both" after a conflict's first line: clickable, like VS Code's.
         if e.click_count == 1
             && !e.modifiers.shift
@@ -132,6 +137,16 @@ impl EditorView {
                 }
                 if self.hover.is_some() && self.hover_bounds.get().is_some_and(|b| b.contains(&e.position)) {
                     return; // reading the popup
+                }
+                // Over a pinned line: highlighted, no hover popup.
+                let sticky = if e.pressed_button.is_none() { self.sticky_at(x, y) } else { None };
+                if sticky != self.sticky_hover {
+                    self.sticky_hover = sticky;
+                    cx.notify();
+                }
+                if sticky.is_some() {
+                    self.clear_hover(cx);
+                    return;
                 }
                 // Over a Code Lens entry: underlined, with a pointing hand.
                 let lens = if e.pressed_button.is_none() { self.lens_at(x, y).map(|(_, i, _)| i) } else { None };

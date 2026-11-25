@@ -5,6 +5,12 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
 ## 1.3.0
 
+- Sticky scroll: the first lines of the blocks the top of the editor is in (namespace, class, method,
+  `#region`, an XML element; not comment runs or `using` blocks) stay pinned at the top while their block
+  scrolls by, with their line numbers and colors, and a block's last line pushes its pinned line out. A click
+  on a pinned line goes there. The caret moving up stays below the pinned lines. At most 5
+  (`"editor.stickyScroll.maxLineCount"`) and no more than a third of the editor; `"editor.stickyScroll.enabled"`
+  turns it off (also in Settings). Themes can color it (`editorStickyScroll.*`).
 - The Windows Forms designer: "View Designer" (Shift+F7, or the button on the tab of a form's code) opens a form
   or user control from its `.Designer.cs`. A toolbox (Button, TextBox, Label, CheckBox, ComboBox, ListBox,
   DataGridView, Panel, GroupBox, TabControl, SplitContainer, FlowLayoutPanel, TableLayoutPanel, MenuStrip,
