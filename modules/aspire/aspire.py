@@ -20,6 +20,10 @@ import sys
 import threading
 import webbrowser
 
+# Windows looks for a program in the current folder first (this module's folder) and PATHEXT often has
+# .PY, so shutil.which("aspire") found this script instead of the program. Programs come from PATH only.
+os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"
+
 VIEW = "aspire"
 POLL_SECONDS = 5
 MAX_FILES = 100_000

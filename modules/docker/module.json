@@ -4,7 +4,7 @@
   // Support" for .NET projects, Dockerfile highlighting and file icons for Docker files. It drives the `docker` CLI.
   "id": "byteforge.docker",
   "name": "Docker",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Languages",

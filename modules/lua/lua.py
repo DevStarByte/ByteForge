@@ -13,6 +13,10 @@ import shutil
 import subprocess
 import sys
 
+# Windows looks for a program in the current folder first (this module's folder) and PATHEXT often has
+# .PY, so shutil.which("lua") found this script instead of the program. Programs come from PATH only.
+os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"
+
 INTERPRETERS = ["lua", "luajit", "lua5.4", "lua5.3", "lua5.2", "lua5.1"]
 COMPILERS = ["luac", "luac5.4", "luac5.3", "luac5.2", "luac5.1"]
 

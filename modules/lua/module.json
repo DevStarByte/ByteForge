@@ -3,7 +3,7 @@
   // syntax and format it with StyLua.
   "id": "byteforge.lua",
   "name": "Lua",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Languages",

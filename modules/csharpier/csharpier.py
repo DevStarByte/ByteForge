@@ -12,6 +12,10 @@ import subprocess
 import sys
 import threading
 
+# Windows looks for a program in the current folder first (this module's folder) and PATHEXT often has
+# .PY, so shutil.which("csharpier") found this script instead of the program. Programs come from PATH only.
+os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"
+
 EXTENSIONS = ["cs", "csx", "csproj", "props", "targets", "xml", "config"]
 INSTALL_HINT = "CSharpier isn't installed. Run \"CSharpier: Install\" from the command palette (dotnet tool install -g csharpier)."
 

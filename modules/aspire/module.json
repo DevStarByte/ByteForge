@@ -4,7 +4,7 @@
   // (run, new, init, add, update, publish, deploy, doctor). It drives the `aspire` CLI.
   "id": "byteforge.aspire",
   "name": "Aspire",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Tools",

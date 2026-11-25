@@ -22,6 +22,10 @@ import subprocess
 import sys
 import threading
 
+# Windows looks for a program in the current folder first (this module's folder) and PATHEXT often has
+# .PY, so shutil.which("docker") found this script instead of the program. Programs come from PATH only.
+os.environ["NoDefaultCurrentDirectoryInExePath"] = "1"
+
 VIEW = "docker"
 POLL_SECONDS = 4
 MAX_FILES = 100_000

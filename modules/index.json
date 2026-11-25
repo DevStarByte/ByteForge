@@ -3,7 +3,7 @@
     {
       "id": "byteforge.aspire",
       "name": "Aspire",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "Aspire view with your AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and commands to run, create, add integrations, publish and deploy Aspire apps. Needs the Aspire CLI (aspire.dev) and python3.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
@@ -51,7 +51,7 @@
     {
       "id": "byteforge.csharpier",
       "name": "CSharpier",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Opinionated C# and XML formatter (https://csharpier.com). Format Document: Shift+Alt+F.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
@@ -103,7 +103,7 @@
     {
       "id": "byteforge.docker",
       "name": "Docker",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "description": "Docker view for containers (with their ports, volumes and networks), images, volumes, networks and the workspace's Dockerfiles and Compose files, setup checks with one-click fixes, and build, Compose and .NET Docker support commands, Dockerfile highlighting and file icons.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
@@ -275,7 +275,7 @@
     {
       "id": "byteforge.lua",
       "name": "Lua",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "description": "Lua support: highlighting for .lua, .rockspec and .luacheckrc files (keywords, functions, locals, the standard library, strings and long strings, comments, numbers), a Lua file icon, \"Lua: Run File\" in a terminal, \"Lua: Check Syntax\" (goes to the error) and Format Document with StyLua. Runs files with lua, luajit or the interpreter in \"lua.interpreter\". Needs python3.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
