@@ -9,7 +9,7 @@ opens its details (full description, version, requirements, the file types it fo
 | Module | What it does |
 |---|---|
 | **ReSharper Formatter** | formats C# with JetBrains' ReSharper command line tools (`jb cleanupcode`, the engine of Rider and ReSharper), following `.editorconfig` and the solution's `.DotSettings`; **preinstalled** (copied into your modules folder on first start; uninstall it like any other) |
-| **CSharpier** | C# / MSBuild formatter; install it from the Modules view |
+| **CSharpier** | C# / MSBuild formatter (a .NET module); install it from the Modules view |
 | **Docker** | the Docker view, Docker commands, Dockerfile highlighting and Docker file icons; install it from the Modules view |
 | **Aspire** | the Aspire view: AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and run / new / init / add / publish / deploy commands; needs the [Aspire CLI](https://aspire.dev); install it from the Modules view |
 | **SQL** | the Database view: connections from `"sql.connections"` in settings, appsettings.json `ConnectionStrings` and SQLite files, with their tables, views and columns; "SQL: Run File" (Ctrl+Shift+Enter), Select Top 100, a shell per connection, SQL highlighting and a keyword-case formatter. SQLite needs only Python; PostgreSQL, MySQL / MariaDB and SQL Server use `psql`, `mysql` and `sqlcmd`; install it from the Modules view |
@@ -39,11 +39,62 @@ Queries and shells run in a terminal; passwords go to the client through its env
 
 ## Writing a module
 
-A module is a folder in `~/.config/byteforge/modules/` with a `module.json`:
+A module is a folder in `~/.config/byteforge/modules/` with a `module.json`. Modules are written in C# and run
+in ByteForge's .NET module host (they need .NET 10 or newer, which a C# developer has anyway):
 
 ```json
-{ "id": "me.hello", "name": "Hello", "version": "1.0.0", "author": "your-github-name", "description": "…", "command": "python3", "args": ["hello.py"] }
+{ "id": "me.hello", "name": "Hello", "version": "1.0.0", "author": "your-github-name", "description": "…", "runtime": "dotnet", "assembly": "bin/Hello.dll" }
 ```
+
+One host process runs every .NET module, each in its own load context: turning a module off, updating or
+uninstalling it unloads it without touching the others, and a module that throws stops alone (its error goes to
+the Output). The host reads a module's files into memory, so none stays open. It's `ByteForge.ModuleHost.dll` in
+`modulehost/` next to ByteForge (`dotnet build modulehost` when running from the source tree).
+
+A module is a class library (`net10.0`) built against the module SDK, `sdk/ByteForge.Modules` on the
+[`packages` branch](https://github.com/DevStarByte/ByteForge/tree/packages), and carries the SDK's DLL in its
+`bin/`. It derives from `Module`, overrides what it reacts to and has the entry point the host looks for:
+
+```csharp
+using ByteForge.Modules;
+
+public static class Entry
+{
+    public static Task ByteForgeMain(TextReader input, TextWriter output, string moduleDir, CancellationToken cancel) =>
+        ModuleRunner.RunAsync<HelloModule>(input, output, moduleDir, cancel);
+}
+
+public sealed class HelloModule : Module
+{
+    protected override Task OnStartAsync()
+    {
+        RegisterCommand("hello.say", "Say Hello", "Hello");
+        return Task.CompletedTask;
+    }
+
+    protected override Task OnCommandAsync(string id)
+    {
+        Log($"Hello from {Workspace ?? "nowhere"}");
+        return Task.CompletedTask;
+    }
+}
+```
+
+`Module` has a method for each message below (`Log`, `SetStatus`, `RegisterFormatter` with `FormatAsync`,
+`SetTree`, `QuickPickAsync`, `PromptAsync`, …), the user's `Settings`, `Workspace`, `ModuleDir`, `ConfigDir` and
+`Stopping` (cancelled when the module is unloaded: background loops end on it). `Programs.Which` finds a program
+on PATH (never in the current folder) and `Programs.RunAsync` runs one. `ModuleHarness`
+(`sdk/ByteForge.Modules.Testing`) runs a module in memory for its tests; [CSharpier](https://github.com/DevStarByte/ByteForge/tree/packages/modules/csharpier)
+is a small complete example with tests. On the packages branch a workflow builds each module into its `bin/`,
+runs the tests and lists `module.json` and `bin/` in the registry.
+
+A module with a `"command"` instead (`"command": "python3", "args": ["hello.py"]`) is started as a process of
+its own and speaks the same protocol over stdin and stdout; the modules that are still in Python work that way.
+
+**Themes:** a module that makes a color theme writes it into its own `themes/` folder
+(`Path.Combine(ModuleDir, "themes", "mine.json")`). ByteForge lists those themes while the module is installed
+and turned on, reloads them when they change, and drops them with the module; if the theme in use goes, it
+switches to ByteForge Dark (or Light). `SetTheme` switches to one.
 
 On the module's page the author links to `https://github.com/<author>`; set `"authorUrl"` to link somewhere else.
 To publish it, add the folder to `modules/` on the `packages` branch.
@@ -74,7 +125,9 @@ it's installed and turned on. The [Docker module](https://github.com/DevStarByte
 
 ## Protocol
 
-ByteForge starts the command in the module's folder and exchanges one JSON object per line.
+One JSON object per line. A .NET module reads them from `input` and writes its own to `output`; a module with a
+`"command"` is started in its own folder and uses stdin and stdout. (Between ByteForge and the .NET host each line
+is `<module id>	<message>`, which the host strips; see `modulehost/Program.cs`.)
 
 **Module → IDE**
 
@@ -86,7 +139,7 @@ ByteForge starts the command in the module's folder and exchanges one JSON objec
 - `{"type":"openFile","path","line","column"}`: `line` and `column` count from 0
 - `{"type":"showView","id"}`
 - `{"type":"insertText","text"}`: insert at the caret(s) of the active editor
-- `{"type":"setTheme","name"}`: switch to a color theme (for example one the module wrote to `~/.config/byteforge/themes/`)
+- `{"type":"setTheme","name"}`: switch to a color theme (for example one the module wrote into its own `themes/` folder)
 - `{"type":"setTree","view","items","message","error","badge","actions"}`: the content of one of its views. Items:
   `{"id","label","description","tooltip","icon","iconColor","header","count","expanded","children","actions","menu"}`;
   `icon` is a built-in icon name, path data or `file:<name>` (that file's icon); `header` items are section headers;

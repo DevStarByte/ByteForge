@@ -44,6 +44,8 @@ build() {
   cd byteforge
   # the updater compares against the release version, beta suffix included
   BYTEFORGE_VERSION="${_tag#v}" cargo build --release --frozen -p byteforge
+  # The .NET module host
+  DOTNET_CLI_TELEMETRY_OPTOUT=1 dotnet publish modulehost/ByteForge.ModuleHost.csproj -c Release -o "$srcdir/modulehost" -nologo
 }
 
 package() {
@@ -52,6 +54,7 @@ package() {
   install -dm755 "$pkgdir/usr/lib/byteforge/themes"
   install -m644 themes/*.json "$pkgdir/usr/lib/byteforge/themes/"
   cp -r --no-preserve=ownership modules "$pkgdir/usr/lib/byteforge/modules"
+  cp -r --no-preserve=ownership "$srcdir/modulehost" "$pkgdir/usr/lib/byteforge/modulehost"
   install -dm755 "$pkgdir/usr/bin"
   ln -s /usr/lib/byteforge/byteforge "$pkgdir/usr/bin/byteforge"
   install -Dm644 packaging/linux/byteforge.desktop "$pkgdir/usr/share/applications/byteforge.desktop"

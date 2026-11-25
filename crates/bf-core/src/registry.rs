@@ -92,6 +92,12 @@ pub fn install(base: &str, package: &PackageInfo, modules_dir: &Path) -> anyhow:
         // Swap by renaming, never by deleting first: deleting can stop halfway (a file in use on Windows)
         // and leave a broken module. A rename either happens or changes nothing.
         let target = modules_dir.join(&package.dir);
+        // The themes a module made (its themes/ folder, not part of the package) stay with the update: they're
+        // the module's, and a theme module that found none would take this for a fresh install.
+        let made = target.join("themes");
+        if made.is_dir() && !staging.join("themes").exists() {
+            copy_dir(&made, &staging.join("themes"))?;
+        }
         let old = modules_dir.join(format!(".old-{}", package.dir));
         let _ = std::fs::remove_dir_all(&old);
         let had_old = target.exists();

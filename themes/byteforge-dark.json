@@ -517,7 +517,7 @@
     // "titleBar.left": ["logo", "menu"],
     // "titleBar.center": ["commandCenter"],
     // "titleBar.right": ["layoutControls", "windowControls"],
-    // "menuBar.menus": ["File", "Edit", "View", "Go", "Git", "Run", "Preferences", "Help"],
+    // "menuBar.menus": ["File", "Edit", "View", "Go", "Git", "Run", "Debug", "Build", "Test", "Preferences", "Help"],
 
     // Activity bar items: explorer, search, scm, debug, testing, solution, modules, settings, spacer, commands, and the
     // id of a module's view (e.g. "docker"); module views not listed go before the first spacer.

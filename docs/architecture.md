@@ -11,6 +11,9 @@ crates/
   byteforge   the GPUI app: workbench, editor element, palette, explorer, search, theme → GPUI mapping, icons
 modules/      the preinstalled modules, shipped with every download (the ReSharper Formatter); all others live in
               the registry: modules/ on the `packages` branch
+modulehost/   the .NET module host (C#): one process that runs every .NET module, each in its own collectible load
+              context; shipped in every download as modulehost/ByteForge.ModuleHost.dll (bf-core/src/modulehost.rs
+              talks to it). The module SDK lives with the modules on the `packages` branch (sdk/)
 tests/        test data (copies of the SQL and Azure modules' module.json for the module language tests)
 themes/       built-in themes (byteforge-dark.json documents every key)
 packaging/    Linux install script, desktop entry, Arch PKGBUILD for local builds

@@ -673,7 +673,7 @@ pub(crate) mod view_tests {
         let paths = AppPaths { config_dir: dir.join("config"), install_dir: dir.join("install"), cache_override: Some(dir.join("cache")) };
         paths.ensure_created();
         let settings = Settings::load(paths.settings_file(), || {});
-        let themes = ThemeService::new(paths.builtin_themes(), paths.user_themes(), || {});
+        let themes = ThemeService::new(paths.builtin_themes(), paths.user_themes(), None, || {});
         let (tx, rx) = flume::unbounded();
         cx.update(|cx| {
             let data = themes.apply("ByteForge Dark").unwrap_or_default();

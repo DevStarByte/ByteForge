@@ -13,6 +13,7 @@ pub mod git;
 pub mod graph;
 pub mod links;
 pub mod metrics;
+pub mod modulehost;
 pub mod nuget;
 pub mod paths;
 pub mod plugins;

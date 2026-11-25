@@ -118,10 +118,16 @@ fn main() {
         };
         let themes = {
             let tx = tx.clone();
-            ThemeService::new(paths.builtin_themes(), paths.user_themes(), move || {
+            ThemeService::new(paths.builtin_themes(), paths.user_themes(), Some(paths.user_modules()), move || {
                 let _ = tx.send(AppEvent::ThemeFilesChanged);
             })
         };
+        // Themes of the modules that are turned on (the Windows Theme module's, say) count from the start.
+        {
+            let disabled: Vec<String> = settings.get("modules.disabled", Vec::new());
+            let on = bf_core::plugins::discover(&paths.user_modules()).into_iter().filter(|m| !disabled.contains(&m.id));
+            themes.set_modules(on.map(|m| (m.id, m.dir)).collect());
+        }
         let theme_name: String = settings.get("workbench.theme", "ByteForge Dark".to_string());
         let data = themes.apply(&theme_name).or_else(|_| themes.apply(bf_core::theme::DEFAULT_DARK)).unwrap_or_default();
         assets::set_icon_overrides(data.icons.clone().into_iter().collect());

@@ -153,6 +153,8 @@ pub struct ThemeInfo {
     pub kind: String,
     pub path: PathBuf,
     pub user: bool,
+    /// The module whose `themes` folder it's in: listed only while that module is installed and turned on.
+    pub module: Option<String>,
     pub description: Option<String>,
     /// Raw color values for previews.
     pub swatches: Vec<String>,
@@ -162,16 +164,19 @@ pub struct ThemeInfo {
 #[derive(Clone)]
 pub struct ThemeService {
     dirs: Vec<(PathBuf, bool)>,
+    /// The `themes` folders of the modules that are installed and turned on, with the module's id.
+    module_dirs: Arc<RwLock<Vec<(String, PathBuf)>>>,
     current: Arc<RwLock<Arc<ThemeData>>>,
     current_name: Arc<RwLock<String>>,
     _watchers: Arc<Vec<DebouncedWatcher>>,
 }
 
 impl ThemeService {
-    /// `on_reload` is called from a background thread when a theme file changes.
-    pub fn new(builtin: PathBuf, user: PathBuf, on_reload: impl Fn() + Send + Sync + 'static) -> Self {
+    /// `on_reload` is called from a background thread when a theme file changes. `modules` is the folder the
+    /// modules are installed in: theme files in their `themes` folders are watched too.
+    pub fn new(builtin: PathBuf, user: PathBuf, modules: Option<PathBuf>, on_reload: impl Fn() + Send + Sync + 'static) -> Self {
         let on_reload = Arc::new(on_reload);
-        let watchers = [&builtin, &user]
+        let mut watchers: Vec<DebouncedWatcher> = [&builtin, &user]
             .iter()
             .filter(|d| d.is_dir())
             .filter_map(|dir| {
@@ -179,8 +184,20 @@ impl ThemeService {
                 DebouncedWatcher::new(dir, false, Duration::from_millis(120), move |_| on_reload()).ok()
             })
             .collect();
+        if let Some(modules) = modules.filter(|d| d.is_dir()) {
+            let on_reload = on_reload.clone();
+            // Only theme files: modules keep other files (caches, state) in their folders too.
+            if let Ok(w) = DebouncedWatcher::new(&modules, true, Duration::from_millis(120), move |paths| {
+                if paths.iter().any(|p| is_module_theme_path(p)) {
+                    on_reload();
+                }
+            }) {
+                watchers.push(w);
+            }
+        }
         Self {
             dirs: vec![(builtin, false), (user, true)],
+            module_dirs: Arc::new(RwLock::new(Vec::new())),
             current: Arc::new(RwLock::new(Arc::new(ThemeData::default()))),
             current_name: Arc::new(RwLock::new(DEFAULT_DARK.into())),
             _watchers: Arc::new(watchers),
@@ -191,9 +208,27 @@ impl ThemeService {
         self.current.read().clone()
     }
 
+    /// Sets the modules whose `themes` folders are theme sources: `(module id, module folder)` of the modules
+    /// that are installed and turned on. A theme of a module that is uninstalled or turned off is gone.
+    pub fn set_modules(&self, modules: Vec<(String, PathBuf)>) {
+        *self.module_dirs.write() = modules.into_iter().map(|(id, dir)| (id, dir.join("themes"))).collect();
+    }
+
+    /// The module a theme file is in (a theme file of a module's `themes` folder), even once it's deleted.
+    pub fn module_of(&self, theme_file: &Path) -> Option<String> {
+        self.module_dirs.read().iter().find(|(_, dir)| theme_file.starts_with(dir)).map(|(id, _)| id.clone())
+    }
+
     pub fn available(&self) -> Vec<ThemeInfo> {
         let mut found: HashMap<String, ThemeInfo> = HashMap::new();
-        for (dir, user) in &self.dirs {
+        let modules = self.module_dirs.read().clone();
+        // Built-in, then module, then user themes: a later one with the same name wins.
+        let sources = self.dirs[..1]
+            .iter()
+            .map(|(d, u)| (d.clone(), *u, None))
+            .chain(modules.into_iter().map(|(id, d)| (d, false, Some(id))))
+            .chain(self.dirs[1..].iter().map(|(d, u)| (d.clone(), *u, None)));
+        for (dir, user, module) in sources {
             let Ok(entries) = std::fs::read_dir(dir) else { continue };
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -215,7 +250,8 @@ impl ThemeService {
                     name: theme.name.clone(),
                     kind: theme.kind.clone(),
                     path,
-                    user: *user,
+                    user,
+                    module: module.clone(),
                     description: theme.description.clone(),
                     swatches,
                 });
@@ -270,6 +306,11 @@ impl ThemeService {
     }
 }
 
+/// A `.json` file in a `themes` folder (of a module).
+fn is_module_theme_path(path: &Path) -> bool {
+    path.extension().is_some_and(|e| e.eq_ignore_ascii_case("json")) && path.parent().and_then(Path::file_name).is_some_and(|n| n == "themes")
+}
+
 fn stem(path: &Path) -> String {
     path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
 }
@@ -281,7 +322,7 @@ mod tests {
     #[test]
     fn all_shipped_themes_parse_and_resolve() {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../themes");
-        let service = ThemeService::new(dir.clone(), dir.join("__none__"), || {});
+        let service = ThemeService::new(dir.clone(), dir.join("__none__"), None, || {});
         let themes = service.available();
         assert!(themes.len() >= 9, "expected the built-in themes, found {}", themes.len());
         for info in themes {
@@ -289,6 +330,28 @@ mod tests {
             assert!(theme.colors.contains_key("editor.background"), "{} lacks inherited colors", info.name);
             assert!(theme.metrics.contains_key("tab.height"), "{} lacks inherited metrics", info.name);
         }
+    }
+
+    #[test]
+    fn module_themes_come_and_go_with_their_module() {
+        let root = std::env::temp_dir().join(format!("bf-module-themes-{}", std::process::id()));
+        let module = root.join("windows-theme");
+        std::fs::create_dir_all(module.join("themes")).unwrap();
+        std::fs::write(module.join("themes/windows.json"), r##"{ "name": "Windows", "type": "dark", "colors": { "accent": "#0078d4" } }"##).unwrap();
+        let builtin = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../themes");
+        let service = ThemeService::new(builtin, root.join("__user__"), None, || {});
+        assert!(service.available().iter().all(|t| t.name != "Windows"), "not listed before the module is on");
+        service.set_modules(vec![("byteforge.windows-theme".into(), module.clone())]);
+        let info = service.available().into_iter().find(|t| t.name == "Windows").expect("listed while the module is on");
+        assert_eq!(info.module.as_deref(), Some("byteforge.windows-theme"));
+        assert_eq!(service.module_of(&info.path).as_deref(), Some("byteforge.windows-theme"));
+        assert_eq!(service.apply("Windows").unwrap().name, "Windows");
+        // Uninstalled or turned off: gone, and asking for it gives the default theme.
+        service.set_modules(Vec::new());
+        assert!(service.available().iter().all(|t| t.name != "Windows"));
+        assert_eq!(service.apply("Windows").unwrap().name, DEFAULT_DARK);
+        assert!(is_module_theme_path(&module.join("themes/windows.json")) && !is_module_theme_path(&module.join("state.json")));
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

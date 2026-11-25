@@ -267,14 +267,23 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
     ("Go", &["view.quickOpen", "edit.goToLine", "edit.goToDefinition", "edit.goToImplementation", "edit.goToTypeDefinition", "edit.findReferences", "edit.showCallHierarchy", "edit.showTypeHierarchy", "-", "view.goToSymbol", "view.goToWorkspaceSymbol", "-", "view.nextEditor", "view.previousEditor"]),
     ("Git", &["git.commit", "git.refresh", "-", "git.pull", "git.push", "git.sync", "git.fetch", "-", "git.checkout", "git.createBranch", "-", "git.stageAll", "git.unstageAll", "git.openChanges", "-", "git.fileHistory", "git.showLineCommit", "git.toggleBlame", "git.toggleBlameGutter", "-",
         "merge.editor", "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
+    // Run, Debug, Build and Test were one long Run menu; split like Visual Studio's.
     ("Run", &[
-        "debug.start", "dotnet.run", "dotnet.watch", "dotnet.restartWatch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
-        "debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount", "debug.removeAllBreakpoints", "debug.attach", "debug.attachContainer", "debug.startInContainer", "-", "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-",
-        "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.scaffold", "ef.dropDatabase", "-",
+        "debug.start", "dotnet.run", "dotnet.watch", "dotnet.restartWatch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-",
+        "tasks.run", "tasks.rerun", "tasks.configure",
+    ]),
+    ("Debug", &[
+        "debug.start", "debug.stepOver", "debug.stepInto", "debug.stepOut", "debug.pause", "-",
+        "debug.toggleBreakpoint", "debug.conditionalBreakpoint", "debug.logpoint", "debug.hitCount", "debug.removeAllBreakpoints", "-",
+        "debug.attach", "debug.attachContainer", "debug.startInContainer",
+    ]),
+    ("Build", &[
+        "dotnet.build", "dotnet.test", "dotnet.clean", "dotnet.restore", "-", "csharp.reload", "-",
+        "ef.addMigration", "ef.removeMigration", "ef.updateDatabase", "ef.updateDatabaseTo", "ef.script", "ef.scaffold", "ef.dropDatabase",
+    ]),
+    ("Test", &[
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
-        "benchmark.runAtCursor", "view.benchmarks", "view.metrics", "-",
-        "tasks.run", "tasks.rerun", "tasks.configure", "-",
-        "csharp.reload",
+        "benchmark.runAtCursor", "view.benchmarks", "view.metrics",
     ]),
     ("Preferences", &["settings.open", "settings.openJson", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
     ("Help", &["view.modules", "-", "app.checkForUpdates", "app.about"]),
@@ -763,7 +772,14 @@ impl Workbench {
 
     // ───────────── themes & settings ─────────────
 
-    fn apply_theme(&mut self, name: &str, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn apply_theme(&mut self, name: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.install_theme(name, cx) {
+            self.apply_window_effects(window, cx);
+        }
+    }
+
+    /// Activates a theme everywhere but the window's backdrop (see `apply_theme`); false when it can't be loaded.
+    pub(super) fn install_theme(&mut self, name: &str, cx: &mut Context<Self>) -> bool {
         match self.themes.apply(name) {
             Ok(data) => {
                 self.theme_version += 1;
@@ -778,18 +794,22 @@ impl Workbench {
                     self.panel_visible = theme.layout.panel_visible;
                 }
                 theme.install(cx);
-                self.apply_window_effects(window, cx);
                 for p in &self.plugins {
                     p.event("themeChanged", None);
                 }
                 cx.notify();
+                true
             }
-            Err(e) => self.log(format!("Failed to load theme '{name}': {e}")),
+            Err(e) => {
+                self.log(format!("Failed to load theme '{name}': {e}"));
+                false
+            }
         }
     }
 
+    /// A theme file changed: the chosen theme again (a module's theme may have just been written).
     fn reload_theme(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let name = Theme::global(cx).data.name.clone();
+        let name: String = self.settings.get("workbench.theme", Theme::global(cx).data.name.clone());
         self.apply_theme(&name, window, cx);
     }
 

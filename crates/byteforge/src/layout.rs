@@ -117,7 +117,7 @@ impl LayoutConfig {
             status_right: list(s, "statusBar.right", &["update", "modules", "position", "indent", "encoding", "eol", "language", "lsp"]),
             activity_items: list(s, "activityBar.items", &["explorer", "search", "scm", "debug", "testing", "solution", "tasks", "ef", "modules", "spacer", "settings"]),
             panel_tabs: list(s, "panel.tabs", &["problems", "output", "debugConsole", "terminal"]),
-            menus: list(s, "menuBar.menus", &["File", "Edit", "View", "Go", "Git", "Run", "Preferences", "Help"]),
+            menus: with_split_run_menu(list(s, "menuBar.menus", &["File", "Edit", "View", "Go", "Git", "Run", "Debug", "Build", "Test", "Preferences", "Help"])),
             welcome: list(s, "welcome.order", &["logo", "title", "shortcuts"]),
             welcome_commands: list(s, "welcome.shortcuts", &["file.openFolder", "view.quickOpen", "view.commandPalette", "theme.select", "dotnet.build"]),
             welcome_title: s.get("welcome.title").cloned().unwrap_or_else(|| "ByteForge".into()),
@@ -212,5 +212,30 @@ mod tests {
         assert!(l.panel_in_main() && l.right_of_editor("panel") && l.right_of_editor("sideBar"));
         assert!(l.tabs_below_content() && l.side_bar[0] == "activityBar");
         assert_eq!(command_item("command:dotnet.build:build"), Some(("dotnet.build", Some("build"))));
+    }
+}
+
+/// A theme's menu list from before Debug, Build and Test were split off the Run menu ("Run" without them) gets
+/// them right after Run, so nothing that was in Run goes missing.
+fn with_split_run_menu(mut menus: Vec<String>) -> Vec<String> {
+    let split = ["Debug", "Build", "Test"];
+    if let Some(run) = menus.iter().position(|m| m.eq_ignore_ascii_case("Run"))
+        && !menus.iter().any(|m| split.iter().any(|s| m.eq_ignore_ascii_case(s)))
+    {
+        for (i, name) in split.iter().enumerate() {
+            menus.insert(run + 1 + i, (*name).to_owned());
+        }
+    }
+    menus
+}
+
+#[cfg(test)]
+mod split_menu_tests {
+    #[test]
+    fn an_old_menu_list_gets_the_menus_split_off_run() {
+        let old: Vec<String> = ["File", "Run", "Help"].map(String::from).to_vec();
+        assert_eq!(super::with_split_run_menu(old), ["File", "Run", "Debug", "Build", "Test", "Help"]);
+        let chosen: Vec<String> = ["File", "Run", "Test"].map(String::from).to_vec();
+        assert_eq!(super::with_split_run_menu(chosen.clone()), chosen, "a theme that picks some of them keeps its choice");
     }
 }

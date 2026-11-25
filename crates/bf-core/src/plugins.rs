@@ -10,7 +10,9 @@
 //! `registerFormatter {id,name,extensions}`, `formatResult {requestId,text?|error?}`.
 //! Host → module: `activate {workspace}`, `executeCommand {id}`, `event {name, path?}` (folderOpened, fileSaved, themeChanged, editorChanged),
 //! `format {requestId,path,text}`.
-//! Modules can be written in any language and cannot crash the IDE.
+//! Modules can be written in any language and cannot crash the IDE. A .NET module (`"runtime": "dotnet"`,
+//! `"assembly": "bin/X.dll"`) runs in the shared .NET module host instead of a process of its own
+//! (see [`crate::modulehost`]).
 //!
 //! A module can also contribute file icons and settings declaratively (`"fileIcons"` and `"settings"` in
 //! `module.json`); a module with only declarations leaves out `"command"` and isn't started.
@@ -33,6 +35,12 @@ pub struct ModuleManifest {
     pub command: String,
     #[serde(default)]
     pub args: Vec<String>,
+    /// `dotnet`: a .NET module, run by the shared module host from `assembly` (instead of `command`).
+    #[serde(default)]
+    pub runtime: Option<String>,
+    /// A .NET module's assembly, relative to its folder (`bin/CSharpier.dll`).
+    #[serde(default)]
+    pub assembly: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
@@ -56,6 +64,18 @@ pub struct ModuleManifest {
     pub settings: Vec<SettingContribution>,
     #[serde(skip)]
     pub dir: PathBuf,
+}
+
+impl ModuleManifest {
+    /// A .NET module (run by the shared module host).
+    pub fn is_dotnet(&self) -> bool {
+        self.runtime.as_deref().is_some_and(|r| r.eq_ignore_ascii_case("dotnet"))
+    }
+
+    /// Whether there is something to run (a module may only declare things like file icons).
+    pub fn is_runnable(&self) -> bool {
+        self.is_dotnet() || !self.command.trim().is_empty()
+    }
 }
 
 /// A side bar view declared in `module.json`.
@@ -311,12 +331,17 @@ pub fn discover(dir: &Path) -> Vec<ModuleManifest> {
     found
 }
 
-/// A running module process.
+/// A running module: a process of its own, or a .NET module in the shared host.
 #[derive(Clone)]
 pub struct PluginHandle {
     pub manifest: ModuleManifest,
-    stdin: Arc<Mutex<Option<ChildStdin>>>,
-    child: Arc<Mutex<Option<Child>>>,
+    transport: Transport,
+}
+
+#[derive(Clone)]
+enum Transport {
+    Process { stdin: Arc<Mutex<Option<ChildStdin>>>, child: Arc<Mutex<Option<Child>>> },
+    Hosted(Arc<crate::modulehost::HostedModule>),
 }
 
 /// The program to start for a module's `command`, with arguments to put first. Windows has no `python3`
@@ -348,6 +373,10 @@ fn is_store_alias_dir(dir: &Path) -> bool {
 
 impl PluginHandle {
     pub fn start(manifest: ModuleManifest, events: flume::Sender<PluginMessage>) -> anyhow::Result<Self> {
+        if manifest.is_dotnet() {
+            let hosted = crate::modulehost::HostedModule::load(&manifest, events)?;
+            return Ok(Self { manifest, transport: Transport::Hosted(Arc::new(hosted)) });
+        }
         let (program, mut args) = resolve_program(&manifest.command);
         args.extend(manifest.args.iter().cloned());
         let mut command = crate::process::command(&program);
@@ -384,13 +413,18 @@ impl PluginHandle {
                 }
             });
         }
-        Ok(Self { manifest, stdin: Arc::new(Mutex::new(stdin)), child: Arc::new(Mutex::new(Some(child))) })
+        Ok(Self { manifest, transport: Transport::Process { stdin: Arc::new(Mutex::new(stdin)), child: Arc::new(Mutex::new(Some(child))) } })
     }
 
     pub fn send(&self, message: Value) {
-        if let Some(stdin) = self.stdin.lock().as_mut() {
-            let _ = writeln!(stdin, "{message}");
-            let _ = stdin.flush();
+        match &self.transport {
+            Transport::Process { stdin, .. } => {
+                if let Some(stdin) = stdin.lock().as_mut() {
+                    let _ = writeln!(stdin, "{message}");
+                    let _ = stdin.flush();
+                }
+            }
+            Transport::Hosted(module) => module.send(&message),
         }
     }
 
@@ -433,16 +467,21 @@ impl PluginHandle {
     }
 
     /// Ends the module's process and waits for it (a kill takes effect at once; waiting lets go of its
-    /// folder, which an update replaces next).
+    /// folder, which an update replaces next). A .NET module is unloaded from the host.
     pub fn stop(&self) {
-        if let Some(mut child) = self.child.lock().take() {
-            let _ = child.kill();
-            let _ = child.wait();
+        match &self.transport {
+            Transport::Process { child, .. } => {
+                if let Some(mut child) = child.lock().take() {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+            }
+            Transport::Hosted(module) => module.stop(),
         }
     }
 }
 
-fn parse(module: &str, line: &str) -> Option<PluginMessage> {
+pub(crate) fn parse(module: &str, line: &str) -> Option<PluginMessage> {
     let v: Value = serde_json::from_str(line).ok()?;
     let s = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_owned);
     let module = module.to_owned();

@@ -16,3 +16,9 @@
 # Python bytecode
 __pycache__/
 *.pyc
+
+# .NET build output (the module host, test modules)
+/modulehost/bin/
+/modulehost/obj/
+/modulehost/tests/*/bin/
+/modulehost/tests/*/obj/

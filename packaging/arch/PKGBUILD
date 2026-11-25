@@ -5,7 +5,7 @@
 #   makepkg -sfi                          # rebuild and reinstall after pulling changes
 # The cargo build lives in ./src/target, so later builds are incremental; `makepkg -C` starts clean.
 pkgname=byteforge
-pkgver=1.3.1
+pkgver=1.4.0
 pkgrel=1
 pkgdesc="A modular, themeable IDE for C# built with Rust and GPUI"
 arch=('x86_64' 'aarch64')
@@ -32,6 +32,8 @@ _root() { realpath "$startdir/../.."; }
 build() {
   export CARGO_TARGET_DIR="$srcdir/target"
   cargo build --release --locked -p byteforge --manifest-path "$(_root)/Cargo.toml"
+  # The .NET module host
+  DOTNET_CLI_TELEMETRY_OPTOUT=1 dotnet publish "$(_root)/modulehost/ByteForge.ModuleHost.csproj" -c Release -o "$srcdir/modulehost" -nologo
 }
 
 package() {
@@ -40,6 +42,7 @@ package() {
   install -dm755 "$pkgdir/usr/lib/byteforge/themes"
   install -m644 "$root"/themes/*.json "$pkgdir/usr/lib/byteforge/themes/"
   cp -r --no-preserve=ownership "$root/modules" "$pkgdir/usr/lib/byteforge/modules"
+  cp -r --no-preserve=ownership "$srcdir/modulehost" "$pkgdir/usr/lib/byteforge/modulehost"
   install -dm755 "$pkgdir/usr/bin"
   ln -s /usr/lib/byteforge/byteforge "$pkgdir/usr/bin/byteforge"
   install -Dm644 "$root/packaging/linux/byteforge.desktop" "$pkgdir/usr/share/applications/byteforge.desktop"

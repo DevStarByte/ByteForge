@@ -760,7 +760,7 @@ mod tests {
         }
         // Every built-in theme: their metrics and layouts differ.
         let builtin = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../themes");
-        let themes = bf_core::ThemeService::new(builtin, guard.dir.join("user-themes"), || {});
+        let themes = bf_core::ThemeService::new(builtin, guard.dir.join("user-themes"), None, || {});
         let names: Vec<String> = themes.available().into_iter().map(|t| t.name).collect();
         assert!(names.len() > 5, "the built-in themes are found: {names:?}");
         for (version, name) in names.iter().enumerate() {

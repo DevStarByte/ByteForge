@@ -3,6 +3,23 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.4.0
+
+- Modules in C#: ByteForge runs .NET modules (`"runtime": "dotnet"` in module.json) in one shared .NET module
+  host, each in its own load context. Turning a module off, updating or uninstalling it unloads it without
+  touching the others; a module that fails stops alone and its error goes to the Output; the host keeps no
+  module file open, so an uninstall on Windows never finds them locked. Modules are written against the module
+  SDK on the packages branch (docs/modules.md, "Writing a module"); they need .NET 10 or newer. Python modules
+  still work as before. First ported: CSharpier and the Windows, macOS and Caelestia themes.
+- A module's themes belong to it: a module writes them into its own `themes/` folder, ByteForge lists them
+  while the module is installed and turned on, and drops them with it. Uninstalling the Windows Theme left the
+  "Windows" theme behind (and in use); now the theme goes too, and ByteForge switches to ByteForge Dark (or
+  Light). The new theme modules remove the copy their old versions wrote into the general themes folder.
+- The Run menu was taller than the screen; it's now four menus, as in Visual Studio: Run (start, run, watch,
+  stop, launch profile, user secrets, tasks), Debug (stepping, breakpoints, attach), Build (build, test, clean,
+  restore, reload C#, EF Core migrations) and Test (tests, benchmarks, live metrics). A theme that lists its
+  menus (`"menuBar.menus"`) with "Run" but none of the new ones gets them after Run.
+
 ## 1.3.1
 
 - Windows: modules no longer find their own script when they look for a program of the same name. Windows

@@ -176,8 +176,8 @@ impl Workbench {
                     dir: Some(m.dir.clone()),
                     enabled: !disabled.contains(&m.id),
                     // A module without a program (only file icons) works whenever it's turned on.
-                    running: self.plugins.iter().any(|p| p.manifest.id == m.id) || (m.command.trim().is_empty() && !disabled.contains(&m.id)),
-                    process: !m.command.trim().is_empty(),
+                    running: self.plugins.iter().any(|p| p.manifest.id == m.id) || (!m.is_runnable() && !disabled.contains(&m.id)),
+                    process: m.is_runnable(),
                     file_icons: m.file_icons.iter().map(describe_icon_rule).collect(),
                     update: package.filter(|p| registry::is_newer(&p.version, m.version.as_deref().unwrap_or("0"))).cloned(),
                     package: None,

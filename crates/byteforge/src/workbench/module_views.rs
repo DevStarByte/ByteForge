@@ -67,6 +67,22 @@ impl Workbench {
         let on: Vec<ModuleManifest> = self.modules.iter().filter(|m| !disabled.contains(&m.id)).cloned().collect();
         crate::explorer::set_module_file_icons(&on);
 
+        // Themes are a module's while it's installed and on. The one in use going away (its module
+        // uninstalled or turned off) switches to the default one of its kind.
+        let current = Theme::global(cx).data.clone();
+        let from_module = current.file_path.as_deref().and_then(|f| self.themes.module_of(f));
+        self.themes.set_modules(on.iter().map(|m| (m.id.clone(), m.dir.clone())).collect());
+        if let Some(module) = from_module
+            && !on.iter().any(|m| m.id == module)
+        {
+            let fallback = if current.is_light() { bf_core::theme::DEFAULT_LIGHT } else { bf_core::theme::DEFAULT_DARK };
+            self.log(format!("The theme '{}' came with the module {module}, which is gone or turned off; switched to {fallback}.", current.name));
+            self.settings.set("workbench.theme", json!(fallback));
+            if self.install_theme(fallback, cx) {
+                Self::with_window(cx, |wb, window, cx| wb.apply_window_effects(window, cx));
+            }
+        }
+
         let languages = on.iter().flat_map(|m| m.languages.iter()).map(module_language).collect();
         bf_syntax::module_lang::set_module_languages(languages);
 
@@ -565,5 +581,49 @@ mod tests {
         assert_eq!(kind("double", 0), Some("method name"));
         assert_eq!(kind("=>", 0), Some("operator"));
         bf_syntax::module_lang::set_module_languages(Vec::new());
+    }
+
+    /// The bug: the Windows Theme module's theme outlived the module. A module's theme is listed while the module
+    /// is installed and on; uninstalling it while the theme is in use switches to ByteForge Dark.
+    #[gpui::test]
+    fn a_module_theme_goes_with_its_module(cx: &mut gpui::TestAppContext) {
+        use crate::theme::Theme;
+        let (guard, wb, cx) = crate::workbench::settings_page::view_tests::workbench(cx, "module-theme");
+        let module = guard.dir.join("config/modules/windows-theme");
+        std::fs::create_dir_all(module.join("themes")).unwrap();
+        std::fs::write(module.join("module.json"), r#"{ "id": "byteforge.windows-theme", "name": "Windows Theme" }"#).unwrap();
+        std::fs::write(module.join("themes/windows.json"), r##"{ "name": "Windows", "type": "dark", "colors": { "accent": "#0078d4" } }"##).unwrap();
+        wb.update_in(cx, |wb, window, cx| {
+            wb.modules = bf_core::plugins::discover(&wb.paths.user_modules());
+            wb.refresh_module_contributions(cx);
+            assert!(wb.themes.available().iter().any(|t| t.name == "Windows"), "listed while the module is installed");
+            wb.settings.set("workbench.theme", serde_json::json!("Windows"));
+            wb.apply_theme("Windows", window, cx);
+            assert_eq!(Theme::global(cx).data.name, "Windows");
+            // Turned off: gone, the default theme in its place.
+            wb.settings.set("modules.disabled", serde_json::json!(["byteforge.windows-theme"]));
+            wb.refresh_module_contributions(cx);
+        });
+        cx.run_until_parked();
+        wb.update_in(cx, |wb, window, cx| {
+            assert_eq!(Theme::global(cx).data.name, bf_core::theme::DEFAULT_DARK);
+            assert_eq!(wb.settings.get_string("workbench.theme").as_deref(), Some(bf_core::theme::DEFAULT_DARK));
+            assert!(wb.themes.available().iter().all(|t| t.name != "Windows"));
+            // On again and chosen again; then uninstalled (as the Modules view does it).
+            wb.settings.set("modules.disabled", serde_json::json!([]));
+            wb.refresh_module_contributions(cx);
+            wb.settings.set("workbench.theme", serde_json::json!("Windows"));
+            wb.apply_theme("Windows", window, cx);
+            assert_eq!(Theme::global(cx).data.name, "Windows");
+            bf_core::registry::uninstall(&wb.paths.user_modules(), &module).unwrap();
+            wb.modules.retain(|m| m.id != "byteforge.windows-theme");
+            wb.refresh_module_contributions(cx);
+        });
+        cx.run_until_parked();
+        wb.update(cx, |wb, cx| {
+            assert_eq!(Theme::global(cx).data.name, bf_core::theme::DEFAULT_DARK, "the uninstalled module's theme isn't used any more");
+            assert!(wb.themes.available().iter().all(|t| t.name != "Windows"), "nor listed");
+        });
+        drop(guard);
     }
 }

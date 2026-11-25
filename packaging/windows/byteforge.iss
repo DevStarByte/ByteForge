@@ -55,6 +55,7 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 ; drop bundled themes and modules from older versions so removed ones don't linger
 Type: filesandordirs; Name: "{app}\themes"
 Type: filesandordirs; Name: "{app}\modules"
+Type: filesandordirs; Name: "{app}\modulehost"
 
 [Icons]
 Name: "{autoprograms}\ByteForge"; Filename: "{app}\byteforge.exe"

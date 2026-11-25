@@ -80,7 +80,7 @@ comma-separated strings:
   "activityBar.items": ["explorer", "search", "scm", "modules", "spacer", "settings"],
   "statusBar.left": ["branch", "sync", "problems", "run", "launchProfile", "modules"], "statusBar.center": [],
   "statusBar.right": ["update", "modules", "position", "indent", "encoding", "eol", "language", "lsp"],
-  "panel.tabs": ["problems", "output"], "menuBar.menus": ["File", "Edit", "View", "Go", "Git", "Run", "Preferences", "Help"],
+  "panel.tabs": ["problems", "output"], "menuBar.menus": ["File", "Edit", "View", "Go", "Git", "Run", "Debug", "Build", "Test", "Preferences", "Help"],
   "welcome.order": ["logo", "title", "shortcuts"], "welcome.title": "ByteForge",
   "welcome.shortcuts": ["file.openFolder", "view.quickOpen", "view.commandPalette", "theme.select", "dotnet.build"],
   "sideBar.visible": true, "panel.visible": false, "sideBar.defaultView": "explorer", "tab.indicatorPosition": "top"

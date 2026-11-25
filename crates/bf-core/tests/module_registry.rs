@@ -37,7 +37,8 @@ fn installs_updates_and_uninstalls_from_a_registry() {
     assert_eq!(installed.len(), 1);
     assert_eq!(installed[0].version.as_deref(), Some("1.0.0"));
 
-    // An update replaces the folder.
+    // An update replaces the folder, except for the themes the module made.
+    write(&dir.join("themes/todos.json"), r#"{ "name": "Todos" }"#);
     write(&registry.join("index.json"), &index("1.1.0"));
     write(&registry.join("todos/module.json"), r#"{ "id": "me.todos", "name": "TODOs", "version": "1.1.0", "command": "python3", "args": ["lib/todos.py"] }"#);
     write(&registry.join("todos/lib/todos.py"), "print('v2')\n");
@@ -46,6 +47,7 @@ fn installs_updates_and_uninstalls_from_a_registry() {
     install(&base, &packages[0], &modules).unwrap();
     assert_eq!(std::fs::read_to_string(dir.join("lib/todos.py")).unwrap(), "print('v2')\n");
     assert_eq!(discover(&modules)[0].version.as_deref(), Some("1.1.0"));
+    assert!(dir.join("themes/todos.json").is_file(), "the module's own theme stays with the update");
 
     // A missing file fails without touching the installed version.
     std::fs::remove_file(registry.join("todos/lib/todos.py")).unwrap();

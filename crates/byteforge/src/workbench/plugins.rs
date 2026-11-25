@@ -6,6 +6,7 @@ impl Workbench {
     pub(super) fn start_plugins(&mut self, _event_tx: flume::Sender<AppEvent>, cx: &mut Context<Self>) {
         let disabled: Vec<String> = self.settings.get("modules.disabled", Vec::new());
         self.preinstall_modules();
+        bf_core::modulehost::set_host_dll(self.paths.module_host());
         self.modules = discover(&self.paths.user_modules());
         let (tx, rx) = flume::unbounded::<PluginMessage>();
         self.plugin_tx = Some(tx);
@@ -27,7 +28,7 @@ impl Workbench {
     }
 
     pub(super) fn start_module(&mut self, manifest: ModuleManifest) {
-        if manifest.command.trim().is_empty() {
+        if !manifest.is_runnable() {
             return; // only declares things (file icons), nothing to run
         }
         let Some(tx) = self.plugin_tx.clone() else { return };

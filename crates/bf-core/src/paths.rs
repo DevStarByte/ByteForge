@@ -93,6 +93,16 @@ impl AppPaths {
         let dev = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
         if dev.is_dir() { dev } else { beside }
     }
+
+    /// The .NET module host (`ByteForge.ModuleHost.dll`): in `modulehost/` next to the executable (or in the
+    /// app bundle's Resources), or `modulehost/bin/` of the source tree after `dotnet build modulehost`.
+    pub fn module_host(&self) -> PathBuf {
+        const DLL: &str = "ByteForge.ModuleHost.dll";
+        let beside = self.install_dir.join("modulehost").join(DLL);
+        let bundled = self.install_dir.join("../Resources/modulehost").join(DLL);
+        let dev = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modulehost/bin").join(DLL);
+        [bundled, dev].into_iter().find(|p| p.is_file()).filter(|_| !beside.is_file()).unwrap_or(beside)
+    }
 }
 
 /// Paths compare case-insensitively on Windows and macOS; on Windows `/` and `\` are the same separator
