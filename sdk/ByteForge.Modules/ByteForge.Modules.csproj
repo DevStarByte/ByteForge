@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The SDK for ByteForge's .NET modules: the protocol, a base class to override and helpers for running
+       programs. Each module carries its own copy in its bin/ (modules are loaded separately, so modules built
+       against different SDK versions run side by side). -->
+  <PropertyGroup>
+    <RootNamespace>ByteForge.Modules</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ByteForge.Modules.Tests" />
+  </ItemGroup>
+
+</Project>

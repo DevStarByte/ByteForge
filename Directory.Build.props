@@ -1,0 +1,38 @@
+<Project>
+
+  <!-- Shared by the module SDK and every .NET module on this branch. A module builds into its own bin/ folder,
+       which is what users download (module.json's "assembly": "bin/<Name>.dll"). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputPath>bin/</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <!-- The same source gives the same DLLs wherever it's built (no local paths in them). -->
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/</PathMap>
+    <DebugType>embedded</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- A module's tests are a project of their own in its tests/ folder. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**;bin/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <!-- Test projects (<Module>.Tests in a module's tests/ folder): xunit and the in-memory module harness. -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)sdk/ByteForge.Modules.Testing/ByteForge.Modules.Testing.csproj" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

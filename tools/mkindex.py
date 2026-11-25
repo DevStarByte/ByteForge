@@ -2,7 +2,9 @@
 """Builds modules/index.json (the ByteForge module registry) from the module folders.
 
 Every folder in modules/ with a module.json is a package; all its files (except caches and tests) are listed so the
-IDE can download them. Run from the root of the packages branch: python3 tools/mkindex.py
+IDE can download them. A .NET module ("runtime": "dotnet") ships only module.json and its build in bin/ (built by
+the workflow first); its sources and tests stay in the repository. Run from the root of the packages branch:
+python3 tools/mkindex.py
 """
 
 import json
@@ -34,15 +36,25 @@ for name in sorted(os.listdir(root)):
     for key in ("id", "name", "version"):
         if not m.get(key):
             sys.exit(f"{manifest_path}: missing {key}")
+    dotnet = str(m.get("runtime", "")).lower() == "dotnet"
+    if dotnet:
+        assembly = m.get("assembly") or ""
+        if not os.path.isfile(os.path.join(folder, assembly)):
+            sys.exit(f"{manifest_path}: {assembly or 'the assembly'} isn't built (dotnet build {name})")
     files = []
     for directory, dirs, names in os.walk(folder):
+        if dotnet:
+            # module.json and bin/ only
+            rel = os.path.relpath(directory, folder).replace(os.sep, "/")
+            dirs[:] = [d for d in dirs if rel != "." or d == "bin"]
+            names = [n for n in names if rel != "." or n == "module.json"]
         dirs[:] = [d for d in dirs if d not in ("__pycache__", "node_modules") and not d.startswith(".")]
         for n in names:
             # tests (test_*.py) stay in the repository; users don't download them
             if n.endswith((".pyc", ".pyo")) or n.startswith(".") or (n.startswith("test_") and n.endswith(".py")):
                 continue
             files.append(os.path.relpath(os.path.join(directory, n), folder).replace(os.sep, "/"))
-    requires = [REQUIRES[m["command"]]] if m.get("command") in REQUIRES else []
+    requires = ["dotnet"] if dotnet else [REQUIRES[m["command"]]] if m.get("command") in REQUIRES else []
     requires += [r for r in m.get("requires", []) if r not in requires]
     modules.append({
         "id": m["id"],

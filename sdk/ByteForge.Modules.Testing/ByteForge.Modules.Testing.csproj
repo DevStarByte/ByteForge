@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Runs a module in memory for its tests: send it the IDE's messages, read what it sends back. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../ByteForge.Modules/ByteForge.Modules.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,6 +1,10 @@
-# Rebuild modules/index.json (the ByteForge module registry) whenever a module changes, and commit it
-# back to this branch. ByteForge's Modules view reads the index and downloads the listed files.
-# Same as running by hand:  python3 tools/mkindex.py
+# Build the .NET modules, run every module's tests, rebuild modules/index.json (the ByteForge module registry)
+# and commit the index and the modules' builds (modules/*/bin, what users download) back to this branch.
+# ByteForge's Modules view reads the index and downloads the listed files. A failing test publishes nothing.
+# Same as running by hand:
+#   for p in modules/*/*.csproj; do dotnet build "$p"; done
+#   for t in modules/*/tests/*.Tests.csproj; do dotnet test "$t"; done
+#   python3 tools/mkindex.py
 name: Build module index
 
 on:
@@ -9,6 +13,9 @@ on:
     paths:
       - "modules/**"
       - "!modules/index.json"
+      - "!modules/*/bin/**"
+      - "sdk/**"
+      - "Directory.Build.props"
       - "tools/mkindex.py"
       - ".github/workflows/build-modules.yml"
   workflow_dispatch:
@@ -28,20 +35,49 @@ jobs:
         with:
           ref: packages
 
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
       - name: Check the modules' Python
         run: python3 -m py_compile modules/*/*.py
+
+      - name: Build the .NET modules
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+          DOTNET_NOLOGO: "1"
+        run: |
+          set -e
+          for project in modules/*/*.csproj; do
+            rm -rf "$(dirname "$project")/bin"
+            dotnet build "$project" -c Release
+          done
+
+      - name: Test the modules
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+          DOTNET_NOLOGO: "1"
+        run: |
+          set -e
+          for project in modules/*/tests/*.Tests.csproj; do
+            dotnet test "$project" -c Release
+          done
+          for test in modules/*/test_*.py; do
+            (cd "$(dirname "$test")" && python3 -m unittest -q "$(basename "${test%.py}")")
+          done
 
       - name: Build the index
         run: python3 tools/mkindex.py
 
-      - name: Commit the index
+      - name: Commit the index and the builds
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           git add modules/index.json
+          git add -A modules/*/bin
           if git diff --cached --quiet; then
             echo "Index unchanged"
             exit 0
           fi
-          git commit -m "Build module index for ${GITHUB_SHA::7}"
+          git commit -m "Build modules and index for ${GITHUB_SHA::7}"
           git push origin HEAD:packages

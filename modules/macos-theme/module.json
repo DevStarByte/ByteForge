@@ -2,13 +2,13 @@
   // macOS Theme for ByteForge: a theme that looks like macOS and follows System Settings live.
   "id": "byteforge.macos-theme",
   "name": "macOS Theme",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Themes",
-  "description": "A theme that looks like macOS and follows your Mac's settings live: Light or Dark appearance (Auto too), the accent color in selections, buttons and menus, Reduce Transparency and Increase Contrast. A translucent sidebar and title bar (vibrancy), Xcode's Default (Dark) and Default (Light) syntax colors, SF Pro and SF Mono, rounded controls. \"macOS Theme: Use macOS Theme\" switches to it (it's chosen once when installed). Works on other systems too, with the appearance and accent from its settings. Needs python3.",
-  "command": "python3",
-  "args": ["macos_theme.py"],
+  "description": "A theme that looks like macOS and follows your Mac's settings live: Light or Dark appearance (Auto too), the accent color in selections, buttons and menus, Reduce Transparency and Increase Contrast. A translucent sidebar and title bar (vibrancy), Xcode's Default (Dark) and Default (Light) syntax colors, SF Pro and SF Mono, rounded controls. \"macOS Theme: Use macOS Theme\" switches to it (it's chosen once when installed). Works on other systems too, with the appearance and accent from its settings. Needs .NET 10.",
+  "runtime": "dotnet",
+  "assembly": "bin/MacosTheme.dll",
   "settings": [
     {"key": "macosTheme.appearance", "title": "Appearance", "type": "string", "choices": ["system", "dark", "light"],
      "default": "system", "description": "Light or Dark: system follows macOS (Auto included)."},

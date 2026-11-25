@@ -1,0 +1,9 @@
+# Python bytecode
+__pycache__/
+*.pyc
+
+# .NET: intermediate files. A module's bin/ is committed (by CI, see .github/workflows/build-modules.yml):
+# it's what users download. Tests and the SDK build nothing anyone downloads.
+obj/
+sdk/*/bin/
+modules/*/tests/bin/
