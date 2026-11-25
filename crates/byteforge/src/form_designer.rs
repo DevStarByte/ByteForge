@@ -23,6 +23,9 @@ use crate::editor::{EditorEvent, EditorView};
 use crate::text_input::{InputEvent, TextInput};
 use crate::theme::Theme;
 
+mod strips;
+use strips::ItemHit;
+
 pub enum DesignerEvent {
     /// F7: the form's code.
     ViewCode,
@@ -149,6 +152,12 @@ pub struct FormDesigner {
     drag: Option<Drag>,
     /// The snap lines of the drag going on.
     guides: Vec<wf::Guide>,
+    /// Where the items of strips, menus and grids (and their "Type Here" slots) are, as last drawn.
+    item_hits: Vec<(ItemHit, Rect)>,
+    /// An item just added from "Type Here": typing its text names it (`&File` → `fileToolStripMenuItem`).
+    fresh_item: Option<String>,
+    /// A grid field was closed: the designer takes the keyboard back (else shortcuts go to the closed field).
+    refocus: bool,
     /// The form while a drag is going on (the model isn't changed until the mouse is let go).
     preview: Option<Designer>,
     /// The page each TabControl shows.
@@ -210,6 +219,9 @@ impl FormDesigner {
             tool: None,
             drag: None,
             guides: Vec::new(),
+            item_hits: Vec::new(),
+            fresh_item: None,
+            refocus: false,
             preview: None,
             tabs: HashMap::new(),
             layout: Layout::default(),
@@ -358,10 +370,74 @@ impl FormDesigner {
 
     pub fn delete_selection(&mut self, cx: &mut Context<Self>) {
         let names: Vec<String> = self.selection.clone();
+        // An item's strip, menu or grid stays selected.
+        let owner = self.doc.as_ref().and_then(|d| names.first().and_then(|n| d.item_owner(n)));
         self.change(cx, |d| {
             for n in &names {
                 d.remove(n);
             }
+            Ok(())
+        });
+        if let Some(owner) = owner.filter(|o| self.doc.as_ref().is_some_and(|d| d.get(o).is_some())) {
+            self.selection = vec![owner];
+            cx.notify();
+        }
+    }
+
+    /// A click on an item of a strip, menu or grid, or on a "Type Here" slot.
+    fn click_item(&mut self, hit: ItemHit, clicks: usize, window: &mut Window, cx: &mut Context<Self>) {
+        match hit {
+            ItemHit::Item(name) => {
+                self.select(&name, cx);
+                if clicks >= 2 {
+                    let column = self.doc.as_ref().and_then(|d| d.get(&name)).is_some_and(|c| c.short_type().starts_with("DataGridView"));
+                    if column {
+                        if let Some(p) = wf::property("DataGridViewTextBoxColumn", false, "HeaderText") {
+                            self.edit_after_click(Row::Known(p), window, cx);
+                        }
+                    } else {
+                        self.default_event(&name, cx);
+                    }
+                }
+            }
+            ItemHit::Add(owner) => self.add_item(&owner, None, window, cx),
+        }
+    }
+
+    /// Adds an item to a strip, menu item or grid (`type_name`: else what it usually holds), selects it
+    /// and starts typing its text (a column's header text) in the grid.
+    fn add_item(&mut self, owner: &str, type_name: Option<&'static str>, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(doc) = &self.doc else { return };
+        let Some(ty) = type_name.or_else(|| doc.get(owner).and_then(|c| wf::default_item_type(&c.type_name))) else { return };
+        let mut added = None;
+        let out = &mut added;
+        self.change(cx, |d| {
+            *out = d.add_item(owner, ty);
+            Ok(())
+        });
+        let Some(name) = added else { return };
+        self.select(&name, cx);
+        let column = ty.starts_with("DataGridView");
+        if !column {
+            self.fresh_item = Some(name);
+        }
+        if let Some(p) = wf::property(ty, false, if column { "HeaderText" } else { "Text" }) {
+            self.edit_after_click(Row::Known(p), window, cx);
+        }
+    }
+
+    /// Starts typing a property once the click that asked for it is over (the click focuses the form, which
+    /// would take the focus from the grid's field).
+    fn edit_after_click(&mut self, row: Row, window: &mut Window, cx: &mut Context<Self>) {
+        self.show_events = false;
+        cx.defer_in(window, move |this, window, cx| this.start_edit(row, window, cx));
+    }
+
+    /// Moves the selected item one place back (-1) or on (1) among its owner's items.
+    fn move_item(&mut self, delta: isize, cx: &mut Context<Self>) {
+        let Some(name) = self.primary().map(str::to_owned) else { return };
+        self.change(cx, |d| {
+            d.move_item(&name, delta);
             Ok(())
         });
     }
@@ -369,7 +445,9 @@ impl FormDesigner {
     /// Ctrl+C: the selected controls (with what is in them) go on the clipboard.
     fn copy_selection(&mut self, cx: &mut Context<Self>) -> bool {
         let Some(doc) = &self.doc else { return false };
-        let fragment = doc.copy(&self.selection);
+        // Items (menu items, columns) are copied with their strip or grid, not on their own.
+        let names: Vec<String> = self.selection.iter().filter(|n| !doc.is_item(n)).cloned().collect();
+        let fragment = doc.copy(&names);
         if fragment.is_empty() {
             return false;
         }
@@ -597,6 +675,7 @@ impl FormDesigner {
 
     fn finish_edit(&mut self, apply: bool, cx: &mut Context<Self>) {
         let Some(row) = self.editing.take() else { return };
+        self.refocus = true;
         cx.notify();
         if !apply {
             return;
@@ -606,12 +685,21 @@ impl FormDesigner {
         match row {
             Row::Name => {
                 let new = value.trim().to_owned();
-                self.change(cx, |d| d.rename(&owner, &new));
-                if self.message.is_none() && self.selection.first() == Some(&owner) {
-                    self.selection[0] = new;
+                self.rename_selected(&owner, &new, cx);
+            }
+            Row::Known(p) => {
+                self.change(cx, |d| d.set_from_grid(&owner, p, &value));
+                // A menu item added from "Type Here" gets its name from what is typed, as in Visual Studio.
+                if p.name == "Text"
+                    && self.message.is_none()
+                    && self.fresh_item.take().as_deref() == Some(owner.as_str())
+                    && let Some(doc) = &self.doc
+                    && let Some(ty) = doc.get(&owner).map(|c| c.type_name.clone())
+                    && let Some(new) = doc.item_name_for_text(&value, &ty).filter(|n| doc.get(n).is_none())
+                {
+                    self.rename_selected(&owner, &new, cx);
                 }
             }
-            Row::Known(p) => self.change(cx, |d| d.set_from_grid(&owner, p, &value)),
             Row::Other(name) => {
                 let v = value.trim().to_owned();
                 self.change(cx, |d| {
@@ -619,6 +707,17 @@ impl FormDesigner {
                     Ok(())
                 });
             }
+        }
+    }
+
+    /// Renames the primary selected component; it stays selected under its new name.
+    fn rename_selected(&mut self, old: &str, new: &str, cx: &mut Context<Self>) {
+        let rest: Vec<String> = self.selection.iter().filter(|n| *n != old).cloned().collect();
+        self.change(cx, |d| d.rename(old, new));
+        if self.message.is_none() {
+            let root = self.doc.as_ref().map(|d| d.root().name.clone()).unwrap_or_default();
+            self.selection = std::iter::once(new.to_owned()).chain(rest.into_iter().filter(|n| *n != root)).collect();
+            cx.notify();
         }
     }
 
@@ -686,6 +785,11 @@ impl FormDesigner {
             self.drag = Some(Drag { kind: DragKind::Create { type_name: tool }, start: p, now: p, moved: false, snap: false });
             return;
         }
+        // Items of strips, menus and grids (drawn over the controls).
+        if let Some(hit) = self.item_hits.iter().rev().find(|(_, r)| r.contains(p.0, p.1)).map(|(h, _)| h.clone()) {
+            self.click_item(hit, event.click_count, window, cx);
+            return;
+        }
         let hs = Theme::global(cx).n("formDesigner.handleSize", 7.0) as i32 + 2;
         if let Some((name, handle, _, rect)) = self.handles(&doc, hs).into_iter().find(|(_, _, r, _)| r.inset(-1, -1, -1, -1).contains(p.0, p.1)) {
             self.drag = Some(Drag { kind: DragKind::Resize { name, handle, rect }, start: p, now: p, moved: false, snap: !event.modifiers.alt });
@@ -732,7 +836,7 @@ impl FormDesigner {
             self.default_event(&name, cx);
             return;
         }
-        let names: Vec<String> = self.selection.iter().filter(|n| !doc.is_root(n)).cloned().collect();
+        let names: Vec<String> = self.selection.iter().filter(|n| !doc.is_root(n) && !doc.is_item(n)).cloned().collect();
         if !names.is_empty() {
             self.drag = Some(Drag { kind: DragKind::Move { names }, start: p, now: p, moved: false, snap: !event.modifiers.alt });
         }
@@ -905,6 +1009,10 @@ impl FormDesigner {
             let resize = m.shift;
             self.change(cx, |d| {
                 for n in &names {
+                    // Items have no location or size of their own.
+                    if d.is_item(n) {
+                        continue;
+                    }
                     if resize {
                         let (w, h) = d.size(n);
                         d.set_size(n, (w + dx, h + dy));
@@ -928,7 +1036,7 @@ impl FormDesigner {
                     && let Some(doc) = &self.doc
                     && let Some(name) = self.primary()
                 {
-                    let up = doc.parent(name).map_or_else(|| doc.root().name.clone(), |(p, _)| p.to_owned());
+                    let up = doc.item_owner(name).or_else(|| doc.parent(name).map(|(p, _)| p.to_owned())).unwrap_or_else(|| doc.root().name.clone());
                     self.select(&up, cx);
                 }
                 cx.notify();
@@ -968,6 +1076,11 @@ impl FormDesigner {
             _ => {}
         }
     }
+}
+
+/// The shadow of an open menu on the form: Windows', not the theme's (the form shows how it will run).
+fn menu_shadow() -> Vec<gpui::BoxShadow> {
+    vec![gpui::BoxShadow { color: gpui::hsla(0., 0., 0., 0.22), offset: gpui::point(px(0.), px(2.)), blur_radius: px(8.), spread_radius: px(0.) }]
 }
 
 /// `rect` with the side(s) of `handle` dragged by (dx, dy).
@@ -1205,35 +1318,51 @@ impl Look<'_> {
             }
             "TabPage" => div().size_full().bg(bg_or(0xffffffff)).into_any_element(),
             "DataGridView" => {
-                let columns: Vec<String> = doc.strip_items(name).iter().filter_map(|c| doc.prop(c, "HeaderText").and_then(wf::parse_string)).collect();
+                let line = rgba(0xe0e0e0ff);
+                let headers = strips::column_headers(doc, name, p.rect);
                 div()
                     .size_full()
+                    .relative()
                     .bg(rgba(0xabababff))
                     .border_1()
                     .border_color(border)
-                    .child(
+                    .child(div().absolute().left_0().top_0().right_0().h(px(strips::HEADER_HEIGHT as f32)).bg(rgba(0xffffffff)).border_b_1().border_color(line))
+                    .child(div().absolute().left_0().top_0().w(px(strips::ROW_HEADERS as f32)).h(px(strips::HEADER_HEIGHT as f32)).border_r_1().border_color(line))
+                    .children(headers.into_iter().map(|(col, r)| {
                         div()
+                            .absolute()
+                            .left(px((r.x - p.rect.x - 1) as f32))
+                            .top_0()
+                            .w(px(r.w as f32))
+                            .h(px(r.h as f32))
+                            .px(px(4.))
                             .flex()
-                            .h(px(23.))
-                            .bg(rgba(0xffffffff))
-                            .border_b_1()
-                            .border_color(rgba(0xe0e0e0ff))
-                            .child(div().w(px(41.)).h_full().border_r_1().border_color(rgba(0xe0e0e0ff)))
-                            .children(columns.into_iter().map(|col| div().w(px(100.)).h_full().px(px(4.)).flex().items_center().border_r_1().border_color(rgba(0xe0e0e0ff)).child(self.text_el(name, col, fg)))),
-                    )
+                            .items_center()
+                            .overflow_hidden()
+                            .border_r_1()
+                            .border_color(line)
+                            .child(self.text_el(name, strips::label(doc, &col), fg))
+                    }))
                     .into_any_element()
             }
             "MenuStrip" | "StatusStrip" | "ToolStrip" => {
-                let items: Vec<String> = doc.strip_items(name).iter().map(|i| doc.text_of(i).unwrap_or_else(|| i.clone())).collect();
+                let items = strips::strip_items(doc, name, p.rect);
+                let empty = items.is_empty();
                 div()
                     .size_full()
-                    .flex()
-                    .items_center()
-                    .px(px(2.))
+                    .relative()
                     .bg(bg_or(if ty == "MenuStrip" { 0xf5f5f5ff } else { 0xf0f0f0ff }))
                     .when(ty == "StatusStrip", |d| d.border_t_1().border_color(rgba(0xdcdcdcff)))
-                    .children(items.into_iter().map(|i| div().px(px(7.)).child(self.text_el(name, i, fg))))
-                    .when(doc.strip_items(name).is_empty(), |d| d.child(div().px(px(6.)).child(self.text_el(name, format!("({ty})"), rgba(0x8a8a8aff)))))
+                    .children(items.into_iter().map(|(item, r)| {
+                        let at = div().absolute().left(px((r.x - p.rect.x) as f32)).top(px((r.y - p.rect.y) as f32)).w(px(r.w as f32)).h(px(r.h as f32));
+                        if strips::is_separator(doc, &item) {
+                            at.flex().justify_center().py(px(3.)).child(div().w(px(1.)).h_full().bg(rgba(0xc8c8c8ff)))
+                        } else {
+                            let enabled = doc.prop(&item, "Enabled").and_then(wf::parse_bool) != Some(false);
+                            at.flex().items_center().justify_center().child(self.text_el(name, strips::label(doc, &item), if enabled { fg } else { rgba(0x8a8a8aff) }))
+                        }
+                    }))
+                    .when(empty, |d| d.child(div().absolute().left(px(6.)).top_0().bottom_0().flex().items_center().child(self.text_el(name, format!("({ty})"), rgba(0x8a8a8aff)))))
                     .into_any_element()
             }
             "PictureBox" => {
@@ -1286,6 +1415,67 @@ impl Look<'_> {
 }
 
 impl FormDesigner {
+    /// The open menus, the "Type Here" slots and the frames of selected items, over the form.
+    fn render_item_overlays(&self, doc: &Designer, menus: &[strips::Menu], selection: Hsla, t: &Theme) -> Vec<AnyElement> {
+        let mut out: Vec<AnyElement> = Vec::new();
+        let font = t.ui_font.clone();
+        let text = |s: String, color: u32| div().text_size(px(12.)).font_family(font.clone()).text_color(rgba(color)).whitespace_nowrap().child(s);
+        let place = |r: Rect| div().absolute().left(px(r.x as f32)).top(px(r.y as f32)).w(px(r.w as f32)).h(px(r.h as f32));
+        let type_here = |r: Rect| place(r).px(px(6.)).flex().items_center().bg(rgba(0xffffffff)).border_1().border_dashed().border_color(rgba(0xa0a0a0ff)).child(text("Type Here".into(), 0x8a8a8aff).italic());
+        // The add slots of strips and grids (a menu has its own as its last row).
+        for (hit, r) in &self.item_hits {
+            if let ItemHit::Add(owner) = hit
+                && !menus.iter().any(|m| m.owner == *owner)
+            {
+                let grid = doc.get(owner).is_some_and(|c| c.short_type() == "DataGridView");
+                out.push(if grid {
+                    place(*r).flex().items_center().justify_center().bg(rgba(0xffffffff)).border_1().border_dashed().border_color(rgba(0xa0a0a0ff)).child(text("+".into(), 0x5a5a5aff)).into_any_element()
+                } else {
+                    type_here(*r).into_any_element()
+                });
+            }
+        }
+        for m in menus {
+            let rows: Vec<AnyElement> = m
+                .rows
+                .iter()
+                .map(|(hit, r)| {
+                    let local = Rect::new(r.x - m.rect.x, r.y - m.rect.y, r.w, r.h);
+                    match hit {
+                        ItemHit::Add(_) => type_here(local).into_any_element(),
+                        ItemHit::Item(n) if strips::is_separator(doc, n) => place(local).flex().items_center().pl(px(28.)).pr(px(4.)).child(div().flex_1().h(px(1.)).bg(rgba(0xd8d8d8ff))).into_any_element(),
+                        ItemHit::Item(n) => {
+                            let checked = doc.prop(n, "Checked").and_then(wf::parse_bool) == Some(true);
+                            let enabled = doc.prop(n, "Enabled").and_then(wf::parse_bool) != Some(false);
+                            let color = if enabled { 0x000000ff } else { 0x8a8a8aff };
+                            let sub = !doc.items(n).is_empty();
+                            place(local)
+                                .flex()
+                                .items_center()
+                                .rounded(px(3.))
+                                .when(self.selection.contains(n), |d| d.bg(rgba(0xe5f1fbff)))
+                                .child(div().flex_none().w(px(28.)).flex().justify_center().when(checked, |d| d.child(text("✓".into(), color))))
+                                .child(div().flex_1().min_w_0().overflow_hidden().child(text(strips::label(doc, n), color)))
+                                .children(strips::shortcut(doc, n).map(|s| div().flex_none().pl(px(16.)).child(text(s, 0x6d6d6dff))))
+                                .child(div().flex_none().w(px(18.)).flex().justify_center().when(sub, |d| d.child(text("›".into(), color))))
+                                .into_any_element()
+                        }
+                    }
+                })
+                .collect();
+            out.push(place(m.rect).bg(rgba(0xf9f9f9ff)).border_1().border_color(rgba(0xd0d0d0ff)).rounded(px(4.)).shadow(menu_shadow()).children(rows).into_any_element());
+        }
+        // Selected items get the selection's frame (controls get theirs from the layout).
+        for (hit, r) in &self.item_hits {
+            if let ItemHit::Item(n) = hit
+                && self.selection.contains(n)
+            {
+                out.push(place(Rect::new(r.x - 1, r.y - 1, r.w + 2, r.h + 2)).border_1().border_dashed().border_color(selection).into_any_element());
+            }
+        }
+        out
+    }
+
     fn render_toolbox(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         let t = Theme::global(cx);
         let fg = color(&t, "formDesigner.foreground", "sideBar.foreground");
@@ -1388,6 +1578,12 @@ impl FormDesigner {
                     .into_any_element()
             })
             .collect();
+        // The items of strips, menus and grids: the menus the selection opens, the "Type Here" slots, and
+        // where everything clickable is.
+        let primary = self.primary().map(str::to_owned);
+        let menus = primary.as_deref().map(|s| strips::open_menus(&doc, &self.layout, s)).unwrap_or_default();
+        self.item_hits = strips::hits(&doc, &self.layout, primary.as_deref(), &menus);
+        let item_overlays = self.render_item_overlays(&doc, &menus, selection_color, &t);
         let origin = self.origin.clone();
         let client = div()
             .id("designer-form-client")
@@ -1405,6 +1601,7 @@ impl FormDesigner {
                     .children(controls)
                     .child(gpui::canvas(move |bounds, _, _| origin.set(Some(bounds.origin)), |_, _, _, _| {}).absolute().inset_0()),
             )
+            .children(item_overlays)
             // The selection and its handles draw over everything, outside the form too.
             .children(self.selection.iter().filter(|n| !doc.is_root(n)).filter_map(|n| self.layout.get(n)).map(|p| {
                 let r = p.rect;
@@ -1820,12 +2017,30 @@ impl FormDesigner {
 
 impl Render for FormDesigner {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // A grid field closed without another one opening: keys go to the designer again.
+        if std::mem::take(&mut self.refocus) && self.editing.is_none() && self.input.focus_handle(cx).is_focused(window) {
+            window.focus(&self.focus);
+        }
         let t = Theme::global(cx);
         let fg = t.c("breadcrumb.foreground");
         let hover = t.c("toolbar.hoverBackground");
         let has_doc = self.doc.is_some();
         let selection_is_control = self.doc.as_ref().is_some_and(|d| self.selection.iter().any(|n| !d.is_root(n)));
-        let several = self.doc.as_ref().is_some_and(|d| self.selection.iter().filter(|n| !d.is_root(n)).count() > 1);
+        let several = self.doc.as_ref().is_some_and(|d| self.selection.iter().filter(|n| !d.is_root(n) && !d.is_item(n)).count() > 1);
+        // An item moves among its owner's items (up and down in a menu, left and right on a strip or grid).
+        let item = self.doc.as_ref().and_then(|d| {
+            let n = self.primary()?;
+            let owner = d.item_owner(n)?;
+            Some(d.get(&owner).is_some_and(|c| c.short_type() == "ToolStripMenuItem"))
+        });
+        // A grid or one of its columns: columns of each type can be added.
+        let grid = self.doc.as_ref().and_then(|d| {
+            let n = self.primary()?;
+            if d.get(n).is_some_and(|c| c.short_type() == "DataGridView") {
+                return Some(n.to_owned());
+            }
+            d.item_owner(n).filter(|o| d.get(o).is_some_and(|c| c.short_type() == "DataGridView"))
+        });
         let button = |id: &'static str, label: &'static str| {
             div().id(id).debug_selector(move || id.into()).px(px(6.)).py(px(1.)).rounded(px(4.)).cursor_pointer().hover(move |s| s.bg(hover)).child(label)
         };
@@ -1845,6 +2060,27 @@ impl Render for FormDesigner {
             .child(div().whitespace_nowrap().child(format!("{name} [Design]")))
             .when_some(self.tool, |d, tool| d.child(div().text_color(t.c("foreground.muted")).child(format!("Click or drag on the form to place a {tool} (Esc: cancel)"))))
             .child(div().flex_1())
+            .when_some(grid, |d, grid| {
+                d.child(div().text_color(t.c("foreground.muted")).child("Add Column:")).children(wf::COLUMN_TYPES.iter().map(|&(ty, label)| {
+                    let grid = grid.clone();
+                    let id = SharedString::from(format!("designer-add-column-{ty}"));
+                    let sel = id.to_string();
+                    div()
+                        .id(id)
+                        .debug_selector(move || sel.clone())
+                        .px(px(6.))
+                        .py(px(1.))
+                        .rounded(px(4.))
+                        .cursor_pointer()
+                        .hover(move |s| s.bg(hover))
+                        .child(label)
+                        .on_click(cx.listener(move |this, _, window, cx| this.add_item(&grid, Some(ty), window, cx)))
+                }))
+            })
+            .when_some(item, |d, vertical| {
+                d.child(button("designer-item-back", if vertical { "Move Up" } else { "Move Left" }).on_click(cx.listener(|this, _, _, cx| this.move_item(-1, cx))))
+                    .child(button("designer-item-forward", if vertical { "Move Down" } else { "Move Right" }).on_click(cx.listener(|this, _, _, cx| this.move_item(1, cx))))
+            })
             .when(several, |d| {
                 let aligns = [
                     ("designer-align-lefts", "Lefts", "Align the left edges with the primary control's", wf::Align::Lefts),
@@ -1860,9 +2096,12 @@ impl Render for FormDesigner {
                 }))
             })
             .when(selection_is_control, |d| {
-                d.child(button("designer-front", "Bring to Front").on_click(cx.listener(|this, _, _, cx| this.reorder(true, cx))))
-                    .child(button("designer-back", "Send to Back").on_click(cx.listener(|this, _, _, cx| this.reorder(false, cx))))
-                    .child(button("designer-delete", "Delete").on_click(cx.listener(|this, _, _, cx| this.delete_selection(cx))))
+                // Items have no z-order: they move with Move Up / Down instead.
+                d.when(item.is_none(), |d| {
+                    d.child(button("designer-front", "Bring to Front").on_click(cx.listener(|this, _, _, cx| this.reorder(true, cx))))
+                        .child(button("designer-back", "Send to Back").on_click(cx.listener(|this, _, _, cx| this.reorder(false, cx))))
+                })
+                .child(button("designer-delete", "Delete").on_click(cx.listener(|this, _, _, cx| this.delete_selection(cx))))
             })
             .child(button("designer-view-code", "View Code").on_click(cx.listener(|_, _, _, cx| cx.emit(DesignerEvent::ViewCode))));
         let form = self.render_form(window, cx);

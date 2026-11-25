@@ -143,8 +143,12 @@ Section 1 above is what still has to be checked by hand; this is what the releas
       one, in that file's style), Select All; snap lines while dragging and resizing (edges, the recommended
       spacing, the container's edge; Alt: off); Align Lefts / Centers / Rights / Tops / Middles / Bottoms and
       Same Size on several selected controls.
-- [ ] Still to come: editing menu items and grid columns visually, localized forms (`resources.ApplyResources`)
-      beyond keeping them.
+- [x] Menu, tool and status strip items and grid columns, edited on the form: a selected menu item opens its menu
+      (and submenus), "Type Here" adds an item whose typed text names it (`&File` → `fileToolStripMenuItem`),
+      separators, Move Up / Down (Left / Right) and Delete; a grid's column headers at their widths, "+" and the
+      toolbar's Add Column (text, check box, combo box, button, link, image). Items and columns have their own
+      properties in the grid (Checked, ShortcutKeys, HeaderText, Width, …).
+- [ ] Still to come: localized forms (`resources.ApplyResources`) beyond keeping them.
 
 ## 8. Later
 

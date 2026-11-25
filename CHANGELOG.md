@@ -20,6 +20,15 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
   its name when it is free there, else gets the next one (`button2`); a copy pasted where the original is moves
   10 px down and right; it goes into the selected container, next to the selected control, or onto the form,
   in that file's code style; event handlers stay hooked up within the same form. Ctrl+A selects every control.
+- Designer: menus and grid columns are edited on the form. Clicking a menu item selects it and opens its menu
+  (submenus open to the right); "Type Here" at the end of a menu, tool or status strip and of each menu adds an
+  item, and the text typed for it names it as Visual Studio does (`&File` → `fileToolStripMenuItem`). Items
+  move with Move Up / Down (Left / Right on a strip) and go with Delete, which keeps the others in their list.
+  A grid's column headers are drawn at their widths and clicked to select a column; "+" adds a text column and
+  the toolbar's Add Column the other kinds. The property grid shows an item's or column's own properties
+  (Checked, ShortcutKeys, ToolTipText; HeaderText, Width, ReadOnly, AutoSizeMode, …), not a control's.
+  Fixed on the way: a component renamed in the grid stays selected, and after Enter in a grid field the
+  designer has the keyboard again (Ctrl+S, Delete and the arrows work without a click).
 - Designer: snap lines. A control dragged or resized snaps to the edges of the controls next to it, to the
   recommended 6 px between controls and to 12 px from the form's edge (3 in a container), and the lines show
   while dragging (`formDesigner.snapLine` / `marginLine`); Alt drags without snapping. With several controls

@@ -208,11 +208,11 @@ fn vs(text: &str) -> String {
     text.replace("//\n", "// \n")
 }
 
-fn net8() -> Designer {
+pub(crate) fn net8() -> Designer {
     Designer::parse(&vs(NET8), "Form").unwrap()
 }
 
-fn framework() -> Designer {
+pub(crate) fn framework() -> Designer {
     Designer::parse(&vs(FRAMEWORK), "Form").unwrap()
 }
 

@@ -327,4 +327,90 @@ mod tests {
         assert!(text.contains("        button2.Location = new Point(12, 41);"), "{text}");
         assert!(text.contains("    private Button button2;"), "{text}");
     }
+
+    /// A menu built with "Type Here": items typed as text get Visual Studio's names, move and go; a grid's
+    /// columns come from the toolbar and its "+" header.
+    #[gpui::test]
+    fn edits_menus_and_columns(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "designer-items");
+        let dir = guard.dir.join("ws");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("Form1.cs"), CODE).unwrap();
+        std::fs::write(dir.join("Form1.Designer.cs"), DESIGNER).unwrap();
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(dir.clone(), window, cx);
+            wb.open_file(dir.join("Form1.cs"), None, window, cx);
+        });
+        cx.run_until_parked();
+        cx.dispatch_action(ViewDesigner);
+        cx.run_until_parked();
+        let designer = designer_of(&wb, cx);
+        let form = bounds(cx, "designer-form-client");
+        let at = |x: f32, y: f32| form.origin + gpui::point(px(x), px(y));
+        let click_at = |cx: &mut gpui::VisualTestContext, x: f32, y: f32| {
+            cx.simulate_click(at(x, y), gpui::Modifiers::none());
+            cx.run_until_parked();
+        };
+        let type_text = |cx: &mut gpui::VisualTestContext, text: &str| {
+            cx.simulate_input(text);
+            cx.press("enter");
+            cx.run_until_parked();
+        };
+
+        // A menu strip, docked at the top; its "Type Here" adds the first item, named after its text.
+        click(cx, "designer-tool-MenuStrip");
+        click_at(cx, 100., 100.);
+        designer.read_with(cx, |d, _| assert_eq!(d.selection(), ["menuStrip1"]));
+        click_at(cx, 20., 12.);
+        type_text(cx, "&File");
+        designer.read_with(cx, |d, _| {
+            assert_eq!(d.selection(), ["fileToolStripMenuItem"]);
+            assert_eq!(d.model().unwrap().items("menuStrip1"), ["fileToolStripMenuItem"]);
+        });
+        // File's menu opens below it: its "Type Here" row adds Save, then Exit.
+        click_at(cx, 30., 38.);
+        type_text(cx, "&Save");
+        click_at(cx, 30., 60.);
+        type_text(cx, "E&xit");
+        designer.read_with(cx, |d, _| assert_eq!(d.model().unwrap().items("fileToolStripMenuItem"), ["saveToolStripMenuItem", "exitToolStripMenuItem"]));
+        // Exit moves up, then goes; File stays selected.
+        click(cx, "designer-item-back");
+        designer.read_with(cx, |d, _| assert_eq!(d.model().unwrap().items("fileToolStripMenuItem"), ["exitToolStripMenuItem", "saveToolStripMenuItem"]));
+        cx.press("delete");
+        designer.read_with(cx, |d, _| {
+            assert_eq!(d.model().unwrap().items("fileToolStripMenuItem"), ["saveToolStripMenuItem"]);
+            assert_eq!(d.selection(), ["fileToolStripMenuItem"]);
+        });
+        // Clicking Save in the open menu selects it.
+        click_at(cx, 30., 38.);
+        designer.read_with(cx, |d, _| assert_eq!(d.selection(), ["saveToolStripMenuItem"]));
+
+        // A grid: a check box column from the toolbar (its header typed), a text column from the "+" header.
+        click(cx, "designer-tool-DataGridView");
+        click_at(cx, 20., 100.);
+        click(cx, "designer-add-column-DataGridViewCheckBoxColumn");
+        type_text(cx, "Done");
+        click_at(cx, 20., 100.);
+        click_at(cx, 170., 110.);
+        cx.press("enter");
+        cx.run_until_parked();
+        designer.read_with(cx, |d, _| {
+            let m = d.model().unwrap();
+            assert_eq!(m.items("dataGridView1"), ["Column1", "Column2"]);
+            assert_eq!(m.prop("Column1", "HeaderText"), Some("\"Done\""));
+        });
+
+        // Saved right after typing (the designer has the keyboard back), the file has it all and reads back.
+        cx.dispatch_action(Save);
+        cx.run_until_parked();
+        let text = std::fs::read_to_string(dir.join("Form1.Designer.cs")).unwrap();
+        assert!(text.contains("        menuStrip1.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem });"), "{text}");
+        assert!(text.contains("        fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { saveToolStripMenuItem });"), "{text}");
+        assert!(text.contains("        fileToolStripMenuItem.Text = \"&File\";"), "{text}");
+        assert!(text.contains("        dataGridView1.Columns.AddRange(new DataGridViewColumn[] { Column1, Column2 });"), "{text}");
+        assert!(text.contains("        Column1 = new DataGridViewCheckBoxColumn();"), "{text}");
+        assert!(!text.contains("exitToolStripMenuItem"), "{text}");
+        let m = winforms::Designer::parse(&text, "Form").unwrap();
+        assert_eq!(m.items("menuStrip1"), ["fileToolStripMenuItem"]);
+    }
 }

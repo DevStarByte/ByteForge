@@ -203,9 +203,8 @@ themes and modules in that folder (to try a theme or a build without touching yo
   are debugged in Edge, Chrome or Chromium (Firefox isn't supported); a Blazor Web App's server project is
   debugged as usual, its WebAssembly client part not yet.
 - The Windows Forms designer draws controls itself, so they look close to, not exactly like, Windows Forms at run
-  time (images, custom controls and the cells of table layouts are approximate). It edits menu and tool strip
-  items, grid columns and data bindings as code only, and keeps localized forms' `resources.ApplyResources` as
-  written without editing their translations.
+  time (images, custom controls and the cells of table layouts are approximate). It edits data bindings as code
+  only, and keeps localized forms' `resources.ApplyResources` as written without editing their translations.
 - Windows downloads aren't code-signed yet and the macOS app isn't notarized (see [Install](#install)).
 - Very large solutions take a while before diagnostics appear.
 

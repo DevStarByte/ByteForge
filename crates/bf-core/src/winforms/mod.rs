@@ -12,6 +12,7 @@ mod catalog;
 mod clip;
 mod code;
 mod grid;
+mod items;
 mod layout;
 mod lex;
 mod values;
@@ -487,17 +488,6 @@ impl Designer {
         self.comps[1..].iter().filter(|c| self.parent(&c.name).is_none() && !self.is_item(&c.name)).collect()
     }
 
-    /// Whether a component is an item of another (a menu's ToolStripMenuItem, a grid's column).
-    fn is_item(&self, name: &str) -> bool {
-        self.comps.iter().any(|c| {
-            c.name != name
-                && c.members.iter().any(|m| match m {
-                    Member::Raw(text) => text.contains("AddRange") && lex::mentions(text, name),
-                    _ => false,
-                })
-        })
-    }
-
     /// The items an `Items.AddRange(new ToolStripItem[] { … })` (or `DropDownItems`) gives a strip or menu.
     pub fn strip_items(&self, name: &str) -> Vec<String> {
         let Some(c) = self.get(name) else { return Vec::new() };
@@ -849,7 +839,7 @@ impl Designer {
             let n = doomed[i].clone();
             if let Some(c) = self.get(&n) {
                 let mut inside: Vec<String> = c.children.iter().map(|ch| ch.name.clone()).collect();
-                inside.extend(self.strip_items(&n));
+                inside.extend(self.owned_items(&n));
                 for x in inside {
                     if !doomed.contains(&x) {
                         doomed.push(x);
@@ -870,11 +860,16 @@ impl Designer {
         });
         self.teardown.retain(|(_, text)| !uses(text));
         for c in &mut self.comps {
-            c.members.retain(|m| match m {
-                Member::Prop { value, .. } => !uses(value),
-                Member::Raw(text) => !uses(text),
-                _ => true,
-            });
+            let members = std::mem::take(&mut c.members);
+            c.members = members
+                .into_iter()
+                .filter_map(|m| match m {
+                    Member::Prop { ref value, .. } if uses(value) => None,
+                    // A list of items loses the doomed ones; the others stay.
+                    Member::Raw(text) if uses(&text) => items::without_items(&text, &doomed).filter(|t| text.contains("AddRange(") && !uses(t)).map(Member::Raw),
+                    m => Some(m),
+                })
+                .collect();
         }
         for n in &doomed {
             self.remove_field(n);

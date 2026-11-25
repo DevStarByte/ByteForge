@@ -75,25 +75,6 @@ impl Fragment {
 }
 
 impl Designer {
-    /// The components an `AddRange` of `name` adds (menu items, grid columns).
-    fn owned(&self, name: &str) -> Vec<String> {
-        let Some(c) = self.get(name) else { return Vec::new() };
-        let mut out: Vec<String> = Vec::new();
-        for m in &c.members {
-            if let Member::Raw(text) = m
-                && text.contains("AddRange(")
-            {
-                for (r, member) in lex::identifiers(text) {
-                    let n = &text[r];
-                    if !member && n != name && !self.is_root(n) && self.get(n).is_some() && !out.iter().any(|o| o == n) {
-                        out.push(n.to_owned());
-                    }
-                }
-            }
-        }
-        out
-    }
-
     /// Copies components (the form itself is left out) with everything inside them.
     pub fn copy(&self, names: &[String]) -> Fragment {
         let names: Vec<&String> = names.iter().filter(|n| !self.is_root(n) && self.get(n).is_some()).collect();
@@ -109,7 +90,7 @@ impl Designer {
             let n = all[i].clone();
             if let Some(c) = self.get(&n) {
                 let mut inside: Vec<String> = c.children.iter().map(|ch| ch.name.clone()).collect();
-                inside.extend(self.owned(&n));
+                inside.extend(self.owned_items(&n));
                 for x in inside {
                     if !all.contains(&x) {
                         all.push(x);

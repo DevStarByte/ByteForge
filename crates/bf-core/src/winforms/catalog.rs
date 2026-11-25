@@ -24,10 +24,17 @@ pub struct ControlInfo {
     pub dock: &'static str,
     /// Gets a Text property.
     pub text: bool,
+    /// An item of a strip, a menu or a grid (`Items.AddRange`, `DropDownItems.AddRange`, `Columns.AddRange`):
+    /// not a control of its own.
+    pub item: bool,
 }
 
 const fn control(type_name: &'static str, group: &'static str, size: (i32, i32), default_event: &'static str) -> ControlInfo {
-    ControlInfo { type_name, group, size, initial: &[], default_event, container: false, component: false, init: false, needs_container: false, dock: "None", text: false }
+    ControlInfo { type_name, group, size, initial: &[], default_event, container: false, component: false, init: false, needs_container: false, dock: "None", text: false, item: false }
+}
+
+const fn item(type_name: &'static str, group: &'static str, default_event: &'static str) -> ControlInfo {
+    ControlInfo { item: true, ..control(type_name, group, (0, 0), default_event) }
 }
 
 pub const COMMON: &str = "Common Controls";
@@ -78,9 +85,17 @@ static OTHER: &[ControlInfo] = &[
     ControlInfo { container: true, text: true, ..control("Form", CONTAINERS, (800, 450), "Load") },
     ControlInfo { container: true, ..control("UserControl", CONTAINERS, (150, 150), "Load") },
     ControlInfo { container: true, ..control("SplitterPanel", CONTAINERS, (0, 0), "Paint") },
-    ControlInfo { text: true, ..control("ToolStripMenuItem", MENUS, (0, 0), "Click") },
-    ControlInfo { text: true, ..control("ToolStripStatusLabel", MENUS, (0, 0), "Click") },
-    ControlInfo { text: true, ..control("ToolStripButton", MENUS, (0, 0), "Click") },
+    ControlInfo { text: true, ..item("ToolStripMenuItem", MENUS, "Click") },
+    ControlInfo { text: true, ..item("ToolStripStatusLabel", MENUS, "Click") },
+    ControlInfo { text: true, ..item("ToolStripButton", MENUS, "Click") },
+    ControlInfo { text: true, ..item("ToolStripLabel", MENUS, "Click") },
+    item("ToolStripSeparator", MENUS, "Paint"),
+    item("DataGridViewTextBoxColumn", DATA, "Disposed"),
+    item("DataGridViewCheckBoxColumn", DATA, "Disposed"),
+    item("DataGridViewComboBoxColumn", DATA, "Disposed"),
+    item("DataGridViewButtonColumn", DATA, "Disposed"),
+    item("DataGridViewLinkColumn", DATA, "Disposed"),
+    item("DataGridViewImageColumn", DATA, "Disposed"),
     ControlInfo { component: true, needs_container: true, ..control("ContextMenuStrip", MENUS, (0, 0), "Opening") },
     ControlInfo { component: true, needs_container: true, init: true, ..control("BindingSource", DATA, (0, 0), "CurrentChanged") },
     ControlInfo { component: true, needs_container: true, ..control("NotifyIcon", COMPONENTS, (0, 0), "MouseDoubleClick") },
@@ -110,6 +125,44 @@ pub fn is_component(type_name: &str) -> bool {
         }
     }
 }
+
+/// Whether the type is an item of a strip, menu or grid (see [`ControlInfo::item`]).
+pub fn is_item_type(type_name: &str) -> bool {
+    info(type_name).is_some_and(|i| i.item)
+}
+
+/// The collection a strip, menu item or grid keeps its items in, and the type of its array:
+/// `("Items", "ToolStripItem")`, `("DropDownItems", "ToolStripItem")`, `("Columns", "DataGridViewColumn")`.
+pub fn item_collection(owner_type: &str) -> Option<(&'static str, &'static str)> {
+    match short_type(owner_type) {
+        "MenuStrip" | "ToolStrip" | "StatusStrip" | "ContextMenuStrip" => Some(("Items", "ToolStripItem")),
+        "ToolStripMenuItem" | "ToolStripDropDownButton" | "ToolStripSplitButton" => Some(("DropDownItems", "ToolStripItem")),
+        "DataGridView" => Some(("Columns", "DataGridViewColumn")),
+        _ => None,
+    }
+}
+
+/// The item a strip, menu item or grid gets when one is added: a menu item in menus, a button on a tool
+/// strip, a label on a status strip, a text column in a grid.
+pub fn default_item_type(owner_type: &str) -> Option<&'static str> {
+    match short_type(owner_type) {
+        "MenuStrip" | "ContextMenuStrip" | "ToolStripMenuItem" | "ToolStripDropDownButton" | "ToolStripSplitButton" => Some("ToolStripMenuItem"),
+        "ToolStrip" => Some("ToolStripButton"),
+        "StatusStrip" => Some("ToolStripStatusLabel"),
+        "DataGridView" => Some("DataGridViewTextBoxColumn"),
+        _ => None,
+    }
+}
+
+/// The column types a grid's toolbar offers: (type, label).
+pub const COLUMN_TYPES: &[(&str, &str)] = &[
+    ("DataGridViewTextBoxColumn", "Text"),
+    ("DataGridViewCheckBoxColumn", "Check Box"),
+    ("DataGridViewComboBoxColumn", "Combo Box"),
+    ("DataGridViewButtonColumn", "Button"),
+    ("DataGridViewLinkColumn", "Link"),
+    ("DataGridViewImageColumn", "Image"),
+];
 
 pub fn default_event(type_name: &str) -> &'static str {
     info(type_name).map(|i| i.default_event).filter(|e| !e.is_empty()).unwrap_or("Click")
@@ -163,7 +216,12 @@ const WINDOW: &str = "Window Style";
 const DOCK: &[&str] = &["None", "Top", "Bottom", "Left", "Right", "Fill"];
 const BORDER: &[&str] = &["None", "FixedSingle", "Fixed3D"];
 const ALIGN: &[&str] = &["TopLeft", "TopCenter", "TopRight", "MiddleLeft", "MiddleCenter", "MiddleRight", "BottomLeft", "BottomCenter", "BottomRight"];
-const TEXT_TYPES: &[&str] = &["Button", "CheckBox", "Label", "LinkLabel", "RadioButton", "GroupBox", "TabPage", "TextBox", "ComboBox", "RichTextBox", "MenuStrip", "StatusStrip", "ToolStrip", "ToolStripMenuItem", "ToolStripStatusLabel", "ToolStripButton", "Control"];
+const TEXT_TYPES: &[&str] = &[
+    "Button", "CheckBox", "Label", "LinkLabel", "RadioButton", "GroupBox", "TabPage", "TextBox", "ComboBox", "RichTextBox", "MenuStrip", "StatusStrip", "ToolStrip",
+    "ToolStripMenuItem", "ToolStripStatusLabel", "ToolStripButton", "ToolStripLabel", "Control",
+];
+const STRIP_ITEMS: &[&str] = &["ToolStripMenuItem", "ToolStripButton", "ToolStripStatusLabel", "ToolStripLabel", "ToolStripSeparator"];
+const COLUMNS: &[&str] = &["DataGridViewTextBoxColumn", "DataGridViewCheckBoxColumn", "DataGridViewComboBoxColumn", "DataGridViewButtonColumn", "DataGridViewLinkColumn", "DataGridViewImageColumn"];
 
 /// Every property the grid knows, in the grid's order within a category.
 pub static PROPERTIES: &[PropInfo] = &[
@@ -189,6 +247,34 @@ pub static PROPERTIES: &[PropInfo] = &[
     PropInfo { root: true, default: Some(""), ..prop("Font", PropKind::Font, APPEARANCE) },
     // Every control
     PropInfo { types: TEXT_TYPES, ..prop("Text", PropKind::Text, APPEARANCE) },
+    // Items of strips and menus
+    PropInfo { default: Some("false"), types: &["ToolStripMenuItem", "ToolStripButton"], ..prop("Checked", PropKind::Bool, APPEARANCE) },
+    PropInfo { default: Some("false"), types: &["ToolStripMenuItem", "ToolStripButton"], ..prop("CheckOnClick", PropKind::Bool, BEHAVIOR) },
+    PropInfo { default: Some(""), types: &["ToolStripMenuItem"], ..prop("ShortcutKeys", PropKind::Code, BEHAVIOR) },
+    PropInfo { default: Some(""), types: &["ToolStripMenuItem", "ToolStripButton", "ToolStripStatusLabel", "ToolStripLabel"], ..prop("ToolTipText", PropKind::Text, BEHAVIOR) },
+    PropInfo { default: Some("ImageAndText"), types: &["ToolStripButton"], ..prop("DisplayStyle", PropKind::Enum("ToolStripItemDisplayStyle", &["None", "Text", "Image", "ImageAndText"]), APPEARANCE) },
+    PropInfo { default: Some("false"), types: &["ToolStripStatusLabel"], ..prop("Spring", PropKind::Bool, LAYOUT) },
+    PropInfo { default: Some("true"), types: STRIP_ITEMS, ..prop("Enabled", PropKind::Bool, BEHAVIOR) },
+    PropInfo { default: Some("true"), types: STRIP_ITEMS, ..prop("Visible", PropKind::Bool, BEHAVIOR) },
+    // Columns of grids
+    PropInfo { default: Some(""), types: COLUMNS, ..prop("HeaderText", PropKind::Text, APPEARANCE) },
+    PropInfo { default: Some(""), types: COLUMNS, ..prop("DataPropertyName", PropKind::Text, DATA_CATEGORY) },
+    PropInfo { default: Some("100"), types: COLUMNS, ..prop("Width", PropKind::Int, LAYOUT) },
+    PropInfo { default: Some("5"), types: COLUMNS, ..prop("MinimumWidth", PropKind::Int, LAYOUT) },
+    PropInfo {
+        default: Some("NotSet"),
+        types: COLUMNS,
+        ..prop(
+            "AutoSizeMode",
+            PropKind::Enum("DataGridViewAutoSizeColumnMode", &["NotSet", "None", "AllCellsExceptHeader", "AllCells", "DisplayedCellsExceptHeader", "DisplayedCells", "ColumnHeader", "Fill"]),
+            LAYOUT,
+        )
+    },
+    PropInfo { default: Some("false"), types: COLUMNS, ..prop("ReadOnly", PropKind::Bool, BEHAVIOR) },
+    PropInfo { default: Some("false"), types: COLUMNS, ..prop("Frozen", PropKind::Bool, LAYOUT) },
+    PropInfo { default: Some("true"), types: COLUMNS, ..prop("Visible", PropKind::Bool, BEHAVIOR) },
+    PropInfo { default: Some("DropDownButton"), types: &["DataGridViewComboBoxColumn"], ..prop("DisplayStyle", PropKind::Enum("DataGridViewComboBoxDisplayStyle", &["ComboBox", "DropDownButton", "Nothing"]), APPEARANCE) },
+    PropInfo { default: Some(""), types: &["DataGridViewButtonColumn", "DataGridViewLinkColumn"], ..prop("Text", PropKind::Text, APPEARANCE) },
     PropInfo { default: Some(""), ..prop("BackColor", PropKind::Color, APPEARANCE) },
     PropInfo { default: Some(""), ..prop("ForeColor", PropKind::Color, APPEARANCE) },
     PropInfo { default: Some(""), ..prop("Font", PropKind::Font, APPEARANCE) },
@@ -261,9 +347,13 @@ const CONTROL_ONLY: &[&str] = &["BackColor", "ForeColor", "Font", "Visible", "Do
 pub fn properties_for(type_name: &str, root: bool) -> Vec<&'static PropInfo> {
     let short = short_type(type_name);
     let component = !root && is_component(type_name);
+    let item = !root && is_item_type(type_name);
     let mut out: Vec<&'static PropInfo> = Vec::new();
     for p in PROPERTIES {
-        let fits = if root {
+        let fits = if item {
+            // Items have only what is listed for them: no Location, Dock, TabIndex.
+            p.types.contains(&short)
+        } else if root {
             p.root || (p.types.is_empty() && matches!(p.name, "Enabled" | "AutoScroll"))
         } else if p.root {
             false
@@ -363,6 +453,18 @@ pub fn events_for(type_name: &str, root: bool) -> Vec<&'static str> {
         }
         return out;
     }
+    if is_item_type(type_name) {
+        if STRIP_ITEMS.contains(&short) && short != "ToolStripSeparator" {
+            add("Click");
+            if matches!(short, "ToolStripMenuItem" | "ToolStripButton") {
+                add("CheckedChanged");
+            }
+            if short == "ToolStripMenuItem" {
+                add("DropDownOpening");
+            }
+        }
+        return out;
+    }
     add(default_event(type_name));
     if is_component(type_name) {
         return out;
@@ -395,6 +497,17 @@ mod tests {
         assert_eq!(property("Button", false, "TextAlign").unwrap().default, Some("MiddleCenter"));
         let timer = names("Timer", false);
         assert_eq!(timer, ["Enabled", "Interval"]);
+        // Items have their own properties, none of a control's layout.
+        let menu_item = names("System.Windows.Forms.ToolStripMenuItem", false);
+        assert!(menu_item.contains(&"Text") && menu_item.contains(&"Checked") && menu_item.contains(&"ShortcutKeys"), "{menu_item:?}");
+        assert!(!menu_item.contains(&"Location") && !menu_item.contains(&"Dock") && !menu_item.contains(&"TabIndex"));
+        let column = names("DataGridViewTextBoxColumn", false);
+        assert!(column.contains(&"HeaderText") && column.contains(&"Width") && column.contains(&"ReadOnly") && !column.contains(&"Text"), "{column:?}");
+        assert_eq!(property("DataGridViewCheckBoxColumn", false, "Width").unwrap().default, Some("100"));
+        assert_eq!(events_for("ToolStripMenuItem", false), ["Click", "CheckedChanged", "DropDownOpening"]);
+        assert!(events_for("DataGridViewTextBoxColumn", false).is_empty());
+        assert_eq!(item_collection("System.Windows.Forms.DataGridView"), Some(("Columns", "DataGridViewColumn")));
+        assert_eq!(default_item_type("StatusStrip"), Some("ToolStripStatusLabel"));
         let form = names("Form", true);
         assert!(form.contains(&"ClientSize") && form.contains(&"Text") && !form.contains(&"Location"));
         assert!(names("UserControl", true).contains(&"Size"));
