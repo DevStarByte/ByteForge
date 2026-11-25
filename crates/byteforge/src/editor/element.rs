@@ -212,7 +212,7 @@ impl Element for EditorElement {
             };
             if fold_width > 0.0 {
                 // Cached per buffer version.
-                view.refresh_fold_regions();
+                view.schedule_fold_regions(cx);
             }
             view.caret_live = view.focus.is_focused(window) && window.is_window_active();
             view.update_wrap();

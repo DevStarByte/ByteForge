@@ -32,6 +32,11 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
   view (with Show Output) until dismissed, and a successful one confirms what it did. HISTORY marks the
   commits not pushed yet, lists incoming ones (click to pull), and gives the messages the room: a branch and its
   remote at the same commit share one badge ("master · origin"), `origin/HEAD` is left out, tags are outlined.
+- Typing is smoother, more so in longer files. The caret's blinking redrew the whole window about 30 times a
+  second all the time (with the default "smooth" blinking): also while typing, when the editor had no focus and
+  with the window in the background. It now redraws only while the caret shows and blinks. Fold markers and
+  the language server's colors are worked out on a background thread instead of while drawing, and the
+  minimap is rebuilt only when what it shows changed.
 
 ## 1.2.0
 

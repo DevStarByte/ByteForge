@@ -247,6 +247,8 @@ pub struct EditorView {
     syntax_spans: Spans,
     semantic_spans: Spans,
     syntax_task: Option<Task<()>>,
+    /// Finding the fold regions of the text of a version.
+    pub(crate) fold_task: Option<(u64, Task<()>)>,
     semantic_task: Option<Task<()>>,
 
     lsp: Option<LspClient>,
@@ -413,6 +415,7 @@ impl EditorView {
             syntax_spans: Spans::default(),
             semantic_spans: Spans::default(),
             syntax_task: None,
+            fold_task: None,
             semantic_task: None,
             lsp: None,
             lsp_version: 0,

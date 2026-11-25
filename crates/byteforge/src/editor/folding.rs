@@ -3,7 +3,7 @@
 //! needs. A folded region keeps its first line visible and hides the rest, closing brace included.
 
 use bf_text::{Change, Point};
-use gpui::Context;
+use gpui::{AppContext, Context};
 
 use super::EditorView;
 
@@ -117,6 +117,17 @@ impl Folds {
         &self.regions
     }
 
+    /// Whether the cached regions are those of `version`.
+    pub fn regions_are_for(&self, version: u64) -> bool {
+        self.regions_version == Some(version)
+    }
+
+    /// Regions found (on a background thread) for `version`.
+    pub fn set_regions(&mut self, version: u64, regions: Vec<(usize, usize)>) {
+        self.regions = regions;
+        self.regions_version = Some(version);
+    }
+
     pub fn fold(&mut self, region: (usize, usize)) {
         self.folded.push(region);
         self.rebuild_hidden();
@@ -138,11 +149,18 @@ impl Folds {
     /// Keeps folds on their lines while editing. An edit inside a folded body, or one that adds or removes
     /// lines on its first line (Enter at its end), unfolds it.
     pub fn shift(&mut self, c: &Change) {
+        let delta = c.new_end.line as isize - c.old_end.line as isize;
+        let moved = |line: usize| if line > c.old_end.line { (line as isize + delta).max(0) as usize } else { line };
+        // The regions stay in place until they are found again (in the background), so the gutter's
+        // chevrons don't jump while typing.
+        if delta != 0 {
+            for r in &mut self.regions {
+                *r = (moved(r.0), moved(r.1));
+            }
+        }
         if self.folded.is_empty() {
             return;
         }
-        let delta = c.new_end.line as isize - c.old_end.line as isize;
-        let moved = |line: usize| if line > c.old_end.line { (line as isize + delta).max(0) as usize } else { line };
         self.folded = self
             .folded
             .iter()
@@ -383,6 +401,34 @@ impl EditorView {
         let style = self.fold_style();
         let rope = self.state.buffer.rope();
         self.folds.regions(version, || rope.to_string(), style);
+    }
+
+    /// Finds the regions of a changed text on a background thread (the gutter draws the old ones, moved
+    /// along with the edits, until then): what the frame needs, without scanning the file while drawing.
+    pub(crate) fn schedule_fold_regions(&mut self, cx: &mut Context<Self>) {
+        let version = self.state.buffer.version();
+        if self.folds.regions_are_for(version) || self.fold_task.as_ref().is_some_and(|(v, _)| *v == version) {
+            return;
+        }
+        let style = self.fold_style();
+        let rope = self.state.buffer.rope().clone();
+        let task = cx.background_spawn(async move {
+            let text = rope.to_string();
+            let lines: Vec<&str> = text.split('\n').collect();
+            regions(&lines, style)
+        });
+        self.fold_task = Some((
+            version,
+            cx.spawn(async move |this, cx| {
+                let found = task.await;
+                let _ = this.update(cx, |view, cx| {
+                    if view.state.buffer.version() == version {
+                        view.folds.set_regions(version, found);
+                        cx.notify();
+                    }
+                });
+            }),
+        ));
     }
 
     /// Folds or unfolds the region starting on `line` (gutter click).
