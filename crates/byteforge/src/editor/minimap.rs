@@ -2,7 +2,6 @@
 //! syntax color, with a slider for the visible part. Click or drag it to scroll.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use bf_text::Point;
 use gpui::{Bounds, Corners, Hsla, Window, fill, point, px, quad, size};
@@ -20,8 +19,8 @@ pub(crate) const SCROLLBAR_GAP: f32 = 14.0;
 pub(crate) struct MiniMap {
     pub first_row: usize,
     pub rows: Vec<Vec<(u16, u16, Hsla)>>,
-    key: (u64, usize, usize, usize),
-    built: Instant,
+    /// (text version, first row, rows, theme version, colors generation, display rows).
+    key: (u64, usize, usize, usize, u64, usize),
 }
 
 impl EditorView {
@@ -57,11 +56,8 @@ impl EditorView {
         }
         let first = self.minimap_first_row();
         let capacity = self.minimap_capacity();
-        let key = (self.state.buffer.version(), first, capacity, theme.version);
-        if let Some(m) = &self.minimap
-            && m.key == key
-            && m.built.elapsed() < Duration::from_millis(300)
-        {
+        let key = (self.state.buffer.version(), first, capacity, theme.version, self.spans_generation, self.folds.row_count(self.state.buffer.line_count()));
+        if self.minimap.as_ref().is_some_and(|m| m.key == key) {
             return;
         }
         let max_cols = (self.layout.minimap / COL).floor() as usize;
@@ -98,7 +94,7 @@ impl EditorView {
             }
             rows.push(runs);
         }
-        self.minimap = Some(Arc::new(MiniMap { first_row: first, rows, key, built: Instant::now() }));
+        self.minimap = Some(Arc::new(MiniMap { first_row: first, rows, key }));
     }
 
     /// Scrolls so the display row under `y` (window pixels) in the minimap is centered.
