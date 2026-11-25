@@ -286,7 +286,10 @@ mod tests {
         });
 
         // Make button2 wider, move button1 right; with both selected (button2 first), Lefts and Same Size.
-        cx.press("ctrl-shift-right");
+        // Shift+arrows widen it 8 px (not the 8-px Ctrl step: on macOS Ctrl+Shift+Right is Alt+Shift+Right).
+        for _ in 0..8 {
+            cx.press("shift-right");
+        }
         cx.simulate_click(at(50., 20.), gpui::Modifiers::none());
         for _ in 0..5 {
             cx.press("right");
