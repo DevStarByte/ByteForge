@@ -74,8 +74,9 @@ live, and modules written in any language can extend it.
   merge-conflict resolution (accept current / incoming / both), branches, and pull (merge, or rebase with
   `pull.rebase`) / push / fetch. The view's "…" menu
   (also in the command palette) has Undo Last Commit, Commit (Amend), Revert Commit, the stash (stash, pop, apply,
-  drop), Discard All, Merge Branch / Abort Merge, Rename Branch and tags; right-click a commit in HISTORY to tag,
-  revert or copy it
+  drop), Discard All, Merge Branch / Abort Merge, Rename Branch and tags; HISTORY draws the commit graph (branches
+  and merges as colored lanes, your branch and its remote side by side, dashed where not pushed or not pulled yet);
+  right-click a commit in HISTORY to tag, revert or copy it
 - **Docker:** containers, images, volumes and Compose, plus Dockerfile generation for .NET projects (the Docker
   module, installed from the Modules view)
 - **Terminal:** your own shell on a real PTY, with true color and several tabs

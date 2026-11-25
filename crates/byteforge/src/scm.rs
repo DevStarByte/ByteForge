@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use bf_core::Workspace;
 use bf_core::git::{Commit, CommitFile, FileChange, Git, GitStatus};
+use bf_core::graph::{Edge, GraphRow};
 use gpui::{App, Context, Entity, EventEmitter, FocusHandle, Focusable, MouseButton, MouseDownEvent, Pixels, Point, PromptLevel, Subscription, Task, Window, div, prelude::*, px, uniform_list};
 
 use crate::assets::icon;
@@ -38,10 +39,12 @@ enum Entry {
     HistoryHeader,
     /// Commits on the upstream that aren't here yet (click: pull).
     Incoming(u32),
-    Commit { commit: Commit, expanded: bool },
-    CommitFile { commit: Commit, file: CommitFile },
+    /// A commit and its row in the graph.
+    Commit { commit: Commit, expanded: bool, row: usize },
+    /// A file of an expanded commit (the graph's lanes go on past it).
+    CommitFile { commit: Commit, file: CommitFile, row: usize },
     /// Placeholder under an expanded commit while its files load.
-    CommitLoading,
+    CommitLoading { row: usize },
     LoadMore,
 }
 
@@ -99,6 +102,128 @@ fn ref_badges(refs: &str, remotes: &[&str]) -> Vec<(String, RefKind)> {
     out
 }
 
+/// How a commit's dot is drawn.
+#[derive(Clone, Copy)]
+struct Node {
+    /// The checked-out commit: a ring.
+    head: bool,
+    /// A merge commit: a smaller dot.
+    merge: bool,
+    /// Not pushed yet, or on the remote only: hollow.
+    unshared: bool,
+}
+
+/// Width of a lane of the commit graph.
+const LANE: f32 = 11.0;
+/// Lanes drawn at most (more are cut off at the right).
+const MAX_LANES: usize = 8;
+/// Where the graph starts in a row: the row's padding and the chevron.
+const GRAPH_LEFT: f32 = 12.0 + 14.0 + 4.0;
+
+/// The commit graph's colors and size for one frame.
+struct GraphStyle {
+    colors: [gpui::Hsla; 5],
+    background: gpui::Hsla,
+    lanes: usize,
+}
+
+impl GraphStyle {
+    fn new(t: &Theme, h: &History) -> Self {
+        let defaults = [0x3794ffff, 0xc586c0ff, 0x4ec9b0ff, 0xe8ab53ff, 0xff7eb6ff];
+        let colors = std::array::from_fn(|i| t.c_or(&format!("scmGraph.foreground{}", i + 1), defaults[i]));
+        let lanes = h.graph.iter().map(|r| r.width).max().unwrap_or(1).clamp(1, MAX_LANES);
+        Self { colors, background: t.c("sideBar.background"), lanes }
+    }
+
+    fn width(&self) -> f32 {
+        self.lanes as f32 * LANE
+    }
+
+    /// Where the content of a row under a commit starts: past the graph.
+    fn indent(&self) -> f32 {
+        GRAPH_LEFT + self.width() + 6.0
+    }
+
+    fn color(&self, edge: &Edge) -> gpui::Hsla {
+        self.colors[edge.color % self.colors.len()]
+    }
+
+    /// Lines from commits not shared with the remote yet are dashed.
+    fn dashed(h: &History, edge: &Edge) -> bool {
+        h.commits.get(edge.child).is_some_and(|c| h.outgoing.contains(&c.id) || h.incoming.contains(&c.id))
+    }
+
+    /// The graph next to a commit: the lines through its row and its dot.
+    fn commit_cell(&self, h: &History, row: usize, node: Node, row_h: f32) -> gpui::AnyElement {
+        let Some(g) = h.graph.get(row) else { return div().flex_none().w(px(self.width())).into_any_element() };
+        let lines: Vec<(Edge, bool, bool)> = g.top.iter().map(|e| (*e, true, Self::dashed(h, e))).chain(g.bottom.iter().map(|e| (*e, false, Self::dashed(h, e)))).collect();
+        let dot = (g.col, self.colors[g.color % self.colors.len()]);
+        self.cell(lines, Some((dot, node)), row_h).into_any_element()
+    }
+
+    /// The lanes passing a row under a commit (its files), drawn where the commit rows draw them.
+    fn through_cell(&self, h: &History, row: usize, row_h: f32) -> gpui::AnyElement {
+        let below = h.graph.get(row).map(GraphRow::below).unwrap_or_default();
+        let lines: Vec<(Edge, bool, bool)> = below.into_iter().flat_map(|e| [(e, true, Self::dashed(h, &e)), (e, false, Self::dashed(h, &e))]).collect();
+        div().absolute().left(px(GRAPH_LEFT)).top_0().child(self.cell(lines, None, row_h)).into_any_element()
+    }
+
+    /// Draws lines (edge, in the top half, dashed) and maybe a dot ((lane, color), how).
+    fn cell(&self, lines: Vec<(Edge, bool, bool)>, dot: Option<((usize, gpui::Hsla), Node)>, row_h: f32) -> impl IntoElement + use<> {
+        let colors: Vec<gpui::Hsla> = lines.iter().map(|(e, _, _)| self.color(e)).collect();
+        let background = self.background;
+        let lanes = self.lanes;
+        gpui::canvas(
+            |_, _, _| (),
+            move |bounds, _, window, _| {
+                let (x0, y0) = (bounds.origin.x, bounds.origin.y);
+                let h = f32::from(bounds.size.height);
+                let x = |lane: usize| x0 + px(lane as f32 * LANE + LANE / 2.0);
+                let mid = y0 + px(h / 2.0);
+                for ((edge, top, dashed), color) in lines.iter().zip(&colors) {
+                    if edge.from >= lanes || edge.to >= lanes {
+                        continue;
+                    }
+                    let (start, end) = if *top { (gpui::point(x(edge.from), y0), gpui::point(x(edge.to), mid)) } else { (gpui::point(x(edge.from), mid), gpui::point(x(edge.to), y0 + px(h))) };
+                    let mut path = gpui::PathBuilder::stroke(px(1.5));
+                    if *dashed {
+                        path = path.dash_array(&[px(3.), px(2.)]);
+                    }
+                    path.move_to(start);
+                    if edge.from == edge.to {
+                        path.line_to(end);
+                    } else {
+                        // An S-curve: leaves its lane straight down and arrives straight down.
+                        let half = (start.y + end.y) / 2.0;
+                        path.cubic_bezier_to(end, gpui::point(start.x, half), gpui::point(end.x, half));
+                    }
+                    if let Ok(path) = path.build() {
+                        window.paint_path(path, *color);
+                    }
+                }
+                if let Some(((lane, color), node)) = dot
+                    && lane < lanes
+                {
+                    let r = if node.head { 4.5 } else if node.merge { 2.5 } else { 3.5 };
+                    let hollow = node.head || node.unshared;
+                    let bounds = gpui::Bounds::new(gpui::point(x(lane) - px(r), mid - px(r)), gpui::size(px(r * 2.0), px(r * 2.0)));
+                    let fill = if hollow { background } else { color };
+                    window.paint_quad(gpui::quad(bounds, px(r), fill, px(if node.head { 2.0 } else { 1.5 }), color, gpui::BorderStyle::Solid));
+                    if node.head && !node.unshared {
+                        // The checked-out commit: a ring around a dot.
+                        let r = 1.5;
+                        let inner = gpui::Bounds::new(gpui::point(x(lane) - px(r), mid - px(r)), gpui::size(px(r * 2.0), px(r * 2.0)));
+                        window.paint_quad(gpui::quad(inner, px(r), color, px(0.), color, gpui::BorderStyle::Solid));
+                    }
+                }
+            },
+        )
+        .flex_none()
+        .w(px(self.width()))
+        .h(px(row_h))
+    }
+}
+
 /// Commits loaded per page of the History section.
 const HISTORY_PAGE: usize = 100;
 
@@ -113,6 +238,10 @@ struct History {
     expanded: HashSet<String>,
     /// Commits a push would send (marked in the list).
     outgoing: HashSet<String>,
+    /// Commits only the upstream has (what a pull brings).
+    incoming: HashSet<String>,
+    /// The commit graph, a row per commit.
+    graph: Vec<GraphRow>,
     /// The upstream, ahead and behind the list was loaded for (a push or fetch reloads it).
     sync: (Option<String>, u32, u32),
     files: HashMap<String, Vec<CommitFile>>,
@@ -342,13 +471,13 @@ impl ScmView {
                 entries.push(Entry::Incoming(status.behind));
             }
             if h.open {
-                for commit in &h.commits {
+                for (row, commit) in h.commits.iter().enumerate() {
                     let expanded = h.expanded.contains(&commit.id);
-                    entries.push(Entry::Commit { commit: commit.clone(), expanded });
+                    entries.push(Entry::Commit { commit: commit.clone(), expanded, row });
                     if expanded {
                         match h.files.get(&commit.id) {
-                            Some(files) => entries.extend(files.iter().map(|f| Entry::CommitFile { commit: commit.clone(), file: f.clone() })),
-                            None => entries.push(Entry::CommitLoading),
+                            Some(files) => entries.extend(files.iter().map(|f| Entry::CommitFile { commit: commit.clone(), file: f.clone(), row })),
+                            None => entries.push(Entry::CommitLoading { row }),
                         }
                     }
                 }
@@ -370,13 +499,15 @@ impl ScmView {
             self.history.sync = (self.status.upstream.clone(), self.status.ahead, self.status.behind);
         }
         let ahead = self.status.ahead > 0;
+        let behind = self.status.behind > 0;
         self.history.loading = true;
         self.history.task = Some(cx.spawn(async move |this, cx| {
             let result = cx
                 .background_executor()
                 .spawn(async move {
                     let outgoing = if ahead && !more { Some(git.outgoing()) } else { None };
-                    git.log(HISTORY_PAGE, skip).map(|c| (c, outgoing))
+                    let incoming = if behind && !more { Some(git.incoming()) } else { None };
+                    git.graph_log(HISTORY_PAGE, skip).map(|c| (c, outgoing, incoming))
                 })
                 .await;
             let _ = this.update(cx, |v, cx| {
@@ -385,9 +516,10 @@ impl ScmView {
                     return; // HEAD moved meanwhile; a newer load is on its way.
                 }
                 match result {
-                    Ok((commits, outgoing)) => {
+                    Ok((commits, outgoing, incoming)) => {
                         if !more {
                             v.history.outgoing = outgoing.unwrap_or_default().into_iter().collect();
+                            v.history.incoming = incoming.unwrap_or_default().into_iter().collect();
                         }
                         v.history.more = commits.len() == HISTORY_PAGE;
                         if more {
@@ -398,6 +530,7 @@ impl ScmView {
                             v.history.files.retain(|id, _| ids.contains(id.as_str()));
                             v.history.commits = commits;
                         }
+                        v.history.graph = bf_core::graph::layout(v.history.commits.iter().map(|c| (c.id.as_str(), c.parents.as_slice())));
                     }
                     Err(e) => cx.emit(ScmEvent::Log(format!("git log failed: {e}"))),
                 }
@@ -1006,6 +1139,7 @@ impl Render for ScmView {
 
         let entity = cx.entity();
         let row_h = t.n("list.itemHeight", 22.0);
+        let graph_style = GraphStyle::new(&t, &self.history);
         let root = self.git.as_ref().map(|g| g.root().to_path_buf()).unwrap_or_default();
         let list = uniform_list("scm-changes", self.entries.len(), move |range, _, cx| {
             let view = entity.read(cx);
@@ -1184,9 +1318,11 @@ impl Render for ScmView {
                                 .on_click(move |_, _, cx| e.update(cx, |v, cx| v.pull(cx)))
                                 .into_any_element()
                         }
-                        Entry::Commit { commit, expanded } => {
+                        Entry::Commit { commit, expanded, row } => {
                             let muted = t.c("foreground.muted");
                             let outgoing = view.history.outgoing.contains(&commit.id);
+                            let incoming = view.history.incoming.contains(&commit.id);
+                            let head = view.status.head.as_deref() == Some(commit.id.as_str());
                             let remote = view.status.upstream.as_deref().and_then(|u| u.split('/').next()).unwrap_or("origin");
                             let badges = ref_badges(&commit.refs, &[remote, "origin", "upstream"]);
                             let merge = commit.parents.len() > 1;
@@ -1196,6 +1332,9 @@ impl Render for ScmView {
                             }
                             if outgoing {
                                 tip.push_str("\n\nNot pushed yet.");
+                            }
+                            if incoming {
+                                tip.push_str("\n\nOn the remote only: a pull brings it.");
                             }
                             let added = t.c_or("gitDecoration.addedResourceForeground", 0x73c991ff);
                             let extra = badges.len().saturating_sub(2);
@@ -1242,14 +1381,19 @@ impl Render for ScmView {
                                 .overflow_hidden()
                                 .tooltip(tooltip(tip))
                                 .child(icon(if expanded { "chevronDown" } else { "chevronRight" }, px(14.), t.c("icon.foreground")))
-                                .child(if outgoing {
-                                    // Not on the remote yet: what Push would send.
-                                    icon("arrowUp", px(14.), added)
-                                } else {
-                                    icon("gitCommit", px(14.), if merge { muted } else { t.c("icon.foreground") })
-                                })
+                                .child(graph_style.commit_cell(&view.history, row, Node { head, merge, unshared: outgoing || incoming }, row_h))
                                 // The message gets the room; the badges shrink first.
-                                .child(div().flex_1().min_w(px(90.)).overflow_hidden().whitespace_nowrap().text_ellipsis().when(outgoing, |d| d.text_color(added)).child(commit.subject.clone()))
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(90.))
+                                        .overflow_hidden()
+                                        .whitespace_nowrap()
+                                        .text_ellipsis()
+                                        .when(outgoing, |d| d.text_color(added))
+                                        .when(incoming, |d| d.text_color(t.c_or("gitDecoration.modifiedResourceForeground", 0xe2c08dff)))
+                                        .child(commit.subject.clone()),
+                                )
                                 .when(!badges.is_empty(), |d| {
                                     d.child(
                                         div()
@@ -1279,7 +1423,7 @@ impl Render for ScmView {
                                 .on_click(move |_, _, cx| e.update(cx, |v, cx| v.toggle_commit(c.clone(), cx)))
                                 .into_any_element()
                         }
-                        Entry::CommitFile { commit, file } => {
+                        Entry::CommitFile { commit, file, row } => {
                             let name = file.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                             let dir = file.path.parent().and_then(|p| p.strip_prefix(&root).ok()).map(|p| p.display().to_string()).unwrap_or_default();
                             let color = t.c(commit_file_key(file.status));
@@ -1292,7 +1436,7 @@ impl Render for ScmView {
                                 .w_full()
                                 .h(px(row_h))
                                 .relative()
-                                .pl(px(40.))
+                                .pl(px(graph_style.indent()))
                                 .pr_3()
                                 .flex()
                                 .items_center()
@@ -1300,6 +1444,7 @@ impl Render for ScmView {
                                 .cursor_pointer()
                                 .text_size(t.m("list.fontSize", 13.0))
                                 .hover(|s| s.bg(t.c("list.hoverBackground")))
+                                .child(graph_style.through_cell(&view.history, row, row_h))
                                 .when_some(file.orig.as_ref(), |d, orig| d.tooltip(tooltip(format!("Renamed from {}", orig.strip_prefix(&root).unwrap_or(orig).display()))))
                                 .child({
                                     let (icon_name, color_key) = crate::explorer::file_icon(&name, false, false);
@@ -1317,10 +1462,12 @@ impl Render for ScmView {
                                 .on_click(move |_, _, cx| e2.update(cx, |_, cx| cx.emit(ScmEvent::OpenCommitDiff(commit.clone(), file.clone()))))
                                 .into_any_element()
                         }
-                        Entry::CommitLoading => div()
+                        Entry::CommitLoading { row } => div()
                             .id(ix)
                             .h(px(row_h))
-                            .pl(px(40.))
+                            .relative()
+                            .pl(px(graph_style.indent()))
+                            .child(graph_style.through_cell(&view.history, row, row_h))
                             .flex()
                             .items_center()
                             .text_size(px(12.))

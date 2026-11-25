@@ -37,6 +37,10 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
   with the window in the background. It now redraws only while the caret shows and blinks. Fold markers and
   the language server's colors are worked out on a background thread instead of while drawing, and the
   minimap is rebuilt only when what it shows changed.
+- Source Control: HISTORY draws the commit graph. Each branch runs in its own colored lane, merges and branch-offs
+  curve between lanes, and the checked-out commit is a ring. The remote branch's commits show too, so a branch
+  and its diverged remote sit side by side; lines from commits not pushed yet (or not pulled yet) are dashed.
+  Lanes go on through a commit's expanded files. Colors: `scmGraph.foreground1` … `foreground5`.
 
 ## 1.2.0
 

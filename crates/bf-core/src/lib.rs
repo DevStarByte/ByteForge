@@ -10,6 +10,7 @@ pub mod diff;
 pub mod dotnet;
 pub mod ef;
 pub mod git;
+pub mod graph;
 pub mod links;
 pub mod metrics;
 pub mod nuget;

@@ -620,6 +620,27 @@ impl Git {
         Ok(parse_log(&text))
     }
 
+    /// The history for the commit graph: HEAD's commits and those of its upstream (when it has one), so a
+    /// branch and its diverged remote both show; children before their parents (`--topo-order`).
+    pub fn graph_log(&self, limit: usize, skip: usize) -> anyhow::Result<Vec<Commit>> {
+        if !self.has_commits() {
+            return Ok(Vec::new());
+        }
+        let (limit, skip) = (format!("-n{limit}"), format!("--skip={skip}"));
+        let upstream = run(&self.root, &["rev-parse", "--verify", "--quiet", "@{upstream}"]).is_ok_and(|s| !s.trim().is_empty());
+        let mut args = vec!["log", "-z", "--topo-order", &limit, &skip, "--date=format:%Y-%m-%d %H:%M", "--format=%H%x1f%P%x1f%an%x1f%ae%x1f%ar%x1f%ad%x1f%D%x1f%s", "HEAD"];
+        if upstream {
+            args.push("@{upstream}");
+        }
+        Ok(parse_log(&run(&self.root, &args)?))
+    }
+
+    /// The commits the upstream has that HEAD doesn't (what a pull brings), newest first; empty without an
+    /// upstream.
+    pub fn incoming(&self) -> Vec<String> {
+        run(&self.root, &["rev-list", "HEAD..@{upstream}"]).map(|t| t.lines().map(str::to_owned).collect()).unwrap_or_default()
+    }
+
     /// The commits HEAD has that its upstream doesn't (what a push sends), newest first; empty without an
     /// upstream.
     pub fn outgoing(&self) -> Vec<String> {
@@ -1219,8 +1240,16 @@ u UU N... 100644 100644 100644 100644 h1 h2 h3 conflict.cs\0\
         // No setting: a merge commit with both sides.
         diverge("B.cs", "b\n", "m1\n");
         let head = mine.log(1, 0).unwrap()[0].id.clone();
-        assert_eq!(mine.outgoing(), [head], "my commit is outgoing");
+        assert_eq!(mine.outgoing(), std::slice::from_ref(&head), "my commit is outgoing");
+        // The graph's history has both sides: mine, the remote's (fetched) and what they share.
+        run(mine.root(), &["fetch", "-q"]).unwrap();
+        let incoming = mine.incoming();
+        assert_eq!(incoming.len(), 1, "their commit is incoming");
+        let graph: Vec<String> = mine.graph_log(50, 0).unwrap().into_iter().map(|c| c.id).collect();
+        assert_eq!(graph.len(), 3, "{graph:?}");
+        assert!(graph.contains(&head) && graph.contains(&incoming[0]));
         mine.pull().unwrap();
+        assert!(mine.incoming().is_empty(), "pulled");
         assert_eq!(parents(&mine), 2, "a merge commit");
         assert_eq!((read("B.cs").as_str(), read("Mine.cs").as_str()), ("b\n", "m1\n"));
         assert_eq!(mine.outgoing().len(), 2, "my commit and the merge");

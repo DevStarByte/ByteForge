@@ -42,7 +42,7 @@ from the base theme.
 - **minimap and groups**: `minimap.background`, `minimap.selectionHighlight`, `minimap.caretLine`,
   `minimapSlider.background` / `hoverBackground` and `editorGroup.border` (in `colors`), `minimap.width` (in
   `metrics`).
-- **git colors** (in `colors`): `gitDecoration.*ResourceForeground`, `editorGutter.added/modified/deletedBackground`,
+- **git colors** (in `colors`): `gitDecoration.*ResourceForeground`, `scmGraph.foreground1` … `foreground5` (the lanes of the commit graph in HISTORY, used in turn), `editorGutter.added/modified/deletedBackground`,
   `diffEditor.inserted/removedLineBackground`, `diffEditor.inserted/removedTextBackground` (changed words), `diffEditor.diagonalFill` (filler rows), `merge.current/incomingHeaderBackground`, `merge.current/incoming/commonContentBackground` (merge conflicts), `editorCodeLens.foreground` (blame, conflict notes and Code Lens), `activityBarBadge.*`, `badge.*`; sizes in `metrics`:
   `editorGutter.changeWidth/changeOffset/changeRadius`, `scm.iconSize`, `activityBarBadge.size`.
 - **Windows Forms designer** (in `colors`): `formDesigner.background` (the canvas around the form),
