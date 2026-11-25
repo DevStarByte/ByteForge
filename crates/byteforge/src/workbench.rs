@@ -128,6 +128,8 @@ impl Tab {
     fn modified(&self, cx: &App) -> bool {
         match &self.page {
             Some(Page::Resx(v)) => v.read(cx).is_dirty(),
+            // A localized form's .resx files are saved with it.
+            Some(Page::Designer(d)) => self.editor.read(cx).is_modified() || d.read(cx).has_unsaved_resources(),
             _ => self.editor.read(cx).is_modified(),
         }
     }

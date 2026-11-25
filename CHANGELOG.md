@@ -20,6 +20,14 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
   its name when it is free there, else gets the next one (`button2`); a copy pasted where the original is moves
   10 px down and right; it goes into the selected container, next to the selected control, or onto the form,
   in that file's code style; event handlers stay hooked up within the same form. Ctrl+A selects every control.
+- Designer: localized forms. A form whose code applies resources (`resources.ApplyResources(button1,
+  "button1")`, Visual Studio's Localizable forms) shows its controls with the values of `Form1.resx`: their
+  text, place and size, anchors and more. The toolbar's Language buttons show the form in one of its languages
+  (`Form1.de.resx`'s values over the neutral ones). Moving, resizing and editing a property the resources
+  hold change the file of the language shown (a language without a file gets one), not the code; the `.resx`
+  files are saved with the designer (the tab shows them unsaved until then), and Ctrl+Z / Ctrl+Y undo and
+  redo them with the code. Copying a localized control into another form takes its values along as code;
+  deleting one removes its entries from every language's file.
 - Designer: menus and grid columns are edited on the form. Clicking a menu item selects it and opens its menu
   (submenus open to the right); "Type Here" at the end of a menu, tool or status strip and of each menu adds an
   item, and the text typed for it names it as Visual Studio does (`&File` → `fileToolStripMenuItem`). Items

@@ -413,4 +413,82 @@ mod tests {
         let m = winforms::Designer::parse(&text, "Form").unwrap();
         assert_eq!(m.items("menuStrip1"), ["fileToolStripMenuItem"]);
     }
+
+    /// A localized form: its controls show their resources; a move goes into the neutral .resx, a text typed
+    /// in German into the German one, both saved with the designer; undo covers them. The code stays.
+    #[gpui::test]
+    fn designs_a_localized_form(cx: &mut gpui::TestAppContext) {
+        const CODE: &str = "namespace Loc;\n\npublic partial class MainForm : Form\n{\n    public MainForm()\n    {\n        InitializeComponent();\n    }\n}\n";
+        const DESIGNER: &str = "namespace Loc;\n\npartial class MainForm\n{\n    private System.ComponentModel.IContainer components = null;\n\n    private void InitializeComponent()\n    {\n        System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));\n        button1 = new Button();\n        SuspendLayout();\n        // \n        // button1\n        // \n        resources.ApplyResources(button1, \"button1\");\n        button1.Name = \"button1\";\n        button1.UseVisualStyleBackColor = true;\n        // \n        // MainForm\n        // \n        resources.ApplyResources(this, \"$this\");\n        AutoScaleMode = AutoScaleMode.Font;\n        Controls.Add(button1);\n        Name = \"MainForm\";\n        ResumeLayout(false);\n    }\n\n    private Button button1;\n}\n";
+        const NEUTRAL: &str = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root>\n  <data name=\"button1.Location\" type=\"System.Drawing.Point, System.Drawing\">\n    <value>12, 12</value>\n  </data>\n  <data name=\"button1.Size\" type=\"System.Drawing.Size, System.Drawing\">\n    <value>75, 23</value>\n  </data>\n  <data name=\"button1.Text\" xml:space=\"preserve\">\n    <value>OK</value>\n  </data>\n  <data name=\"$this.ClientSize\" type=\"System.Drawing.Size, System.Drawing\">\n    <value>284, 161</value>\n  </data>\n  <data name=\"$this.Text\" xml:space=\"preserve\">\n    <value>Main</value>\n  </data>\n</root>\n";
+        const GERMAN: &str = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root>\n  <data name=\"button1.Text\" xml:space=\"preserve\">\n    <value>Gut</value>\n  </data>\n</root>\n";
+        let (guard, wb, cx) = workbench(cx, "designer-localized");
+        let dir = guard.dir.join("ws");
+        std::fs::create_dir_all(&dir).unwrap();
+        for (name, text) in [("MainForm.cs", CODE), ("MainForm.Designer.cs", DESIGNER), ("MainForm.resx", NEUTRAL), ("MainForm.de.resx", GERMAN)] {
+            std::fs::write(dir.join(name), text).unwrap();
+        }
+        wb.update_in(cx, |wb, window, cx| {
+            wb.open_folder(dir.clone(), window, cx);
+            wb.open_file(dir.join("MainForm.cs"), None, window, cx);
+        });
+        cx.run_until_parked();
+        cx.dispatch_action(ViewDesigner);
+        cx.run_until_parked();
+        let designer = designer_of(&wb, cx);
+        designer.read_with(cx, |d, _| {
+            let m = d.model().unwrap();
+            assert_eq!((m.text_of("button1").as_deref(), m.location("button1"), m.text_of("MainForm").as_deref()), (Some("OK"), (12, 12), Some("Main")));
+        });
+        let modified = |wb: &Entity<Workbench>, cx: &mut gpui::VisualTestContext| wb.read_with(cx, |wb, cx| wb.tabs[wb.active.unwrap()].modified(cx));
+        assert!(!modified(&wb, cx));
+
+        // Moved 30 px right (Alt: no snapping): the neutral resources change, the code doesn't.
+        let form = bounds(cx, "designer-form-client");
+        let p = form.origin + gpui::point(px(40.), px(20.));
+        let alt = gpui::Modifiers { alt: true, ..Default::default() };
+        cx.simulate_mouse_down(p, MouseButton::Left, alt);
+        cx.simulate_mouse_move(p + gpui::point(px(15.), px(0.)), Some(MouseButton::Left), alt);
+        cx.simulate_mouse_move(p + gpui::point(px(30.), px(0.)), Some(MouseButton::Left), alt);
+        cx.simulate_mouse_up(p + gpui::point(px(30.), px(0.)), MouseButton::Left, alt);
+        cx.run_until_parked();
+        let code = |wb: &Entity<Workbench>, cx: &mut gpui::VisualTestContext| {
+            wb.read_with(cx, |wb, cx| wb.tabs.iter().find(|t| matches!(t.page, Some(Page::Designer(_)))).unwrap().editor.read(cx).state.buffer.text())
+        };
+        designer.read_with(cx, |d, _| assert_eq!(d.model().unwrap().location("button1"), (42, 12)));
+        assert_eq!(code(&wb, cx), DESIGNER);
+        assert!(modified(&wb, cx), "the .resx change is unsaved");
+        // Undone and redone.
+        cx.press("ctrl-z");
+        designer.read_with(cx, |d, _| assert_eq!(d.model().unwrap().location("button1"), (12, 12)));
+        assert!(!modified(&wb, cx));
+        cx.press("ctrl-y");
+        designer.read_with(cx, |d, _| assert_eq!(d.model().unwrap().location("button1"), (42, 12)));
+
+        // In German: the German text; typing one changes the German file only.
+        click(cx, "designer-language-de");
+        designer.read_with(cx, |d, _| {
+            assert_eq!(d.language(), Some("de"));
+            assert_eq!(d.model().unwrap().text_of("button1").as_deref(), Some("Gut"));
+        });
+        cx.simulate_click(form.origin + gpui::point(px(70.), px(20.)), gpui::Modifiers::none());
+        click(cx, "designer-prop-Text");
+        cx.simulate_input("Prima");
+        cx.press("enter");
+        cx.run_until_parked();
+        designer.read_with(cx, |d, _| assert_eq!(d.model().unwrap().text_of("button1").as_deref(), Some("Prima")));
+
+        // Saved: both .resx files, the code as it was.
+        cx.dispatch_action(Save);
+        cx.run_until_parked();
+        assert!(!modified(&wb, cx));
+        let read = |name: &str| std::fs::read_to_string(dir.join(name)).unwrap();
+        assert_eq!(read("MainForm.Designer.cs"), DESIGNER);
+        assert!(read("MainForm.resx").contains("<value>42, 12</value>"), "{}", read("MainForm.resx"));
+        assert!(read("MainForm.resx").contains("<value>OK</value>"));
+        assert!(read("MainForm.de.resx").contains("<value>Prima</value>"), "{}", read("MainForm.de.resx"));
+        // Back in the neutral language: its text.
+        click(cx, "designer-language-default");
+        designer.read_with(cx, |d, _| assert_eq!(d.model().unwrap().text_of("button1").as_deref(), Some("OK")));
+    }
 }

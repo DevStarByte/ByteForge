@@ -36,6 +36,46 @@ pub fn parse(text: &str) -> anyhow::Result<Vec<Entry>> {
     Ok(out)
 }
 
+/// A value of a `.resx` file with its type (`System.Drawing.Point, System.Drawing`; none for a string), as a
+/// form's resources keep a control's Location or Size.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Resource {
+    pub name: String,
+    pub value: String,
+    pub type_name: Option<String>,
+}
+
+/// Every value of a `.resx` file that is written as text, typed ones included (not files or serialized
+/// objects, which have a `mimetype`).
+pub fn parse_resources(text: &str) -> anyhow::Result<Vec<Resource>> {
+    let doc = roxmltree::Document::parse_with_options(text, roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() })?;
+    let mut out = Vec::new();
+    for data in doc.root_element().children().filter(|n| n.has_tag_name("data")) {
+        if data.attribute("mimetype").is_some() {
+            continue;
+        }
+        let Some(name) = data.attribute("name") else { continue };
+        let value = data.children().find(|c| c.has_tag_name("value")).map(|c| c.text().unwrap_or_default().to_owned()).unwrap_or_default();
+        out.push(Resource { name: name.to_owned(), value, type_name: data.attribute("type").map(str::to_owned) });
+    }
+    Ok(out)
+}
+
+/// Sets a value, keeping its type; a new entry gets `type_name` (none: a string).
+pub fn set_typed(text: &str, name: &str, value: &str, type_name: Option<&str>) -> anyhow::Result<String> {
+    if spans(text, name)?.is_some() {
+        return set_value(text, name, value);
+    }
+    let added = add(text, name, value, None)?;
+    let Some(ty) = type_name else { return Ok(added) };
+    let open = format!("<data name=\"{}\" xml:space=\"preserve\">", escape_attr(name));
+    let typed = format!("<data name=\"{}\" type=\"{}\" xml:space=\"preserve\">", escape_attr(name), escape_attr(ty));
+    Ok(match added.rfind(&open) {
+        Some(at) => format!("{}{typed}{}", &added[..at], &added[at + open.len()..]),
+        None => added,
+    })
+}
+
 /// The culture of a resource file name's stem: "de" for `Strings.de`, "zh-Hans" for `Strings.zh-Hans`,
 /// none for `Strings` (the neutral file) or `Some.Dotted.Name`.
 fn culture_of(stem: &str) -> Option<(&str, &str)> {
@@ -260,6 +300,40 @@ pub fn empty_like(neutral_text: &str) -> anyhow::Result<String> {
         text = remove(&text, &e.name)?;
     }
     Ok(text)
+}
+
+/// A new language file for a form's resources: the header and schema without any value (a form's language
+/// file holds only what differs, typed values like a Size included).
+pub fn empty_of_values(neutral_text: &str) -> anyhow::Result<String> {
+    let doc = roxmltree::Document::parse_with_options(neutral_text, roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() })?;
+    let names: Vec<String> = doc.root_element().children().filter(|n| n.has_tag_name("data")).filter_map(|d| d.attribute("name").map(str::to_owned)).collect();
+    let mut text = neutral_text.to_owned();
+    for name in names {
+        text = remove(&text, &name)?;
+    }
+    Ok(text)
+}
+
+#[cfg(test)]
+mod typed_tests {
+    use super::*;
+
+    const FORM: &str = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<root>\n  <data name=\"button1.Location\" type=\"System.Drawing.Point, System.Drawing\">\n    <value>12, 12</value>\n  </data>\n  <data name=\"button1.Text\" xml:space=\"preserve\">\n    <value>OK</value>\n  </data>\n  <data name=\"$this.Icon\" type=\"System.Drawing.Icon, System.Drawing\" mimetype=\"application/x-microsoft.net.object.bytearray.base64\">\n    <value>AAAB</value>\n  </data>\n</root>\n";
+
+    #[test]
+    fn typed_values() {
+        let r = parse_resources(FORM).unwrap();
+        assert_eq!(r.len(), 2, "the icon's bytes are left out");
+        assert_eq!(r[0], Resource { name: "button1.Location".into(), value: "12, 12".into(), type_name: Some("System.Drawing.Point, System.Drawing".into()) });
+        assert_eq!(parse(FORM).unwrap().len(), 1, "the string entries alone");
+        // Changing a typed value keeps its type; a new one gets the given type.
+        let text = set_typed(FORM, "button1.Location", "20, 30", None).unwrap();
+        assert!(text.contains("<data name=\"button1.Location\" type=\"System.Drawing.Point, System.Drawing\">\n    <value>20, 30</value>"), "{text}");
+        let text = set_typed(&text, "button1.Size", "75, 23", Some("System.Drawing.Size, System.Drawing")).unwrap();
+        assert!(text.contains("<data name=\"button1.Size\" type=\"System.Drawing.Size, System.Drawing\" xml:space=\"preserve\">"), "{text}");
+        let r = parse_resources(&text).unwrap();
+        assert_eq!(r.iter().find(|x| x.name == "button1.Size").map(|x| (x.value.as_str(), x.type_name.as_deref())), Some(("75, 23", Some("System.Drawing.Size, System.Drawing"))));
+    }
 }
 
 #[cfg(test)]

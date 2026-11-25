@@ -15,6 +15,7 @@ mod grid;
 mod items;
 mod layout;
 mod lex;
+mod resources;
 mod values;
 
 pub use catalog::*;
@@ -22,6 +23,7 @@ pub use clip::*;
 pub use code::*;
 pub use grid::*;
 pub use layout::*;
+pub use resources::*;
 pub use lex::is_identifier;
 pub use values::*;
 
@@ -109,6 +111,12 @@ pub struct Designer {
     blocks: Vec<String>,
     /// ResumeLayout, PerformLayout and EndInit after the last block (with the component each is about).
     teardown: Vec<(Option<String>, String)>,
+    /// A localized form's resources, in the language shown.
+    res: Option<FormResources>,
+    /// What the resources set: (component, property) → the value as code.
+    res_props: std::collections::HashMap<(String, String), String>,
+    /// Changes to the `.resx` files not yet written.
+    res_edits: Vec<ResEdit>,
 }
 
 fn strip_this(s: &str) -> &str {
@@ -217,6 +225,9 @@ impl Designer {
             setup: Vec::new(),
             blocks: Vec::new(),
             teardown: Vec::new(),
+            res: None,
+            res_props: Default::default(),
+            res_edits: Vec::new(),
         };
 
         let items = lex::items(body);
@@ -440,12 +451,16 @@ impl Designer {
         self.comps.iter_mut().find(|c| c.name == name)
     }
 
-    /// The code a property is set to.
+    /// The code a property is set to (in a localized form, what its resources set it to, as code).
     pub fn prop(&self, name: &str, prop: &str) -> Option<&str> {
-        self.get(name)?.members.iter().find_map(|m| match m {
-            Member::Prop { name, value, .. } if name == prop => Some(value.as_str()),
-            _ => None,
-        })
+        self.get(name)?
+            .members
+            .iter()
+            .find_map(|m| match m {
+                Member::Prop { name, value, .. } if name == prop => Some(value.as_str()),
+                _ => None,
+            })
+            .or_else(|| self.res_props.get(&(name.to_owned(), prop.to_owned())).map(String::as_str))
     }
 
     /// The handlers hooked to a component's events.
@@ -584,6 +599,10 @@ impl Designer {
 
     /// Sets a property to code (`None`: takes it out, back to its default).
     pub fn set_prop(&mut self, owner: &str, prop: &str, value: Option<&str>) {
+        // In a localized form, what the resources hold is changed there.
+        if self.set_resource_prop(owner, prop, value) {
+            return;
+        }
         let target = self.target(owner);
         let root = self.is_root(owner);
         let Some(c) = self.get_mut(owner) else { return };
@@ -848,6 +867,7 @@ impl Designer {
             }
             i += 1;
         }
+        self.forget_resources(&doomed);
         for n in &doomed {
             self.detach(n);
         }
@@ -940,6 +960,7 @@ impl Designer {
         if self.prop(new, "Name").is_some() {
             self.set_prop(new, "Name", Some(&format_string(new)));
         }
+        self.rebuild_res_props();
         Ok(())
     }
 

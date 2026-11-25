@@ -23,6 +23,7 @@ use crate::editor::{EditorEvent, EditorView};
 use crate::text_input::{InputEvent, TextInput};
 use crate::theme::Theme;
 
+mod localized;
 mod strips;
 use strips::ItemHit;
 
@@ -158,6 +159,13 @@ pub struct FormDesigner {
     fresh_item: Option<String>,
     /// A grid field was closed: the designer takes the keyboard back (else shortcuts go to the closed field).
     refocus: bool,
+    /// A localized form's `.resx` files (`Form1.resx` and its languages).
+    resources: Option<localized::Resources>,
+    /// The language shown (`None`: the neutral one).
+    language: Option<String>,
+    /// The designer's changes, to undo (and undone ones, to redo): code and resources together.
+    history: Vec<localized::Step>,
+    future: Vec<localized::Step>,
     /// The form while a drag is going on (the model isn't changed until the mouse is let go).
     preview: Option<Designer>,
     /// The page each TabControl shows.
@@ -222,6 +230,10 @@ impl FormDesigner {
             item_hits: Vec::new(),
             fresh_item: None,
             refocus: false,
+            resources: None,
+            language: None,
+            history: Vec::new(),
+            future: Vec::new(),
             preview: None,
             tabs: HashMap::new(),
             layout: Layout::default(),
@@ -235,6 +247,7 @@ impl FormDesigner {
             message: None,
             _subs: subs,
         };
+        this.resources = localized::Resources::load(&this.code_path);
         this.reload(cx);
         this
     }
@@ -271,7 +284,8 @@ impl FormDesigner {
         }
         self.last_text = text;
         match Designer::parse(&self.last_text, &self.root_type) {
-            Ok(doc) => {
+            Ok(mut doc) => {
+                localized::attach(&mut doc, self.resources.as_ref(), self.language.as_deref());
                 self.selection.retain(|n| doc.get(n).is_some());
                 if self.selection.is_empty() {
                     self.selection.push(doc.root().name.clone());
@@ -290,8 +304,22 @@ impl FormDesigner {
     }
 
     /// Writes a changed form into the file (as one undo step).
-    fn commit(&mut self, doc: Designer, cx: &mut Context<Self>) {
+    fn commit(&mut self, mut doc: Designer, cx: &mut Context<Self>) {
+        // A localized form's changes to its resources go into the .resx texts (saved with the designer).
+        let edits = doc.take_resource_edits();
+        let res_before = self.resources.as_ref().map(|r| r.texts.clone());
+        if let Some(r) = &mut self.resources
+            && let Err(e) = r.apply(&edits)
+        {
+            self.message = Some((e, true));
+        }
+        localized::attach(&mut doc, self.resources.as_ref(), self.language.as_deref());
+        let res_after = self.resources.as_ref().map(|r| r.texts.clone());
         let text = doc.to_text();
+        if text != self.last_text || res_before != res_after {
+            self.history.push(localized::Step { code_before: self.last_text.clone(), code_after: text.clone(), res_before, res_after });
+            self.future.clear();
+        }
         self.selection.retain(|n| doc.get(n).is_some());
         if self.selection.is_empty() {
             self.selection.push(doc.root().name.clone());
@@ -303,6 +331,65 @@ impl FormDesigner {
             self.editor.update(cx, |e, cx| e.replace_text_minimal(&text, cx));
         }
         cx.notify();
+    }
+
+    /// Ctrl+Z / Ctrl+Y: the designer's last change (to the code, the resources or both) undone or redone;
+    /// when the code changed since in other ways (typed in the code), the editor's own history.
+    fn undo_redo(&mut self, redo: bool, cx: &mut Context<Self>) {
+        let code = self.editor.read(cx).state.buffer.text();
+        let res = self.resources.as_ref().map(|r| r.texts.clone());
+        let step = if redo { self.future.last() } else { self.history.last() };
+        let here = step.is_some_and(|s| if redo { s.code_before == code && s.res_before == res } else { s.code_after == code && s.res_after == res });
+        if !here {
+            self.history.clear();
+            self.future.clear();
+            self.editor.update(cx, |e, cx| e.undo_redo(redo, cx));
+            return;
+        }
+        let Some(step) = (if redo { self.future.pop() } else { self.history.pop() }) else { return };
+        let (code_to, res_to) = if redo { (step.code_after.clone(), step.res_after.clone()) } else { (step.code_before.clone(), step.res_before.clone()) };
+        if let (Some(r), Some(texts)) = (&mut self.resources, res_to) {
+            r.texts = texts;
+        }
+        if code_to != code {
+            self.editor.update(cx, |e, cx| e.undo_redo(redo, cx));
+            // The editor's history should lead there; if it doesn't (it was cut), the text is set.
+            if self.editor.read(cx).state.buffer.text() != code_to {
+                self.editor.update(cx, |e, cx| e.replace_text_minimal(&code_to, cx));
+            }
+        }
+        if let Some(doc) = &mut self.doc {
+            localized::attach(doc, self.resources.as_ref(), self.language.as_deref());
+        }
+        if redo { self.history.push(step) } else { self.future.push(step) }
+        cx.notify();
+    }
+
+    /// Shows a localized form in another language (`None`: the neutral one).
+    fn set_language(&mut self, language: Option<String>, cx: &mut Context<Self>) {
+        self.finish_edit(true, cx);
+        self.language = language;
+        if let Some(doc) = &mut self.doc {
+            localized::attach(doc, self.resources.as_ref(), self.language.as_deref());
+        }
+        cx.notify();
+    }
+
+    /// Whether the form's .resx files have changes not saved yet.
+    pub fn has_unsaved_resources(&self) -> bool {
+        self.resources.as_ref().is_some_and(localized::Resources::is_dirty)
+    }
+
+    /// Saves the form's changed .resx files (with the designer file).
+    pub fn save_resources(&mut self, cx: &mut Context<Self>) -> Result<(), String> {
+        let result = self.resources.as_mut().map_or(Ok(()), localized::Resources::save);
+        cx.notify();
+        result
+    }
+
+    #[cfg(test)]
+    pub fn language(&self) -> Option<&str> {
+        self.language.as_deref()
     }
 
     /// Changes the form: `f` gets a copy of the model.
@@ -1043,12 +1130,11 @@ impl FormDesigner {
                 cx.stop_propagation();
             }
             "z" if secondary => {
-                let redo = m.shift;
-                self.editor.update(cx, |e, cx| e.undo_redo(redo, cx));
+                self.undo_redo(m.shift, cx);
                 cx.stop_propagation();
             }
             "y" if secondary => {
-                self.editor.update(cx, |e, cx| e.undo_redo(true, cx));
+                self.undo_redo(true, cx);
                 cx.stop_propagation();
             }
             "c" if secondary && !m.shift => {
@@ -2033,6 +2119,9 @@ impl Render for FormDesigner {
             let owner = d.item_owner(n)?;
             Some(d.get(&owner).is_some_and(|c| c.short_type() == "ToolStripMenuItem"))
         });
+        // A localized form: the languages it has, the one shown highlighted.
+        let languages = self.resources.as_ref().filter(|_| self.doc.as_ref().is_some_and(Designer::is_localized)).map(|r| r.languages());
+        let shown_language = self.language.clone();
         // A grid or one of its columns: columns of each type can be added.
         let grid = self.doc.as_ref().and_then(|d| {
             let n = self.primary()?;
@@ -2059,6 +2148,29 @@ impl Render for FormDesigner {
             .text_color(fg)
             .child(div().whitespace_nowrap().child(format!("{name} [Design]")))
             .when_some(self.tool, |d, tool| d.child(div().text_color(t.c("foreground.muted")).child(format!("Click or drag on the form to place a {tool} (Esc: cancel)"))))
+            .when_some(languages, |d, languages| {
+                let active = t.c("list.activeSelectionBackground");
+                let choice = |id: String, label: String, language: Option<String>, on: bool| {
+                    let sel = id.clone();
+                    div()
+                        .id(SharedString::from(id))
+                        .debug_selector(move || sel.clone())
+                        .px(px(6.))
+                        .py(px(1.))
+                        .rounded(px(4.))
+                        .cursor_pointer()
+                        .when(on, |d| d.bg(active))
+                        .hover(move |s| s.bg(hover))
+                        .child(label)
+                        .on_click(cx.listener(move |this, _, _, cx| this.set_language(language.clone(), cx)))
+                };
+                d.child(div().text_color(t.c("foreground.muted")).child("Language:"))
+                    .child(choice("designer-language-default".into(), "(Default)".into(), None, shown_language.is_none()))
+                    .children(languages.into_iter().map(|l| {
+                        let on = shown_language.as_deref() == Some(l.as_str());
+                        choice(format!("designer-language-{l}"), l.clone(), Some(l), on)
+                    }))
+            })
             .child(div().flex_1())
             .when_some(grid, |d, grid| {
                 d.child(div().text_color(t.c("foreground.muted")).child("Add Column:")).children(wf::COLUMN_TYPES.iter().map(|&(ty, label)| {
@@ -2131,8 +2243,8 @@ impl Render for FormDesigner {
             .font_family(t.ui_font.clone())
             .on_key_down(cx.listener(Self::on_key_down))
             .on_action(cx.listener(|_, _: &ViewCode, _, cx| cx.emit(DesignerEvent::ViewCode)))
-            .on_action(cx.listener(|this, _: &Undo, _, cx| this.editor.update(cx, |e, cx| e.undo_redo(false, cx))))
-            .on_action(cx.listener(|this, _: &Redo, _, cx| this.editor.update(cx, |e, cx| e.undo_redo(true, cx))))
+            .on_action(cx.listener(|this, _: &Undo, _, cx| this.undo_redo(false, cx)))
+            .on_action(cx.listener(|this, _: &Redo, _, cx| this.undo_redo(true, cx)))
             .on_action(cx.listener(|this, _: &Copy, _, cx| {
                 this.copy_selection(cx);
             }))

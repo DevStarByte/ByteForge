@@ -104,9 +104,12 @@ impl Designer {
             .filter(|c| all.contains(&c.name))
             .map(|c| {
                 let own = format!("{}.", c.name);
-                let parts = c
+                let mut parts: Vec<Part> = c
                     .members
                     .iter()
+                    // A localized form's resources don't come along (their keys are that form's): their
+                    // values become code, below.
+                    .filter(|m| !matches!(m, Member::Raw(t) if t.contains(".ApplyResources(")))
                     .filter_map(|m| match m {
                         Member::Prop { name, value, .. } => Some(Part::Prop(name.clone(), value.clone())),
                         Member::Event { name, handler, .. } => Some(Part::Event(name.clone(), handler.clone())),
@@ -117,6 +120,13 @@ impl Designer {
                         Member::Children => None,
                     })
                     .collect();
+                let mut from_resources: Vec<(&String, &String)> = self.res_props.iter().filter(|((comp, _), _)| *comp == c.name).map(|((_, p), v)| (p, v)).collect();
+                from_resources.sort();
+                for (prop, code) in from_resources {
+                    if !parts.iter().any(|p| matches!(p, Part::Prop(n, _) if n == prop)) {
+                        parts.push(Part::Prop(prop.clone(), code.clone()));
+                    }
+                }
                 let layout = self.setup.iter().any(|s| matches!(s, Setup::Raw { owner: Some(o), text } if *o == c.name && text.contains("SuspendLayout")));
                 let init = self.setup.iter().any(|s| matches!(s, Setup::Raw { owner: Some(o), text } if *o == c.name && text.contains("BeginInit")));
                 Piece {

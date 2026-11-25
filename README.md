@@ -204,7 +204,8 @@ themes and modules in that folder (to try a theme or a build without touching yo
   debugged as usual, its WebAssembly client part not yet.
 - The Windows Forms designer draws controls itself, so they look close to, not exactly like, Windows Forms at run
   time (images, custom controls and the cells of table layouts are approximate). It edits data bindings as code
-  only, and keeps localized forms' `resources.ApplyResources` as written without editing their translations.
+  only; in a localized form, fonts and images in the resources aren't shown, and controls added in the designer
+  are set up in code (not in the `.resx` files).
 - Windows downloads aren't code-signed yet and the macOS app isn't notarized (see [Install](#install)).
 - Very large solutions take a while before diagnostics appear.
 

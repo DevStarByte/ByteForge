@@ -148,7 +148,11 @@ Section 1 above is what still has to be checked by hand; this is what the releas
       separators, Move Up / Down (Left / Right) and Delete; a grid's column headers at their widths, "+" and the
       toolbar's Add Column (text, check box, combo box, button, link, image). Items and columns have their own
       properties in the grid (Checked, ShortcutKeys, HeaderText, Width, …).
-- [ ] Still to come: localized forms (`resources.ApplyResources`) beyond keeping them.
+- [x] Localized forms (`resources.ApplyResources`): the designer shows a control's values from `Form1.resx`,
+      or from a language's file over it (Language: (Default) / de / … in the toolbar); moving, resizing and
+      typing a property the resources hold write it to the shown language's file (typed as in the file; a
+      language's file is made when it has none), saved with the designer and undone with it. Copying a
+      localized control takes its values along as code; deleting one removes its entries from every language.
 
 ## 8. Later
 

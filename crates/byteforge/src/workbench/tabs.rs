@@ -272,6 +272,13 @@ impl Workbench {
                         }
                     });
                 }
+                // A localized form's designer: its .resx files are saved too.
+                if let Some(Page::Designer(d)) = &tab.page
+                    && let Err(e) = d.update(cx, |d, cx| d.save_resources(cx))
+                {
+                    self.log(e);
+                    self.show_panel(PanelView::Output, cx);
+                }
                 for p in &self.plugins {
                     p.event("fileSaved", Some(&path));
                 }
