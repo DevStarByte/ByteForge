@@ -352,6 +352,12 @@ impl PluginHandle {
         args.extend(manifest.args.iter().cloned());
         let mut command = crate::process::command(&program);
         command.args(&args).current_dir(&manifest.dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        // A module runs in its own folder. Windows searches the current folder first when a program is looked up
+        // (Python's `shutil.which`, `cmd`), with every extension in PATHEXT, which often has `.PY`: a module
+        // `csharpier.py` looking for `csharpier` found itself and failed to start it ("not a valid Win32
+        // application"). Programs come from PATH only.
+        #[cfg(windows)]
+        command.env("NoDefaultCurrentDirectoryInExePath", "1");
         let mut child = command.spawn()?;
         let stdout = child.stdout.take().ok_or_else(|| anyhow::anyhow!("no stdout"))?;
         let stderr = child.stderr.take();
@@ -536,6 +542,38 @@ mod tests {
         if !cfg!(windows) {
             assert_eq!(super::resolve_program("python3"), ("python3".to_owned(), Vec::new()));
         }
+    }
+
+    /// A module looking up a program named like its own script finds the program, not the script (Windows
+    /// searches the current folder first, and PATHEXT often has `.PY`).
+    #[test]
+    fn a_module_does_not_find_its_own_script_as_a_program() {
+        let (python, _) = super::resolve_program("python3");
+        if std::process::Command::new(&python).arg("--version").output().map_or(true, |o| !o.status.success()) {
+            return; // no Python here
+        }
+        let dir = std::env::temp_dir().join(format!("bf-module-which-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("probe.py"),
+            "import json, shutil
+print(json.dumps({'type': 'log', 'text': 'found:' + str(shutil.which('probe'))}), flush=True)
+",
+        )
+        .unwrap();
+        let mut manifest: super::ModuleManifest = json5::from_str(r#"{ id: "x.probe", name: "Probe", command: "python3", args: ["probe.py"] }"#).unwrap();
+        manifest.dir = dir.clone();
+        let (tx, rx) = flume::unbounded();
+        let _handle = super::PluginHandle::start(manifest, tx).unwrap();
+        let text = loop {
+            match rx.recv_timeout(std::time::Duration::from_secs(30)).expect("the module answers") {
+                super::PluginMessage::Log { text, .. } if text.starts_with("found:") => break text,
+                super::PluginMessage::Exited { reason, .. } => panic!("module ended: {reason}"),
+                _ => {}
+            }
+        };
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(!text.to_lowercase().contains("probe.py"), "{text}");
     }
 
     #[test]

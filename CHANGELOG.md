@@ -3,6 +3,14 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.3.1
+
+- Windows: modules no longer find their own script when they look for a program of the same name. Windows
+  searches a program's current folder first, a module runs in its own folder, and PATHEXT often lists `.PY`,
+  so CSharpier found `csharpier.py` instead of `csharpier.exe` and failed with "not a valid Win32
+  application" (WinError 193); Aspire, Docker and Lua could do the same. Modules now get programs from PATH
+  only.
+
 ## 1.3.0
 
 - Sticky scroll: the first lines of the blocks the top of the editor is in (namespace, class, method,
