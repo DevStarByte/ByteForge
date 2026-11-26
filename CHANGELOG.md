@@ -3,6 +3,14 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.4.1
+
+- Keyboard Shortcuts on macOS: keys recorded there (gpui writes them as `alt-cmd-b`) are now compared with the
+  built-in ones (`cmd-alt-b`) regardless of the order of their modifiers, so a clash with another command is
+  shown and recording a command's default keys again leaves no entry in settings.json. Keys are saved with
+  their modifiers in one order (ctrl, cmd, alt, shift).
+  This also fixes the macOS tests that held back the 1.4.0 release.
+
 ## 1.4.0
 
 - Modules in C#: ByteForge runs .NET modules (`"runtime": "dotnet"` in module.json) in one shared .NET module

@@ -39,9 +39,29 @@ pub(super) struct ShortcutRow {
     pub changed: bool,
 }
 
-/// Keys written the same way: lower case, single spaces between the presses of a chord.
+/// Keys written the same way: lower case, single spaces between the presses of a chord, and the modifiers in
+/// one order (ctrl, cmd, alt, shift, fn), the way the built-in keys are written. A recorded press comes in
+/// gpui's order ("alt-cmd-b" on macOS), which would otherwise not match "cmd-alt-b".
 pub(super) fn normalize(keys: &str) -> String {
-    keys.split_whitespace().map(str::to_lowercase).collect::<Vec<_>>().join(" ")
+    keys.split_whitespace().map(|chord| normalize_chord(&chord.to_lowercase())).collect::<Vec<_>>().join(" ")
+}
+
+fn normalize_chord(chord: &str) -> String {
+    const ORDER: [&str; 8] = ["ctrl", "cmd", "super", "win", "secondary", "alt", "shift", "fn"];
+    let mut modifiers = Vec::new();
+    let mut rest = chord;
+    // Modifiers are the leading "name-" parts; the key is what's left (which may itself be "-").
+    while let Some((head, tail)) = rest.split_once('-') {
+        if tail.is_empty() || !ORDER.contains(&head) {
+            break;
+        }
+        modifiers.push(head);
+        rest = tail;
+    }
+    modifiers.sort_by_key(|m| ORDER.iter().position(|o| o == m));
+    modifiers.dedup();
+    modifiers.push(rest);
+    modifiers.join("-")
 }
 
 /// Every command once, sorted by title.
@@ -393,6 +413,19 @@ mod tests {
         assert!(!matches(&rows[0], "open"));
         assert!(matches(&rows[2], "ctrl+k"));
         assert!(matches(&rows[3], ""));
+    }
+
+    #[test]
+    fn modifiers_are_put_in_one_order() {
+        assert_eq!(normalize("alt-cmd-b"), "cmd-alt-b");
+        assert_eq!(normalize("Shift-Ctrl-P  alt-ctrl-k"), "ctrl-shift-p ctrl-alt-k");
+        assert_eq!(normalize("shift-ctrl--"), "ctrl-shift--");
+        assert_eq!(normalize("ctrl-pageup"), "ctrl-pageup");
+        assert_eq!(normalize("-"), "-");
+        // A recorded default (gpui's order) is the default: no entry is left.
+        assert!(with_keys(Map::new(), "a.b", Some("alt-cmd-f"), Some("cmd-alt-f")).is_empty());
+        let rows = vec![row("a", Some("alt-cmd-b")), row("b", Some("cmd-alt-b"))];
+        assert_eq!(conflicts(&rows, &rows[0]).len(), 1);
     }
 }
 
