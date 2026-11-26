@@ -2,13 +2,13 @@
   // Git Hooks for ByteForge: the repository's git hooks and Husky.NET tasks; run, turn off and write hooks.
   "id": "byteforge.git-hooks",
   "name": "Git Hooks",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Source Control",
-  "description": "A Git Hooks view with the repository's hooks (from core.hooksPath or .git/hooks, so Husky's .husky folder too): which are active, off or not executable. Click to open one; run it in a terminal with the arguments git gives it; turn it off and on (renamed to <hook>.off); make it executable; delete it. \"New Hook…\" writes one from a template: dotnet format check, dotnet build, dotnet test before a push, a Conventional Commits message check, the issue number from the branch name, dotnet restore after a pull, or an empty one. Husky.NET tasks (.husky/task-runner.json) are listed by group and run with dotnet husky run. Needs python3 and git.",
-  "command": "python3",
-  "args": ["git_hooks.py"],
+  "description": "A Git Hooks view with the repository's hooks (from core.hooksPath or .git/hooks, so Husky's .husky folder too): which are active, off or not executable. Click to open one; run it in a terminal with the arguments git gives it; turn it off and on (renamed to <hook>.off); make it executable; delete it. \"New Hook…\" writes one from a template: dotnet format check, dotnet build, dotnet test before a push, a Conventional Commits message check, the issue number from the branch name, dotnet restore after a pull, or an empty one. Husky.NET tasks (.husky/task-runner.json) are listed by group and run with dotnet husky run. Needs .NET 10 and git.",
+  "runtime": "dotnet",
+  "assembly": "bin/GitHooks.dll",
   "requires": ["git"],
   "views": [
     {

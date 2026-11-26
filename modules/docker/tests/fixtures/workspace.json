@@ -1,0 +1,20 @@
+{
+ ".hidden/Dockerfile": "skipped\n",
+ "Api/Api.csproj": "<Project Sdk=\"Microsoft.NET.Sdk.Web\">\n  <PropertyGroup>\n    <TargetFrameworks>net8.0;net9.0;net9.0-windows</TargetFrameworks>\n  </PropertyGroup>\n  <ItemGroup>\n    <ProjectReference Include=\"..\\Lib\\Lib.csproj\" />\n  </ItemGroup>\n</Project>\n",
+ "Api/Dockerfile": "FROM mcr.microsoft.com/dotnet/aspnet:9.0\nEXPOSE 8080\n",
+ "App.sln": "",
+ "Core/Core.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net8.0</TargetFramework>\n  </PropertyGroup>\n</Project>\n",
+ "Directory.Build.props": "<Project />\n",
+ "Lib/Lib.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>netstandard2.0</TargetFramework>\n  </PropertyGroup>\n  <ItemGroup>\n    <ProjectReference Include='../Core/Core.csproj' />\n  </ItemGroup>\n</Project>\n",
+ "README.md": "",
+ "Tool/.dockerignore": "bin\n",
+ "Tool/Dockerfile": "FROM alpine\n",
+ "Tool/Tool.csproj": "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <OutputType>Exe</OutputType>\n    <AssemblyName>$(Name)</AssemblyName>\n  </PropertyGroup>\n</Project>\n",
+ "bin/Dockerfile": "skipped\n",
+ "deploy/compose.prod.yaml": "services: {}\n",
+ "deploy/docker-compose.yml": "services: {}\n",
+ "node_modules/x/Dockerfile": "skipped\n",
+ "src/Worker/Dockerfile.worker": "FROM alpine:3\n",
+ "src/Worker/Worker.csproj": "<Project Sdk=\"Microsoft.NET.Sdk.Worker\">\n  <PropertyGroup>\n    <OutputType>Exe</OutputType>\n    <AssemblyName>My.Worker_Service</AssemblyName>\n    <TargetFramework>net10.0</TargetFramework>\n  </PropertyGroup>\n</Project>\n",
+ "src/Worker/api.dockerfile": "FROM alpine:3\n"
+}

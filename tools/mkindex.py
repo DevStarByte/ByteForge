@@ -23,7 +23,6 @@ def load_json5(path):
     return json.loads(text)
 
 
-REQUIRES = {"python3": "python3", "python": "python3", "node": "node", "dotnet": "dotnet"}
 
 modules = []
 for name in sorted(os.listdir(root)):
@@ -32,7 +31,10 @@ for name in sorted(os.listdir(root)):
     if not os.path.isfile(manifest_path):
         continue
     m = load_json5(manifest_path)
-    # "command" may be empty: such a module only declares things (languages, file icons).
+    # Modules are .NET ("runtime": "dotnet"), or only declare things (languages, file icons) and have no runtime.
+    # ByteForge no longer runs modules with a "command" (the old Python ones).
+    if m.get("command"):
+        sys.exit(f"{manifest_path}: has a \"command\"; modules are .NET now (\"runtime\": \"dotnet\")")
     for key in ("id", "name", "version"):
         if not m.get(key):
             sys.exit(f"{manifest_path}: missing {key}")
@@ -54,7 +56,7 @@ for name in sorted(os.listdir(root)):
             if n.endswith((".pyc", ".pyo")) or n.startswith(".") or (n.startswith("test_") and n.endswith(".py")):
                 continue
             files.append(os.path.relpath(os.path.join(directory, n), folder).replace(os.sep, "/"))
-    requires = ["dotnet"] if dotnet else [REQUIRES[m["command"]]] if m.get("command") in REQUIRES else []
+    requires = ["dotnet"] if dotnet else []
     requires += [r for r in m.get("requires", []) if r not in requires]
     modules.append({
         "id": m["id"],

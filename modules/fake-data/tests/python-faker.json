@@ -1,0 +1,5225 @@
+{
+"now": "2026-11-26T07:30:15.987654+00:00",
+"year": 2026,
+"values": [
+{
+"locale": "de",
+"seed": {
+"text": "1:1"
+},
+"values": [
+[
+"firstName",
+"Uwe"
+],
+[
+"firstName",
+"Lukas"
+],
+[
+"lastName",
+"Mayer"
+],
+[
+"lastName",
+"Meyer"
+],
+[
+"fullName",
+"Lena Walter"
+],
+[
+"fullName",
+"Lisa Klein"
+],
+[
+"email",
+"julia.schmitt16@example.org"
+],
+[
+"email",
+"ida.kaiser@example.com"
+],
+[
+"userName",
+"pmueller"
+],
+[
+"userName",
+"tobias954"
+],
+[
+"phone",
+"+49 30 23125 327"
+],
+[
+"phone",
+"+49 30 23125 618"
+],
+[
+"birthDate",
+"1991-09-02"
+],
+[
+"birthDate",
+"1969-02-18"
+],
+[
+"job",
+"Produktmanagerin"
+],
+[
+"job",
+"Data Scientist"
+],
+[
+"street",
+"Wiesenweg 73"
+],
+[
+"street",
+"Rosenweg 84b"
+],
+[
+"city",
+"Heidelberg"
+],
+[
+"city",
+"Dortmund"
+],
+[
+"zip",
+"40213"
+],
+[
+"zip",
+"30159"
+],
+[
+"address",
+"Mozartstraße 16, 45127 Essen"
+],
+[
+"address",
+"Gartenstraße 94, 90403 Nürnberg"
+],
+[
+"company",
+"Alpha Consulting KG"
+],
+[
+"company",
+"Hoffmann & Schmitz GmbH"
+],
+[
+"iban",
+"DE93370400448467408716"
+],
+[
+"iban",
+"DE80370400447869364471"
+],
+[
+"card",
+"4242424242424242"
+],
+[
+"card",
+"3056930009020004"
+],
+[
+"vatId",
+"DE866906922"
+],
+[
+"vatId",
+"DE426380476"
+],
+[
+"product",
+"Robuste Lampe"
+],
+[
+"product",
+"Kabellose Tasse"
+],
+[
+"sku",
+"GIL-3174"
+],
+[
+"sku",
+"HJZ-2689"
+],
+[
+"price",
+"474.21"
+],
+[
+"price",
+"235.86"
+],
+[
+"orderNumber",
+"ORD-2026-19721"
+],
+[
+"orderNumber",
+"ORD-2026-56128"
+],
+[
+"guid",
+"b958af60-903b-4017-bcce-a83e9517a186"
+],
+[
+"guid",
+"42e3cdce-e05d-4848-8189-a9a7c5bef317"
+],
+[
+"pastDate",
+"2026-10-20T11:58:51Z"
+],
+[
+"pastDate",
+"2026-07-06T20:42:55Z"
+],
+[
+"futureDate",
+"2027-03-02T15:00:44Z"
+],
+[
+"futureDate",
+"2027-11-23T05:03:33Z"
+],
+[
+"url",
+"https://www.example.com/blog/757"
+],
+[
+"url",
+"https://www.example.org/about/661"
+],
+[
+"ipv4",
+"203.0.113.171"
+],
+[
+"ipv4",
+"192.0.2.187"
+],
+[
+"ipv6",
+"2001:db8:3ddc:89b1:de37:6979:a915:2587"
+],
+[
+"ipv6",
+"2001:db8:b96b:fb69:644d:142a:e576:a776"
+],
+[
+"mac",
+"02:7d:71:32:7c:02"
+],
+[
+"mac",
+"02:f1:d3:7a:c1:7e"
+],
+[
+"password",
+"cCo$*+2j!UJKP&2e"
+],
+[
+"password",
+"dQI5SdCPiK$Mhx92"
+],
+[
+"color",
+"#1e9d7d"
+],
+[
+"color",
+"#d675d6"
+],
+[
+"latLon",
+"53.873183, 8.931855"
+],
+[
+"latLon",
+"47.370133, 5.953512"
+],
+[
+"userAgent",
+"Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1"
+],
+[
+"userAgent",
+"Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1"
+],
+[
+"sentence",
+"Enim fugiat non mollit ex qui ut veniam do voluptate incididunt duis."
+],
+[
+"sentence",
+"Et sit quis non culpa voluptate anim veniam et ipsum id."
+],
+[
+"paragraph",
+"Voluptate esse sint aliquip non anim non. Aliqua excepteur mollit lorem quis aute. Sint deserunt nisi commodo dolore cillum non dolor reprehenderit ullamco. Reprehenderit ad ea ex minim cupidatat non ea incididunt. Dolore minim minim consectetur culpa nisi fugiat eiusmod. Commodo cillum ad et aliqua ad culpa exercitation aliquip commodo amet consequat nostrud ex."
+],
+[
+"paragraph",
+"Commodo nisi officia non ipsum in nisi aute sunt aute do ullamco eiusmod. Pariatur sed deserunt culpa qui ex nostrud aliquip amet et qui. Pariatur dolor fugiat reprehenderit qui duis adipiscing elit."
+]
+]
+},
+{
+"locale": "de",
+"seed": {
+"text": "42:7"
+},
+"values": [
+[
+"firstName",
+"Wolfgang"
+],
+[
+"firstName",
+"Frieda"
+],
+[
+"lastName",
+"Wolf"
+],
+[
+"lastName",
+"Walter"
+],
+[
+"fullName",
+"Lea Meyer"
+],
+[
+"fullName",
+"Tim Fischer"
+],
+[
+"email",
+"florian.huber@example.net"
+],
+[
+"email",
+"monika.richter@example.com"
+],
+[
+"userName",
+"noah986"
+],
+[
+"userName",
+"hannah357"
+],
+[
+"phone",
+"+49 30 23125 777"
+],
+[
+"phone",
+"+49 30 23125 672"
+],
+[
+"birthDate",
+"1970-08-19"
+],
+[
+"birthDate",
+"1953-04-18"
+],
+[
+"job",
+"Marketingmanagerin"
+],
+[
+"job",
+"Systemadministrator"
+],
+[
+"street",
+"Bergstraße 45"
+],
+[
+"street",
+"Friedrichstraße 75b"
+],
+[
+"city",
+"Dresden"
+],
+[
+"city",
+"Augsburg"
+],
+[
+"zip",
+"69117"
+],
+[
+"zip",
+"44135"
+],
+[
+"address",
+"Gartenstraße 117a, 70173 Stuttgart"
+],
+[
+"address",
+"Birkenweg 31, 28195 Bremen"
+],
+[
+"company",
+"Becker & Hartmann AG"
+],
+[
+"company",
+"Schäfer Medien UG (haftungsbeschränkt)"
+],
+[
+"iban",
+"DE60370400447189492122"
+],
+[
+"iban",
+"DE61370400442150952913"
+],
+[
+"card",
+"6011111111111117"
+],
+[
+"card",
+"4242424242424242"
+],
+[
+"vatId",
+"DE258717235"
+],
+[
+"vatId",
+"DE824668309"
+],
+[
+"product",
+"Kabellose Tasse"
+],
+[
+"product",
+"Leichte Uhr"
+],
+[
+"sku",
+"IZF-2022"
+],
+[
+"sku",
+"LHZ-5542"
+],
+[
+"price",
+"474.03"
+],
+[
+"price",
+"7.59"
+],
+[
+"orderNumber",
+"ORD-2026-28143"
+],
+[
+"orderNumber",
+"ORD-2026-15730"
+],
+[
+"guid",
+"acf048c0-f58c-45b6-bfbe-74d34a73dd55"
+],
+[
+"guid",
+"48493362-f153-4380-951d-8e857c6ec546"
+],
+[
+"pastDate",
+"2026-01-04T01:50:54Z"
+],
+[
+"pastDate",
+"2026-08-18T01:31:03Z"
+],
+[
+"futureDate",
+"2027-06-25T13:32:23Z"
+],
+[
+"futureDate",
+"2027-07-22T08:15:11Z"
+],
+[
+"url",
+"https://www.example.com/shop/615"
+],
+[
+"url",
+"https://www.example.com/blog/627"
+],
+[
+"ipv4",
+"192.0.2.54"
+],
+[
+"ipv4",
+"192.0.2.213"
+],
+[
+"ipv6",
+"2001:db8:3f98:f95b:34c7:dfc5:b09e:96dd"
+],
+[
+"ipv6",
+"2001:db8:1ca0:e29:a2bc:7802:5e86:f576"
+],
+[
+"mac",
+"02:e9:c4:2f:60:db"
+],
+[
+"mac",
+"02:66:d0:dc:1f:e4"
+],
+[
+"password",
+"wrr-2T7ELRtyfpR_"
+],
+[
+"password",
+"hpRot8-q+4!2zXzB"
+],
+[
+"color",
+"#4fca2d"
+],
+[
+"color",
+"#6777fc"
+],
+[
+"latLon",
+"51.772003, 12.789781"
+],
+[
+"latLon",
+"51.312773, 11.318777"
+],
+[
+"userAgent",
+"Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15"
+],
+[
+"sentence",
+"Consectetur consectetur ipsum officia non nulla."
+],
+[
+"sentence",
+"Reprehenderit nisi do exercitation proident mollit nostrud excepteur in."
+],
+[
+"paragraph",
+"Adipiscing qui aliquip deserunt dolore nulla id sit tempor cillum nisi. Esse velit non est excepteur aute sed. Aliqua ipsum pariatur magna sunt adipiscing minim do dolor cupidatat aliquip qui. Qui duis ullamco nisi non quis pariatur irure fugiat ipsum voluptate deserunt sunt."
+],
+[
+"paragraph",
+"Quis in anim adipiscing amet consectetur ullamco qui. Reprehenderit est est nisi cupidatat qui veniam ut incididunt ut enim. Qui elit magna sint nostrud fugiat aliquip non reprehenderit. Aliquip qui non non lorem aute. Ex ipsum consectetur ea amet nostrud incididunt veniam enim. Nulla aliqua officia amet eiusmod sint nostrud ex aliquip in."
+]
+]
+},
+{
+"locale": "de",
+"seed": {
+"text": "Seed ü:3"
+},
+"values": [
+[
+"firstName",
+"Mia"
+],
+[
+"firstName",
+"Ida"
+],
+[
+"lastName",
+"Lehmann"
+],
+[
+"lastName",
+"Neumann"
+],
+[
+"fullName",
+"Sabine Schmitz"
+],
+[
+"fullName",
+"Sarah Richter"
+],
+[
+"email",
+"birgitkrueger@example.org"
+],
+[
+"email",
+"laura.meier@example.net"
+],
+[
+"userName",
+"floriank"
+],
+[
+"userName",
+"stefan126"
+],
+[
+"phone",
+"+49 30 23125 975"
+],
+[
+"phone",
+"+49 30 23125 455"
+],
+[
+"birthDate",
+"1955-01-25"
+],
+[
+"birthDate",
+"1953-11-10"
+],
+[
+"job",
+"Systemadministrator"
+],
+[
+"job",
+"Lagerist"
+],
+[
+"street",
+"Uhlandstraße 9"
+],
+[
+"street",
+"Schulstraße 110"
+],
+[
+"city",
+"Dresden"
+],
+[
+"city",
+"Leipzig"
+],
+[
+"zip",
+"24103"
+],
+[
+"zip",
+"50667"
+],
+[
+"address",
+"Ringstraße 3, 04109 Leipzig"
+],
+[
+"address",
+"Birkenweg 24b, 69117 Heidelberg"
+],
+[
+"company",
+"Nord Medien UG (haftungsbeschränkt)"
+],
+[
+"company",
+"Zimmermann & Schmidt e.K."
+],
+[
+"iban",
+"DE40370400448480511945"
+],
+[
+"iban",
+"DE75370400446049362970"
+],
+[
+"card",
+"6011111111111117"
+],
+[
+"card",
+"6011111111111117"
+],
+[
+"vatId",
+"DE158792559"
+],
+[
+"vatId",
+"DE221273814"
+],
+[
+"product",
+"Ergonomische Flasche"
+],
+[
+"product",
+"Kompakte Uhr"
+],
+[
+"sku",
+"LBU-5966"
+],
+[
+"sku",
+"VIU-1455"
+],
+[
+"price",
+"341.76"
+],
+[
+"price",
+"92.20"
+],
+[
+"orderNumber",
+"ORD-2026-08802"
+],
+[
+"orderNumber",
+"ORD-2026-10395"
+],
+[
+"guid",
+"38f69325-9ad2-49d8-aa19-3b6beb0ac7fc"
+],
+[
+"guid",
+"0c5f408f-4926-4b57-a299-1189f0e1844a"
+],
+[
+"pastDate",
+"2026-06-18T19:00:41Z"
+],
+[
+"pastDate",
+"2026-04-03T08:14:02Z"
+],
+[
+"futureDate",
+"2027-04-17T04:24:50Z"
+],
+[
+"futureDate",
+"2027-11-04T12:42:29Z"
+],
+[
+"url",
+"https://www.example.net/shop/470"
+],
+[
+"url",
+"https://www.example.com/api/962"
+],
+[
+"ipv4",
+"203.0.113.202"
+],
+[
+"ipv4",
+"198.51.100.165"
+],
+[
+"ipv6",
+"2001:db8:8b98:54e3:8a23:78d6:8fa0:a2e2"
+],
+[
+"ipv6",
+"2001:db8:1136:5e4e:b207:c7bb:ae1:3c7a"
+],
+[
+"mac",
+"02:57:f3:bf:6b:74"
+],
+[
+"mac",
+"02:6a:66:f2:c5:ae"
+],
+[
+"password",
+"V2pY4ugD1hG8-*c9"
+],
+[
+"password",
+"65NjxeB$CH=#Or2v"
+],
+[
+"color",
+"#66d99a"
+],
+[
+"color",
+"#0135be"
+],
+[
+"latLon",
+"54.837941, 12.623942"
+],
+[
+"latLon",
+"52.681322, 13.171361"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+],
+[
+"sentence",
+"Sunt cillum pariatur est aute esse velit fugiat esse duis amet."
+],
+[
+"sentence",
+"Nostrud exercitation minim id consequat ut mollit eiusmod proident qui nostrud velit irure."
+],
+[
+"paragraph",
+"Cupidatat esse aute in deserunt culpa quis enim occaecat fugiat nisi officia lorem. Id sed ullamco cillum esse et sunt sunt ad ipsum. Amet ad labore nisi culpa pariatur proident nostrud velit proident."
+],
+[
+"paragraph",
+"Magna dolore irure proident laborum in labore in ullamco occaecat incididunt. Sed dolor fugiat exercitation esse ex incididunt sit. Pariatur lorem nisi commodo nulla amet. Incididunt veniam nostrud exercitation excepteur mollit veniam qui reprehenderit pariatur. Sit incididunt fugiat pariatur sunt velit. Id ea sint occaecat veniam occaecat duis mollit eiusmod anim elit ex."
+]
+]
+},
+{
+"locale": "de",
+"seed": {
+"text": "x"
+},
+"values": [
+[
+"firstName",
+"Thomas"
+],
+[
+"firstName",
+"Finn"
+],
+[
+"lastName",
+"Lange"
+],
+[
+"lastName",
+"Kaiser"
+],
+[
+"fullName",
+"Andreas Krause"
+],
+[
+"fullName",
+"Felix Lange"
+],
+[
+"email",
+"stefan.herrmann@example.org"
+],
+[
+"email",
+"sophie_herrmann@example.org"
+],
+[
+"userName",
+"lauram"
+],
+[
+"userName",
+"wherrmann"
+],
+[
+"phone",
+"+49 30 23125 400"
+],
+[
+"phone",
+"+49 30 23125 708"
+],
+[
+"birthDate",
+"1965-07-05"
+],
+[
+"birthDate",
+"1998-02-07"
+],
+[
+"job",
+"Data Scientist"
+],
+[
+"job",
+"Projektleiterin"
+],
+[
+"street",
+"Bahnhofstraße 49b"
+],
+[
+"street",
+"Uhlandstraße 86b"
+],
+[
+"city",
+"Frankfurt am Main"
+],
+[
+"city",
+"Essen"
+],
+[
+"zip",
+"30159"
+],
+[
+"zip",
+"86150"
+],
+[
+"address",
+"Ringstraße 111, 90403 Nürnberg"
+],
+[
+"address",
+"Schulstraße 42, 40213 Düsseldorf"
+],
+[
+"company",
+"Köhler Werkzeuge e.K."
+],
+[
+"company",
+"Schmitt Medien GmbH & Co. KG"
+],
+[
+"iban",
+"DE76370400446506332377"
+],
+[
+"iban",
+"DE15370400447275653376"
+],
+[
+"card",
+"5555555555554444"
+],
+[
+"card",
+"3056930009020004"
+],
+[
+"vatId",
+"DE750108162"
+],
+[
+"vatId",
+"DE297431774"
+],
+[
+"product",
+"Ergonomische Tasse"
+],
+[
+"product",
+"Kabellose Tasse"
+],
+[
+"sku",
+"EMY-7230"
+],
+[
+"sku",
+"AIK-3543"
+],
+[
+"price",
+"321.25"
+],
+[
+"price",
+"495.57"
+],
+[
+"orderNumber",
+"ORD-2026-74857"
+],
+[
+"orderNumber",
+"ORD-2026-81899"
+],
+[
+"guid",
+"6ca8de6a-229b-48b8-b45d-3bdb02944c4d"
+],
+[
+"guid",
+"21eec5cc-b73a-4446-950a-a25adfd9cf46"
+],
+[
+"pastDate",
+"2026-11-09T12:00:50Z"
+],
+[
+"pastDate",
+"2025-11-29T01:39:05Z"
+],
+[
+"futureDate",
+"2027-03-27T16:07:45Z"
+],
+[
+"futureDate",
+"2027-06-20T03:10:49Z"
+],
+[
+"url",
+"https://www.example.com/shop/389"
+],
+[
+"url",
+"https://www.example.org/blog/556"
+],
+[
+"ipv4",
+"203.0.113.17"
+],
+[
+"ipv4",
+"192.0.2.128"
+],
+[
+"ipv6",
+"2001:db8:60c8:22c9:1af6:c536:eeff:ac05"
+],
+[
+"ipv6",
+"2001:db8:8a53:d30a:f92a:6f08:bf1e:c183"
+],
+[
+"mac",
+"02:86:a3:90:9a:f1"
+],
+[
+"mac",
+"02:3f:96:50:e5:0d"
+],
+[
+"password",
+"zAGciV@Jj&7@c@Z%"
+],
+[
+"password",
+"7gbukGI*5w5LVK_-"
+],
+[
+"color",
+"#dd8f38"
+],
+[
+"color",
+"#e1c846"
+],
+[
+"latLon",
+"51.252614, 9.346634"
+],
+[
+"latLon",
+"47.745996, 14.984197"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15"
+],
+[
+"sentence",
+"Enim magna dolor sint pariatur ipsum deserunt cillum cillum ad tempor."
+],
+[
+"sentence",
+"Aliqua eiusmod ex excepteur velit consectetur."
+],
+[
+"paragraph",
+"Duis consequat consequat velit pariatur incididunt tempor eiusmod qui. Esse nostrud occaecat commodo cillum esse sunt velit. Adipiscing et magna magna nostrud duis minim aliquip officia. Velit labore enim deserunt non ad excepteur eiusmod proident. Culpa dolor dolore magna duis ullamco nostrud ex esse do."
+],
+[
+"paragraph",
+"Consectetur est pariatur deserunt ad officia incididunt consequat aute eiusmod ad esse. Laboris lorem reprehenderit ipsum sunt in in. Amet consequat aute laborum fugiat sunt. Voluptate aute ullamco tempor aute id occaecat."
+]
+]
+},
+{
+"locale": "de",
+"seed": {
+"int": "5"
+},
+"values": [
+[
+"firstName",
+"Klaus"
+],
+[
+"firstName",
+"Uwe"
+],
+[
+"lastName",
+"König"
+],
+[
+"lastName",
+"Schmidt"
+],
+[
+"fullName",
+"Wolfgang Wolf"
+],
+[
+"fullName",
+"Birgit Schäfer"
+],
+[
+"email",
+"marie.lehmann32@example.net"
+],
+[
+"email",
+"i.wolf@example.org"
+],
+[
+"userName",
+"felixl"
+],
+[
+"userName",
+"nele.peters"
+],
+[
+"phone",
+"+49 30 23125 135"
+],
+[
+"phone",
+"+49 30 23125 001"
+],
+[
+"birthDate",
+"2005-07-11"
+],
+[
+"birthDate",
+"1987-03-19"
+],
+[
+"job",
+"Vertriebsleiterin"
+],
+[
+"job",
+"Buchhalter"
+],
+[
+"street",
+"Bergstraße 38"
+],
+[
+"street",
+"Lindenstraße 70"
+],
+[
+"city",
+"Stuttgart"
+],
+[
+"city",
+"Düsseldorf"
+],
+[
+"zip",
+"30159"
+],
+[
+"zip",
+"45127"
+],
+[
+"address",
+"Am Markt 54, 10115 Berlin"
+],
+[
+"address",
+"Waldstraße 9, 60311 Frankfurt am Main"
+],
+[
+"company",
+"Blau Handel GmbH"
+],
+[
+"company",
+"Stern Digital GmbH & Co. KG"
+],
+[
+"iban",
+"DE45370400444578531558"
+],
+[
+"iban",
+"DE97370400445609503270"
+],
+[
+"card",
+"6011111111111117"
+],
+[
+"card",
+"5555555555554444"
+],
+[
+"vatId",
+"DE772040560"
+],
+[
+"vatId",
+"DE865690702"
+],
+[
+"product",
+"Kompakte Maus"
+],
+[
+"product",
+"Kompakte Flasche"
+],
+[
+"sku",
+"LQL-9596"
+],
+[
+"sku",
+"IYO-2770"
+],
+[
+"price",
+"295.29"
+],
+[
+"price",
+"390.71"
+],
+[
+"orderNumber",
+"ORD-2026-48143"
+],
+[
+"orderNumber",
+"ORD-2026-38780"
+],
+[
+"guid",
+"fa749692-f21f-45eb-aed7-8f5d0960afe9"
+],
+[
+"guid",
+"834c1b69-573a-459a-b55f-2af41757905e"
+],
+[
+"pastDate",
+"2026-04-03T02:10:44Z"
+],
+[
+"pastDate",
+"2026-07-08T11:35:23Z"
+],
+[
+"futureDate",
+"2027-11-17T21:41:49Z"
+],
+[
+"futureDate",
+"2027-01-22T21:47:15Z"
+],
+[
+"url",
+"https://www.example.org/docs/947"
+],
+[
+"url",
+"https://www.example.net/about/95"
+],
+[
+"ipv4",
+"198.51.100.176"
+],
+[
+"ipv4",
+"198.51.100.79"
+],
+[
+"ipv6",
+"2001:db8:5ade:2809:4c38:9e5d:f7b3:52b3"
+],
+[
+"ipv6",
+"2001:db8:18db:2973:cfd0:104b:7984:b00a"
+],
+[
+"mac",
+"02:80:e9:d7:4a:1c"
+],
+[
+"mac",
+"02:10:fc:ab:6a:42"
+],
+[
+"password",
+"=q0nv3Vth1Ls6v%6"
+],
+[
+"password",
+"!O9JL8ZsoW&w@Rxl"
+],
+[
+"color",
+"#fb8bb8"
+],
+[
+"color",
+"#20b611"
+],
+[
+"latLon",
+"53.149218, 9.207229"
+],
+[
+"latLon",
+"52.724416, 8.455754"
+],
+[
+"userAgent",
+"Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1"
+],
+[
+"userAgent",
+"Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0"
+],
+[
+"sentence",
+"Laborum est minim esse tempor in qui lorem ex aute."
+],
+[
+"sentence",
+"Ad cillum magna aliquip aliqua sunt commodo esse fugiat proident."
+],
+[
+"paragraph",
+"Magna esse veniam sint est culpa ullamco veniam id culpa tempor. Quis laborum minim consequat do consequat eiusmod incididunt culpa quis id qui ex. Nulla consectetur excepteur cillum excepteur ullamco eiusmod voluptate cupidatat id. Cillum id ullamco enim voluptate aute cupidatat officia velit magna excepteur ipsum incididunt eiusmod. Voluptate esse tempor labore occaecat fugiat tempor velit pariatur dolor ex labore eiusmod."
+],
+[
+"paragraph",
+"Elit ad laborum tempor ex incididunt aute dolor. Aliquip veniam nostrud cillum voluptate amet in ut et pariatur mollit quis. Veniam exercitation est magna qui ullamco."
+]
+]
+},
+{
+"locale": "de",
+"seed": {
+"int": "0"
+},
+"values": [
+[
+"firstName",
+"Wolfgang"
+],
+[
+"firstName",
+"Leon"
+],
+[
+"lastName",
+"Schröder"
+],
+[
+"lastName",
+"Herrmann"
+],
+[
+"fullName",
+"Moritz Zimmermann"
+],
+[
+"fullName",
+"Jan Kaiser"
+],
+[
+"email",
+"c.schulz@example.com"
+],
+[
+"email",
+"henrik_walter@example.com"
+],
+[
+"userName",
+"jweber"
+],
+[
+"userName",
+"matthias363"
+],
+[
+"phone",
+"+49 30 23125 323"
+],
+[
+"phone",
+"+49 30 23125 625"
+],
+[
+"birthDate",
+"1948-07-19"
+],
+[
+"birthDate",
+"1987-08-29"
+],
+[
+"job",
+"Data Scientist"
+],
+[
+"job",
+"Personalreferentin"
+],
+[
+"street",
+"Goethestraße 111b"
+],
+[
+"street",
+"Waldstraße 8b"
+],
+[
+"city",
+"Berlin"
+],
+[
+"city",
+"München"
+],
+[
+"zip",
+"30159"
+],
+[
+"zip",
+"99084"
+],
+[
+"address",
+"Hauptstraße 79a, 24103 Kiel"
+],
+[
+"address",
+"Kirchstraße 94, 28195 Bremen"
+],
+[
+"company",
+"Bauer Elektro UG (haftungsbeschränkt)"
+],
+[
+"company",
+"Hoffmann Technik UG (haftungsbeschränkt)"
+],
+[
+"iban",
+"DE32370400441924014660"
+],
+[
+"iban",
+"DE85370400448301458059"
+],
+[
+"card",
+"4000056655665556"
+],
+[
+"card",
+"378282246310005"
+],
+[
+"vatId",
+"DE841858398"
+],
+[
+"vatId",
+"DE947196593"
+],
+[
+"product",
+"Elegante Lampe"
+],
+[
+"product",
+"Kompakte Lampe"
+],
+[
+"sku",
+"BTV-5260"
+],
+[
+"sku",
+"PCC-3133"
+],
+[
+"price",
+"438.51"
+],
+[
+"price",
+"461.77"
+],
+[
+"orderNumber",
+"ORD-2026-10519"
+],
+[
+"orderNumber",
+"ORD-2026-91662"
+],
+[
+"guid",
+"aef9c00b-8a64-41b9-9450-fe4aec4f217b"
+],
+[
+"guid",
+"864a7a50-b48d-43f1-967e-55fd642bfa42"
+],
+[
+"pastDate",
+"2026-08-11T06:24:29Z"
+],
+[
+"pastDate",
+"2026-05-07T16:04:05Z"
+],
+[
+"futureDate",
+"2027-10-07T13:25:55Z"
+],
+[
+"futureDate",
+"2027-02-25T19:32:21Z"
+],
+[
+"url",
+"https://www.example.com/about/846"
+],
+[
+"url",
+"https://www.example.org/about/282"
+],
+[
+"ipv4",
+"198.51.100.127"
+],
+[
+"ipv4",
+"203.0.113.165"
+],
+[
+"ipv6",
+"2001:db8:b6f8:2a2c:a60d:3b0f:f90f:aba8"
+],
+[
+"ipv6",
+"2001:db8:6179:7c6f:84c:8ac5:3bf9:70e0"
+],
+[
+"mac",
+"02:be:57:aa:da:1f"
+],
+[
+"mac",
+"02:33:4a:70:17:25"
+],
+[
+"password",
+"dpy+pYlVoecyxp9A"
+],
+[
+"password",
+"hc*2mHiCjMS3xh#7"
+],
+[
+"color",
+"#1433c8"
+],
+[
+"color",
+"#6685b7"
+],
+[
+"latLon",
+"54.263869, 10.178967"
+],
+[
+"latLon",
+"54.247743, 11.084894"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+],
+[
+"sentence",
+"Qui eiusmod minim consequat dolore elit reprehenderit anim."
+],
+[
+"sentence",
+"Cillum tempor lorem ex fugiat ullamco mollit irure officia commodo anim enim esse."
+],
+[
+"paragraph",
+"Culpa cillum dolore do aute nulla lorem aliquip sint consectetur minim sint. Duis magna sed et occaecat laborum. Veniam voluptate aliqua fugiat veniam in est mollit velit qui voluptate sed pariatur. Nostrud sint ullamco culpa esse consectetur lorem reprehenderit incididunt nulla. Eiusmod et labore velit nisi nostrud pariatur deserunt fugiat irure officia."
+],
+[
+"paragraph",
+"Exercitation officia nulla irure ullamco cupidatat. Eiusmod nisi amet dolore nulla eiusmod. Consequat deserunt ea anim aute reprehenderit occaecat lorem deserunt dolor ea ad enim. Sit proident sunt deserunt proident ullamco incididunt aute laborum velit consectetur culpa excepteur. Lorem exercitation est fugiat ullamco ad lorem ut. Pariatur occaecat lorem sunt fugiat consequat."
+]
+]
+},
+{
+"locale": "de",
+"seed": {
+"int": "1099511627779"
+},
+"values": [
+[
+"firstName",
+"Lena"
+],
+[
+"firstName",
+"Ida"
+],
+[
+"lastName",
+"Zimmermann"
+],
+[
+"lastName",
+"Schmitz"
+],
+[
+"fullName",
+"Paula Mayer"
+],
+[
+"fullName",
+"Maximilian Kaiser"
+],
+[
+"email",
+"markusschroeder@example.net"
+],
+[
+"email",
+"jonas.schneider72@example.com"
+],
+[
+"userName",
+"finns"
+],
+[
+"userName",
+"elias.walter"
+],
+[
+"phone",
+"+49 30 23125 709"
+],
+[
+"phone",
+"+49 30 23125 313"
+],
+[
+"birthDate",
+"1967-09-11"
+],
+[
+"birthDate",
+"1991-01-25"
+],
+[
+"job",
+"Systemadministrator"
+],
+[
+"job",
+"Personalreferentin"
+],
+[
+"street",
+"Hauptstraße 32"
+],
+[
+"street",
+"Uhlandstraße 69"
+],
+[
+"city",
+"Berlin"
+],
+[
+"city",
+"Frankfurt am Main"
+],
+[
+"zip",
+"80331"
+],
+[
+"zip",
+"24103"
+],
+[
+"address",
+"Goethestraße 49a, 53111 Bonn"
+],
+[
+"address",
+"Schillerstraße 71, 20095 Hamburg"
+],
+[
+"company",
+"Süd Logistik e.K."
+],
+[
+"company",
+"Zimmermann & Richter KG"
+],
+[
+"iban",
+"DE39370400442855254110"
+],
+[
+"iban",
+"DE69370400446646177985"
+],
+[
+"card",
+"6011111111111117"
+],
+[
+"card",
+"4000056655665556"
+],
+[
+"vatId",
+"DE151985061"
+],
+[
+"vatId",
+"DE019759903"
+],
+[
+"product",
+"Leichte Brille"
+],
+[
+"product",
+"Elegante Tasse"
+],
+[
+"sku",
+"SSJ-8750"
+],
+[
+"sku",
+"NTX-7174"
+],
+[
+"price",
+"30.33"
+],
+[
+"price",
+"282.39"
+],
+[
+"orderNumber",
+"ORD-2026-06489"
+],
+[
+"orderNumber",
+"ORD-2026-16973"
+],
+[
+"guid",
+"f0634c8c-eebc-489c-84ee-32b2de087fe7"
+],
+[
+"guid",
+"e4d4b2cb-5d2f-4bcd-aa3d-791fa1c95b07"
+],
+[
+"pastDate",
+"2026-07-29T22:27:07Z"
+],
+[
+"pastDate",
+"2026-10-02T18:18:38Z"
+],
+[
+"futureDate",
+"2027-01-10T17:32:22Z"
+],
+[
+"futureDate",
+"2027-05-16T22:40:20Z"
+],
+[
+"url",
+"https://www.example.com/shop/306"
+],
+[
+"url",
+"https://www.example.net/about/779"
+],
+[
+"ipv4",
+"198.51.100.95"
+],
+[
+"ipv4",
+"192.0.2.159"
+],
+[
+"ipv6",
+"2001:db8:bccb:3ae7:3b2a:fcd8:93c4:b991"
+],
+[
+"ipv6",
+"2001:db8:18a8:5b19:7fd9:1af7:1051:66d5"
+],
+[
+"mac",
+"02:ee:30:57:85:e2"
+],
+[
+"mac",
+"02:54:ce:e3:d8:3b"
+],
+[
+"password",
+"#klW$YSx-77uk2wi"
+],
+[
+"password",
+"sY_k6e7Vzu*E@Qcc"
+],
+[
+"color",
+"#e6b72b"
+],
+[
+"color",
+"#fc79d8"
+],
+[
+"latLon",
+"47.504277, 13.65793"
+],
+[
+"latLon",
+"52.949954, 10.686359"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+],
+[
+"sentence",
+"Elit adipiscing reprehenderit deserunt quis in exercitation."
+],
+[
+"sentence",
+"Sint sunt excepteur laboris do elit duis sed qui anim ipsum deserunt."
+],
+[
+"paragraph",
+"In veniam qui in ipsum nostrud elit velit. Do et ut occaecat incididunt tempor laborum nostrud do elit ex id deserunt ipsum. Sint velit ipsum cillum id elit id occaecat eiusmod anim et esse in. Elit amet deserunt laboris non nulla tempor occaecat enim dolor exercitation ex sint."
+],
+[
+"paragraph",
+"Consequat dolor culpa veniam aliqua proident lorem cillum aute. In dolore est culpa laboris nostrud dolore ullamco. Aliqua magna eiusmod ullamco culpa sunt."
+]
+]
+},
+{
+"locale": "de",
+"seed": {
+"int": "1267650600228229401496703205376"
+},
+"values": [
+[
+"firstName",
+"Laura"
+],
+[
+"firstName",
+"Charlotte"
+],
+[
+"lastName",
+"Schulz"
+],
+[
+"lastName",
+"Koch"
+],
+[
+"fullName",
+"Moritz Schulz"
+],
+[
+"fullName",
+"Paul Walter"
+],
+[
+"email",
+"michael.herrmann@example.com"
+],
+[
+"email",
+"jan.braun54@example.com"
+],
+[
+"userName",
+"ingrid587"
+],
+[
+"userName",
+"henrik608"
+],
+[
+"phone",
+"+49 30 23125 567"
+],
+[
+"phone",
+"+49 30 23125 966"
+],
+[
+"birthDate",
+"1988-11-03"
+],
+[
+"birthDate",
+"1955-02-25"
+],
+[
+"job",
+"Softwareentwickler"
+],
+[
+"job",
+"Personalreferentin"
+],
+[
+"street",
+"Gartenstraße 76"
+],
+[
+"street",
+"Dorfstraße 107"
+],
+[
+"city",
+"Hannover"
+],
+[
+"city",
+"Frankfurt am Main"
+],
+[
+"zip",
+"45127"
+],
+[
+"zip",
+"30159"
+],
+[
+"address",
+"Friedrichstraße 47a, 86150 Augsburg"
+],
+[
+"address",
+"Am Markt 36, 70173 Stuttgart"
+],
+[
+"company",
+"Stern Elektro GmbH & Co. KG"
+],
+[
+"company",
+"Schäfer & Kaiser UG (haftungsbeschränkt)"
+],
+[
+"iban",
+"DE62370400444315450471"
+],
+[
+"iban",
+"DE16370400447271173995"
+],
+[
+"card",
+"4242424242424242"
+],
+[
+"card",
+"378282246310005"
+],
+[
+"vatId",
+"DE018911759"
+],
+[
+"vatId",
+"DE928583724"
+],
+[
+"product",
+"Smarte Tastatur"
+],
+[
+"product",
+"Praktische Maus"
+],
+[
+"sku",
+"NYS-1267"
+],
+[
+"sku",
+"PAS-1019"
+],
+[
+"price",
+"459.88"
+],
+[
+"price",
+"199.04"
+],
+[
+"orderNumber",
+"ORD-2026-59133"
+],
+[
+"orderNumber",
+"ORD-2026-62877"
+],
+[
+"guid",
+"ab305770-225e-42cd-9eb6-27a1dc67286b"
+],
+[
+"guid",
+"cbe1b0e9-38e8-4921-b470-e5f5b2364fe4"
+],
+[
+"pastDate",
+"2026-05-17T04:51:40Z"
+],
+[
+"pastDate",
+"2026-06-24T08:59:18Z"
+],
+[
+"futureDate",
+"2027-09-12T07:58:20Z"
+],
+[
+"futureDate",
+"2027-02-10T08:35:35Z"
+],
+[
+"url",
+"https://www.example.com/api/442"
+],
+[
+"url",
+"https://www.example.net/about/727"
+],
+[
+"ipv4",
+"203.0.113.239"
+],
+[
+"ipv4",
+"192.0.2.37"
+],
+[
+"ipv6",
+"2001:db8:db93:3af:ca94:ccbf:cca4:f60d"
+],
+[
+"ipv6",
+"2001:db8:2916:f793:7827:2e84:fe3a:2901"
+],
+[
+"mac",
+"02:58:09:ac:6b:9e"
+],
+[
+"mac",
+"02:7c:09:9c:a7:8a"
+],
+[
+"password",
+"Tnf@jV=MBuY=tA7W"
+],
+[
+"password",
+"uV2F#VTMB41#wckd"
+],
+[
+"color",
+"#337b51"
+],
+[
+"color",
+"#6e1078"
+],
+[
+"latLon",
+"52.743737, 7.568547"
+],
+[
+"latLon",
+"53.95063, 12.17761"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+],
+[
+"sentence",
+"Cupidatat consectetur proident velit ut in dolor id velit excepteur ut."
+],
+[
+"sentence",
+"Minim consequat elit minim ad laborum nisi ullamco fugiat sunt minim est nulla."
+],
+[
+"paragraph",
+"Quis dolor ullamco deserunt consequat elit velit consequat. Ut mollit elit ullamco aliqua magna dolore voluptate lorem ex adipiscing deserunt. Do occaecat magna esse aliquip ut mollit sed aliqua exercitation veniam mollit mollit. Labore veniam nulla amet veniam amet qui."
+],
+[
+"paragraph",
+"Aute ut laborum ex pariatur adipiscing ex ullamco aliquip reprehenderit pariatur officia quis. Sunt cupidatat veniam ipsum adipiscing ea incididunt qui mollit. Eiusmod sit incididunt occaecat ut ex ex. Cillum nulla nulla minim amet et id do dolore sint sed aliqua duis cillum."
+]
+]
+},
+{
+"locale": "en",
+"seed": {
+"text": "1:1"
+},
+"values": [
+[
+"firstName",
+"Aaron"
+],
+[
+"firstName",
+"Liam"
+],
+[
+"lastName",
+"Campbell"
+],
+[
+"lastName",
+"Garcia"
+],
+[
+"fullName",
+"Emma Hill"
+],
+[
+"fullName",
+"Emily Moore"
+],
+[
+"email",
+"evelyn.young16@example.org"
+],
+[
+"email",
+"madison.roberts@example.com"
+],
+[
+"userName",
+"hsmith"
+],
+[
+"userName",
+"joseph954"
+],
+[
+"phone",
+"(206) 555-0177"
+],
+[
+"phone",
+"(215) 555-0152"
+],
+[
+"birthDate",
+"1977-10-25"
+],
+[
+"birthDate",
+"1958-07-16"
+],
+[
+"job",
+"IT Team Lead"
+],
+[
+"job",
+"Data Scientist"
+],
+[
+"street",
+"9389 Oak Avenue"
+],
+[
+"street",
+"6755 Meadow Lane"
+],
+[
+"city",
+"San Francisco"
+],
+[
+"city",
+"Dallas"
+],
+[
+"zip",
+"78205"
+],
+[
+"zip",
+"02108"
+],
+[
+"address",
+"2138 Elm Street, Austin, TX 78701"
+],
+[
+"address",
+"1270 Oak Avenue, Portland, OR 97204"
+],
+[
+"company",
+"Alpha Consulting Ltd."
+],
+[
+"company",
+"Martinez & King Inc."
+],
+[
+"iban",
+"DE93370400448467408716"
+],
+[
+"iban",
+"DE80370400447869364471"
+],
+[
+"card",
+"4242424242424242"
+],
+[
+"card",
+"3056930009020004"
+],
+[
+"vatId",
+"US866906922"
+],
+[
+"vatId",
+"US426380476"
+],
+[
+"product",
+"Rugged Lamp"
+],
+[
+"product",
+"Wireless Mug"
+],
+[
+"sku",
+"GIL-3174"
+],
+[
+"sku",
+"HJZ-2689"
+],
+[
+"price",
+"474.21"
+],
+[
+"price",
+"235.86"
+],
+[
+"orderNumber",
+"ORD-2026-19721"
+],
+[
+"orderNumber",
+"ORD-2026-56128"
+],
+[
+"guid",
+"b958af60-903b-4017-bcce-a83e9517a186"
+],
+[
+"guid",
+"42e3cdce-e05d-4848-8189-a9a7c5bef317"
+],
+[
+"pastDate",
+"2026-10-20T11:58:51Z"
+],
+[
+"pastDate",
+"2026-07-06T20:42:55Z"
+],
+[
+"futureDate",
+"2027-03-02T15:00:44Z"
+],
+[
+"futureDate",
+"2027-11-23T05:03:33Z"
+],
+[
+"url",
+"https://www.example.com/blog/757"
+],
+[
+"url",
+"https://www.example.org/about/661"
+],
+[
+"ipv4",
+"203.0.113.171"
+],
+[
+"ipv4",
+"192.0.2.187"
+],
+[
+"ipv6",
+"2001:db8:3ddc:89b1:de37:6979:a915:2587"
+],
+[
+"ipv6",
+"2001:db8:b96b:fb69:644d:142a:e576:a776"
+],
+[
+"mac",
+"02:7d:71:32:7c:02"
+],
+[
+"mac",
+"02:f1:d3:7a:c1:7e"
+],
+[
+"password",
+"cCo$*+2j!UJKP&2e"
+],
+[
+"password",
+"dQI5SdCPiK$Mhx92"
+],
+[
+"color",
+"#1e9d7d"
+],
+[
+"color",
+"#d675d6"
+],
+[
+"latLon",
+"44.634184, -106.341941"
+],
+[
+"latLon",
+"25.209488, -123.688335"
+],
+[
+"userAgent",
+"Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1"
+],
+[
+"userAgent",
+"Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1"
+],
+[
+"sentence",
+"Enim fugiat non mollit ex qui ut veniam do voluptate incididunt duis."
+],
+[
+"sentence",
+"Et sit quis non culpa voluptate anim veniam et ipsum id."
+],
+[
+"paragraph",
+"Voluptate esse sint aliquip non anim non. Aliqua excepteur mollit lorem quis aute. Sint deserunt nisi commodo dolore cillum non dolor reprehenderit ullamco. Reprehenderit ad ea ex minim cupidatat non ea incididunt. Dolore minim minim consectetur culpa nisi fugiat eiusmod. Commodo cillum ad et aliqua ad culpa exercitation aliquip commodo amet consequat nostrud ex."
+],
+[
+"paragraph",
+"Commodo nisi officia non ipsum in nisi aute sunt aute do ullamco eiusmod. Pariatur sed deserunt culpa qui ex nostrud aliquip amet et qui. Pariatur dolor fugiat reprehenderit qui duis adipiscing elit."
+]
+]
+},
+{
+"locale": "en",
+"seed": {
+"text": "42:7"
+},
+"values": [
+[
+"firstName",
+"Isaac"
+],
+[
+"firstName",
+"Scarlett"
+],
+[
+"lastName",
+"Jackson"
+],
+[
+"lastName",
+"Hill"
+],
+[
+"fullName",
+"Amelia Garcia"
+],
+[
+"fullName",
+"Jack Brown"
+],
+[
+"email",
+"david.mitchell@example.net"
+],
+[
+"email",
+"megan.thomas@example.com"
+],
+[
+"userName",
+"lucas986"
+],
+[
+"userName",
+"isabella357"
+],
+[
+"phone",
+"(617) 555-0175"
+],
+[
+"phone",
+"(512) 555-0123"
+],
+[
+"birthDate",
+"1974-11-13"
+],
+[
+"birthDate",
+"1946-04-12"
+],
+[
+"job",
+"Software Engineer"
+],
+[
+"job",
+"Data Scientist"
+],
+[
+"street",
+"9654 Walnut Street"
+],
+[
+"street",
+"6051 Chestnut Street"
+],
+[
+"city",
+"San Francisco"
+],
+[
+"city",
+"Dallas"
+],
+[
+"zip",
+"19103"
+],
+[
+"zip",
+"60601"
+],
+[
+"address",
+"5301 Highland Drive, Portland, OR 97204"
+],
+[
+"address",
+"6029 Maple Drive, San Diego, CA 92101"
+],
+[
+"company",
+"Bright Consulting Inc."
+],
+[
+"company",
+"Walker Consulting LLC"
+],
+[
+"iban",
+"DE24370400442897551812"
+],
+[
+"iban",
+"DE06370400446824091960"
+],
+[
+"card",
+"6011111111111117"
+],
+[
+"card",
+"4242424242424242"
+],
+[
+"vatId",
+"US958902587"
+],
+[
+"vatId",
+"US172358246"
+],
+[
+"product",
+"Lightweight Headphones"
+],
+[
+"product",
+"Compact Keyboard"
+],
+[
+"sku",
+"TDG-8119"
+],
+[
+"sku",
+"KIZ-4051"
+],
+[
+"price",
+"483.10"
+],
+[
+"price",
+"32.14"
+],
+[
+"orderNumber",
+"ORD-2026-48907"
+],
+[
+"orderNumber",
+"ORD-2026-30727"
+],
+[
+"guid",
+"f2ad7344-46fa-45a5-b2e4-2074ce993433"
+],
+[
+"guid",
+"36f727e7-e4ae-439e-8361-e2b9a28325cb"
+],
+[
+"pastDate",
+"2026-10-10T16:55:48Z"
+],
+[
+"pastDate",
+"2026-08-05T08:46:05Z"
+],
+[
+"futureDate",
+"2027-06-08T03:31:12Z"
+],
+[
+"futureDate",
+"2027-08-15T17:00:24Z"
+],
+[
+"url",
+"https://www.example.org/docs/966"
+],
+[
+"url",
+"https://www.example.org/docs/557"
+],
+[
+"ipv4",
+"203.0.113.6"
+],
+[
+"ipv4",
+"192.0.2.154"
+],
+[
+"ipv6",
+"2001:db8:696c:6033:5d90:6b58:6313:3f98"
+],
+[
+"ipv6",
+"2001:db8:f95b:34c7:dfc5:b09e:96dd:1ca0"
+],
+[
+"mac",
+"02:0e:a2:78:5e:f5"
+],
+[
+"mac",
+"02:e9:c4:2f:60:db"
+],
+[
+"password",
+"z03h5wrr-2T7ELRt"
+],
+[
+"password",
+"yfpR_hpRot8-q+4!"
+],
+[
+"color",
+"#db65c6"
+],
+[
+"color",
+"#646f4f"
+],
+[
+"latLon",
+"37.527169, -75.727202"
+],
+[
+"latLon",
+"27.040932, -79.542362"
+],
+[
+"userAgent",
+"Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1"
+],
+[
+"userAgent",
+"Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0"
+],
+[
+"sentence",
+"Ea reprehenderit cillum irure ad et sit consectetur consectetur ipsum officia non nulla et."
+],
+[
+"sentence",
+"Do exercitation proident mollit nostrud excepteur in esse voluptate do quis adipiscing qui."
+],
+[
+"paragraph",
+"Nulla id sit tempor cillum nisi adipiscing esse velit non. Sed laboris aliqua ipsum pariatur magna sunt adipiscing minim do dolor cupidatat aliquip qui. Qui duis ullamco nisi non quis pariatur irure fugiat ipsum voluptate deserunt sunt. Voluptate in sed quis in anim adipiscing amet consectetur ullamco qui officia sunt. Reprehenderit est est nisi cupidatat qui veniam ut incididunt ut enim. Qui elit magna sint nostrud fugiat aliquip non reprehenderit."
+],
+[
+"paragraph",
+"Qui non non lorem aute et ex ipsum consectetur ea amet nostrud incididunt. Enim officia cupidatat magna nulla aliqua officia amet eiusmod sint nostrud. Aliquip in nulla consectetur nisi duis dolor non non sit tempor aliquip qui."
+]
+]
+},
+{
+"locale": "en",
+"seed": {
+"text": "Seed ü:3"
+},
+"values": [
+[
+"firstName",
+"Ava"
+],
+[
+"firstName",
+"Madison"
+],
+[
+"lastName",
+"Green"
+],
+[
+"lastName",
+"Lee"
+],
+[
+"fullName",
+"Hazel King"
+],
+[
+"fullName",
+"Abigail Thomas"
+],
+[
+"email",
+"jessicaclark@example.org"
+],
+[
+"email",
+"harper.scott@example.net"
+],
+[
+"userName",
+"davidb"
+],
+[
+"userName",
+"ryan126"
+],
+[
+"phone",
+"(404) 555-0172"
+],
+[
+"phone",
+"(213) 555-0137"
+],
+[
+"birthDate",
+"1971-05-25"
+],
+[
+"birthDate",
+"1949-09-02"
+],
+[
+"job",
+"Project Manager"
+],
+[
+"job",
+"System Administrator"
+],
+[
+"street",
+"2090 Sunset Boulevard"
+],
+[
+"street",
+"5895 Lake Road"
+],
+[
+"city",
+"Houston"
+],
+[
+"city",
+"San Diego"
+],
+[
+"zip",
+"78701"
+],
+[
+"zip",
+"10001"
+],
+[
+"address",
+"9326 Highland Drive, Austin, TX 78701"
+],
+[
+"address",
+"9524 Church Street, Philadelphia, PA 19103"
+],
+[
+"company",
+"Nelson Analytics & Co."
+],
+[
+"company",
+"Johnson & Allen Corp."
+],
+[
+"iban",
+"DE65370400443342557004"
+],
+[
+"iban",
+"DE76370400448314619472"
+],
+[
+"card",
+"3056930009020004"
+],
+[
+"card",
+"378282246310005"
+],
+[
+"vatId",
+"US585158792"
+],
+[
+"vatId",
+"US559221273"
+],
+[
+"product",
+"Wireless Camera"
+],
+[
+"product",
+"Ergonomic Bottle"
+],
+[
+"sku",
+"GLL-1743"
+],
+[
+"sku",
+"UJV-5524"
+],
+[
+"price",
+"459.60"
+],
+[
+"price",
+"14.86"
+],
+[
+"orderNumber",
+"ORD-2026-20604"
+],
+[
+"orderNumber",
+"ORD-2026-23955"
+],
+[
+"guid",
+"144d7d70-c3e7-40db-9130-800050619a1e"
+],
+[
+"guid",
+"38f69325-9ad2-49d8-aa19-3b6beb0ac7fc"
+],
+[
+"pastDate",
+"2026-03-24T15:29:40Z"
+],
+[
+"pastDate",
+"2026-08-07T08:11:29Z"
+],
+[
+"futureDate",
+"2026-12-15T02:57:28Z"
+],
+[
+"futureDate",
+"2027-05-05T20:59:49Z"
+],
+[
+"url",
+"https://www.example.net/docs/905"
+],
+[
+"url",
+"https://www.example.net/shop/470"
+],
+[
+"ipv4",
+"192.0.2.113"
+],
+[
+"ipv4",
+"203.0.113.202"
+],
+[
+"ipv6",
+"2001:db8:84a7:8b98:54e3:8a23:78d6:8fa0"
+],
+[
+"ipv6",
+"2001:db8:a2e2:1136:5e4e:b207:c7bb:ae1"
+],
+[
+"mac",
+"02:3c:57:f3:bf:6b"
+],
+[
+"mac",
+"02:74:6a:66:f2:c5"
+],
+[
+"password",
+"+RV2pY4ugD1hG8-*"
+],
+[
+"password",
+"c965NjxeB$CH=#Or"
+],
+[
+"color",
+"#db5566"
+],
+[
+"color",
+"#d99a01"
+],
+[
+"latLon",
+"27.403405, -104.241062"
+],
+[
+"latLon",
+"28.90171, -78.737427"
+],
+[
+"userAgent",
+"Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+],
+[
+"sentence",
+"Ad sunt cillum pariatur est aute."
+],
+[
+"sentence",
+"Amet pariatur nisi nostrud exercitation minim id consequat ut mollit eiusmod proident qui nostrud."
+],
+[
+"paragraph",
+"Cupidatat esse aute in deserunt culpa quis enim occaecat fugiat nisi officia lorem. Id sed ullamco cillum esse et sunt sunt ad ipsum. Amet ad labore nisi culpa pariatur proident nostrud velit proident."
+],
+[
+"paragraph",
+"Magna dolore irure proident laborum in labore in ullamco occaecat incididunt. Sed dolor fugiat exercitation esse ex incididunt sit. Pariatur lorem nisi commodo nulla amet. Incididunt veniam nostrud exercitation excepteur mollit veniam qui reprehenderit pariatur. Sit incididunt fugiat pariatur sunt velit. Id ea sint occaecat veniam occaecat duis mollit eiusmod anim elit ex."
+]
+]
+},
+{
+"locale": "en",
+"seed": {
+"text": "x"
+},
+"values": [
+[
+"firstName",
+"Nathan"
+],
+[
+"firstName",
+"Oliver"
+],
+[
+"lastName",
+"Walker"
+],
+[
+"lastName",
+"Roberts"
+],
+[
+"fullName",
+"Logan Wright"
+],
+[
+"fullName",
+"William Walker"
+],
+[
+"email",
+"ryan.adams@example.org"
+],
+[
+"email",
+"mia_adams@example.org"
+],
+[
+"userName",
+"harpers"
+],
+[
+"userName",
+"iadams"
+],
+[
+"phone",
+"(617) 555-0188"
+],
+[
+"phone",
+"(404) 555-0111"
+],
+[
+"birthDate",
+"1955-09-20"
+],
+[
+"birthDate",
+"1998-12-10"
+],
+[
+"job",
+"Software Engineer"
+],
+[
+"job",
+"Warehouse Associate"
+],
+[
+"street",
+"9581 Meadow Lane"
+],
+[
+"street",
+"2589 Park Avenue"
+],
+[
+"city",
+"Boston"
+],
+[
+"city",
+"Nashville"
+],
+[
+"zip",
+"97204"
+],
+[
+"zip",
+"78701"
+],
+[
+"address",
+"3659 Cedar Lane, New York, NY 10001"
+],
+[
+"address",
+"1156 Washington Avenue, Seattle, WA 98101"
+],
+[
+"company",
+"Nova Industries Inc."
+],
+[
+"company",
+"Clark & Adams Corp."
+],
+[
+"iban",
+"DE15370400447275653376"
+],
+[
+"iban",
+"DE95370400444181342527"
+],
+[
+"card",
+"3056930009020004"
+],
+[
+"card",
+"3566002020360505"
+],
+[
+"vatId",
+"US501081622"
+],
+[
+"vatId",
+"US974317740"
+],
+[
+"product",
+"Compact Jacket"
+],
+[
+"product",
+"Wireless Mug"
+],
+[
+"sku",
+"EMY-7230"
+],
+[
+"sku",
+"AIK-3543"
+],
+[
+"price",
+"321.25"
+],
+[
+"price",
+"495.57"
+],
+[
+"orderNumber",
+"ORD-2026-74857"
+],
+[
+"orderNumber",
+"ORD-2026-81899"
+],
+[
+"guid",
+"6ca8de6a-229b-48b8-b45d-3bdb02944c4d"
+],
+[
+"guid",
+"21eec5cc-b73a-4446-950a-a25adfd9cf46"
+],
+[
+"pastDate",
+"2026-11-09T12:00:50Z"
+],
+[
+"pastDate",
+"2025-11-29T01:39:05Z"
+],
+[
+"futureDate",
+"2027-03-27T16:07:45Z"
+],
+[
+"futureDate",
+"2027-06-20T03:10:49Z"
+],
+[
+"url",
+"https://www.example.com/shop/389"
+],
+[
+"url",
+"https://www.example.org/blog/556"
+],
+[
+"ipv4",
+"203.0.113.17"
+],
+[
+"ipv4",
+"192.0.2.128"
+],
+[
+"ipv6",
+"2001:db8:60c8:22c9:1af6:c536:eeff:ac05"
+],
+[
+"ipv6",
+"2001:db8:8a53:d30a:f92a:6f08:bf1e:c183"
+],
+[
+"mac",
+"02:86:a3:90:9a:f1"
+],
+[
+"mac",
+"02:3f:96:50:e5:0d"
+],
+[
+"password",
+"zAGciV@Jj&7@c@Z%"
+],
+[
+"password",
+"7gbukGI*5w5LVK_-"
+],
+[
+"color",
+"#dd8f38"
+],
+[
+"color",
+"#e1c846"
+],
+[
+"latLon",
+"36.806508, -103.926196"
+],
+[
+"latLon",
+"26.332196, -71.09204"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15"
+],
+[
+"sentence",
+"Enim magna dolor sint pariatur ipsum deserunt cillum cillum ad tempor."
+],
+[
+"sentence",
+"Aliqua eiusmod ex excepteur velit consectetur."
+],
+[
+"paragraph",
+"Duis consequat consequat velit pariatur incididunt tempor eiusmod qui. Esse nostrud occaecat commodo cillum esse sunt velit. Adipiscing et magna magna nostrud duis minim aliquip officia. Velit labore enim deserunt non ad excepteur eiusmod proident. Culpa dolor dolore magna duis ullamco nostrud ex esse do."
+],
+[
+"paragraph",
+"Consectetur est pariatur deserunt ad officia incididunt consequat aute eiusmod ad esse. Laboris lorem reprehenderit ipsum sunt in in. Amet consequat aute laborum fugiat sunt. Voluptate aute ullamco tempor aute id occaecat."
+]
+]
+},
+{
+"locale": "en",
+"seed": {
+"int": "5"
+},
+"values": [
+[
+"firstName",
+"Caleb"
+],
+[
+"firstName",
+"Aaron"
+],
+[
+"lastName",
+"Nelson"
+],
+[
+"lastName",
+"Johnson"
+],
+[
+"fullName",
+"Isaac Jackson"
+],
+[
+"fullName",
+"Jessica Wilson"
+],
+[
+"email",
+"grace.green32@example.net"
+],
+[
+"email",
+"m.jackson@example.org"
+],
+[
+"userName",
+"williamw"
+],
+[
+"userName",
+"aria.phillips"
+],
+[
+"phone",
+"(602) 555-0100"
+],
+[
+"phone",
+"(212) 555-0126"
+],
+[
+"birthDate",
+"1986-09-03"
+],
+[
+"birthDate",
+"1991-02-15"
+],
+[
+"job",
+"Accountant"
+],
+[
+"job",
+"System Administrator"
+],
+[
+"street",
+"5238 Washington Avenue"
+],
+[
+"street",
+"8934 Washington Avenue"
+],
+[
+"city",
+"Philadelphia"
+],
+[
+"city",
+"San Antonio"
+],
+[
+"zip",
+"02108"
+],
+[
+"zip",
+"78701"
+],
+[
+"address",
+"6017 Highland Drive, New York, NY 10001"
+],
+[
+"address",
+"2487 Hill Street, Philadelphia, PA 19103"
+],
+[
+"company",
+"White & Carter Group"
+],
+[
+"company",
+"Bright Software & Co."
+],
+[
+"iban",
+"DE95370400441451255993"
+],
+[
+"iban",
+"DE37370400445626226471"
+],
+[
+"card",
+"378282246310005"
+],
+[
+"card",
+"3566002020360505"
+],
+[
+"vatId",
+"US527720405"
+],
+[
+"vatId",
+"US608656907"
+],
+[
+"product",
+"Ergonomic Lamp"
+],
+[
+"product",
+"Compact Mouse"
+],
+[
+"sku",
+"YHO-6642"
+],
+[
+"sku",
+"QLQ-5110"
+],
+[
+"price",
+"388.03"
+],
+[
+"price",
+"54.92"
+],
+[
+"orderNumber",
+"ORD-2026-98095"
+],
+[
+"orderNumber",
+"ORD-2026-48143"
+],
+[
+"guid",
+"6ed78f5d-0960-4fe9-8bbd-bb01dc14ed57"
+],
+[
+"guid",
+"355f2af4-1757-405e-ba74-9692f21ff5eb"
+],
+[
+"pastDate",
+"2026-07-16T23:34:20Z"
+],
+[
+"pastDate",
+"2026-05-11T03:06:57Z"
+],
+[
+"futureDate",
+"2027-07-21T13:49:46Z"
+],
+[
+"futureDate",
+"2027-04-16T04:25:07Z"
+],
+[
+"url",
+"https://www.example.com/docs/283"
+],
+[
+"url",
+"https://www.example.net/about/95"
+],
+[
+"ipv4",
+"198.51.100.176"
+],
+[
+"ipv4",
+"198.51.100.79"
+],
+[
+"ipv6",
+"2001:db8:5ade:2809:4c38:9e5d:f7b3:52b3"
+],
+[
+"ipv6",
+"2001:db8:18db:2973:cfd0:104b:7984:b00a"
+],
+[
+"mac",
+"02:80:e9:d7:4a:1c"
+],
+[
+"mac",
+"02:10:fc:ab:6a:42"
+],
+[
+"password",
+"=q0nv3Vth1Ls6v%6"
+],
+[
+"password",
+"!O9JL8ZsoW&w@Rxl"
+],
+[
+"color",
+"#fb8bb8"
+],
+[
+"color",
+"#20b611"
+],
+[
+"latLon",
+"42.471691, -104.738117"
+],
+[
+"latLon",
+"41.2028, -109.114841"
+],
+[
+"userAgent",
+"Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1"
+],
+[
+"userAgent",
+"Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0"
+],
+[
+"sentence",
+"Laborum est minim esse tempor in qui lorem ex aute."
+],
+[
+"sentence",
+"Ad cillum magna aliquip aliqua sunt commodo esse fugiat proident."
+],
+[
+"paragraph",
+"Magna esse veniam sint est culpa ullamco veniam id culpa tempor. Quis laborum minim consequat do consequat eiusmod incididunt culpa quis id qui ex. Nulla consectetur excepteur cillum excepteur ullamco eiusmod voluptate cupidatat id. Cillum id ullamco enim voluptate aute cupidatat officia velit magna excepteur ipsum incididunt eiusmod. Voluptate esse tempor labore occaecat fugiat tempor velit pariatur dolor ex labore eiusmod."
+],
+[
+"paragraph",
+"Elit ad laborum tempor ex incididunt aute dolor. Aliquip veniam nostrud cillum voluptate amet in ut et pariatur mollit quis. Veniam exercitation est magna qui ullamco."
+]
+]
+},
+{
+"locale": "en",
+"seed": {
+"int": "0"
+},
+"values": [
+[
+"firstName",
+"Isaac"
+],
+[
+"firstName",
+"Noah"
+],
+[
+"lastName",
+"Martin"
+],
+[
+"lastName",
+"Adams"
+],
+[
+"fullName",
+"Daniel White"
+],
+[
+"fullName",
+"Samuel Roberts"
+],
+[
+"email",
+"n.rodriguez@example.com"
+],
+[
+"email",
+"thomas_hill@example.com"
+],
+[
+"userName",
+"jjones"
+],
+[
+"userName",
+"andrew363"
+],
+[
+"phone",
+"(206) 555-0178"
+],
+[
+"phone",
+"(512) 555-0170"
+],
+[
+"birthDate",
+"1963-03-18"
+],
+[
+"birthDate",
+"1966-04-15"
+],
+[
+"job",
+"Data Scientist"
+],
+[
+"job",
+"System Administrator"
+],
+[
+"street",
+"1120 Chestnut Street"
+],
+[
+"street",
+"330 Maple Drive"
+],
+[
+"city",
+"Boston"
+],
+[
+"city",
+"New York"
+],
+[
+"zip",
+"33130"
+],
+[
+"zip",
+"98101"
+],
+[
+"address",
+"5428 Maple Drive, San Diego, CA 92101"
+],
+[
+"address",
+"9398 Lake Road, San Antonio, TX 78205"
+],
+[
+"company",
+"Hill Solutions Ltd."
+],
+[
+"company",
+"Harris Logistics Group"
+],
+[
+"iban",
+"DE97370400442101470722"
+],
+[
+"iban",
+"DE64370400449884638699"
+],
+[
+"card",
+"378282246310005"
+],
+[
+"card",
+"4000056655665556"
+],
+[
+"vatId",
+"US858398947"
+],
+[
+"vatId",
+"US196593423"
+],
+[
+"product",
+"Rugged Keyboard"
+],
+[
+"product",
+"Sleek Bottle"
+],
+[
+"sku",
+"CCV-3133"
+],
+[
+"sku",
+"EBC-9857"
+],
+[
+"price",
+"342.07"
+],
+[
+"price",
+"419.09"
+],
+[
+"orderNumber",
+"ORD-2026-68757"
+],
+[
+"orderNumber",
+"ORD-2026-36128"
+],
+[
+"guid",
+"d977e993-3c49-476f-8fc6-e62585940927"
+],
+[
+"guid",
+"96fd35d0-adf2-4806-a521-460637176e84"
+],
+[
+"pastDate",
+"2026-01-09T19:29:34Z"
+],
+[
+"pastDate",
+"2026-06-16T10:11:47Z"
+],
+[
+"futureDate",
+"2027-07-09T11:39:11Z"
+],
+[
+"futureDate",
+"2027-03-13T05:39:17Z"
+],
+[
+"url",
+"https://www.example.org/api/677"
+],
+[
+"url",
+"https://www.example.net/docs/85"
+],
+[
+"ipv4",
+"198.51.100.157"
+],
+[
+"ipv4",
+"192.0.2.125"
+],
+[
+"ipv6",
+"2001:db8:aba8:6179:7c6f:84c:8ac5:3bf9"
+],
+[
+"ipv6",
+"2001:db8:70e0:be7e:5749:aa42:da2d:1fd7"
+],
+[
+"mac",
+"02:33:4a:70:17:25"
+],
+[
+"mac",
+"02:0d:3f:60:3d:c8"
+],
+[
+"password",
+"lVoecyxp9Ahc*2mH"
+],
+[
+"password",
+"iCjMS3xh#7fmYzHT"
+],
+[
+"color",
+"#f05668"
+],
+[
+"color",
+"#1d5152"
+],
+[
+"latLon",
+"32.873188, -110.713571"
+],
+[
+"latLon",
+"38.726202, -100.557356"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+],
+[
+"sentence",
+"Fugiat ullamco mollit irure officia commodo anim enim esse veniam nostrud culpa cillum."
+],
+[
+"sentence",
+"Do aute nulla lorem aliquip sint consectetur minim sint dolor."
+],
+[
+"paragraph",
+"Et occaecat laborum ex veniam voluptate aliqua fugiat. In est mollit velit qui voluptate sed pariatur enim nostrud sint. Culpa esse consectetur lorem reprehenderit incididunt nulla minim eiusmod et labore velit. Nostrud pariatur deserunt fugiat irure officia ullamco dolor exercitation officia nulla irure ullamco. Eiusmod nisi amet dolore nulla eiusmod."
+],
+[
+"paragraph",
+"Deserunt ea anim aute reprehenderit occaecat lorem deserunt dolor ea ad enim culpa aliquip. Proident sunt deserunt proident ullamco incididunt. Laborum velit consectetur culpa excepteur sed lorem exercitation est fugiat ullamco ad lorem ut. Pariatur occaecat lorem sunt fugiat consequat. Incididunt elit reprehenderit esse incididunt officia enim. Nulla tempor adipiscing ex qui id exercitation velit consectetur ipsum."
+]
+]
+},
+{
+"locale": "en",
+"seed": {
+"int": "1099511627779"
+},
+"values": [
+[
+"firstName",
+"Emma"
+],
+[
+"firstName",
+"Madison"
+],
+[
+"lastName",
+"White"
+],
+[
+"lastName",
+"King"
+],
+[
+"fullName",
+"Hannah Campbell"
+],
+[
+"fullName",
+"Benjamin Roberts"
+],
+[
+"email",
+"robertmartin@example.net"
+],
+[
+"email",
+"james.williams72@example.com"
+],
+[
+"userName",
+"oliverj"
+],
+[
+"userName",
+"henry.hill"
+],
+[
+"phone",
+"(512) 555-0154"
+],
+[
+"phone",
+"(215) 555-0138"
+],
+[
+"birthDate",
+"1961-04-08"
+],
+[
+"birthDate",
+"2004-06-14"
+],
+[
+"job",
+"Sales Director"
+],
+[
+"job",
+"Project Manager"
+],
+[
+"street",
+"8896 Elm Street"
+],
+[
+"street",
+"235 Pine Street"
+],
+[
+"city",
+"Chicago"
+],
+[
+"city",
+"Atlanta"
+],
+[
+"zip",
+"30303"
+],
+[
+"zip",
+"02108"
+],
+[
+"address",
+"821 Lincoln Avenue, Miami, FL 33130"
+],
+[
+"address",
+"3088 Maple Drive, Nashville, TN 37203"
+],
+[
+"company",
+"Thompson Networks Corp."
+],
+[
+"company",
+"King Labs Group"
+],
+[
+"iban",
+"DE39370400442855254110"
+],
+[
+"iban",
+"DE69370400446646177985"
+],
+[
+"card",
+"6011111111111117"
+],
+[
+"card",
+"4000056655665556"
+],
+[
+"vatId",
+"US151985061"
+],
+[
+"vatId",
+"US019759903"
+],
+[
+"product",
+"Lightweight Headphones"
+],
+[
+"product",
+"Sleek Mug"
+],
+[
+"sku",
+"SSJ-8750"
+],
+[
+"sku",
+"NTX-7174"
+],
+[
+"price",
+"30.33"
+],
+[
+"price",
+"282.39"
+],
+[
+"orderNumber",
+"ORD-2026-06489"
+],
+[
+"orderNumber",
+"ORD-2026-16973"
+],
+[
+"guid",
+"f0634c8c-eebc-489c-84ee-32b2de087fe7"
+],
+[
+"guid",
+"e4d4b2cb-5d2f-4bcd-aa3d-791fa1c95b07"
+],
+[
+"pastDate",
+"2026-07-29T22:27:07Z"
+],
+[
+"pastDate",
+"2026-10-02T18:18:38Z"
+],
+[
+"futureDate",
+"2027-01-10T17:32:22Z"
+],
+[
+"futureDate",
+"2027-05-16T22:40:20Z"
+],
+[
+"url",
+"https://www.example.com/shop/306"
+],
+[
+"url",
+"https://www.example.net/about/779"
+],
+[
+"ipv4",
+"198.51.100.95"
+],
+[
+"ipv4",
+"192.0.2.159"
+],
+[
+"ipv6",
+"2001:db8:bccb:3ae7:3b2a:fcd8:93c4:b991"
+],
+[
+"ipv6",
+"2001:db8:18a8:5b19:7fd9:1af7:1051:66d5"
+],
+[
+"mac",
+"02:ee:30:57:85:e2"
+],
+[
+"mac",
+"02:54:ce:e3:d8:3b"
+],
+[
+"password",
+"#klW$YSx-77uk2wi"
+],
+[
+"password",
+"sY_k6e7Vzu*E@Qcc"
+],
+[
+"color",
+"#e6b72b"
+],
+[
+"color",
+"#fc79d8"
+],
+[
+"latLon",
+"25.610178, -78.816452"
+],
+[
+"latLon",
+"41.876486, -96.123404"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+],
+[
+"sentence",
+"Elit adipiscing reprehenderit deserunt quis in exercitation."
+],
+[
+"sentence",
+"Sint sunt excepteur laboris do elit duis sed qui anim ipsum deserunt."
+],
+[
+"paragraph",
+"In veniam qui in ipsum nostrud elit velit. Do et ut occaecat incididunt tempor laborum nostrud do elit ex id deserunt ipsum. Sint velit ipsum cillum id elit id occaecat eiusmod anim et esse in. Elit amet deserunt laboris non nulla tempor occaecat enim dolor exercitation ex sint."
+],
+[
+"paragraph",
+"Consequat dolor culpa veniam aliqua proident lorem cillum aute. In dolore est culpa laboris nostrud dolore ullamco. Aliqua magna eiusmod ullamco culpa sunt."
+]
+]
+},
+{
+"locale": "en",
+"seed": {
+"int": "1267650600228229401496703205376"
+},
+"values": [
+[
+"firstName",
+"Harper"
+],
+[
+"firstName",
+"Nora"
+],
+[
+"lastName",
+"Rodriguez"
+],
+[
+"lastName",
+"Anderson"
+],
+[
+"fullName",
+"Daniel Rodriguez"
+],
+[
+"fullName",
+"Elijah Hill"
+],
+[
+"email",
+"ethan.adams@example.com"
+],
+[
+"email",
+"samuel.harris54@example.com"
+],
+[
+"userName",
+"rachel587"
+],
+[
+"userName",
+"thomas608"
+],
+[
+"phone",
+"(615) 555-0124"
+],
+[
+"phone",
+"(213) 555-0106"
+],
+[
+"birthDate",
+"1965-09-01"
+],
+[
+"birthDate",
+"1997-10-23"
+],
+[
+"job",
+"Customer Success Manager"
+],
+[
+"job",
+"Project Manager"
+],
+[
+"street",
+"2261 Sunset Boulevard"
+],
+[
+"street",
+"6744 Pine Street"
+],
+[
+"city",
+"Austin"
+],
+[
+"city",
+"Boston"
+],
+[
+"zip",
+"37203"
+],
+[
+"zip",
+"55401"
+],
+[
+"address",
+"6338 Elm Street, Denver, CO 80202"
+],
+[
+"address",
+"4587 Oak Avenue, Denver, CO 80202"
+],
+[
+"company",
+"Bright Networks Corp."
+],
+[
+"company",
+"Wilson & Roberts Group"
+],
+[
+"iban",
+"DE62370400444315450471"
+],
+[
+"iban",
+"DE16370400447271173995"
+],
+[
+"card",
+"4242424242424242"
+],
+[
+"card",
+"378282246310005"
+],
+[
+"vatId",
+"US018911759"
+],
+[
+"vatId",
+"US928583724"
+],
+[
+"product",
+"Smart Keyboard"
+],
+[
+"product",
+"Handy Mouse"
+],
+[
+"sku",
+"NYS-1267"
+],
+[
+"sku",
+"PAS-1019"
+],
+[
+"price",
+"459.88"
+],
+[
+"price",
+"199.04"
+],
+[
+"orderNumber",
+"ORD-2026-59133"
+],
+[
+"orderNumber",
+"ORD-2026-62877"
+],
+[
+"guid",
+"ab305770-225e-42cd-9eb6-27a1dc67286b"
+],
+[
+"guid",
+"cbe1b0e9-38e8-4921-b470-e5f5b2364fe4"
+],
+[
+"pastDate",
+"2026-05-17T04:51:40Z"
+],
+[
+"pastDate",
+"2026-06-24T08:59:18Z"
+],
+[
+"futureDate",
+"2027-09-12T07:58:20Z"
+],
+[
+"futureDate",
+"2027-02-10T08:35:35Z"
+],
+[
+"url",
+"https://www.example.com/api/442"
+],
+[
+"url",
+"https://www.example.net/about/727"
+],
+[
+"ipv4",
+"203.0.113.239"
+],
+[
+"ipv4",
+"192.0.2.37"
+],
+[
+"ipv6",
+"2001:db8:db93:3af:ca94:ccbf:cca4:f60d"
+],
+[
+"ipv6",
+"2001:db8:2916:f793:7827:2e84:fe3a:2901"
+],
+[
+"mac",
+"02:58:09:ac:6b:9e"
+],
+[
+"mac",
+"02:7c:09:9c:a7:8a"
+],
+[
+"password",
+"Tnf@jV=MBuY=tA7W"
+],
+[
+"password",
+"uV2F#VTMB41#wckd"
+],
+[
+"color",
+"#337b51"
+],
+[
+"color",
+"#6e1078"
+],
+[
+"latLon",
+"41.260513, -114.282087"
+],
+[
+"latLon",
+"44.865519, -87.438098"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+],
+[
+"userAgent",
+"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+],
+[
+"sentence",
+"Cupidatat consectetur proident velit ut in dolor id velit excepteur ut."
+],
+[
+"sentence",
+"Minim consequat elit minim ad laborum nisi ullamco fugiat sunt minim est nulla."
+],
+[
+"paragraph",
+"Quis dolor ullamco deserunt consequat elit velit consequat. Ut mollit elit ullamco aliqua magna dolore voluptate lorem ex adipiscing deserunt. Do occaecat magna esse aliquip ut mollit sed aliqua exercitation veniam mollit mollit. Labore veniam nulla amet veniam amet qui."
+],
+[
+"paragraph",
+"Aute ut laborum ex pariatur adipiscing ex ullamco aliquip reprehenderit pariatur officia quis. Sunt cupidatat veniam ipsum adipiscing ea incididunt qui mollit. Eiusmod sit incididunt occaecat ut ex ex. Cillum nulla nulla minim amet et id do dolore sint sed aliqua duis cillum."
+]
+]
+}
+],
+"records": [
+{
+"locale": "de",
+"seed": {
+"text": "7:1"
+},
+"kind": "person",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"firstName\": \"Petra\",\n    \"lastName\": \"Fischer\",\n    \"email\": \"petrafischer@example.org\",\n    \"phone\": \"+49 30 23125 666\",\n    \"birthDate\": \"1971-09-22\"\n  },\n  {\n    \"id\": 2,\n    \"firstName\": \"Uwe\",\n    \"lastName\": \"König\",\n    \"email\": \"u.koenig@example.com\",\n    \"phone\": \"+49 30 23125 797\",\n    \"birthDate\": \"1964-06-03\"\n  },\n  {\n    \"id\": 3,\n    \"firstName\": \"Thomas\",\n    \"lastName\": \"Neumann\",\n    \"email\": \"thomas_neumann@example.org\",\n    \"phone\": \"+49 30 23125 595\",\n    \"birthDate\": \"1991-08-04\"\n  }\n]",
+"csharp": "var people = new List<Person>\n{\n    new Person { Id = 1, FirstName = \"Petra\", LastName = \"Fischer\", Email = \"petrafischer@example.org\", Phone = \"+49 30 23125 666\", BirthDate = new DateOnly(1971, 9, 22) },\n    new Person { Id = 2, FirstName = \"Uwe\", LastName = \"König\", Email = \"u.koenig@example.com\", Phone = \"+49 30 23125 797\", BirthDate = new DateOnly(1964, 6, 3) },\n    new Person { Id = 3, FirstName = \"Thomas\", LastName = \"Neumann\", Email = \"thomas_neumann@example.org\", Phone = \"+49 30 23125 595\", BirthDate = new DateOnly(1991, 8, 4) },\n};",
+"csv": "id,firstName,lastName,email,phone,birthDate\n1,Petra,Fischer,petrafischer@example.org,+49 30 23125 666,1971-09-22\n2,Uwe,König,u.koenig@example.com,+49 30 23125 797,1964-06-03\n3,Thomas,Neumann,thomas_neumann@example.org,+49 30 23125 595,1991-08-04",
+"sql": "INSERT INTO people (id, first_name, last_name, email, phone, birth_date)\nVALUES\n    (1, 'Petra', 'Fischer', 'petrafischer@example.org', '+49 30 23125 666', '1971-09-22'),\n    (2, 'Uwe', 'König', 'u.koenig@example.com', '+49 30 23125 797', '1964-06-03'),\n    (3, 'Thomas', 'Neumann', 'thomas_neumann@example.org', '+49 30 23125 595', '1991-08-04');",
+"yaml": "- id: 1\n  firstName: \"Petra\"\n  lastName: \"Fischer\"\n  email: \"petrafischer@example.org\"\n  phone: \"+49 30 23125 666\"\n  birthDate: \"1971-09-22\"\n- id: 2\n  firstName: \"Uwe\"\n  lastName: \"König\"\n  email: \"u.koenig@example.com\"\n  phone: \"+49 30 23125 797\"\n  birthDate: \"1964-06-03\"\n- id: 3\n  firstName: \"Thomas\"\n  lastName: \"Neumann\"\n  email: \"thomas_neumann@example.org\"\n  phone: \"+49 30 23125 595\"\n  birthDate: \"1991-08-04\""
+}
+},
+{
+"locale": "de",
+"seed": {
+"text": "7:1"
+},
+"kind": "customer",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"name\": \"Petra Fischer\",\n    \"email\": \"petra.fischer38@example.net\",\n    \"phone\": \"+49 30 23125 391\",\n    \"company\": \"König & Koch GmbH\",\n    \"street\": \"Goethestraße 75b\",\n    \"zip\": \"60311\",\n    \"city\": \"Frankfurt am Main\",\n    \"country\": \"Deutschland\",\n    \"createdAt\": \"2025-12-06T12:37:30Z\"\n  },\n  {\n    \"id\": 2,\n    \"name\": \"Dieter Becker\",\n    \"email\": \"dieter_becker@example.com\",\n    \"phone\": \"+49 30 23125 158\",\n    \"company\": \"Schmidt & Werner AG\",\n    \"street\": \"Dorfstraße 20\",\n    \"zip\": \"69117\",\n    \"city\": \"Heidelberg\",\n    \"country\": \"Deutschland\",\n    \"createdAt\": \"2026-04-22T12:44:39Z\"\n  },\n  {\n    \"id\": 3,\n    \"name\": \"Birgit Kaiser\",\n    \"email\": \"birgit_kaiser@example.org\",\n    \"phone\": \"+49 30 23125 562\",\n    \"company\": \"Blau Bau KG\",\n    \"street\": \"Mozartstraße 33\",\n    \"zip\": \"30159\",\n    \"city\": \"Hannover\",\n    \"country\": \"Deutschland\",\n    \"createdAt\": \"2025-12-07T15:52:57Z\"\n  }\n]",
+"csharp": "var customers = new List<Customer>\n{\n    new Customer { Id = 1, Name = \"Petra Fischer\", Email = \"petra.fischer38@example.net\", Phone = \"+49 30 23125 391\", Company = \"König & Koch GmbH\", Street = \"Goethestraße 75b\", Zip = \"60311\", City = \"Frankfurt am Main\", Country = \"Deutschland\", CreatedAt = new DateTimeOffset(2025, 12, 6, 12, 37, 30, TimeSpan.Zero) },\n    new Customer { Id = 2, Name = \"Dieter Becker\", Email = \"dieter_becker@example.com\", Phone = \"+49 30 23125 158\", Company = \"Schmidt & Werner AG\", Street = \"Dorfstraße 20\", Zip = \"69117\", City = \"Heidelberg\", Country = \"Deutschland\", CreatedAt = new DateTimeOffset(2026, 4, 22, 12, 44, 39, TimeSpan.Zero) },\n    new Customer { Id = 3, Name = \"Birgit Kaiser\", Email = \"birgit_kaiser@example.org\", Phone = \"+49 30 23125 562\", Company = \"Blau Bau KG\", Street = \"Mozartstraße 33\", Zip = \"30159\", City = \"Hannover\", Country = \"Deutschland\", CreatedAt = new DateTimeOffset(2025, 12, 7, 15, 52, 57, TimeSpan.Zero) },\n};",
+"csv": "id,name,email,phone,company,street,zip,city,country,createdAt\n1,Petra Fischer,petra.fischer38@example.net,+49 30 23125 391,König & Koch GmbH,Goethestraße 75b,60311,Frankfurt am Main,Deutschland,2025-12-06T12:37:30Z\n2,Dieter Becker,dieter_becker@example.com,+49 30 23125 158,Schmidt & Werner AG,Dorfstraße 20,69117,Heidelberg,Deutschland,2026-04-22T12:44:39Z\n3,Birgit Kaiser,birgit_kaiser@example.org,+49 30 23125 562,Blau Bau KG,Mozartstraße 33,30159,Hannover,Deutschland,2025-12-07T15:52:57Z",
+"sql": "INSERT INTO customers (id, name, email, phone, company, street, zip, city, country, created_at)\nVALUES\n    (1, 'Petra Fischer', 'petra.fischer38@example.net', '+49 30 23125 391', 'König & Koch GmbH', 'Goethestraße 75b', '60311', 'Frankfurt am Main', 'Deutschland', '2025-12-06T12:37:30Z'),\n    (2, 'Dieter Becker', 'dieter_becker@example.com', '+49 30 23125 158', 'Schmidt & Werner AG', 'Dorfstraße 20', '69117', 'Heidelberg', 'Deutschland', '2026-04-22T12:44:39Z'),\n    (3, 'Birgit Kaiser', 'birgit_kaiser@example.org', '+49 30 23125 562', 'Blau Bau KG', 'Mozartstraße 33', '30159', 'Hannover', 'Deutschland', '2025-12-07T15:52:57Z');",
+"yaml": "- id: 1\n  name: \"Petra Fischer\"\n  email: \"petra.fischer38@example.net\"\n  phone: \"+49 30 23125 391\"\n  company: \"König & Koch GmbH\"\n  street: \"Goethestraße 75b\"\n  zip: \"60311\"\n  city: \"Frankfurt am Main\"\n  country: \"Deutschland\"\n  createdAt: \"2025-12-06T12:37:30Z\"\n- id: 2\n  name: \"Dieter Becker\"\n  email: \"dieter_becker@example.com\"\n  phone: \"+49 30 23125 158\"\n  company: \"Schmidt & Werner AG\"\n  street: \"Dorfstraße 20\"\n  zip: \"69117\"\n  city: \"Heidelberg\"\n  country: \"Deutschland\"\n  createdAt: \"2026-04-22T12:44:39Z\"\n- id: 3\n  name: \"Birgit Kaiser\"\n  email: \"birgit_kaiser@example.org\"\n  phone: \"+49 30 23125 562\"\n  company: \"Blau Bau KG\"\n  street: \"Mozartstraße 33\"\n  zip: \"30159\"\n  city: \"Hannover\"\n  country: \"Deutschland\"\n  createdAt: \"2025-12-07T15:52:57Z\""
+}
+},
+{
+"locale": "de",
+"seed": {
+"text": "7:1"
+},
+"kind": "user",
+"texts": {
+"json": "[\n  {\n    \"id\": \"a6b661d2-63ef-4bda-8abb-d1c327e7c340\",\n    \"userName\": \"pfischer\",\n    \"email\": \"p.fischer@example.com\",\n    \"displayName\": \"Petra Fischer\",\n    \"role\": \"Viewer\",\n    \"isActive\": true,\n    \"lastLogin\": \"2026-10-04T21:17:10Z\"\n  },\n  {\n    \"id\": \"75526128-951f-45bf-9c91-edeed4886ca8\",\n    \"userName\": \"thomas.neumann\",\n    \"email\": \"thomas_neumann@example.org\",\n    \"displayName\": \"Thomas Neumann\",\n    \"role\": \"Admin\",\n    \"isActive\": true,\n    \"lastLogin\": \"2026-11-11T09:53:21Z\"\n  },\n  {\n    \"id\": \"9757e108-e7c7-41ae-889e-518947c7541a\",\n    \"userName\": \"uhartmann\",\n    \"email\": \"u.hartmann@example.net\",\n    \"displayName\": \"Ursula Hartmann\",\n    \"role\": \"Support\",\n    \"isActive\": true,\n    \"lastLogin\": \"2026-11-01T16:12:38Z\"\n  }\n]",
+"csharp": "var users = new List<User>\n{\n    new User { Id = Guid.Parse(\"a6b661d2-63ef-4bda-8abb-d1c327e7c340\"), UserName = \"pfischer\", Email = \"p.fischer@example.com\", DisplayName = \"Petra Fischer\", Role = \"Viewer\", IsActive = true, LastLogin = new DateTimeOffset(2026, 10, 4, 21, 17, 10, TimeSpan.Zero) },\n    new User { Id = Guid.Parse(\"75526128-951f-45bf-9c91-edeed4886ca8\"), UserName = \"thomas.neumann\", Email = \"thomas_neumann@example.org\", DisplayName = \"Thomas Neumann\", Role = \"Admin\", IsActive = true, LastLogin = new DateTimeOffset(2026, 11, 11, 9, 53, 21, TimeSpan.Zero) },\n    new User { Id = Guid.Parse(\"9757e108-e7c7-41ae-889e-518947c7541a\"), UserName = \"uhartmann\", Email = \"u.hartmann@example.net\", DisplayName = \"Ursula Hartmann\", Role = \"Support\", IsActive = true, LastLogin = new DateTimeOffset(2026, 11, 1, 16, 12, 38, TimeSpan.Zero) },\n};",
+"csv": "id,userName,email,displayName,role,isActive,lastLogin\na6b661d2-63ef-4bda-8abb-d1c327e7c340,pfischer,p.fischer@example.com,Petra Fischer,Viewer,true,2026-10-04T21:17:10Z\n75526128-951f-45bf-9c91-edeed4886ca8,thomas.neumann,thomas_neumann@example.org,Thomas Neumann,Admin,true,2026-11-11T09:53:21Z\n9757e108-e7c7-41ae-889e-518947c7541a,uhartmann,u.hartmann@example.net,Ursula Hartmann,Support,true,2026-11-01T16:12:38Z",
+"sql": "INSERT INTO users (id, user_name, email, display_name, role, is_active, last_login)\nVALUES\n    ('a6b661d2-63ef-4bda-8abb-d1c327e7c340', 'pfischer', 'p.fischer@example.com', 'Petra Fischer', 'Viewer', TRUE, '2026-10-04T21:17:10Z'),\n    ('75526128-951f-45bf-9c91-edeed4886ca8', 'thomas.neumann', 'thomas_neumann@example.org', 'Thomas Neumann', 'Admin', TRUE, '2026-11-11T09:53:21Z'),\n    ('9757e108-e7c7-41ae-889e-518947c7541a', 'uhartmann', 'u.hartmann@example.net', 'Ursula Hartmann', 'Support', TRUE, '2026-11-01T16:12:38Z');",
+"yaml": "- id: \"a6b661d2-63ef-4bda-8abb-d1c327e7c340\"\n  userName: \"pfischer\"\n  email: \"p.fischer@example.com\"\n  displayName: \"Petra Fischer\"\n  role: \"Viewer\"\n  isActive: true\n  lastLogin: \"2026-10-04T21:17:10Z\"\n- id: \"75526128-951f-45bf-9c91-edeed4886ca8\"\n  userName: \"thomas.neumann\"\n  email: \"thomas_neumann@example.org\"\n  displayName: \"Thomas Neumann\"\n  role: \"Admin\"\n  isActive: true\n  lastLogin: \"2026-11-11T09:53:21Z\"\n- id: \"9757e108-e7c7-41ae-889e-518947c7541a\"\n  userName: \"uhartmann\"\n  email: \"u.hartmann@example.net\"\n  displayName: \"Ursula Hartmann\"\n  role: \"Support\"\n  isActive: true\n  lastLogin: \"2026-11-01T16:12:38Z\""
+}
+},
+{
+"locale": "de",
+"seed": {
+"text": "7:1"
+},
+"kind": "product",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"sku\": \"CXB-3553\",\n    \"name\": \"Elegante Tasche\",\n    \"category\": \"Spielwaren\",\n    \"price\": 293.58,\n    \"stock\": 72,\n    \"isAvailable\": true\n  },\n  {\n    \"id\": 2,\n    \"sku\": \"VFD-8593\",\n    \"name\": \"Praktische Jacke\",\n    \"category\": \"Bekleidung\",\n    \"price\": 415.27,\n    \"stock\": 149,\n    \"isAvailable\": true\n  },\n  {\n    \"id\": 3,\n    \"sku\": \"FER-6833\",\n    \"name\": \"Ergonomische Tasche\",\n    \"category\": \"Haushalt\",\n    \"price\": 77.58,\n    \"stock\": 218,\n    \"isAvailable\": true\n  }\n]",
+"csharp": "var products = new List<Product>\n{\n    new Product { Id = 1, Sku = \"CXB-3553\", Name = \"Elegante Tasche\", Category = \"Spielwaren\", Price = 293.58m, Stock = 72, IsAvailable = true },\n    new Product { Id = 2, Sku = \"VFD-8593\", Name = \"Praktische Jacke\", Category = \"Bekleidung\", Price = 415.27m, Stock = 149, IsAvailable = true },\n    new Product { Id = 3, Sku = \"FER-6833\", Name = \"Ergonomische Tasche\", Category = \"Haushalt\", Price = 77.58m, Stock = 218, IsAvailable = true },\n};",
+"csv": "id,sku,name,category,price,stock,isAvailable\n1,CXB-3553,Elegante Tasche,Spielwaren,293.58,72,true\n2,VFD-8593,Praktische Jacke,Bekleidung,415.27,149,true\n3,FER-6833,Ergonomische Tasche,Haushalt,77.58,218,true",
+"sql": "INSERT INTO products (id, sku, name, category, price, stock, is_available)\nVALUES\n    (1, 'CXB-3553', 'Elegante Tasche', 'Spielwaren', 293.58, 72, TRUE),\n    (2, 'VFD-8593', 'Praktische Jacke', 'Bekleidung', 415.27, 149, TRUE),\n    (3, 'FER-6833', 'Ergonomische Tasche', 'Haushalt', 77.58, 218, TRUE);",
+"yaml": "- id: 1\n  sku: \"CXB-3553\"\n  name: \"Elegante Tasche\"\n  category: \"Spielwaren\"\n  price: 293.58\n  stock: 72\n  isAvailable: true\n- id: 2\n  sku: \"VFD-8593\"\n  name: \"Praktische Jacke\"\n  category: \"Bekleidung\"\n  price: 415.27\n  stock: 149\n  isAvailable: true\n- id: 3\n  sku: \"FER-6833\"\n  name: \"Ergonomische Tasche\"\n  category: \"Haushalt\"\n  price: 77.58\n  stock: 218\n  isAvailable: true"
+}
+},
+{
+"locale": "de",
+"seed": {
+"text": "7:1"
+},
+"kind": "order",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"orderNumber\": \"ORD-2026-20432\",\n    \"customer\": \"Petra Fischer\",\n    \"email\": \"petra.fischer38@example.net\",\n    \"total\": 767.27,\n    \"currency\": \"EUR\",\n    \"status\": \"Shipped\",\n    \"createdAt\": \"2026-06-24T21:32:16Z\"\n  },\n  {\n    \"id\": 2,\n    \"orderNumber\": \"ORD-2026-76589\",\n    \"customer\": \"Emma Meier\",\n    \"email\": \"emma_meier@example.org\",\n    \"total\": 1939.05,\n    \"currency\": \"EUR\",\n    \"status\": \"Cancelled\",\n    \"createdAt\": \"2026-10-05T12:38:37Z\"\n  },\n  {\n    \"id\": 3,\n    \"orderNumber\": \"ORD-2026-76230\",\n    \"customer\": \"Ida Meier\",\n    \"email\": \"i.meier@example.net\",\n    \"total\": 715.33,\n    \"currency\": \"EUR\",\n    \"status\": \"Delivered\",\n    \"createdAt\": \"2026-10-21T00:42:46Z\"\n  }\n]",
+"csharp": "var orders = new List<Order>\n{\n    new Order { Id = 1, OrderNumber = \"ORD-2026-20432\", Customer = \"Petra Fischer\", Email = \"petra.fischer38@example.net\", Total = 767.27m, Currency = \"EUR\", Status = \"Shipped\", CreatedAt = new DateTimeOffset(2026, 6, 24, 21, 32, 16, TimeSpan.Zero) },\n    new Order { Id = 2, OrderNumber = \"ORD-2026-76589\", Customer = \"Emma Meier\", Email = \"emma_meier@example.org\", Total = 1939.05m, Currency = \"EUR\", Status = \"Cancelled\", CreatedAt = new DateTimeOffset(2026, 10, 5, 12, 38, 37, TimeSpan.Zero) },\n    new Order { Id = 3, OrderNumber = \"ORD-2026-76230\", Customer = \"Ida Meier\", Email = \"i.meier@example.net\", Total = 715.33m, Currency = \"EUR\", Status = \"Delivered\", CreatedAt = new DateTimeOffset(2026, 10, 21, 0, 42, 46, TimeSpan.Zero) },\n};",
+"csv": "id,orderNumber,customer,email,total,currency,status,createdAt\n1,ORD-2026-20432,Petra Fischer,petra.fischer38@example.net,767.27,EUR,Shipped,2026-06-24T21:32:16Z\n2,ORD-2026-76589,Emma Meier,emma_meier@example.org,1939.05,EUR,Cancelled,2026-10-05T12:38:37Z\n3,ORD-2026-76230,Ida Meier,i.meier@example.net,715.33,EUR,Delivered,2026-10-21T00:42:46Z",
+"sql": "INSERT INTO orders (id, order_number, customer, email, total, currency, status, created_at)\nVALUES\n    (1, 'ORD-2026-20432', 'Petra Fischer', 'petra.fischer38@example.net', 767.27, 'EUR', 'Shipped', '2026-06-24T21:32:16Z'),\n    (2, 'ORD-2026-76589', 'Emma Meier', 'emma_meier@example.org', 1939.05, 'EUR', 'Cancelled', '2026-10-05T12:38:37Z'),\n    (3, 'ORD-2026-76230', 'Ida Meier', 'i.meier@example.net', 715.33, 'EUR', 'Delivered', '2026-10-21T00:42:46Z');",
+"yaml": "- id: 1\n  orderNumber: \"ORD-2026-20432\"\n  customer: \"Petra Fischer\"\n  email: \"petra.fischer38@example.net\"\n  total: 767.27\n  currency: \"EUR\"\n  status: \"Shipped\"\n  createdAt: \"2026-06-24T21:32:16Z\"\n- id: 2\n  orderNumber: \"ORD-2026-76589\"\n  customer: \"Emma Meier\"\n  email: \"emma_meier@example.org\"\n  total: 1939.05\n  currency: \"EUR\"\n  status: \"Cancelled\"\n  createdAt: \"2026-10-05T12:38:37Z\"\n- id: 3\n  orderNumber: \"ORD-2026-76230\"\n  customer: \"Ida Meier\"\n  email: \"i.meier@example.net\"\n  total: 715.33\n  currency: \"EUR\"\n  status: \"Delivered\"\n  createdAt: \"2026-10-21T00:42:46Z\""
+}
+},
+{
+"locale": "de",
+"seed": {
+"text": "7:1"
+},
+"kind": "company",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"name\": \"Hoffmann Elektro GmbH & Co. KG\",\n    \"vatId\": \"DE694821798\",\n    \"email\": \"info@hoffmann.example.org\",\n    \"phone\": \"+49 30 23125 467\",\n    \"website\": \"https://hoffmann.example.org\",\n    \"city\": \"München\",\n    \"iban\": \"DE54370400446851198910\"\n  },\n  {\n    \"id\": 2,\n    \"name\": \"Kaiser & Schäfer AG\",\n    \"vatId\": \"DE506222540\",\n    \"email\": \"info@kaiser.example.net\",\n    \"phone\": \"+49 30 23125 927\",\n    \"website\": \"https://kaiser.example.net\",\n    \"city\": \"Köln\",\n    \"iban\": \"DE55370400446834086152\"\n  },\n  {\n    \"id\": 3,\n    \"name\": \"Mayer & Koch UG (haftungsbeschränkt)\",\n    \"vatId\": \"DE640769689\",\n    \"email\": \"info@mayer.example.net\",\n    \"phone\": \"+49 30 23125 770\",\n    \"website\": \"https://mayer.example.net\",\n    \"city\": \"Augsburg\",\n    \"iban\": \"DE80370400448281056333\"\n  }\n]",
+"csharp": "var companies = new List<Company>\n{\n    new Company { Id = 1, Name = \"Hoffmann Elektro GmbH & Co. KG\", VatId = \"DE694821798\", Email = \"info@hoffmann.example.org\", Phone = \"+49 30 23125 467\", Website = \"https://hoffmann.example.org\", City = \"München\", Iban = \"DE54370400446851198910\" },\n    new Company { Id = 2, Name = \"Kaiser & Schäfer AG\", VatId = \"DE506222540\", Email = \"info@kaiser.example.net\", Phone = \"+49 30 23125 927\", Website = \"https://kaiser.example.net\", City = \"Köln\", Iban = \"DE55370400446834086152\" },\n    new Company { Id = 3, Name = \"Mayer & Koch UG (haftungsbeschränkt)\", VatId = \"DE640769689\", Email = \"info@mayer.example.net\", Phone = \"+49 30 23125 770\", Website = \"https://mayer.example.net\", City = \"Augsburg\", Iban = \"DE80370400448281056333\" },\n};",
+"csv": "id,name,vatId,email,phone,website,city,iban\n1,Hoffmann Elektro GmbH & Co. KG,DE694821798,info@hoffmann.example.org,+49 30 23125 467,https://hoffmann.example.org,München,DE54370400446851198910\n2,Kaiser & Schäfer AG,DE506222540,info@kaiser.example.net,+49 30 23125 927,https://kaiser.example.net,Köln,DE55370400446834086152\n3,Mayer & Koch UG (haftungsbeschränkt),DE640769689,info@mayer.example.net,+49 30 23125 770,https://mayer.example.net,Augsburg,DE80370400448281056333",
+"sql": "INSERT INTO companies (id, name, vat_id, email, phone, website, city, iban)\nVALUES\n    (1, 'Hoffmann Elektro GmbH & Co. KG', 'DE694821798', 'info@hoffmann.example.org', '+49 30 23125 467', 'https://hoffmann.example.org', 'München', 'DE54370400446851198910'),\n    (2, 'Kaiser & Schäfer AG', 'DE506222540', 'info@kaiser.example.net', '+49 30 23125 927', 'https://kaiser.example.net', 'Köln', 'DE55370400446834086152'),\n    (3, 'Mayer & Koch UG (haftungsbeschränkt)', 'DE640769689', 'info@mayer.example.net', '+49 30 23125 770', 'https://mayer.example.net', 'Augsburg', 'DE80370400448281056333');",
+"yaml": "- id: 1\n  name: \"Hoffmann Elektro GmbH & Co. KG\"\n  vatId: \"DE694821798\"\n  email: \"info@hoffmann.example.org\"\n  phone: \"+49 30 23125 467\"\n  website: \"https://hoffmann.example.org\"\n  city: \"München\"\n  iban: \"DE54370400446851198910\"\n- id: 2\n  name: \"Kaiser & Schäfer AG\"\n  vatId: \"DE506222540\"\n  email: \"info@kaiser.example.net\"\n  phone: \"+49 30 23125 927\"\n  website: \"https://kaiser.example.net\"\n  city: \"Köln\"\n  iban: \"DE55370400446834086152\"\n- id: 3\n  name: \"Mayer & Koch UG (haftungsbeschränkt)\"\n  vatId: \"DE640769689\"\n  email: \"info@mayer.example.net\"\n  phone: \"+49 30 23125 770\"\n  website: \"https://mayer.example.net\"\n  city: \"Augsburg\"\n  iban: \"DE80370400448281056333\""
+}
+},
+{
+"locale": "en",
+"seed": {
+"text": "rec:2"
+},
+"kind": "person",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"firstName\": \"Evelyn\",\n    \"lastName\": \"Martinez\",\n    \"email\": \"evelyn.martinez@example.com\",\n    \"phone\": \"(602) 555-0114\",\n    \"birthDate\": \"1975-06-01\"\n  },\n  {\n    \"id\": 2,\n    \"firstName\": \"Ethan\",\n    \"lastName\": \"Young\",\n    \"email\": \"ethanyoung@example.net\",\n    \"phone\": \"(312) 555-0121\",\n    \"birthDate\": \"1981-09-06\"\n  },\n  {\n    \"id\": 3,\n    \"firstName\": \"Nora\",\n    \"lastName\": \"Davis\",\n    \"email\": \"n.davis@example.com\",\n    \"phone\": \"(303) 555-0132\",\n    \"birthDate\": \"1967-11-07\"\n  }\n]",
+"csharp": "var people = new List<Person>\n{\n    new Person { Id = 1, FirstName = \"Evelyn\", LastName = \"Martinez\", Email = \"evelyn.martinez@example.com\", Phone = \"(602) 555-0114\", BirthDate = new DateOnly(1975, 6, 1) },\n    new Person { Id = 2, FirstName = \"Ethan\", LastName = \"Young\", Email = \"ethanyoung@example.net\", Phone = \"(312) 555-0121\", BirthDate = new DateOnly(1981, 9, 6) },\n    new Person { Id = 3, FirstName = \"Nora\", LastName = \"Davis\", Email = \"n.davis@example.com\", Phone = \"(303) 555-0132\", BirthDate = new DateOnly(1967, 11, 7) },\n};",
+"csv": "id,firstName,lastName,email,phone,birthDate\n1,Evelyn,Martinez,evelyn.martinez@example.com,(602) 555-0114,1975-06-01\n2,Ethan,Young,ethanyoung@example.net,(312) 555-0121,1981-09-06\n3,Nora,Davis,n.davis@example.com,(303) 555-0132,1967-11-07",
+"sql": "INSERT INTO people (id, first_name, last_name, email, phone, birth_date)\nVALUES\n    (1, 'Evelyn', 'Martinez', 'evelyn.martinez@example.com', '(602) 555-0114', '1975-06-01'),\n    (2, 'Ethan', 'Young', 'ethanyoung@example.net', '(312) 555-0121', '1981-09-06'),\n    (3, 'Nora', 'Davis', 'n.davis@example.com', '(303) 555-0132', '1967-11-07');",
+"yaml": "- id: 1\n  firstName: \"Evelyn\"\n  lastName: \"Martinez\"\n  email: \"evelyn.martinez@example.com\"\n  phone: \"(602) 555-0114\"\n  birthDate: \"1975-06-01\"\n- id: 2\n  firstName: \"Ethan\"\n  lastName: \"Young\"\n  email: \"ethanyoung@example.net\"\n  phone: \"(312) 555-0121\"\n  birthDate: \"1981-09-06\"\n- id: 3\n  firstName: \"Nora\"\n  lastName: \"Davis\"\n  email: \"n.davis@example.com\"\n  phone: \"(303) 555-0132\"\n  birthDate: \"1967-11-07\""
+}
+},
+{
+"locale": "en",
+"seed": {
+"text": "rec:2"
+},
+"kind": "customer",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"name\": \"Evelyn Martinez\",\n    \"email\": \"evelyn.martinez@example.com\",\n    \"phone\": \"(512) 555-0143\",\n    \"company\": \"Nova Digital & Co.\",\n    \"street\": \"6588 Chestnut Street\",\n    \"zip\": \"78701\",\n    \"city\": \"Austin\",\n    \"country\": \"USA\",\n    \"createdAt\": \"2026-04-02T13:49:00Z\"\n  },\n  {\n    \"id\": 2,\n    \"name\": \"Mia Lee\",\n    \"email\": \"mia.lee@example.org\",\n    \"phone\": \"(602) 555-0131\",\n    \"company\": \"King & Taylor Corp.\",\n    \"street\": \"6864 Oak Avenue\",\n    \"zip\": \"77002\",\n    \"city\": \"Houston\",\n    \"country\": \"USA\",\n    \"createdAt\": \"2026-02-09T21:46:21Z\"\n  },\n  {\n    \"id\": 3,\n    \"name\": \"Sarah Anderson\",\n    \"email\": \"sarahanderson@example.net\",\n    \"phone\": \"(215) 555-0115\",\n    \"company\": \"North Systems LLC\",\n    \"street\": \"2808 Park Avenue\",\n    \"zip\": \"92101\",\n    \"city\": \"San Diego\",\n    \"country\": \"USA\",\n    \"createdAt\": \"2025-10-04T20:20:24Z\"\n  }\n]",
+"csharp": "var customers = new List<Customer>\n{\n    new Customer { Id = 1, Name = \"Evelyn Martinez\", Email = \"evelyn.martinez@example.com\", Phone = \"(512) 555-0143\", Company = \"Nova Digital & Co.\", Street = \"6588 Chestnut Street\", Zip = \"78701\", City = \"Austin\", Country = \"USA\", CreatedAt = new DateTimeOffset(2026, 4, 2, 13, 49, 0, TimeSpan.Zero) },\n    new Customer { Id = 2, Name = \"Mia Lee\", Email = \"mia.lee@example.org\", Phone = \"(602) 555-0131\", Company = \"King & Taylor Corp.\", Street = \"6864 Oak Avenue\", Zip = \"77002\", City = \"Houston\", Country = \"USA\", CreatedAt = new DateTimeOffset(2026, 2, 9, 21, 46, 21, TimeSpan.Zero) },\n    new Customer { Id = 3, Name = \"Sarah Anderson\", Email = \"sarahanderson@example.net\", Phone = \"(215) 555-0115\", Company = \"North Systems LLC\", Street = \"2808 Park Avenue\", Zip = \"92101\", City = \"San Diego\", Country = \"USA\", CreatedAt = new DateTimeOffset(2025, 10, 4, 20, 20, 24, TimeSpan.Zero) },\n};",
+"csv": "id,name,email,phone,company,street,zip,city,country,createdAt\n1,Evelyn Martinez,evelyn.martinez@example.com,(512) 555-0143,Nova Digital & Co.,6588 Chestnut Street,78701,Austin,USA,2026-04-02T13:49:00Z\n2,Mia Lee,mia.lee@example.org,(602) 555-0131,King & Taylor Corp.,6864 Oak Avenue,77002,Houston,USA,2026-02-09T21:46:21Z\n3,Sarah Anderson,sarahanderson@example.net,(215) 555-0115,North Systems LLC,2808 Park Avenue,92101,San Diego,USA,2025-10-04T20:20:24Z",
+"sql": "INSERT INTO customers (id, name, email, phone, company, street, zip, city, country, created_at)\nVALUES\n    (1, 'Evelyn Martinez', 'evelyn.martinez@example.com', '(512) 555-0143', 'Nova Digital & Co.', '6588 Chestnut Street', '78701', 'Austin', 'USA', '2026-04-02T13:49:00Z'),\n    (2, 'Mia Lee', 'mia.lee@example.org', '(602) 555-0131', 'King & Taylor Corp.', '6864 Oak Avenue', '77002', 'Houston', 'USA', '2026-02-09T21:46:21Z'),\n    (3, 'Sarah Anderson', 'sarahanderson@example.net', '(215) 555-0115', 'North Systems LLC', '2808 Park Avenue', '92101', 'San Diego', 'USA', '2025-10-04T20:20:24Z');",
+"yaml": "- id: 1\n  name: \"Evelyn Martinez\"\n  email: \"evelyn.martinez@example.com\"\n  phone: \"(512) 555-0143\"\n  company: \"Nova Digital & Co.\"\n  street: \"6588 Chestnut Street\"\n  zip: \"78701\"\n  city: \"Austin\"\n  country: \"USA\"\n  createdAt: \"2026-04-02T13:49:00Z\"\n- id: 2\n  name: \"Mia Lee\"\n  email: \"mia.lee@example.org\"\n  phone: \"(602) 555-0131\"\n  company: \"King & Taylor Corp.\"\n  street: \"6864 Oak Avenue\"\n  zip: \"77002\"\n  city: \"Houston\"\n  country: \"USA\"\n  createdAt: \"2026-02-09T21:46:21Z\"\n- id: 3\n  name: \"Sarah Anderson\"\n  email: \"sarahanderson@example.net\"\n  phone: \"(215) 555-0115\"\n  company: \"North Systems LLC\"\n  street: \"2808 Park Avenue\"\n  zip: \"92101\"\n  city: \"San Diego\"\n  country: \"USA\"\n  createdAt: \"2025-10-04T20:20:24Z\""
+}
+},
+{
+"locale": "en",
+"seed": {
+"text": "rec:2"
+},
+"kind": "user",
+"texts": {
+"json": "[\n  {\n    \"id\": \"4f1ec328-d36d-4130-8e09-eb3df6a74f17\",\n    \"userName\": \"evelynm\",\n    \"email\": \"evelyn.martinez@example.org\",\n    \"displayName\": \"Evelyn Martinez\",\n    \"role\": \"Support\",\n    \"isActive\": true,\n    \"lastLogin\": \"2026-10-18T20:44:13Z\"\n  },\n  {\n    \"id\": \"bd3cb64d-a41f-411d-8566-71752b5b5576\",\n    \"userName\": \"nathanj\",\n    \"email\": \"nathan.jones@example.org\",\n    \"displayName\": \"Nathan Jones\",\n    \"role\": \"User\",\n    \"isActive\": true,\n    \"lastLogin\": \"2026-11-01T07:13:43Z\"\n  },\n  {\n    \"id\": \"0b16b474-d094-400c-a9b2-f72aa0c769aa\",\n    \"userName\": \"henry.martin\",\n    \"email\": \"h.martin@example.org\",\n    \"displayName\": \"Henry Martin\",\n    \"role\": \"Editor\",\n    \"isActive\": true,\n    \"lastLogin\": \"2026-11-14T16:34:48Z\"\n  }\n]",
+"csharp": "var users = new List<User>\n{\n    new User { Id = Guid.Parse(\"4f1ec328-d36d-4130-8e09-eb3df6a74f17\"), UserName = \"evelynm\", Email = \"evelyn.martinez@example.org\", DisplayName = \"Evelyn Martinez\", Role = \"Support\", IsActive = true, LastLogin = new DateTimeOffset(2026, 10, 18, 20, 44, 13, TimeSpan.Zero) },\n    new User { Id = Guid.Parse(\"bd3cb64d-a41f-411d-8566-71752b5b5576\"), UserName = \"nathanj\", Email = \"nathan.jones@example.org\", DisplayName = \"Nathan Jones\", Role = \"User\", IsActive = true, LastLogin = new DateTimeOffset(2026, 11, 1, 7, 13, 43, TimeSpan.Zero) },\n    new User { Id = Guid.Parse(\"0b16b474-d094-400c-a9b2-f72aa0c769aa\"), UserName = \"henry.martin\", Email = \"h.martin@example.org\", DisplayName = \"Henry Martin\", Role = \"Editor\", IsActive = true, LastLogin = new DateTimeOffset(2026, 11, 14, 16, 34, 48, TimeSpan.Zero) },\n};",
+"csv": "id,userName,email,displayName,role,isActive,lastLogin\n4f1ec328-d36d-4130-8e09-eb3df6a74f17,evelynm,evelyn.martinez@example.org,Evelyn Martinez,Support,true,2026-10-18T20:44:13Z\nbd3cb64d-a41f-411d-8566-71752b5b5576,nathanj,nathan.jones@example.org,Nathan Jones,User,true,2026-11-01T07:13:43Z\n0b16b474-d094-400c-a9b2-f72aa0c769aa,henry.martin,h.martin@example.org,Henry Martin,Editor,true,2026-11-14T16:34:48Z",
+"sql": "INSERT INTO users (id, user_name, email, display_name, role, is_active, last_login)\nVALUES\n    ('4f1ec328-d36d-4130-8e09-eb3df6a74f17', 'evelynm', 'evelyn.martinez@example.org', 'Evelyn Martinez', 'Support', TRUE, '2026-10-18T20:44:13Z'),\n    ('bd3cb64d-a41f-411d-8566-71752b5b5576', 'nathanj', 'nathan.jones@example.org', 'Nathan Jones', 'User', TRUE, '2026-11-01T07:13:43Z'),\n    ('0b16b474-d094-400c-a9b2-f72aa0c769aa', 'henry.martin', 'h.martin@example.org', 'Henry Martin', 'Editor', TRUE, '2026-11-14T16:34:48Z');",
+"yaml": "- id: \"4f1ec328-d36d-4130-8e09-eb3df6a74f17\"\n  userName: \"evelynm\"\n  email: \"evelyn.martinez@example.org\"\n  displayName: \"Evelyn Martinez\"\n  role: \"Support\"\n  isActive: true\n  lastLogin: \"2026-10-18T20:44:13Z\"\n- id: \"bd3cb64d-a41f-411d-8566-71752b5b5576\"\n  userName: \"nathanj\"\n  email: \"nathan.jones@example.org\"\n  displayName: \"Nathan Jones\"\n  role: \"User\"\n  isActive: true\n  lastLogin: \"2026-11-01T07:13:43Z\"\n- id: \"0b16b474-d094-400c-a9b2-f72aa0c769aa\"\n  userName: \"henry.martin\"\n  email: \"h.martin@example.org\"\n  displayName: \"Henry Martin\"\n  role: \"Editor\"\n  isActive: true\n  lastLogin: \"2026-11-14T16:34:48Z\""
+}
+},
+{
+"locale": "en",
+"seed": {
+"text": "rec:2"
+},
+"kind": "product",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"sku\": \"FIE-6063\",\n    \"name\": \"Wireless Mouse\",\n    \"category\": \"Home\",\n    \"price\": 59.37,\n    \"stock\": 196,\n    \"isAvailable\": true\n  },\n  {\n    \"id\": 2,\n    \"sku\": \"STP-7488\",\n    \"name\": \"Sleek Jacket\",\n    \"category\": \"Office\",\n    \"price\": 85.51,\n    \"stock\": 164,\n    \"isAvailable\": true\n  },\n  {\n    \"id\": 3,\n    \"sku\": \"DQY-3020\",\n    \"name\": \"Handy Lamp\",\n    \"category\": \"Sports\",\n    \"price\": 184.2,\n    \"stock\": 108,\n    \"isAvailable\": true\n  }\n]",
+"csharp": "var products = new List<Product>\n{\n    new Product { Id = 1, Sku = \"FIE-6063\", Name = \"Wireless Mouse\", Category = \"Home\", Price = 59.37m, Stock = 196, IsAvailable = true },\n    new Product { Id = 2, Sku = \"STP-7488\", Name = \"Sleek Jacket\", Category = \"Office\", Price = 85.51m, Stock = 164, IsAvailable = true },\n    new Product { Id = 3, Sku = \"DQY-3020\", Name = \"Handy Lamp\", Category = \"Sports\", Price = 184.20m, Stock = 108, IsAvailable = true },\n};",
+"csv": "id,sku,name,category,price,stock,isAvailable\n1,FIE-6063,Wireless Mouse,Home,59.37,196,true\n2,STP-7488,Sleek Jacket,Office,85.51,164,true\n3,DQY-3020,Handy Lamp,Sports,184.2,108,true",
+"sql": "INSERT INTO products (id, sku, name, category, price, stock, is_available)\nVALUES\n    (1, 'FIE-6063', 'Wireless Mouse', 'Home', 59.37, 196, TRUE),\n    (2, 'STP-7488', 'Sleek Jacket', 'Office', 85.51, 164, TRUE),\n    (3, 'DQY-3020', 'Handy Lamp', 'Sports', 184.2, 108, TRUE);",
+"yaml": "- id: 1\n  sku: \"FIE-6063\"\n  name: \"Wireless Mouse\"\n  category: \"Home\"\n  price: 59.37\n  stock: 196\n  isAvailable: true\n- id: 2\n  sku: \"STP-7488\"\n  name: \"Sleek Jacket\"\n  category: \"Office\"\n  price: 85.51\n  stock: 164\n  isAvailable: true\n- id: 3\n  sku: \"DQY-3020\"\n  name: \"Handy Lamp\"\n  category: \"Sports\"\n  price: 184.2\n  stock: 108\n  isAvailable: true"
+}
+},
+{
+"locale": "en",
+"seed": {
+"text": "rec:2"
+},
+"kind": "order",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"orderNumber\": \"ORD-2026-40510\",\n    \"customer\": \"Evelyn Martinez\",\n    \"email\": \"evelyn.martinez@example.com\",\n    \"total\": 238.37,\n    \"currency\": \"USD\",\n    \"status\": \"Cancelled\",\n    \"createdAt\": \"2026-07-29T11:15:58Z\"\n  },\n  {\n    \"id\": 2,\n    \"orderNumber\": \"ORD-2026-72546\",\n    \"customer\": \"Ethan Young\",\n    \"email\": \"ethan_young@example.com\",\n    \"total\": 342.88,\n    \"currency\": \"USD\",\n    \"status\": \"Refunded\",\n    \"createdAt\": \"2026-07-05T18:32:49Z\"\n  },\n  {\n    \"id\": 3,\n    \"orderNumber\": \"ORD-2026-57699\",\n    \"customer\": \"Nora Davis\",\n    \"email\": \"n.davis@example.org\",\n    \"total\": 518.93,\n    \"currency\": \"USD\",\n    \"status\": \"Paid\",\n    \"createdAt\": \"2026-06-22T17:31:04Z\"\n  }\n]",
+"csharp": "var orders = new List<Order>\n{\n    new Order { Id = 1, OrderNumber = \"ORD-2026-40510\", Customer = \"Evelyn Martinez\", Email = \"evelyn.martinez@example.com\", Total = 238.37m, Currency = \"USD\", Status = \"Cancelled\", CreatedAt = new DateTimeOffset(2026, 7, 29, 11, 15, 58, TimeSpan.Zero) },\n    new Order { Id = 2, OrderNumber = \"ORD-2026-72546\", Customer = \"Ethan Young\", Email = \"ethan_young@example.com\", Total = 342.88m, Currency = \"USD\", Status = \"Refunded\", CreatedAt = new DateTimeOffset(2026, 7, 5, 18, 32, 49, TimeSpan.Zero) },\n    new Order { Id = 3, OrderNumber = \"ORD-2026-57699\", Customer = \"Nora Davis\", Email = \"n.davis@example.org\", Total = 518.93m, Currency = \"USD\", Status = \"Paid\", CreatedAt = new DateTimeOffset(2026, 6, 22, 17, 31, 4, TimeSpan.Zero) },\n};",
+"csv": "id,orderNumber,customer,email,total,currency,status,createdAt\n1,ORD-2026-40510,Evelyn Martinez,evelyn.martinez@example.com,238.37,USD,Cancelled,2026-07-29T11:15:58Z\n2,ORD-2026-72546,Ethan Young,ethan_young@example.com,342.88,USD,Refunded,2026-07-05T18:32:49Z\n3,ORD-2026-57699,Nora Davis,n.davis@example.org,518.93,USD,Paid,2026-06-22T17:31:04Z",
+"sql": "INSERT INTO orders (id, order_number, customer, email, total, currency, status, created_at)\nVALUES\n    (1, 'ORD-2026-40510', 'Evelyn Martinez', 'evelyn.martinez@example.com', 238.37, 'USD', 'Cancelled', '2026-07-29T11:15:58Z'),\n    (2, 'ORD-2026-72546', 'Ethan Young', 'ethan_young@example.com', 342.88, 'USD', 'Refunded', '2026-07-05T18:32:49Z'),\n    (3, 'ORD-2026-57699', 'Nora Davis', 'n.davis@example.org', 518.93, 'USD', 'Paid', '2026-06-22T17:31:04Z');",
+"yaml": "- id: 1\n  orderNumber: \"ORD-2026-40510\"\n  customer: \"Evelyn Martinez\"\n  email: \"evelyn.martinez@example.com\"\n  total: 238.37\n  currency: \"USD\"\n  status: \"Cancelled\"\n  createdAt: \"2026-07-29T11:15:58Z\"\n- id: 2\n  orderNumber: \"ORD-2026-72546\"\n  customer: \"Ethan Young\"\n  email: \"ethan_young@example.com\"\n  total: 342.88\n  currency: \"USD\"\n  status: \"Refunded\"\n  createdAt: \"2026-07-05T18:32:49Z\"\n- id: 3\n  orderNumber: \"ORD-2026-57699\"\n  customer: \"Nora Davis\"\n  email: \"n.davis@example.org\"\n  total: 518.93\n  currency: \"USD\"\n  status: \"Paid\"\n  createdAt: \"2026-06-22T17:31:04Z\""
+}
+},
+{
+"locale": "en",
+"seed": {
+"text": "rec:2"
+},
+"kind": "company",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"name\": \"White Labs Inc.\",\n    \"vatId\": \"US215997684\",\n    \"email\": \"info@white.example.com\",\n    \"phone\": \"(312) 555-0121\",\n    \"website\": \"https://white.example.com\",\n    \"city\": \"Philadelphia\",\n    \"iban\": \"DE81370400449754276213\"\n  },\n  {\n    \"id\": 2,\n    \"name\": \"North Dynamics Ltd.\",\n    \"vatId\": \"US354634605\",\n    \"email\": \"info@north.example.com\",\n    \"phone\": \"(602) 555-0122\",\n    \"website\": \"https://north.example.com\",\n    \"city\": \"Houston\",\n    \"iban\": \"DE42370400443753979329\"\n  },\n  {\n    \"id\": 3,\n    \"name\": \"Blue Consulting Inc.\",\n    \"vatId\": \"US122485751\",\n    \"email\": \"info@blue.example.com\",\n    \"phone\": \"(615) 555-0156\",\n    \"website\": \"https://blue.example.com\",\n    \"city\": \"Portland\",\n    \"iban\": \"DE57370400441581443481\"\n  }\n]",
+"csharp": "var companies = new List<Company>\n{\n    new Company { Id = 1, Name = \"White Labs Inc.\", VatId = \"US215997684\", Email = \"info@white.example.com\", Phone = \"(312) 555-0121\", Website = \"https://white.example.com\", City = \"Philadelphia\", Iban = \"DE81370400449754276213\" },\n    new Company { Id = 2, Name = \"North Dynamics Ltd.\", VatId = \"US354634605\", Email = \"info@north.example.com\", Phone = \"(602) 555-0122\", Website = \"https://north.example.com\", City = \"Houston\", Iban = \"DE42370400443753979329\" },\n    new Company { Id = 3, Name = \"Blue Consulting Inc.\", VatId = \"US122485751\", Email = \"info@blue.example.com\", Phone = \"(615) 555-0156\", Website = \"https://blue.example.com\", City = \"Portland\", Iban = \"DE57370400441581443481\" },\n};",
+"csv": "id,name,vatId,email,phone,website,city,iban\n1,White Labs Inc.,US215997684,info@white.example.com,(312) 555-0121,https://white.example.com,Philadelphia,DE81370400449754276213\n2,North Dynamics Ltd.,US354634605,info@north.example.com,(602) 555-0122,https://north.example.com,Houston,DE42370400443753979329\n3,Blue Consulting Inc.,US122485751,info@blue.example.com,(615) 555-0156,https://blue.example.com,Portland,DE57370400441581443481",
+"sql": "INSERT INTO companies (id, name, vat_id, email, phone, website, city, iban)\nVALUES\n    (1, 'White Labs Inc.', 'US215997684', 'info@white.example.com', '(312) 555-0121', 'https://white.example.com', 'Philadelphia', 'DE81370400449754276213'),\n    (2, 'North Dynamics Ltd.', 'US354634605', 'info@north.example.com', '(602) 555-0122', 'https://north.example.com', 'Houston', 'DE42370400443753979329'),\n    (3, 'Blue Consulting Inc.', 'US122485751', 'info@blue.example.com', '(615) 555-0156', 'https://blue.example.com', 'Portland', 'DE57370400441581443481');",
+"yaml": "- id: 1\n  name: \"White Labs Inc.\"\n  vatId: \"US215997684\"\n  email: \"info@white.example.com\"\n  phone: \"(312) 555-0121\"\n  website: \"https://white.example.com\"\n  city: \"Philadelphia\"\n  iban: \"DE81370400449754276213\"\n- id: 2\n  name: \"North Dynamics Ltd.\"\n  vatId: \"US354634605\"\n  email: \"info@north.example.com\"\n  phone: \"(602) 555-0122\"\n  website: \"https://north.example.com\"\n  city: \"Houston\"\n  iban: \"DE42370400443753979329\"\n- id: 3\n  name: \"Blue Consulting Inc.\"\n  vatId: \"US122485751\"\n  email: \"info@blue.example.com\"\n  phone: \"(615) 555-0156\"\n  website: \"https://blue.example.com\"\n  city: \"Portland\"\n  iban: \"DE57370400441581443481\""
+}
+},
+{
+"locale": "en",
+"seed": {
+"int": "21"
+},
+"kind": "person",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"firstName\": \"Zoe\",\n    \"lastName\": \"Allen\",\n    \"email\": \"zoeallen@example.org\",\n    \"phone\": \"(512) 555-0160\",\n    \"birthDate\": \"1960-01-11\"\n  },\n  {\n    \"id\": 2,\n    \"firstName\": \"Nora\",\n    \"lastName\": \"Nelson\",\n    \"email\": \"nora.nelson@example.com\",\n    \"phone\": \"(303) 555-0174\",\n    \"birthDate\": \"1967-08-04\"\n  },\n  {\n    \"id\": 3,\n    \"firstName\": \"Isabella\",\n    \"lastName\": \"Moore\",\n    \"email\": \"isabella.moore@example.org\",\n    \"phone\": \"(503) 555-0178\",\n    \"birthDate\": \"1966-05-13\"\n  }\n]",
+"csharp": "var people = new List<Person>\n{\n    new Person { Id = 1, FirstName = \"Zoe\", LastName = \"Allen\", Email = \"zoeallen@example.org\", Phone = \"(512) 555-0160\", BirthDate = new DateOnly(1960, 1, 11) },\n    new Person { Id = 2, FirstName = \"Nora\", LastName = \"Nelson\", Email = \"nora.nelson@example.com\", Phone = \"(303) 555-0174\", BirthDate = new DateOnly(1967, 8, 4) },\n    new Person { Id = 3, FirstName = \"Isabella\", LastName = \"Moore\", Email = \"isabella.moore@example.org\", Phone = \"(503) 555-0178\", BirthDate = new DateOnly(1966, 5, 13) },\n};",
+"csv": "id,firstName,lastName,email,phone,birthDate\n1,Zoe,Allen,zoeallen@example.org,(512) 555-0160,1960-01-11\n2,Nora,Nelson,nora.nelson@example.com,(303) 555-0174,1967-08-04\n3,Isabella,Moore,isabella.moore@example.org,(503) 555-0178,1966-05-13",
+"sql": "INSERT INTO people (id, first_name, last_name, email, phone, birth_date)\nVALUES\n    (1, 'Zoe', 'Allen', 'zoeallen@example.org', '(512) 555-0160', '1960-01-11'),\n    (2, 'Nora', 'Nelson', 'nora.nelson@example.com', '(303) 555-0174', '1967-08-04'),\n    (3, 'Isabella', 'Moore', 'isabella.moore@example.org', '(503) 555-0178', '1966-05-13');",
+"yaml": "- id: 1\n  firstName: \"Zoe\"\n  lastName: \"Allen\"\n  email: \"zoeallen@example.org\"\n  phone: \"(512) 555-0160\"\n  birthDate: \"1960-01-11\"\n- id: 2\n  firstName: \"Nora\"\n  lastName: \"Nelson\"\n  email: \"nora.nelson@example.com\"\n  phone: \"(303) 555-0174\"\n  birthDate: \"1967-08-04\"\n- id: 3\n  firstName: \"Isabella\"\n  lastName: \"Moore\"\n  email: \"isabella.moore@example.org\"\n  phone: \"(503) 555-0178\"\n  birthDate: \"1966-05-13\""
+}
+},
+{
+"locale": "en",
+"seed": {
+"int": "21"
+},
+"kind": "customer",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"name\": \"Zoe Allen\",\n    \"email\": \"z.allen@example.org\",\n    \"phone\": \"(612) 555-0123\",\n    \"company\": \"Blue Dynamics Inc.\",\n    \"street\": \"331 River Road\",\n    \"zip\": \"78701\",\n    \"city\": \"Austin\",\n    \"country\": \"USA\",\n    \"createdAt\": \"2024-12-01T19:15:35Z\"\n  },\n  {\n    \"id\": 2,\n    \"name\": \"Oliver Martinez\",\n    \"email\": \"oliver.martinez@example.org\",\n    \"phone\": \"(503) 555-0178\",\n    \"company\": \"Clark Industries Group\",\n    \"street\": \"8251 Cedar Lane\",\n    \"zip\": \"92101\",\n    \"city\": \"San Diego\",\n    \"country\": \"USA\",\n    \"createdAt\": \"2025-07-10T08:41:38Z\"\n  },\n  {\n    \"id\": 3,\n    \"name\": \"Liam Martinez\",\n    \"email\": \"liam.martinez@example.org\",\n    \"phone\": \"(215) 555-0170\",\n    \"company\": \"Young & Baker LLC\",\n    \"street\": \"3162 Oak Avenue\",\n    \"zip\": \"60601\",\n    \"city\": \"Chicago\",\n    \"country\": \"USA\",\n    \"createdAt\": \"2025-11-26T07:09:01Z\"\n  }\n]",
+"csharp": "var customers = new List<Customer>\n{\n    new Customer { Id = 1, Name = \"Zoe Allen\", Email = \"z.allen@example.org\", Phone = \"(612) 555-0123\", Company = \"Blue Dynamics Inc.\", Street = \"331 River Road\", Zip = \"78701\", City = \"Austin\", Country = \"USA\", CreatedAt = new DateTimeOffset(2024, 12, 1, 19, 15, 35, TimeSpan.Zero) },\n    new Customer { Id = 2, Name = \"Oliver Martinez\", Email = \"oliver.martinez@example.org\", Phone = \"(503) 555-0178\", Company = \"Clark Industries Group\", Street = \"8251 Cedar Lane\", Zip = \"92101\", City = \"San Diego\", Country = \"USA\", CreatedAt = new DateTimeOffset(2025, 7, 10, 8, 41, 38, TimeSpan.Zero) },\n    new Customer { Id = 3, Name = \"Liam Martinez\", Email = \"liam.martinez@example.org\", Phone = \"(215) 555-0170\", Company = \"Young & Baker LLC\", Street = \"3162 Oak Avenue\", Zip = \"60601\", City = \"Chicago\", Country = \"USA\", CreatedAt = new DateTimeOffset(2025, 11, 26, 7, 9, 1, TimeSpan.Zero) },\n};",
+"csv": "id,name,email,phone,company,street,zip,city,country,createdAt\n1,Zoe Allen,z.allen@example.org,(612) 555-0123,Blue Dynamics Inc.,331 River Road,78701,Austin,USA,2024-12-01T19:15:35Z\n2,Oliver Martinez,oliver.martinez@example.org,(503) 555-0178,Clark Industries Group,8251 Cedar Lane,92101,San Diego,USA,2025-07-10T08:41:38Z\n3,Liam Martinez,liam.martinez@example.org,(215) 555-0170,Young & Baker LLC,3162 Oak Avenue,60601,Chicago,USA,2025-11-26T07:09:01Z",
+"sql": "INSERT INTO customers (id, name, email, phone, company, street, zip, city, country, created_at)\nVALUES\n    (1, 'Zoe Allen', 'z.allen@example.org', '(612) 555-0123', 'Blue Dynamics Inc.', '331 River Road', '78701', 'Austin', 'USA', '2024-12-01T19:15:35Z'),\n    (2, 'Oliver Martinez', 'oliver.martinez@example.org', '(503) 555-0178', 'Clark Industries Group', '8251 Cedar Lane', '92101', 'San Diego', 'USA', '2025-07-10T08:41:38Z'),\n    (3, 'Liam Martinez', 'liam.martinez@example.org', '(215) 555-0170', 'Young & Baker LLC', '3162 Oak Avenue', '60601', 'Chicago', 'USA', '2025-11-26T07:09:01Z');",
+"yaml": "- id: 1\n  name: \"Zoe Allen\"\n  email: \"z.allen@example.org\"\n  phone: \"(612) 555-0123\"\n  company: \"Blue Dynamics Inc.\"\n  street: \"331 River Road\"\n  zip: \"78701\"\n  city: \"Austin\"\n  country: \"USA\"\n  createdAt: \"2024-12-01T19:15:35Z\"\n- id: 2\n  name: \"Oliver Martinez\"\n  email: \"oliver.martinez@example.org\"\n  phone: \"(503) 555-0178\"\n  company: \"Clark Industries Group\"\n  street: \"8251 Cedar Lane\"\n  zip: \"92101\"\n  city: \"San Diego\"\n  country: \"USA\"\n  createdAt: \"2025-07-10T08:41:38Z\"\n- id: 3\n  name: \"Liam Martinez\"\n  email: \"liam.martinez@example.org\"\n  phone: \"(215) 555-0170\"\n  company: \"Young & Baker LLC\"\n  street: \"3162 Oak Avenue\"\n  zip: \"60601\"\n  city: \"Chicago\"\n  country: \"USA\"\n  createdAt: \"2025-11-26T07:09:01Z\""
+}
+},
+{
+"locale": "en",
+"seed": {
+"int": "21"
+},
+"kind": "user",
+"texts": {
+"json": "[\n  {\n    \"id\": \"d7e11b1b-7aa6-440d-8800-7596a28f5b37\",\n    \"userName\": \"zoe222\",\n    \"email\": \"z.allen@example.net\",\n    \"displayName\": \"Zoe Allen\",\n    \"role\": \"Support\",\n    \"isActive\": true,\n    \"lastLogin\": \"2026-11-26T00:05:34Z\"\n  },\n  {\n    \"id\": \"cb33444b-2519-4d60-91bb-55f86d9deeee\",\n    \"userName\": \"grace.roberts\",\n    \"email\": \"grace.roberts@example.org\",\n    \"displayName\": \"Grace Roberts\",\n    \"role\": \"Viewer\",\n    \"isActive\": true,\n    \"lastLogin\": \"2026-11-23T00:06:55Z\"\n  },\n  {\n    \"id\": \"f3b3eb97-a618-4143-9da5-b627b1a470b6\",\n    \"userName\": \"abaker\",\n    \"email\": \"a.baker@example.net\",\n    \"displayName\": \"Andrew Baker\",\n    \"role\": \"Admin\",\n    \"isActive\": false,\n    \"lastLogin\": \"2026-11-24T09:57:02Z\"\n  }\n]",
+"csharp": "var users = new List<User>\n{\n    new User { Id = Guid.Parse(\"d7e11b1b-7aa6-440d-8800-7596a28f5b37\"), UserName = \"zoe222\", Email = \"z.allen@example.net\", DisplayName = \"Zoe Allen\", Role = \"Support\", IsActive = true, LastLogin = new DateTimeOffset(2026, 11, 26, 0, 5, 34, TimeSpan.Zero) },\n    new User { Id = Guid.Parse(\"cb33444b-2519-4d60-91bb-55f86d9deeee\"), UserName = \"grace.roberts\", Email = \"grace.roberts@example.org\", DisplayName = \"Grace Roberts\", Role = \"Viewer\", IsActive = true, LastLogin = new DateTimeOffset(2026, 11, 23, 0, 6, 55, TimeSpan.Zero) },\n    new User { Id = Guid.Parse(\"f3b3eb97-a618-4143-9da5-b627b1a470b6\"), UserName = \"abaker\", Email = \"a.baker@example.net\", DisplayName = \"Andrew Baker\", Role = \"Admin\", IsActive = false, LastLogin = new DateTimeOffset(2026, 11, 24, 9, 57, 2, TimeSpan.Zero) },\n};",
+"csv": "id,userName,email,displayName,role,isActive,lastLogin\nd7e11b1b-7aa6-440d-8800-7596a28f5b37,zoe222,z.allen@example.net,Zoe Allen,Support,true,2026-11-26T00:05:34Z\ncb33444b-2519-4d60-91bb-55f86d9deeee,grace.roberts,grace.roberts@example.org,Grace Roberts,Viewer,true,2026-11-23T00:06:55Z\nf3b3eb97-a618-4143-9da5-b627b1a470b6,abaker,a.baker@example.net,Andrew Baker,Admin,false,2026-11-24T09:57:02Z",
+"sql": "INSERT INTO users (id, user_name, email, display_name, role, is_active, last_login)\nVALUES\n    ('d7e11b1b-7aa6-440d-8800-7596a28f5b37', 'zoe222', 'z.allen@example.net', 'Zoe Allen', 'Support', TRUE, '2026-11-26T00:05:34Z'),\n    ('cb33444b-2519-4d60-91bb-55f86d9deeee', 'grace.roberts', 'grace.roberts@example.org', 'Grace Roberts', 'Viewer', TRUE, '2026-11-23T00:06:55Z'),\n    ('f3b3eb97-a618-4143-9da5-b627b1a470b6', 'abaker', 'a.baker@example.net', 'Andrew Baker', 'Admin', FALSE, '2026-11-24T09:57:02Z');",
+"yaml": "- id: \"d7e11b1b-7aa6-440d-8800-7596a28f5b37\"\n  userName: \"zoe222\"\n  email: \"z.allen@example.net\"\n  displayName: \"Zoe Allen\"\n  role: \"Support\"\n  isActive: true\n  lastLogin: \"2026-11-26T00:05:34Z\"\n- id: \"cb33444b-2519-4d60-91bb-55f86d9deeee\"\n  userName: \"grace.roberts\"\n  email: \"grace.roberts@example.org\"\n  displayName: \"Grace Roberts\"\n  role: \"Viewer\"\n  isActive: true\n  lastLogin: \"2026-11-23T00:06:55Z\"\n- id: \"f3b3eb97-a618-4143-9da5-b627b1a470b6\"\n  userName: \"abaker\"\n  email: \"a.baker@example.net\"\n  displayName: \"Andrew Baker\"\n  role: \"Admin\"\n  isActive: false\n  lastLogin: \"2026-11-24T09:57:02Z\""
+}
+},
+{
+"locale": "en",
+"seed": {
+"int": "21"
+},
+"kind": "product",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"sku\": \"FNW-7849\",\n    \"name\": \"Sleek Bottle\",\n    \"category\": \"Sports\",\n    \"price\": 494.87,\n    \"stock\": 121,\n    \"isAvailable\": true\n  },\n  {\n    \"id\": 2,\n    \"sku\": \"QFQ-9643\",\n    \"name\": \"Compact Keyboard\",\n    \"category\": \"Electronics\",\n    \"price\": 186.15,\n    \"stock\": 149,\n    \"isAvailable\": true\n  },\n  {\n    \"id\": 3,\n    \"sku\": \"EZY-4805\",\n    \"name\": \"Compact Keyboard\",\n    \"category\": \"Toys\",\n    \"price\": 498.78,\n    \"stock\": 189,\n    \"isAvailable\": true\n  }\n]",
+"csharp": "var products = new List<Product>\n{\n    new Product { Id = 1, Sku = \"FNW-7849\", Name = \"Sleek Bottle\", Category = \"Sports\", Price = 494.87m, Stock = 121, IsAvailable = true },\n    new Product { Id = 2, Sku = \"QFQ-9643\", Name = \"Compact Keyboard\", Category = \"Electronics\", Price = 186.15m, Stock = 149, IsAvailable = true },\n    new Product { Id = 3, Sku = \"EZY-4805\", Name = \"Compact Keyboard\", Category = \"Toys\", Price = 498.78m, Stock = 189, IsAvailable = true },\n};",
+"csv": "id,sku,name,category,price,stock,isAvailable\n1,FNW-7849,Sleek Bottle,Sports,494.87,121,true\n2,QFQ-9643,Compact Keyboard,Electronics,186.15,149,true\n3,EZY-4805,Compact Keyboard,Toys,498.78,189,true",
+"sql": "INSERT INTO products (id, sku, name, category, price, stock, is_available)\nVALUES\n    (1, 'FNW-7849', 'Sleek Bottle', 'Sports', 494.87, 121, TRUE),\n    (2, 'QFQ-9643', 'Compact Keyboard', 'Electronics', 186.15, 149, TRUE),\n    (3, 'EZY-4805', 'Compact Keyboard', 'Toys', 498.78, 189, TRUE);",
+"yaml": "- id: 1\n  sku: \"FNW-7849\"\n  name: \"Sleek Bottle\"\n  category: \"Sports\"\n  price: 494.87\n  stock: 121\n  isAvailable: true\n- id: 2\n  sku: \"QFQ-9643\"\n  name: \"Compact Keyboard\"\n  category: \"Electronics\"\n  price: 186.15\n  stock: 149\n  isAvailable: true\n- id: 3\n  sku: \"EZY-4805\"\n  name: \"Compact Keyboard\"\n  category: \"Toys\"\n  price: 498.78\n  stock: 189\n  isAvailable: true"
+}
+},
+{
+"locale": "en",
+"seed": {
+"int": "21"
+},
+"kind": "order",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"orderNumber\": \"ORD-2026-83231\",\n    \"customer\": \"Zoe Allen\",\n    \"email\": \"zoe.allen37@example.com\",\n    \"total\": 1979.49,\n    \"currency\": \"USD\",\n    \"status\": \"Delivered\",\n    \"createdAt\": \"2026-06-22T10:37:49Z\"\n  },\n  {\n    \"id\": 2,\n    \"orderNumber\": \"ORD-2026-30941\",\n    \"customer\": \"Nora Nelson\",\n    \"email\": \"nora.nelson@example.org\",\n    \"total\": 1865.89,\n    \"currency\": \"USD\",\n    \"status\": \"Delivered\",\n    \"createdAt\": \"2026-11-12T20:42:26Z\"\n  },\n  {\n    \"id\": 3,\n    \"orderNumber\": \"ORD-2026-30500\",\n    \"customer\": \"Megan Moore\",\n    \"email\": \"megan.moore@example.org\",\n    \"total\": 1995.13,\n    \"currency\": \"USD\",\n    \"status\": \"Refunded\",\n    \"createdAt\": \"2026-06-29T15:46:31Z\"\n  }\n]",
+"csharp": "var orders = new List<Order>\n{\n    new Order { Id = 1, OrderNumber = \"ORD-2026-83231\", Customer = \"Zoe Allen\", Email = \"zoe.allen37@example.com\", Total = 1979.49m, Currency = \"USD\", Status = \"Delivered\", CreatedAt = new DateTimeOffset(2026, 6, 22, 10, 37, 49, TimeSpan.Zero) },\n    new Order { Id = 2, OrderNumber = \"ORD-2026-30941\", Customer = \"Nora Nelson\", Email = \"nora.nelson@example.org\", Total = 1865.89m, Currency = \"USD\", Status = \"Delivered\", CreatedAt = new DateTimeOffset(2026, 11, 12, 20, 42, 26, TimeSpan.Zero) },\n    new Order { Id = 3, OrderNumber = \"ORD-2026-30500\", Customer = \"Megan Moore\", Email = \"megan.moore@example.org\", Total = 1995.13m, Currency = \"USD\", Status = \"Refunded\", CreatedAt = new DateTimeOffset(2026, 6, 29, 15, 46, 31, TimeSpan.Zero) },\n};",
+"csv": "id,orderNumber,customer,email,total,currency,status,createdAt\n1,ORD-2026-83231,Zoe Allen,zoe.allen37@example.com,1979.49,USD,Delivered,2026-06-22T10:37:49Z\n2,ORD-2026-30941,Nora Nelson,nora.nelson@example.org,1865.89,USD,Delivered,2026-11-12T20:42:26Z\n3,ORD-2026-30500,Megan Moore,megan.moore@example.org,1995.13,USD,Refunded,2026-06-29T15:46:31Z",
+"sql": "INSERT INTO orders (id, order_number, customer, email, total, currency, status, created_at)\nVALUES\n    (1, 'ORD-2026-83231', 'Zoe Allen', 'zoe.allen37@example.com', 1979.49, 'USD', 'Delivered', '2026-06-22T10:37:49Z'),\n    (2, 'ORD-2026-30941', 'Nora Nelson', 'nora.nelson@example.org', 1865.89, 'USD', 'Delivered', '2026-11-12T20:42:26Z'),\n    (3, 'ORD-2026-30500', 'Megan Moore', 'megan.moore@example.org', 1995.13, 'USD', 'Refunded', '2026-06-29T15:46:31Z');",
+"yaml": "- id: 1\n  orderNumber: \"ORD-2026-83231\"\n  customer: \"Zoe Allen\"\n  email: \"zoe.allen37@example.com\"\n  total: 1979.49\n  currency: \"USD\"\n  status: \"Delivered\"\n  createdAt: \"2026-06-22T10:37:49Z\"\n- id: 2\n  orderNumber: \"ORD-2026-30941\"\n  customer: \"Nora Nelson\"\n  email: \"nora.nelson@example.org\"\n  total: 1865.89\n  currency: \"USD\"\n  status: \"Delivered\"\n  createdAt: \"2026-11-12T20:42:26Z\"\n- id: 3\n  orderNumber: \"ORD-2026-30500\"\n  customer: \"Megan Moore\"\n  email: \"megan.moore@example.org\"\n  total: 1995.13\n  currency: \"USD\"\n  status: \"Refunded\"\n  createdAt: \"2026-06-29T15:46:31Z\""
+}
+},
+{
+"locale": "en",
+"seed": {
+"int": "21"
+},
+"kind": "company",
+"texts": {
+"json": "[\n  {\n    \"id\": 1,\n    \"name\": \"Nova Media & Co.\",\n    \"vatId\": \"US737828830\",\n    \"email\": \"info@nova.example.org\",\n    \"phone\": \"(212) 555-0147\",\n    \"website\": \"https://nova.example.org\",\n    \"city\": \"Philadelphia\",\n    \"iban\": \"DE67370400441839066862\"\n  },\n  {\n    \"id\": 2,\n    \"name\": \"Williams Solutions Ltd.\",\n    \"vatId\": \"US697058715\",\n    \"email\": \"info@williams.example.net\",\n    \"phone\": \"(212) 555-0119\",\n    \"website\": \"https://williams.example.net\",\n    \"city\": \"Phoenix\",\n    \"iban\": \"DE91370400440379949556\"\n  },\n  {\n    \"id\": 3,\n    \"name\": \"Campbell Industries & Co.\",\n    \"vatId\": \"US672207313\",\n    \"email\": \"info@campbell.example.org\",\n    \"phone\": \"(512) 555-0186\",\n    \"website\": \"https://campbell.example.org\",\n    \"city\": \"New York\",\n    \"iban\": \"DE09370400443134284074\"\n  }\n]",
+"csharp": "var companies = new List<Company>\n{\n    new Company { Id = 1, Name = \"Nova Media & Co.\", VatId = \"US737828830\", Email = \"info@nova.example.org\", Phone = \"(212) 555-0147\", Website = \"https://nova.example.org\", City = \"Philadelphia\", Iban = \"DE67370400441839066862\" },\n    new Company { Id = 2, Name = \"Williams Solutions Ltd.\", VatId = \"US697058715\", Email = \"info@williams.example.net\", Phone = \"(212) 555-0119\", Website = \"https://williams.example.net\", City = \"Phoenix\", Iban = \"DE91370400440379949556\" },\n    new Company { Id = 3, Name = \"Campbell Industries & Co.\", VatId = \"US672207313\", Email = \"info@campbell.example.org\", Phone = \"(512) 555-0186\", Website = \"https://campbell.example.org\", City = \"New York\", Iban = \"DE09370400443134284074\" },\n};",
+"csv": "id,name,vatId,email,phone,website,city,iban\n1,Nova Media & Co.,US737828830,info@nova.example.org,(212) 555-0147,https://nova.example.org,Philadelphia,DE67370400441839066862\n2,Williams Solutions Ltd.,US697058715,info@williams.example.net,(212) 555-0119,https://williams.example.net,Phoenix,DE91370400440379949556\n3,Campbell Industries & Co.,US672207313,info@campbell.example.org,(512) 555-0186,https://campbell.example.org,New York,DE09370400443134284074",
+"sql": "INSERT INTO companies (id, name, vat_id, email, phone, website, city, iban)\nVALUES\n    (1, 'Nova Media & Co.', 'US737828830', 'info@nova.example.org', '(212) 555-0147', 'https://nova.example.org', 'Philadelphia', 'DE67370400441839066862'),\n    (2, 'Williams Solutions Ltd.', 'US697058715', 'info@williams.example.net', '(212) 555-0119', 'https://williams.example.net', 'Phoenix', 'DE91370400440379949556'),\n    (3, 'Campbell Industries & Co.', 'US672207313', 'info@campbell.example.org', '(512) 555-0186', 'https://campbell.example.org', 'New York', 'DE09370400443134284074');",
+"yaml": "- id: 1\n  name: \"Nova Media & Co.\"\n  vatId: \"US737828830\"\n  email: \"info@nova.example.org\"\n  phone: \"(212) 555-0147\"\n  website: \"https://nova.example.org\"\n  city: \"Philadelphia\"\n  iban: \"DE67370400441839066862\"\n- id: 2\n  name: \"Williams Solutions Ltd.\"\n  vatId: \"US697058715\"\n  email: \"info@williams.example.net\"\n  phone: \"(212) 555-0119\"\n  website: \"https://williams.example.net\"\n  city: \"Phoenix\"\n  iban: \"DE91370400440379949556\"\n- id: 3\n  name: \"Campbell Industries & Co.\"\n  vatId: \"US672207313\"\n  email: \"info@campbell.example.org\"\n  phone: \"(512) 555-0186\"\n  website: \"https://campbell.example.org\"\n  city: \"New York\"\n  iban: \"DE09370400443134284074\""
+}
+}
+],
+"rounds": [
+[
+"1e-07",
+2,
+"0.0"
+],
+[
+"1e-07",
+6,
+"0.0"
+],
+[
+"380.89369151667165",
+2,
+"380.89"
+],
+[
+"380.89369151667165",
+6,
+"380.893692"
+],
+[
+"1e-07",
+2,
+"0.0"
+],
+[
+"1e-07",
+6,
+"0.0"
+],
+[
+"0.125",
+2,
+"0.12"
+],
+[
+"0.125",
+6,
+"0.125"
+],
+[
+"123456.0000005",
+2,
+"123456.0"
+],
+[
+"123456.0000005",
+6,
+"123456.000001"
+],
+[
+"1e-07",
+2,
+"0.0"
+],
+[
+"1e-07",
+6,
+"0.0"
+],
+[
+"-686.2973553954668",
+2,
+"-686.3"
+],
+[
+"-686.2973553954668",
+6,
+"-686.297355"
+],
+[
+"736.8909157301905",
+2,
+"736.89"
+],
+[
+"736.8909157301905",
+6,
+"736.890916"
+],
+[
+"-796.0511956521692",
+2,
+"-796.05"
+],
+[
+"-796.0511956521692",
+6,
+"-796.051196"
+],
+[
+"462.36743355884846",
+2,
+"462.37"
+],
+[
+"462.36743355884846",
+6,
+"462.367434"
+],
+[
+"-635.8486724444425",
+2,
+"-635.85"
+],
+[
+"-635.8486724444425",
+6,
+"-635.848672"
+],
+[
+"0.285",
+2,
+"0.28"
+],
+[
+"0.285",
+6,
+"0.285"
+],
+[
+"594.2939828624089",
+2,
+"594.29"
+],
+[
+"594.2939828624089",
+6,
+"594.293983"
+],
+[
+"234.9050409322333",
+2,
+"234.91"
+],
+[
+"234.9050409322333",
+6,
+"234.905041"
+],
+[
+"-996.4502755949308",
+2,
+"-996.45"
+],
+[
+"-996.4502755949308",
+6,
+"-996.450276"
+],
+[
+"2.675",
+2,
+"2.67"
+],
+[
+"2.675",
+6,
+"2.675"
+],
+[
+"2.675",
+2,
+"2.67"
+],
+[
+"2.675",
+6,
+"2.675"
+],
+[
+"1.005",
+2,
+"1.0"
+],
+[
+"1.005",
+6,
+"1.005"
+],
+[
+"-602.2213468071302",
+2,
+"-602.22"
+],
+[
+"-602.2213468071302",
+6,
+"-602.221347"
+],
+[
+"1e-07",
+2,
+"0.0"
+],
+[
+"1e-07",
+6,
+"0.0"
+],
+[
+"881.9520021759981",
+2,
+"881.95"
+],
+[
+"881.9520021759981",
+6,
+"881.952002"
+],
+[
+"0.285",
+2,
+"0.28"
+],
+[
+"0.285",
+6,
+"0.285"
+],
+[
+"-277.62013055523175",
+2,
+"-277.62"
+],
+[
+"-277.62013055523175",
+6,
+"-277.620131"
+],
+[
+"-708.5961809186349",
+2,
+"-708.6"
+],
+[
+"-708.5961809186349",
+6,
+"-708.596181"
+],
+[
+"-397.281798461075",
+2,
+"-397.28"
+],
+[
+"-397.281798461075",
+6,
+"-397.281798"
+],
+[
+"0.125",
+2,
+"0.12"
+],
+[
+"0.125",
+6,
+"0.125"
+],
+[
+"1e-07",
+2,
+"0.0"
+],
+[
+"1e-07",
+6,
+"0.0"
+],
+[
+"-380.08413679374246",
+2,
+"-380.08"
+],
+[
+"-380.08413679374246",
+6,
+"-380.084137"
+],
+[
+"0.285",
+2,
+"0.28"
+],
+[
+"0.285",
+6,
+"0.285"
+],
+[
+"2.675",
+2,
+"2.67"
+],
+[
+"2.675",
+6,
+"2.675"
+],
+[
+"409.3382682818185",
+2,
+"409.34"
+],
+[
+"409.3382682818185",
+6,
+"409.338268"
+],
+[
+"950.1991262884706",
+2,
+"950.2"
+],
+[
+"950.1991262884706",
+6,
+"950.199126"
+],
+[
+"499.5900445825466",
+2,
+"499.59"
+],
+[
+"499.5900445825466",
+6,
+"499.590045"
+],
+[
+"0.125",
+2,
+"0.12"
+],
+[
+"0.125",
+6,
+"0.125"
+],
+[
+"0.285",
+2,
+"0.28"
+],
+[
+"0.285",
+6,
+"0.285"
+],
+[
+"157.0376581137491",
+2,
+"157.04"
+],
+[
+"157.0376581137491",
+6,
+"157.037658"
+],
+[
+"-906.545762602117",
+2,
+"-906.55"
+],
+[
+"-906.545762602117",
+6,
+"-906.545763"
+],
+[
+"910.3597991823326",
+2,
+"910.36"
+],
+[
+"910.3597991823326",
+6,
+"910.359799"
+],
+[
+"511.47282490263547",
+2,
+"511.47"
+],
+[
+"511.47282490263547",
+6,
+"511.472825"
+],
+[
+"0.285",
+2,
+"0.28"
+],
+[
+"0.285",
+6,
+"0.285"
+],
+[
+"-290.4135898841755",
+2,
+"-290.41"
+],
+[
+"-290.4135898841755",
+6,
+"-290.41359"
+],
+[
+"123456.0000005",
+2,
+"123456.0"
+],
+[
+"123456.0000005",
+6,
+"123456.000001"
+],
+[
+"179.52674252387965",
+2,
+"179.53"
+],
+[
+"179.52674252387965",
+6,
+"179.526743"
+],
+[
+"1.005",
+2,
+"1.0"
+],
+[
+"1.005",
+6,
+"1.005"
+],
+[
+"0.125",
+2,
+"0.12"
+],
+[
+"0.125",
+6,
+"0.125"
+],
+[
+"956.6829814192631",
+2,
+"956.68"
+],
+[
+"956.6829814192631",
+6,
+"956.682981"
+],
+[
+"25.760108393840937",
+2,
+"25.76"
+],
+[
+"25.760108393840937",
+6,
+"25.760108"
+],
+[
+"-703.6087313300443",
+2,
+"-703.61"
+],
+[
+"-703.6087313300443",
+6,
+"-703.608731"
+],
+[
+"405.213468449474",
+2,
+"405.21"
+],
+[
+"405.213468449474",
+6,
+"405.213468"
+],
+[
+"371.93166191577893",
+2,
+"371.93"
+],
+[
+"371.93166191577893",
+6,
+"371.931662"
+],
+[
+"597.5472342699204",
+2,
+"597.55"
+],
+[
+"597.5472342699204",
+6,
+"597.547234"
+],
+[
+"1e-07",
+2,
+"0.0"
+],
+[
+"1e-07",
+6,
+"0.0"
+],
+[
+"0.285",
+2,
+"0.28"
+],
+[
+"0.285",
+6,
+"0.285"
+],
+[
+"-902.8956729030874",
+2,
+"-902.9"
+],
+[
+"-902.8956729030874",
+6,
+"-902.895673"
+],
+[
+"-0.375",
+2,
+"-0.38"
+],
+[
+"-0.375",
+6,
+"-0.375"
+],
+[
+"0.125",
+2,
+"0.12"
+],
+[
+"0.125",
+6,
+"0.125"
+],
+[
+"187.9204413865939",
+2,
+"187.92"
+],
+[
+"187.9204413865939",
+6,
+"187.920441"
+],
+[
+"0.285",
+2,
+"0.28"
+],
+[
+"0.285",
+6,
+"0.285"
+],
+[
+"2.675",
+2,
+"2.67"
+],
+[
+"2.675",
+6,
+"2.675"
+],
+[
+"832.138696883982",
+2,
+"832.14"
+],
+[
+"832.138696883982",
+6,
+"832.138697"
+]
+],
+"module": {
+"settings": {
+"fakeData.locale": "en",
+"fakeData.seed": 42
+},
+"inserted": [
+"DE27370400444103732984",
+"DE50370400449949930524",
+"id,sku,name,category,price,stock,isAvailable\n1,XQA-9268,Handy Bottle,Office,368.78,216,true\n2,SLS-6208,Wireless Backpack,Sports,410.44,5,true\n3,SVQ-8340,Handy Bottle,Toys,474.97,110,true\n4,LAM-7062,Handy Keyboard,Garden,430.52,226,true\n5,ZWU-8238,Rugged Watch,Toys,205.6,163,true"
+]
+}
+}

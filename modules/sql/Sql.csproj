@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>ByteForge.Sql</RootNamespace>
+    <!-- Also a program: queries and shells run in a terminal as `dotnet bin/Sql.dll launch <spec>` (Launcher.cs),
+         so passwords reach the database clients through their environment, never a command line. -->
+    <OutputType>Exe</OutputType>
+    <UseAppHost>false</UseAppHost>
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../sdk/ByteForge.Modules/ByteForge.Modules.csproj" />
+    <!-- SQLite (Python's built-in sqlite3), with its native library for each platform in bin/runtimes/. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+    <!-- The SQLite that Microsoft.Data.Sqlite 10 brings (2.1.11) has a known vulnerability. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14" />
+  </ItemGroup>
+
+  <!-- bin/ is what users download: keep SQLite's native library only for the platforms ByteForge runs on
+       (Windows, Linux and macOS on x64 and arm64), not the twenty others the package carries. -->
+  <Target Name="KeepByteForgePlatforms" AfterTargets="Build">
+    <ItemGroup>
+      <_SqliteRuntime Include="$([System.IO.Directory]::GetDirectories('$(OutDir)runtimes'))" Condition="Exists('$(OutDir)runtimes')" />
+      <_SqliteRuntimeGone Include="@(_SqliteRuntime)" Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('%(Filename)%(Extension)', '^(win|linux|linux-musl|osx)-(x64|arm64)$'))" />
+    </ItemGroup>
+    <RemoveDir Directories="@(_SqliteRuntimeGone)" />
+  </Target>
+
+</Project>

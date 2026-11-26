@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../FakeData.csproj" />
+    <!-- What the Python module rendered for fixed records (compared byte for byte). -->
+    <None Include="python-render.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- What the Python module generated for seeded generators (values, records in every format, a session). -->
+    <None Include="python-faker.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

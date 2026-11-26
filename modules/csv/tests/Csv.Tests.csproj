@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../Csv.csproj" />
+    <None Include="python-expected.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

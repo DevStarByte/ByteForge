@@ -4,13 +4,13 @@
   // (run, new, init, add, update, publish, deploy, doctor). It drives the `aspire` CLI.
   "id": "byteforge.aspire",
   "name": "Aspire",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Tools",
-  "description": "Aspire view with your AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and commands to run, create, add integrations, publish and deploy Aspire apps. Needs the Aspire CLI (aspire.dev) and python3.",
-  "command": "python3",
-  "args": ["aspire.py"],
+  "description": "Aspire view with your AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and commands to run, create, add integrations, publish and deploy Aspire apps. Needs the Aspire CLI (aspire.dev) and .NET 10.",
+  "runtime": "dotnet",
+  "assembly": "bin/Aspire.dll",
   // Listed on the settings screen under Extensions → Aspire.
   "settings": [
     {"key": "aspire.cliPath", "title": "Aspire CLI path", "type": "string", "default": "",

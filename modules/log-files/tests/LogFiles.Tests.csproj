@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../LogFiles.csproj" />
+  </ItemGroup>
+
+</Project>

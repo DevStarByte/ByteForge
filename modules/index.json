@@ -34,35 +34,39 @@
     {
       "id": "byteforge.caelestia-theme",
       "name": "Caelestia Theme",
-      "version": "1.0.1",
-      "description": "A color theme that follows your Caelestia dots (caelestia-shell). It reads the current scheme from ~/.local/state/caelestia/scheme.json and restyles ByteForge live whenever you change wallpaper or scheme. \"Caelestia: Use Caelestia Theme\" in the command palette switches to it.",
+      "version": "2.0.0",
+      "description": "A color theme that follows your Caelestia dots (caelestia-shell). It reads the current scheme from ~/.local/state/caelestia/scheme.json and restyles ByteForge live whenever you change wallpaper or scheme. \"Caelestia: Use Caelestia Theme\" in the command palette switches to it. Needs .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Themes",
       "dir": "caelestia-theme",
       "files": [
-        "caelestia_theme.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/CaelestiaTheme.deps.json",
+        "bin/CaelestiaTheme.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.csharpier",
       "name": "CSharpier",
-      "version": "1.0.2",
-      "description": "Opinionated C# and XML formatter (https://csharpier.com). Format Document: Shift+Alt+F.",
+      "version": "2.0.0",
+      "description": "Opinionated C# and XML formatter (https://csharpier.com). Format Document: Shift+Alt+F. Uses the CSharpier pinned in the workspace's dotnet tool manifest, else a global one (\"CSharpier: Install\").",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": null,
       "dir": "csharpier",
       "files": [
-        "csharpier.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/Csharpier.deps.json",
+        "bin/Csharpier.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
@@ -292,18 +296,20 @@
     {
       "id": "byteforge.macos-theme",
       "name": "macOS Theme",
-      "version": "0.1.0",
-      "description": "A theme that looks like macOS and follows your Mac's settings live: Light or Dark appearance (Auto too), the accent color in selections, buttons and menus, Reduce Transparency and Increase Contrast. A translucent sidebar and title bar (vibrancy), Xcode's Default (Dark) and Default (Light) syntax colors, SF Pro and SF Mono, rounded controls. \"macOS Theme: Use macOS Theme\" switches to it (it's chosen once when installed). Works on other systems too, with the appearance and accent from its settings. Needs python3.",
+      "version": "0.2.0",
+      "description": "A theme that looks like macOS and follows your Mac's settings live: Light or Dark appearance (Auto too), the accent color in selections, buttons and menus, Reduce Transparency and Increase Contrast. A translucent sidebar and title bar (vibrancy), Xcode's Default (Dark) and Default (Light) syntax colors, SF Pro and SF Mono, rounded controls. \"macOS Theme: Use macOS Theme\" switches to it (it's chosen once when installed). Works on other systems too, with the appearance and accent from its settings. Needs .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Themes",
       "dir": "macos-theme",
       "files": [
-        "macos_theme.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/MacosTheme.deps.json",
+        "bin/MacosTheme.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
@@ -378,18 +384,20 @@
     {
       "id": "byteforge.windows-theme",
       "name": "Windows Theme",
-      "version": "0.1.0",
-      "description": "A theme that looks like Windows 11 and follows your Windows settings live: the app mode (Light or Dark), the accent color with the shades Windows derives from it, transparency effects, \"Show accent color on title bars and window borders\" and high contrast. Fluent colors on Mica (acrylic on Windows 10), the accent pill on selected rows, Visual Studio 2022's Dark and Light syntax colors, Segoe UI Variable and Cascadia Mono, wide caption buttons. \"Windows Theme: Use Windows Theme\" switches to it (it's chosen once when installed). Works on other systems too, with the mode and accent from its settings. Needs python3.",
+      "version": "0.2.0",
+      "description": "A theme that looks like Windows 11 and follows your Windows settings live: the app mode (Light or Dark), the accent color with the shades Windows derives from it, transparency effects, \"Show accent color on title bars and window borders\" and high contrast. Fluent colors on Mica (acrylic on Windows 10), the accent pill on selected rows, Visual Studio 2022's Dark and Light syntax colors, Segoe UI Variable and Cascadia Mono, wide caption buttons. \"Windows Theme: Use Windows Theme\" switches to it (it's chosen once when installed). Works on other systems too, with the mode and accent from its settings. Needs .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Themes",
       "dir": "windows-theme",
       "files": [
-        "module.json",
-        "windows_theme.py"
+        "bin/ByteForge.Modules.dll",
+        "bin/WindowsTheme.deps.json",
+        "bin/WindowsTheme.dll",
+        "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     }
   ]

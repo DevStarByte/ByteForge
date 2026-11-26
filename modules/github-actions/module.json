@@ -3,13 +3,13 @@
   // GitHub repository. Talks to the GitHub REST API directly. (Called "GitHub Actions" up to 0.1.0.)
   "id": "byteforge.github-actions",
   "name": "GitHub",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Source Control",
-  "description": "A GitHub view for the folder's repository. Pipelines: the current branch's workflow runs and every workflow's latest runs with state, trigger, age and duration (refreshed while runs are going; the badge counts them); click a run for its jobs and steps, a job for its log in an editor at the first error; re-run, re-run failed jobs, cancel, \"GitHub: Run Workflow\u2026\". Pull requests: the open ones (the current branch's first), click for their checks (an Actions check opens its log), Check Out, Open in Browser. Issues: the open ones (yours first), \"Create Branch\" (feature/123-title). Releases: the latest five with their downloads. The status bar shows the branch's latest run and its pull request with the checks' state. Public repositories work without a token; logs, re-running, cancelling, starting workflows and private repositories need one (\"github.token\", GH_TOKEN, or a logged-in gh). Needs python3 and git.",
-  "command": "python3",
-  "args": ["github_actions.py"],
+  "description": "A GitHub view for the folder's repository. Pipelines: the current branch's workflow runs and every workflow's latest runs with state, trigger, age and duration (refreshed while runs are going; the badge counts them); click a run for its jobs and steps, a job for its log in an editor at the first error; re-run, re-run failed jobs, cancel, \"GitHub: Run Workflow\u2026\". Pull requests: the open ones (the current branch's first), click for their checks (an Actions check opens its log), Check Out, Open in Browser. Issues: the open ones (yours first), \"Create Branch\" (feature/123-title). Releases: the latest five with their downloads. The status bar shows the branch's latest run and its pull request with the checks' state. Public repositories work without a token; logs, re-running, cancelling, starting workflows and private repositories need one (\"github.token\", GH_TOKEN, or a logged-in gh). Needs .NET 10 and git.",
+  "runtime": "dotnet",
+  "assembly": "bin/GithubActions.dll",
   "requires": ["git"],
   "settings": [
     {"key": "github.token", "title": "Token", "type": "string", "default": "",

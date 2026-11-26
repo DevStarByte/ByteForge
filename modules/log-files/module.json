@@ -2,13 +2,13 @@
   // Log Files for ByteForge: highlighting for .log files and commands to list, filter and follow them.
   "id": "byteforge.log-files",
   "name": "Log Files",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Languages",
-  "description": "Highlighting for .log files (also app.log.1 and app.log.2024-05-01): levels in the theme's error, warning and info colors with debug and trace dimmed, timestamps, exception types, .NET, Java, JavaScript and Python stack frames (file and line), GUIDs, URLs, IPs, HTTP methods and status codes, key=value pairs, quoted strings. Understands ASP.NET Core's console logger (fail: / warn: / info:), Serilog ([ERR] [WRN]), NLog, log4net, syslog and GitHub Actions logs (##[error]). \"Log: List Errors\" puts every error with its exception in the Output (click to go there), \"Log: Filter…\" opens only errors, warnings and up, everything but debug and trace, or the exceptions; \"Log: Follow\" runs tail -f in a terminal. The status bar counts errors and warnings of the open log. Needs python3.",
-  "command": "python3",
-  "args": ["log_files.py"],
+  "description": "Highlighting for .log files (also app.log.1 and app.log.2024-05-01): levels in the theme's error, warning and info colors with debug and trace dimmed, timestamps, exception types, .NET, Java, JavaScript and Python stack frames (file and line), GUIDs, URLs, IPs, HTTP methods and status codes, key=value pairs, quoted strings. Understands ASP.NET Core's console logger (fail: / warn: / info:), Serilog ([ERR] [WRN]), NLog, log4net, syslog and GitHub Actions logs (##[error]). \"Log: List Errors\" puts every error with its exception in the Output (click to go there), \"Log: Filter…\" opens only errors, warnings and up, everything but debug and trace, or the exceptions; \"Log: Follow\" runs tail -f in a terminal. The status bar counts errors and warnings of the open log. Needs .NET 10.",
+  "runtime": "dotnet",
+  "assembly": "bin/LogFiles.dll",
   "fileIcons": [
     {
       "icon": "M6,2H14L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2Z M14,3.5V8H18.5Z M7,11H9V12.5H7Z M10,11H17V12.5H10Z M7,14H9V15.5H7Z M10,14H15V15.5H10Z M7,17H9V18.5H7Z M10,17H16V18.5H10Z",

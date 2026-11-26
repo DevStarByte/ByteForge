@@ -3,13 +3,13 @@
   // and Format Document with buf or clang-format.
   "id": "byteforge.protobuf",
   "name": "Protocol Buffers",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Languages",
-  "description": "Protocol Buffers support for gRPC: highlighting for .proto files (syntax, packages, imports, options, messages, enums, services and rpc methods, field types and numbers, comments and strings), a .proto file icon, and Format Document with buf or clang-format, whichever is installed (\"protobuf.formatter\"). Needs python3 for formatting.",
-  "command": "python3",
-  "args": ["protobuf.py"],
+  "description": "Protocol Buffers support for gRPC: highlighting for .proto files (syntax, packages, imports, options, messages, enums, services and rpc methods, field types and numbers, comments and strings), a .proto file icon, and Format Document with buf or clang-format, whichever is installed (\"protobuf.formatter\"). Needs .NET 10.",
+  "runtime": "dotnet",
+  "assembly": "bin/Protobuf.dll",
   "settings": [
     {"key": "protobuf.formatter", "title": "Formatter", "type": "string", "choices": ["auto", "buf", "clang-format"],
      "default": "auto", "description": "What formats .proto files: auto uses buf if it's installed, else clang-format."}

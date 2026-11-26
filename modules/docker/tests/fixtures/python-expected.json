@@ -1,0 +1,1348 @@
+{
+ "classify": {
+  "": "other",
+  "Cannot connect to the Docker daemon": "stopped",
+  "context deadline exceeded": "other",
+  "error during connect: connection refused": "stopped",
+  "permission denied while trying to connect": "permission"
+ },
+ "compose": [
+  "<ws>/deploy/compose.prod.yaml",
+  "<ws>/deploy/docker-compose.yml"
+ ],
+ "composeFile": "# Start: docker compose up --build    Stop: docker compose down\nservices:\n  api:\n    image: api\n    build:\n      context: .\n      dockerfile: Api/Dockerfile\n    ports:\n      - \"8080:8080\"\n    environment:\n      - ASPNETCORE_ENVIRONMENT=Development\n  tool:\n    image: tool\n    build:\n      context: ./Tool\n      dockerfile: Dockerfile\n  worker-worker:\n    image: worker-worker\n    build:\n      context: .\n      dockerfile: src/Worker/Dockerfile.worker\n  worker-api:\n    image: worker-api\n    build:\n      context: .\n      dockerfile: src/Worker/api.dockerfile\n",
+ "contexts": {
+  "<ws>/Api/Dockerfile": "<ws>",
+  "<ws>/Tool/Dockerfile": "<ws>/Tool",
+  "<ws>/src/Worker/Dockerfile.worker": "<ws>",
+  "<ws>/src/Worker/api.dockerfile": "<ws>"
+ },
+ "dockerfileTexts": {
+  "<ws>/Api/Api.csproj": "# Build:  docker build -f Api/Dockerfile -t api .\n# (run from the build context: the folder that contains the solution)\n\nFROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base\nUSER $APP_UID\nWORKDIR /app\nEXPOSE 8080\nEXPOSE 8081\n\nFROM mcr.microsoft.com/dotnet/sdk:9.0 AS build\nARG BUILD_CONFIGURATION=Release\nWORKDIR /src\nCOPY [\"Directory.Build.props\", \".\"]\nCOPY [\"Api/Api.csproj\", \"Api/\"]\nCOPY [\"Core/Core.csproj\", \"Core/\"]\nCOPY [\"Lib/Lib.csproj\", \"Lib/\"]\nRUN dotnet restore \"./Api/Api.csproj\"\nCOPY . .\nWORKDIR \"/src/Api\"\nRUN dotnet build \"./Api.csproj\" -c $BUILD_CONFIGURATION -o /app/build\n\nFROM build AS publish\nARG BUILD_CONFIGURATION=Release\nRUN dotnet publish \"./Api.csproj\" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false\n\nFROM base AS final\nWORKDIR /app\nCOPY --from=publish /app/publish .\nENTRYPOINT [\"dotnet\", \"Api.dll\"]\n",
+  "<ws>/Core/Core.csproj": "# Build:  docker build -f Core/Dockerfile -t core .\n# (run from the build context: the folder that contains the solution)\n\nFROM mcr.microsoft.com/dotnet/runtime:8.0 AS base\nUSER $APP_UID\nWORKDIR /app\n\nFROM mcr.microsoft.com/dotnet/sdk:8.0 AS build\nARG BUILD_CONFIGURATION=Release\nWORKDIR /src\nCOPY [\"Directory.Build.props\", \".\"]\nCOPY [\"Core/Core.csproj\", \"Core/\"]\nRUN dotnet restore \"./Core/Core.csproj\"\nCOPY . .\nWORKDIR \"/src/Core\"\nRUN dotnet build \"./Core.csproj\" -c $BUILD_CONFIGURATION -o /app/build\n\nFROM build AS publish\nARG BUILD_CONFIGURATION=Release\nRUN dotnet publish \"./Core.csproj\" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false\n\nFROM base AS final\nWORKDIR /app\nCOPY --from=publish /app/publish .\nENTRYPOINT [\"dotnet\", \"Core.dll\"]\n",
+  "<ws>/Lib/Lib.csproj": "# Build:  docker build -f Lib/Dockerfile -t lib .\n# (run from the build context: the folder that contains the solution)\n\nFROM mcr.microsoft.com/dotnet/runtime:10.0 AS base\nUSER $APP_UID\nWORKDIR /app\n\nFROM mcr.microsoft.com/dotnet/sdk:10.0 AS build\nARG BUILD_CONFIGURATION=Release\nWORKDIR /src\nCOPY [\"Directory.Build.props\", \".\"]\nCOPY [\"Lib/Lib.csproj\", \"Lib/\"]\nCOPY [\"Core/Core.csproj\", \"Core/\"]\nRUN dotnet restore \"./Lib/Lib.csproj\"\nCOPY . .\nWORKDIR \"/src/Lib\"\nRUN dotnet build \"./Lib.csproj\" -c $BUILD_CONFIGURATION -o /app/build\n\nFROM build AS publish\nARG BUILD_CONFIGURATION=Release\nRUN dotnet publish \"./Lib.csproj\" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false\n\nFROM base AS final\nWORKDIR /app\nCOPY --from=publish /app/publish .\nENTRYPOINT [\"dotnet\", \"Lib.dll\"]\n",
+  "<ws>/Tool/Tool.csproj": "# Build:  docker build -f Tool/Dockerfile -t tool .\n# (run from the build context: the folder that contains the solution)\n\nFROM mcr.microsoft.com/dotnet/runtime:10.0 AS base\nUSER $APP_UID\nWORKDIR /app\n\nFROM mcr.microsoft.com/dotnet/sdk:10.0 AS build\nARG BUILD_CONFIGURATION=Release\nWORKDIR /src\nCOPY [\"Directory.Build.props\", \".\"]\nCOPY [\"Tool/Tool.csproj\", \"Tool/\"]\nRUN dotnet restore \"./Tool/Tool.csproj\"\nCOPY . .\nWORKDIR \"/src/Tool\"\nRUN dotnet build \"./Tool.csproj\" -c $BUILD_CONFIGURATION -o /app/build\n\nFROM build AS publish\nARG BUILD_CONFIGURATION=Release\nRUN dotnet publish \"./Tool.csproj\" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false\n\nFROM base AS final\nWORKDIR /app\nCOPY --from=publish /app/publish .\nENTRYPOINT [\"dotnet\", \"Tool.dll\"]\n",
+  "<ws>/src/Worker/Worker.csproj": "# Build:  docker build -f src/Worker/Dockerfile -t my.worker_service .\n# (run from the build context: the folder that contains the solution)\n\nFROM mcr.microsoft.com/dotnet/runtime:10.0 AS base\nUSER $APP_UID\nWORKDIR /app\n\nFROM mcr.microsoft.com/dotnet/sdk:10.0 AS build\nARG BUILD_CONFIGURATION=Release\nWORKDIR /src\nCOPY [\"Directory.Build.props\", \".\"]\nCOPY [\"src/Worker/Worker.csproj\", \"src/Worker/\"]\nRUN dotnet restore \"./src/Worker/Worker.csproj\"\nCOPY . .\nWORKDIR \"/src/src/Worker\"\nRUN dotnet build \"./Worker.csproj\" -c $BUILD_CONFIGURATION -o /app/build\n\nFROM build AS publish\nARG BUILD_CONFIGURATION=Release\nRUN dotnet publish \"./Worker.csproj\" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false\n\nFROM base AS final\nWORKDIR /app\nCOPY --from=publish /app/publish .\nENTRYPOINT [\"dotnet\", \"My.Worker_Service.dll\"]\n"
+ },
+ "dockerfiles": [
+  "<ws>/Api/Dockerfile",
+  "<ws>/Tool/Dockerfile",
+  "<ws>/src/Worker/Dockerfile.worker",
+  "<ws>/src/Worker/api.dockerfile"
+ ],
+ "files": [
+  "<ws>/Api/Api.csproj",
+  "<ws>/Api/Dockerfile",
+  "<ws>/App.sln",
+  "<ws>/Core/Core.csproj",
+  "<ws>/Directory.Build.props",
+  "<ws>/Lib/Lib.csproj",
+  "<ws>/README.md",
+  "<ws>/Tool/.dockerignore",
+  "<ws>/Tool/Dockerfile",
+  "<ws>/Tool/Tool.csproj",
+  "<ws>/deploy/compose.prod.yaml",
+  "<ws>/deploy/docker-compose.yml",
+  "<ws>/src/Worker/Dockerfile.worker",
+  "<ws>/src/Worker/Worker.csproj",
+  "<ws>/src/Worker/api.dockerfile"
+ ],
+ "imageName": {
+  "": "app",
+  "--Weird__Name..": "weird_name",
+  "...": "app",
+  "API.Gateway": "api.gateway",
+  "My App": "my-app",
+  "a.b_c-d": "a.b_c-d",
+  "Ünïcode Prøject": "n-code-pr-ject"
+ },
+ "imageNames": {
+  "<ws>/Api/Dockerfile": "api",
+  "<ws>/Tool/Dockerfile": "tool",
+  "<ws>/deploy/compose.prod.yaml": "deploy",
+  "<ws>/deploy/docker-compose.yml": "deploy",
+  "<ws>/src/Worker/Dockerfile.worker": "worker-worker",
+  "<ws>/src/Worker/api.dockerfile": "worker-api"
+ },
+ "isCompose": {
+  "compose.": false,
+  "compose..yml": false,
+  "compose.prod.yaml": true,
+  "compose.x.json": false,
+  "compose.yaml": true,
+  "compose.yml.bak": false,
+  "composer.yaml": false,
+  "docker-compose.override.YML": true,
+  "docker-compose.yml": true
+ },
+ "isDockerfile": {
+  ".dockerfile": false,
+  "Containerfile": true,
+  "Dockerfile": true,
+  "Dockerfile.": false,
+  "Dockerfiles": false,
+  "api.Dockerfile": true,
+  "dockerfile.dev": true,
+  "x.containerfile": true
+ },
+ "parsed": {
+  "containers": [
+   {
+    "age": "2 hours ago",
+    "command": "dotnet Api.dll",
+    "compose_project": "shop",
+    "compose_service": "api",
+    "id": "bbbbbbbbbbbb",
+    "image": "api",
+    "mounts": [],
+    "name": "shop-api-1",
+    "networks": [
+     "shop_default",
+     "bridge"
+    ],
+    "ports": "0.0.0.0:8080->8080/tcp, :::8080->8080/tcp",
+    "state": "restarting",
+    "status": "Restarting (1) 5 seconds ago"
+   },
+   {
+    "age": "2 hours ago",
+    "command": "docker-entrypoint.sh postgres",
+    "compose_project": "shop",
+    "compose_service": "db",
+    "id": "aaaaaaaaaaaa",
+    "image": "postgres:16",
+    "mounts": [
+     "shop_data"
+    ],
+    "name": "shop-db-1",
+    "networks": [
+     "shop_default"
+    ],
+    "ports": "5432/tcp",
+    "state": "running",
+    "status": "Up 2 hours"
+   },
+   {
+    "age": "",
+    "command": "",
+    "compose_project": null,
+    "compose_service": null,
+    "id": "ffffffffffff",
+    "image": "busybox",
+    "mounts": [],
+    "name": "created-one",
+    "networks": [],
+    "ports": "",
+    "state": "created",
+    "status": "Created"
+   },
+   {
+    "age": "",
+    "command": "",
+    "compose_project": null,
+    "compose_service": null,
+    "id": "dddddddddddd",
+    "image": "sha256:1234",
+    "mounts": [],
+    "name": "old",
+    "networks": [],
+    "ports": "",
+    "state": "exited",
+    "status": "Exited (0) 2 weeks ago"
+   },
+   {
+    "age": "3 days ago",
+    "command": "nginx -g 'daemon off;'",
+    "compose_project": null,
+    "compose_service": null,
+    "id": "cccccccccccc",
+    "image": "nginx:latest",
+    "mounts": [
+     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+     "/home/u/site"
+    ],
+    "name": "web",
+    "networks": [
+     "bridge"
+    ],
+    "ports": "",
+    "state": "paused",
+    "status": "Up 3 days (Paused)"
+   }
+  ],
+  "images": [
+   {
+    "created": "2 hours ago",
+    "id": "9f86d081884c",
+    "repository": "api",
+    "size": "220MB",
+    "tag": "latest"
+   },
+   {
+    "created": "",
+    "id": "7777",
+    "repository": "busybox",
+    "size": "",
+    "tag": ""
+   },
+   {
+    "created": "",
+    "id": "5555cccc6666",
+    "repository": "nginx",
+    "size": "180MB",
+    "tag": "latest"
+   },
+   {
+    "created": "1 month ago",
+    "id": "3333bbbb4444",
+    "repository": "postgres",
+    "size": "400MB",
+    "tag": "16"
+   },
+   {
+    "created": "3 weeks ago",
+    "id": "1111aaaa2222",
+    "repository": "<none>",
+    "size": "5MB",
+    "tag": "<none>"
+   }
+  ],
+  "networks": [
+   {
+    "compose_project": "shop",
+    "driver": "bridge",
+    "id": "s1s1s1s1s1s1",
+    "name": "shop_default",
+    "scope": "local"
+   },
+   {
+    "compose_project": null,
+    "driver": "bridge",
+    "id": "z",
+    "name": "zeta",
+    "scope": "local"
+   },
+   {
+    "compose_project": null,
+    "driver": "bridge",
+    "id": "aaaa1111bbbb",
+    "name": "bridge",
+    "scope": "local"
+   },
+   {
+    "compose_project": null,
+    "driver": "host",
+    "id": "h1",
+    "name": "host",
+    "scope": "local"
+   },
+   {
+    "compose_project": null,
+    "driver": "null",
+    "id": "n1",
+    "name": "none",
+    "scope": "local"
+   }
+  ],
+  "volumes": [
+   {
+    "anonymous": false,
+    "compose_project": "shop",
+    "driver": "local",
+    "mountpoint": "/var/lib/docker/volumes/shop_data/_data",
+    "name": "shop_data"
+   },
+   {
+    "anonymous": false,
+    "compose_project": null,
+    "driver": "local",
+    "mountpoint": "/n",
+    "name": "unused"
+   },
+   {
+    "anonymous": true,
+    "compose_project": null,
+    "driver": "local",
+    "mountpoint": "/m",
+    "name": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+   }
+  ]
+ },
+ "projectInfo": {
+  "<ws>/Api/Api.csproj": [
+   "Api",
+   "9.0",
+   true,
+   true,
+   [
+    "<ws>/Core/Core.csproj",
+    "<ws>/Lib/Lib.csproj"
+   ]
+  ],
+  "<ws>/Core/Core.csproj": [
+   "Core",
+   "8.0",
+   false,
+   false,
+   []
+  ],
+  "<ws>/Lib/Lib.csproj": [
+   "Lib",
+   "10.0",
+   false,
+   false,
+   [
+    "<ws>/Core/Core.csproj"
+   ]
+  ],
+  "<ws>/Tool/Tool.csproj": [
+   "Tool",
+   "10.0",
+   false,
+   true,
+   []
+  ],
+  "<ws>/src/Worker/Worker.csproj": [
+   "My.Worker_Service",
+   "10.0",
+   false,
+   true,
+   []
+  ]
+ },
+ "projects": [
+  "<ws>/Api/Api.csproj",
+  "<ws>/Core/Core.csproj",
+  "<ws>/Lib/Lib.csproj",
+  "<ws>/Tool/Tool.csproj",
+  "<ws>/src/Worker/Worker.csproj"
+ ],
+ "runShell": "sh -c 'id=$(docker run --detach --interactive --tty --publish-all \"$1\") || exit; docker port \"$id\"; if [ \"$(docker inspect --format '\\''{{.State.Running}}'\\'' \"$id\")\" = true ]; then docker exec --interactive --tty --workdir / \"$id\" sh -c '\\''command -v bash >/dev/null && exec bash || exec sh'\\''; else echo \"The container exited:\"; docker logs \"$id\"; fi; docker rm --force \"$id\" >/dev/null' sh my/image:1.0",
+ "shellQuote": {
+  "": "''",
+  "$HOME": "'$HOME'",
+  "a=b:c@d%e+f,g/h": "a=b:c@d%e+f,g/h",
+  "it's": "'it'\\''s'",
+  "plain": "plain",
+  "with space": "'with space'",
+  "x\n": "'x\n'"
+ },
+ "tree": {
+  "actions": [
+   {
+    "icon": "refresh",
+    "id": "refresh",
+    "tooltip": "Refresh"
+   },
+   {
+    "icon": "trash",
+    "id": "prune",
+    "tooltip": "System Prune…"
+   }
+  ],
+  "badge": 2,
+  "error": null,
+  "items": [
+   {
+    "children": [
+     {
+      "description": "install them with your package manager",
+      "icon": "warning",
+      "iconColor": "editorWarning.foreground",
+      "id": "setup:plugins",
+      "label": "Docker Compose is missing",
+      "tooltip": "Compose Up/Down needs the Compose plugin. "
+     }
+    ],
+    "count": 1,
+    "header": true,
+    "id": "section:setup",
+    "label": "SETUP"
+   },
+   {
+    "children": [
+     {
+      "actions": [
+       {
+        "icon": "play",
+        "id": "up",
+        "label": "Compose Up",
+        "tooltip": "Compose Up (build and start in the background)"
+       },
+       {
+        "icon": "stop",
+        "id": "down",
+        "label": "Compose Down",
+        "tooltip": "Compose Down (stop and remove the containers)"
+       }
+      ],
+      "description": "deploy",
+      "icon": "file:compose.prod.yaml",
+      "id": "file:<ws>/deploy/compose.prod.yaml",
+      "label": "compose.prod.yaml",
+      "tooltip": "<ws>/deploy/compose.prod.yaml"
+     },
+     {
+      "actions": [
+       {
+        "icon": "play",
+        "id": "up",
+        "label": "Compose Up",
+        "tooltip": "Compose Up (build and start in the background)"
+       },
+       {
+        "icon": "stop",
+        "id": "down",
+        "label": "Compose Down",
+        "tooltip": "Compose Down (stop and remove the containers)"
+       }
+      ],
+      "description": "deploy",
+      "icon": "file:docker-compose.yml",
+      "id": "file:<ws>/deploy/docker-compose.yml",
+      "label": "docker-compose.yml",
+      "tooltip": "<ws>/deploy/docker-compose.yml"
+     },
+     {
+      "actions": [
+       {
+        "icon": "build",
+        "id": "build",
+        "tooltip": "Build Image"
+       }
+      ],
+      "description": "Api",
+      "icon": "file:Dockerfile",
+      "id": "file:<ws>/Api/Dockerfile",
+      "label": "Dockerfile",
+      "tooltip": "<ws>/Api/Dockerfile"
+     },
+     {
+      "actions": [
+       {
+        "icon": "build",
+        "id": "build",
+        "tooltip": "Build Image"
+       }
+      ],
+      "description": "Tool",
+      "icon": "file:Dockerfile",
+      "id": "file:<ws>/Tool/Dockerfile",
+      "label": "Dockerfile",
+      "tooltip": "<ws>/Tool/Dockerfile"
+     },
+     {
+      "actions": [
+       {
+        "icon": "build",
+        "id": "build",
+        "tooltip": "Build Image"
+       }
+      ],
+      "description": "src/Worker",
+      "icon": "file:Dockerfile.worker",
+      "id": "file:<ws>/src/Worker/Dockerfile.worker",
+      "label": "Dockerfile.worker",
+      "tooltip": "<ws>/src/Worker/Dockerfile.worker"
+     },
+     {
+      "actions": [
+       {
+        "icon": "build",
+        "id": "build",
+        "tooltip": "Build Image"
+       }
+      ],
+      "description": "src/Worker",
+      "icon": "file:api.dockerfile",
+      "id": "file:<ws>/src/Worker/api.dockerfile",
+      "label": "api.dockerfile",
+      "tooltip": "<ws>/src/Worker/api.dockerfile"
+     }
+    ],
+    "count": 6,
+    "header": true,
+    "id": "section:files",
+    "label": "WORKSPACE FILES"
+   },
+   {
+    "children": [
+     {
+      "children": [
+       {
+        "actions": [
+         {
+          "icon": "file",
+          "id": "logs",
+          "label": "View Logs",
+          "tooltip": "Logs (follow in a terminal)"
+         },
+         {
+          "icon": "terminal",
+          "id": "shell",
+          "label": "Open Shell",
+          "tooltip": "Open a Shell in the Container"
+         },
+         {
+          "icon": "pause",
+          "id": "pause",
+          "tooltip": "Pause"
+         },
+         {
+          "icon": "refresh",
+          "id": "restart",
+          "tooltip": "Restart"
+         },
+         {
+          "icon": "stop",
+          "id": "stop",
+          "tooltip": "Stop"
+         },
+         {
+          "icon": "info",
+          "id": "inspect",
+          "label": "Inspect",
+          "tooltip": "Inspect (in a terminal)"
+         },
+         {
+          "icon": "trash",
+          "id": "remove",
+          "label": "Remove…",
+          "tooltip": "Remove"
+         }
+        ],
+        "children": [
+         {
+          "description": "image",
+          "icon": "layers",
+          "iconColor": "icon.docker",
+          "id": "detail:bbbbbbbbbbbb:image",
+          "label": "api",
+          "tooltip": "api"
+         },
+         {
+          "description": "status",
+          "icon": "info",
+          "id": "detail:bbbbbbbbbbbb:status",
+          "label": "Restarting (1) 5 seconds ago",
+          "tooltip": "Restarting (1) 5 seconds ago\ncreated 2 hours ago"
+         },
+         {
+          "description": "port",
+          "icon": "arrowDown",
+          "id": "detail:bbbbbbbbbbbb:port0",
+          "label": "0.0.0.0:8080->8080/tcp",
+          "tooltip": "0.0.0.0:8080->8080/tcp"
+         },
+         {
+          "description": "port",
+          "icon": "arrowDown",
+          "id": "detail:bbbbbbbbbbbb:port1",
+          "label": ":::8080->8080/tcp",
+          "tooltip": ":::8080->8080/tcp"
+         },
+         {
+          "description": "network",
+          "icon": "M10,2C8.89,2 8,2.89 8,4V7C8,8.11 8.89,9 10,9H11V11H2V13H6V15H5C3.89,15 3,15.89 3,17V20C3,21.11 3.89,22 5,22H9C10.11,22 11,21.11 11,20V17C11,15.89 10.11,15 9,15H8V13H16V15H15C13.89,15 13,15.89 13,17V20C13,21.11 13.89,22 15,22H19C20.11,22 21,21.11 21,20V17C21,15.89 20.11,15 19,15H18V13H22V11H13V9H14C15.11,9 16,8.11 16,7V4C16,2.89 15.11,2 14,2H10M10,4H14V7H10V4M5,17H9V20H5V17M15,17H19V20H15V17Z",
+          "id": "detail:bbbbbbbbbbbb:net0",
+          "label": "shop_default",
+          "tooltip": "shop_default"
+         },
+         {
+          "description": "network",
+          "icon": "M10,2C8.89,2 8,2.89 8,4V7C8,8.11 8.89,9 10,9H11V11H2V13H6V15H5C3.89,15 3,15.89 3,17V20C3,21.11 3.89,22 5,22H9C10.11,22 11,21.11 11,20V17C11,15.89 10.11,15 9,15H8V13H16V15H15C13.89,15 13,15.89 13,17V20C13,21.11 13.89,22 15,22H19C20.11,22 21,21.11 21,20V17C21,15.89 20.11,15 19,15H18V13H22V11H13V9H14C15.11,9 16,8.11 16,7V4C16,2.89 15.11,2 14,2H10M10,4H14V7H10V4M5,17H9V20H5V17M15,17H19V20H15V17Z",
+          "id": "detail:bbbbbbbbbbbb:net1",
+          "label": "bridge",
+          "tooltip": "bridge"
+         },
+         {
+          "description": "command",
+          "icon": "terminal",
+          "id": "detail:bbbbbbbbbbbb:command",
+          "label": "dotnet Api.dll",
+          "tooltip": "dotnet Api.dll"
+         }
+        ],
+        "description": "0.0.0.0:8080->8080/tcp, :::8080->8080/tcp",
+        "expanded": false,
+        "icon": "breakpoint",
+        "iconColor": "#d29922",
+        "id": "container:bbbbbbbbbbbb",
+        "label": "api",
+        "tooltip": "shop-api-1\nRestarting (1) 5 seconds ago\nimage: api\nid: bbbbbbbbbbbb\nports: 0.0.0.0:8080->8080/tcp, :::8080->8080/tcp"
+       },
+       {
+        "actions": [
+         {
+          "icon": "file",
+          "id": "logs",
+          "label": "View Logs",
+          "tooltip": "Logs (follow in a terminal)"
+         },
+         {
+          "icon": "terminal",
+          "id": "shell",
+          "label": "Open Shell",
+          "tooltip": "Open a Shell in the Container"
+         },
+         {
+          "icon": "pause",
+          "id": "pause",
+          "tooltip": "Pause"
+         },
+         {
+          "icon": "refresh",
+          "id": "restart",
+          "tooltip": "Restart"
+         },
+         {
+          "icon": "stop",
+          "id": "stop",
+          "tooltip": "Stop"
+         },
+         {
+          "icon": "info",
+          "id": "inspect",
+          "label": "Inspect",
+          "tooltip": "Inspect (in a terminal)"
+         },
+         {
+          "icon": "trash",
+          "id": "remove",
+          "label": "Remove…",
+          "tooltip": "Remove"
+         }
+        ],
+        "children": [
+         {
+          "description": "image",
+          "icon": "layers",
+          "iconColor": "icon.docker",
+          "id": "detail:aaaaaaaaaaaa:image",
+          "label": "postgres:16",
+          "tooltip": "postgres:16"
+         },
+         {
+          "description": "status",
+          "icon": "info",
+          "id": "detail:aaaaaaaaaaaa:status",
+          "label": "Up 2 hours",
+          "tooltip": "Up 2 hours\ncreated 2 hours ago"
+         },
+         {
+          "description": "port",
+          "icon": "remove",
+          "id": "detail:aaaaaaaaaaaa:port0",
+          "label": "5432/tcp",
+          "tooltip": "5432/tcp"
+         },
+         {
+          "description": "volume",
+          "icon": "M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z",
+          "id": "detail:aaaaaaaaaaaa:mount0",
+          "label": "shop_data",
+          "tooltip": "shop_data"
+         },
+         {
+          "description": "network",
+          "icon": "M10,2C8.89,2 8,2.89 8,4V7C8,8.11 8.89,9 10,9H11V11H2V13H6V15H5C3.89,15 3,15.89 3,17V20C3,21.11 3.89,22 5,22H9C10.11,22 11,21.11 11,20V17C11,15.89 10.11,15 9,15H8V13H16V15H15C13.89,15 13,15.89 13,17V20C13,21.11 13.89,22 15,22H19C20.11,22 21,21.11 21,20V17C21,15.89 20.11,15 19,15H18V13H22V11H13V9H14C15.11,9 16,8.11 16,7V4C16,2.89 15.11,2 14,2H10M10,4H14V7H10V4M5,17H9V20H5V17M15,17H19V20H15V17Z",
+          "id": "detail:aaaaaaaaaaaa:net0",
+          "label": "shop_default",
+          "tooltip": "shop_default"
+         },
+         {
+          "description": "command",
+          "icon": "terminal",
+          "id": "detail:aaaaaaaaaaaa:command",
+          "label": "docker-entrypoint.sh postgres",
+          "tooltip": "docker-entrypoint.sh postgres"
+         }
+        ],
+        "description": "5432/tcp",
+        "expanded": false,
+        "icon": "breakpoint",
+        "iconColor": "#3fb950",
+        "id": "container:aaaaaaaaaaaa",
+        "label": "db",
+        "tooltip": "shop-db-1\nUp 2 hours\nimage: postgres:16\nid: aaaaaaaaaaaa\nports: 5432/tcp"
+       }
+      ],
+      "icon": "layers",
+      "iconColor": "icon.docker",
+      "id": "group:shop",
+      "label": "shop (compose)"
+     },
+     {
+      "actions": [
+       {
+        "icon": "file",
+        "id": "logs",
+        "label": "View Logs",
+        "tooltip": "Logs (follow in a terminal)"
+       },
+       {
+        "icon": "play",
+        "id": "start",
+        "tooltip": "Start"
+       },
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove"
+       }
+      ],
+      "children": [
+       {
+        "description": "image",
+        "icon": "layers",
+        "iconColor": "icon.docker",
+        "id": "detail:ffffffffffff:image",
+        "label": "busybox",
+        "tooltip": "busybox"
+       },
+       {
+        "description": "status",
+        "icon": "info",
+        "id": "detail:ffffffffffff:status",
+        "label": "Created",
+        "tooltip": "Created"
+       }
+      ],
+      "description": "Created",
+      "expanded": false,
+      "icon": "breakpoint",
+      "iconColor": "#d29922",
+      "id": "container:ffffffffffff",
+      "label": "created-one",
+      "tooltip": "created-one\nCreated\nimage: busybox\nid: ffffffffffff"
+     },
+     {
+      "actions": [
+       {
+        "icon": "file",
+        "id": "logs",
+        "label": "View Logs",
+        "tooltip": "Logs (follow in a terminal)"
+       },
+       {
+        "icon": "play",
+        "id": "start",
+        "tooltip": "Start"
+       },
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove"
+       }
+      ],
+      "children": [
+       {
+        "description": "image",
+        "icon": "layers",
+        "iconColor": "icon.docker",
+        "id": "detail:dddddddddddd:image",
+        "label": "sha256:1234",
+        "tooltip": "sha256:1234"
+       },
+       {
+        "description": "status",
+        "icon": "info",
+        "id": "detail:dddddddddddd:status",
+        "label": "Exited (0) 2 weeks ago",
+        "tooltip": "Exited (0) 2 weeks ago"
+       }
+      ],
+      "description": "Exited (0) 2 weeks ago",
+      "expanded": false,
+      "icon": "breakpoint",
+      "iconColor": "foreground.muted",
+      "id": "container:dddddddddddd",
+      "label": "old",
+      "tooltip": "old\nExited (0) 2 weeks ago\nimage: sha256:1234\nid: dddddddddddd"
+     },
+     {
+      "actions": [
+       {
+        "icon": "file",
+        "id": "logs",
+        "label": "View Logs",
+        "tooltip": "Logs (follow in a terminal)"
+       },
+       {
+        "icon": "play",
+        "id": "unpause",
+        "tooltip": "Unpause"
+       },
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove"
+       }
+      ],
+      "children": [
+       {
+        "description": "image",
+        "icon": "layers",
+        "iconColor": "icon.docker",
+        "id": "detail:cccccccccccc:image",
+        "label": "nginx:latest",
+        "tooltip": "nginx:latest"
+       },
+       {
+        "description": "status",
+        "icon": "info",
+        "id": "detail:cccccccccccc:status",
+        "label": "Up 3 days (Paused)",
+        "tooltip": "Up 3 days (Paused)\ncreated 3 days ago"
+       },
+       {
+        "description": "volume",
+        "icon": "M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z",
+        "id": "detail:cccccccccccc:mount0",
+        "label": "0123456789ab…",
+        "tooltip": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+       },
+       {
+        "description": "bind mount",
+        "icon": "M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z",
+        "id": "detail:cccccccccccc:mount1",
+        "label": "/home/u/site",
+        "tooltip": "/home/u/site"
+       },
+       {
+        "description": "network",
+        "icon": "M10,2C8.89,2 8,2.89 8,4V7C8,8.11 8.89,9 10,9H11V11H2V13H6V15H5C3.89,15 3,15.89 3,17V20C3,21.11 3.89,22 5,22H9C10.11,22 11,21.11 11,20V17C11,15.89 10.11,15 9,15H8V13H16V15H15C13.89,15 13,15.89 13,17V20C13,21.11 13.89,22 15,22H19C20.11,22 21,21.11 21,20V17C21,15.89 20.11,15 19,15H18V13H22V11H13V9H14C15.11,9 16,8.11 16,7V4C16,2.89 15.11,2 14,2H10M10,4H14V7H10V4M5,17H9V20H5V17M15,17H19V20H15V17Z",
+        "id": "detail:cccccccccccc:net0",
+        "label": "bridge",
+        "tooltip": "bridge"
+       },
+       {
+        "description": "command",
+        "icon": "terminal",
+        "id": "detail:cccccccccccc:command",
+        "label": "nginx -g 'daemon off;'",
+        "tooltip": "nginx -g 'daemon off;'"
+       }
+      ],
+      "description": "Up 3 days (Paused)",
+      "expanded": false,
+      "icon": "breakpoint",
+      "iconColor": "#d29922",
+      "id": "container:cccccccccccc",
+      "label": "web",
+      "tooltip": "web\nUp 3 days (Paused)\nimage: nginx:latest\nid: cccccccccccc"
+     }
+    ],
+    "count": 5,
+    "header": true,
+    "id": "section:containers",
+    "label": "CONTAINERS"
+   },
+   {
+    "children": [
+     {
+      "actions": [
+       {
+        "icon": "play",
+        "id": "run",
+        "label": "Run Interactive",
+        "tooltip": "Run and open a shell in it (ports published, removed when the shell exits)"
+       },
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove Image"
+       }
+      ],
+      "description": "220MB · 1 container",
+      "icon": "layers",
+      "iconColor": "icon.docker",
+      "id": "image:9f86d081884c:api:latest",
+      "label": "api:latest",
+      "tooltip": "api:latest\nid: 9f86d081884c\nsize: 220MB\ncreated 2 hours ago"
+     },
+     {
+      "actions": [
+       {
+        "icon": "play",
+        "id": "run",
+        "label": "Run Interactive",
+        "tooltip": "Run and open a shell in it (ports published, removed when the shell exits)"
+       },
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove Image"
+       }
+      ],
+      "description": " · 1 container",
+      "icon": "layers",
+      "iconColor": "icon.docker",
+      "id": "image:7777:busybox",
+      "label": "busybox",
+      "tooltip": "busybox\nid: 7777\nsize: \ncreated "
+     },
+     {
+      "actions": [
+       {
+        "icon": "play",
+        "id": "run",
+        "label": "Run Interactive",
+        "tooltip": "Run and open a shell in it (ports published, removed when the shell exits)"
+       },
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove Image"
+       }
+      ],
+      "description": "180MB · 1 container",
+      "icon": "layers",
+      "iconColor": "icon.docker",
+      "id": "image:5555cccc6666:nginx:latest",
+      "label": "nginx:latest",
+      "tooltip": "nginx:latest\nid: 5555cccc6666\nsize: 180MB\ncreated "
+     },
+     {
+      "actions": [
+       {
+        "icon": "play",
+        "id": "run",
+        "label": "Run Interactive",
+        "tooltip": "Run and open a shell in it (ports published, removed when the shell exits)"
+       },
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove Image"
+       }
+      ],
+      "description": "400MB · 1 container",
+      "icon": "layers",
+      "iconColor": "icon.docker",
+      "id": "image:3333bbbb4444:postgres:16",
+      "label": "postgres:16",
+      "tooltip": "postgres:16\nid: 3333bbbb4444\nsize: 400MB\ncreated 1 month ago"
+     },
+     {
+      "actions": [
+       {
+        "icon": "play",
+        "id": "run",
+        "label": "Run Interactive",
+        "tooltip": "Run and open a shell in it (ports published, removed when the shell exits)"
+       },
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove Image"
+       }
+      ],
+      "description": "5MB",
+      "icon": "layers",
+      "iconColor": "icon.docker",
+      "id": "image:1111aaaa2222:1111aaaa2222",
+      "label": "<none>",
+      "tooltip": "1111aaaa2222\nid: 1111aaaa2222\nsize: 5MB\ncreated 3 weeks ago"
+     }
+    ],
+    "count": 5,
+    "header": true,
+    "id": "section:images",
+    "label": "IMAGES"
+   },
+   {
+    "actions": [
+     {
+      "icon": "trash",
+      "id": "prune-volumes",
+      "tooltip": "Remove Unused Anonymous Volumes…"
+     }
+    ],
+    "children": [
+     {
+      "actions": [
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove Volume"
+       }
+      ],
+      "description": "used by shop-db-1",
+      "icon": "M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z",
+      "iconColor": "icon.docker",
+      "id": "volume:shop_data",
+      "label": "shop_data",
+      "tooltip": "shop_data\ndriver: local\nmountpoint: /var/lib/docker/volumes/shop_data/_data\ncompose project: shop\nused by: shop-db-1"
+     },
+     {
+      "actions": [
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove Volume"
+       }
+      ],
+      "description": "unused",
+      "icon": "M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z",
+      "iconColor": "foreground.muted",
+      "id": "volume:unused",
+      "label": "unused",
+      "tooltip": "unused\ndriver: local\nmountpoint: /n\nnot used by any container"
+     },
+     {
+      "actions": [
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove Volume"
+       }
+      ],
+      "description": "used by web",
+      "icon": "M12,3C7.58,3 4,4.79 4,7C4,9.21 7.58,11 12,11C16.42,11 20,9.21 20,7C20,4.79 16.42,3 12,3M4,9V12C4,14.21 7.58,16 12,16C16.42,16 20,14.21 20,12V9C20,11.21 16.42,13 12,13C7.58,13 4,11.21 4,9M4,14V17C4,19.21 7.58,21 12,21C16.42,21 20,19.21 20,17V14C20,16.21 16.42,18 12,18C7.58,18 4,16.21 4,14Z",
+      "iconColor": "icon.docker",
+      "id": "volume:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "label": "0123456789ab… (anonymous)",
+      "tooltip": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\ndriver: local\nmountpoint: /m\nused by: web"
+     }
+    ],
+    "count": 3,
+    "header": true,
+    "id": "section:volumes",
+    "label": "VOLUMES"
+   },
+   {
+    "children": [
+     {
+      "actions": [
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove Network"
+       }
+      ],
+      "description": "bridge · 2 containers",
+      "icon": "M10,2C8.89,2 8,2.89 8,4V7C8,8.11 8.89,9 10,9H11V11H2V13H6V15H5C3.89,15 3,15.89 3,17V20C3,21.11 3.89,22 5,22H9C10.11,22 11,21.11 11,20V17C11,15.89 10.11,15 9,15H8V13H16V15H15C13.89,15 13,15.89 13,17V20C13,21.11 13.89,22 15,22H19C20.11,22 21,21.11 21,20V17C21,15.89 20.11,15 19,15H18V13H22V11H13V9H14C15.11,9 16,8.11 16,7V4C16,2.89 15.11,2 14,2H10M10,4H14V7H10V4M5,17H9V20H5V17M15,17H19V20H15V17Z",
+      "iconColor": "icon.docker",
+      "id": "network:shop_default",
+      "label": "shop_default",
+      "tooltip": "shop_default\nid: s1s1s1s1s1s1\ndriver: bridge\nscope: local\ncontainers: shop-api-1, shop-db-1"
+     },
+     {
+      "actions": [
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       },
+       {
+        "icon": "trash",
+        "id": "remove",
+        "label": "Remove…",
+        "tooltip": "Remove Network"
+       }
+      ],
+      "description": "bridge",
+      "icon": "M10,2C8.89,2 8,2.89 8,4V7C8,8.11 8.89,9 10,9H11V11H2V13H6V15H5C3.89,15 3,15.89 3,17V20C3,21.11 3.89,22 5,22H9C10.11,22 11,21.11 11,20V17C11,15.89 10.11,15 9,15H8V13H16V15H15C13.89,15 13,15.89 13,17V20C13,21.11 13.89,22 15,22H19C20.11,22 21,21.11 21,20V17C21,15.89 20.11,15 19,15H18V13H22V11H13V9H14C15.11,9 16,8.11 16,7V4C16,2.89 15.11,2 14,2H10M10,4H14V7H10V4M5,17H9V20H5V17M15,17H19V20H15V17Z",
+      "iconColor": "icon.docker",
+      "id": "network:zeta",
+      "label": "zeta",
+      "tooltip": "zeta\nid: z\ndriver: bridge\nscope: local"
+     },
+     {
+      "actions": [
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       }
+      ],
+      "description": "bridge · 2 containers",
+      "icon": "M10,2C8.89,2 8,2.89 8,4V7C8,8.11 8.89,9 10,9H11V11H2V13H6V15H5C3.89,15 3,15.89 3,17V20C3,21.11 3.89,22 5,22H9C10.11,22 11,21.11 11,20V17C11,15.89 10.11,15 9,15H8V13H16V15H15C13.89,15 13,15.89 13,17V20C13,21.11 13.89,22 15,22H19C20.11,22 21,21.11 21,20V17C21,15.89 20.11,15 19,15H18V13H22V11H13V9H14C15.11,9 16,8.11 16,7V4C16,2.89 15.11,2 14,2H10M10,4H14V7H10V4M5,17H9V20H5V17M15,17H19V20H15V17Z",
+      "iconColor": "foreground.muted",
+      "id": "network:bridge",
+      "label": "bridge",
+      "tooltip": "bridge\nid: aaaa1111bbbb\ndriver: bridge\nscope: local\ncontainers: shop-api-1, web"
+     },
+     {
+      "actions": [
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       }
+      ],
+      "description": "host",
+      "icon": "M10,2C8.89,2 8,2.89 8,4V7C8,8.11 8.89,9 10,9H11V11H2V13H6V15H5C3.89,15 3,15.89 3,17V20C3,21.11 3.89,22 5,22H9C10.11,22 11,21.11 11,20V17C11,15.89 10.11,15 9,15H8V13H16V15H15C13.89,15 13,15.89 13,17V20C13,21.11 13.89,22 15,22H19C20.11,22 21,21.11 21,20V17C21,15.89 20.11,15 19,15H18V13H22V11H13V9H14C15.11,9 16,8.11 16,7V4C16,2.89 15.11,2 14,2H10M10,4H14V7H10V4M5,17H9V20H5V17M15,17H19V20H15V17Z",
+      "iconColor": "foreground.muted",
+      "id": "network:host",
+      "label": "host",
+      "tooltip": "host\nid: h1\ndriver: host\nscope: local"
+     },
+     {
+      "actions": [
+       {
+        "icon": "info",
+        "id": "inspect",
+        "label": "Inspect",
+        "tooltip": "Inspect (in a terminal)"
+       }
+      ],
+      "description": "null",
+      "icon": "M10,2C8.89,2 8,2.89 8,4V7C8,8.11 8.89,9 10,9H11V11H2V13H6V15H5C3.89,15 3,15.89 3,17V20C3,21.11 3.89,22 5,22H9C10.11,22 11,21.11 11,20V17C11,15.89 10.11,15 9,15H8V13H16V15H15C13.89,15 13,15.89 13,17V20C13,21.11 13.89,22 15,22H19C20.11,22 21,21.11 21,20V17C21,15.89 20.11,15 19,15H18V13H22V11H13V9H14C15.11,9 16,8.11 16,7V4C16,2.89 15.11,2 14,2H10M10,4H14V7H10V4M5,17H9V20H5V17M15,17H19V20H15V17Z",
+      "iconColor": "foreground.muted",
+      "id": "network:none",
+      "label": "none",
+      "tooltip": "none\nid: n1\ndriver: null\nscope: local"
+     }
+    ],
+    "count": 5,
+    "expanded": false,
+    "header": true,
+    "id": "section:networks",
+    "label": "NETWORKS"
+   }
+  ],
+  "message": "2 running · 5 containers · 5 images · 3 volumes · 5 networks",
+  "type": "setTree",
+  "view": "docker"
+ },
+ "treeStopped": {
+  "actions": [
+   {
+    "icon": "refresh",
+    "id": "refresh",
+    "tooltip": "Refresh"
+   },
+   {
+    "icon": "trash",
+    "id": "prune",
+    "tooltip": "System Prune…"
+   }
+  ],
+  "badge": 0,
+  "error": "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?",
+  "items": [
+   {
+    "children": [
+     {
+      "description": "start Docker Desktop",
+      "icon": "error",
+      "iconColor": "errorForeground",
+      "id": "setup:engine",
+      "label": "The Docker engine isn't running",
+      "tooltip": "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?"
+     },
+     {
+      "description": "install them with your package manager",
+      "icon": "warning",
+      "iconColor": "editorWarning.foreground",
+      "id": "setup:plugins",
+      "label": "Docker Compose is missing",
+      "tooltip": "Compose Up/Down needs the Compose plugin. "
+     }
+    ],
+    "count": 2,
+    "header": true,
+    "id": "section:setup",
+    "label": "SETUP"
+   },
+   {
+    "children": [
+     {
+      "actions": [
+       {
+        "icon": "play",
+        "id": "up",
+        "label": "Compose Up",
+        "tooltip": "Compose Up (build and start in the background)"
+       },
+       {
+        "icon": "stop",
+        "id": "down",
+        "label": "Compose Down",
+        "tooltip": "Compose Down (stop and remove the containers)"
+       }
+      ],
+      "description": "deploy",
+      "icon": "file:compose.prod.yaml",
+      "id": "file:<ws>/deploy/compose.prod.yaml",
+      "label": "compose.prod.yaml",
+      "tooltip": "<ws>/deploy/compose.prod.yaml"
+     },
+     {
+      "actions": [
+       {
+        "icon": "play",
+        "id": "up",
+        "label": "Compose Up",
+        "tooltip": "Compose Up (build and start in the background)"
+       },
+       {
+        "icon": "stop",
+        "id": "down",
+        "label": "Compose Down",
+        "tooltip": "Compose Down (stop and remove the containers)"
+       }
+      ],
+      "description": "deploy",
+      "icon": "file:docker-compose.yml",
+      "id": "file:<ws>/deploy/docker-compose.yml",
+      "label": "docker-compose.yml",
+      "tooltip": "<ws>/deploy/docker-compose.yml"
+     },
+     {
+      "actions": [
+       {
+        "icon": "build",
+        "id": "build",
+        "tooltip": "Build Image"
+       }
+      ],
+      "description": "Api",
+      "icon": "file:Dockerfile",
+      "id": "file:<ws>/Api/Dockerfile",
+      "label": "Dockerfile",
+      "tooltip": "<ws>/Api/Dockerfile"
+     },
+     {
+      "actions": [
+       {
+        "icon": "build",
+        "id": "build",
+        "tooltip": "Build Image"
+       }
+      ],
+      "description": "Tool",
+      "icon": "file:Dockerfile",
+      "id": "file:<ws>/Tool/Dockerfile",
+      "label": "Dockerfile",
+      "tooltip": "<ws>/Tool/Dockerfile"
+     },
+     {
+      "actions": [
+       {
+        "icon": "build",
+        "id": "build",
+        "tooltip": "Build Image"
+       }
+      ],
+      "description": "src/Worker",
+      "icon": "file:Dockerfile.worker",
+      "id": "file:<ws>/src/Worker/Dockerfile.worker",
+      "label": "Dockerfile.worker",
+      "tooltip": "<ws>/src/Worker/Dockerfile.worker"
+     },
+     {
+      "actions": [
+       {
+        "icon": "build",
+        "id": "build",
+        "tooltip": "Build Image"
+       }
+      ],
+      "description": "src/Worker",
+      "icon": "file:api.dockerfile",
+      "id": "file:<ws>/src/Worker/api.dockerfile",
+      "label": "api.dockerfile",
+      "tooltip": "<ws>/src/Worker/api.dockerfile"
+     }
+    ],
+    "count": 6,
+    "header": true,
+    "id": "section:files",
+    "label": "WORKSPACE FILES"
+   }
+  ],
+  "message": "The Docker engine isn't running. See SETUP below.",
+  "type": "setTree",
+  "view": "docker"
+ }
+}

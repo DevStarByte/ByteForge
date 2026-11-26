@@ -1,0 +1,5921 @@
+[
+ {
+  "name": "quotes.csv",
+  "bytes": "aWQsbmFtZSxjb21tZW50DQoxLCJTbWl0aCwgSm9obiIsInNhaWQgIiJoaSIiIg0KMiwibXVsdGkNCmxpbmUiLHgNCjMsImEiYiwib3Blbgo=",
+  "text": "id,name,comment\r\n1,\"Smith, John\",\"said \"\"hi\"\"\"\r\n2,\"multi\r\nline\",x\r\n3,\"a\"b,\"open\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "quotes.csv",
+     "header": true,
+     "expanded": true,
+     "count": 3,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "id",
+       "description": "integer \u00b7 1 \u2026 3 \u00b7 unique",
+       "tooltip": "id: integer\n3 values, 3 distinct\nsum 6",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "name",
+       "description": "text \u00b7 unique",
+       "tooltip": "name: text\n3 values, 3 distinct\nlongest 11 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:2",
+       "label": "comment",
+       "description": "text \u00b7 unique",
+       "tooltip": "comment: text\n3 values, 3 distinct\nlongest 9 characters",
+       "icon": "fileText"
+      }
+     ],
+     "description": "3 rows \u00b7 3 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "3 rows \u00b7 3 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "id",
+    "name",
+    "comment"
+   ],
+   [
+    "1",
+    "Smith, John",
+    "said \"hi\""
+   ],
+   [
+    "2",
+    "multi\r\nline",
+    "x"
+   ],
+   [
+    "3",
+    "ab",
+    "open\n"
+   ]
+  ],
+  "header": true,
+  "table": "id \u2502 name        \u2502 comment\n\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n 1 \u2502 Smith, John \u2502 said \"hi\"\n 2 \u2502 multi\r line \u2502 x\n 3 \u2502 ab          \u2502 open\n",
+  "json": "[\n  {\n    \"id\": 1,\n    \"name\": \"Smith, John\",\n    \"comment\": \"said \\\"hi\\\"\"\n  },\n  {\n    \"id\": 2,\n    \"name\": \"multi\\r\\nline\",\n    \"comment\": \"x\"\n  },\n  {\n    \"id\": 3,\n    \"name\": \"ab\",\n    \"comment\": \"open\\n\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 2
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 2
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 11
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 11
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 9
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 9
+    }
+   ]
+  ],
+  "values": {
+   "said \"hi\"": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "open\n": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "Smith, John": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "name": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "comment": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "multi\r\nline": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "3": [
+    "integer",
+    "integer",
+    "3.0",
+    "3.0",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "ab": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "x": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "id": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "preise.csv",
+  "bytes": "TmFtZTtQcmVpcztPcnQ7TWVuZ2UNCkFwZmVsOzEsNTA7QmVybGluOzEuMjM0DQpCaXJuZTsyLDc1O0v2bG47MTINCktpd2k7O0Jvbm47My4wMDAuMDAwDQo=",
+  "text": "Name;Preis;Ort;Menge\r\nApfel;1,50;Berlin;1.234\r\nBirne;2,75;K\u00f6ln;12\r\nKiwi;;Bonn;3.000.000\r\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "preise.csv",
+     "header": true,
+     "expanded": true,
+     "count": 4,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "Name",
+       "description": "text \u00b7 unique",
+       "tooltip": "Name: text\n3 values, 3 distinct\nlongest 5 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:1",
+       "label": "Preis",
+       "description": "decimal \u00b7 1.5 \u2026 2.75 \u00b7 1 empty \u00b7 unique",
+       "tooltip": "Preis: decimal\n2 values, 2 distinct\nsum 4.25",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:2",
+       "label": "Ort",
+       "description": "text \u00b7 unique",
+       "tooltip": "Ort: text\n3 values, 3 distinct\nlongest 6 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:3",
+       "label": "Menge",
+       "description": "integer \u00b7 12 \u2026 3000000 \u00b7 unique",
+       "tooltip": "Menge: integer\n3 values, 3 distinct\nsum 3001246",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "3 rows \u00b7 4 columns \u00b7 semicolon separated"
+    }
+   ],
+   "message": "3 rows \u00b7 4 columns \u00b7 semicolon separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ";",
+  "rows": [
+   [
+    "Name",
+    "Preis",
+    "Ort",
+    "Menge"
+   ],
+   [
+    "Apfel",
+    "1,50",
+    "Berlin",
+    "1.234"
+   ],
+   [
+    "Birne",
+    "2,75",
+    "K\u00f6ln",
+    "12"
+   ],
+   [
+    "Kiwi",
+    "",
+    "Bonn",
+    "3.000.000"
+   ]
+  ],
+  "header": true,
+  "table": "Name  \u2502 Preis \u2502 Ort    \u2502 Menge\n\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nApfel \u2502  1,50 \u2502 Berlin \u2502     1.234\nBirne \u2502  2,75 \u2502 K\u00f6ln   \u2502        12\nKiwi  \u2502       \u2502 Bonn   \u2502 3.000.000\n",
+  "json": "[\n  {\n    \"Name\": \"Apfel\",\n    \"Preis\": 1.5,\n    \"Ort\": \"Berlin\",\n    \"Menge\": 1234\n  },\n  {\n    \"Name\": \"Birne\",\n    \"Preis\": 2.75,\n    \"Ort\": \"K\u00f6ln\",\n    \"Menge\": 12\n  },\n  {\n    \"Name\": \"Kiwi\",\n    \"Preis\": null,\n    \"Ort\": \"Bonn\",\n    \"Menge\": 3000000\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 5
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 5
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 3,
+     "count": 4,
+     "longest": 5
+    },
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 3,
+     "count": 4,
+     "longest": 5
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 6
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 6
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 9
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 9
+    }
+   ]
+  ],
+  "values": {
+   "12": [
+    "integer",
+    "integer",
+    "12.0",
+    "12.0",
+    null
+   ],
+   "Preis": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "": [
+    "empty",
+    "empty",
+    "null",
+    "null",
+    null
+   ],
+   "Bonn": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "2,75": [
+    "decimal",
+    "decimal",
+    "2.75",
+    "2.75",
+    null
+   ],
+   "Apfel": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "Name": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "Birne": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1.234": [
+    "integer",
+    "integer",
+    "1234.0",
+    "1234.0",
+    null
+   ],
+   "1,50": [
+    "decimal",
+    "decimal",
+    "1.5",
+    "1.5",
+    null
+   ],
+   "K\u00f6ln": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "Berlin": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "Kiwi": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "Menge": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "3.000.000": [
+    "integer",
+    "integer",
+    "3000000.0",
+    "3000000.0",
+    null
+   ],
+   "Ort": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "tabs.tsv",
+  "bytes": "YSxiCWMKMSw1CTIK",
+  "text": "a,b\tc\n1,5\t2\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "tabs.tsv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a,b",
+       "description": "decimal \u00b7 1.5 \u2026 1.5 \u00b7 1 distinct",
+       "tooltip": "a,b: decimal\n1 values, 1 distinct\nsum 1.5",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "c",
+       "description": "integer \u00b7 2 \u2026 2 \u00b7 1 distinct",
+       "tooltip": "c: integer\n1 values, 1 distinct\nsum 2",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "1 rows \u00b7 2 columns \u00b7 tab separated"
+    }
+   ],
+   "message": "1 rows \u00b7 2 columns \u00b7 tab separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": "\t",
+  "rows": [
+   [
+    "a,b",
+    "c"
+   ],
+   [
+    "1,5",
+    "2"
+   ]
+  ],
+  "header": true,
+  "table": "a,b \u2502 c\n\u2500\u2500\u2500\u2500\u253c\u2500\u2500\n1,5 \u2502 2\n",
+  "json": "[\n  {\n    \"a,b\": 1.5,\n    \"c\": 2\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ]
+  ],
+  "values": {
+   "a,b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "c": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1,5": [
+    "decimal",
+    "decimal",
+    "1.5",
+    "1.5",
+    null
+   ],
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ]
+  }
+ },
+ {
+  "name": "pipes.psv",
+  "bytes": "eHx5fHoKMXwyfDMKfCJxfHIifAo=",
+  "text": "x|y|z\n1|2|3\n|\"q|r\"|\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "pipes.psv",
+     "header": true,
+     "expanded": true,
+     "count": 3,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "x",
+       "description": "integer \u00b7 1 \u2026 1 \u00b7 1 empty \u00b7 unique",
+       "tooltip": "x: integer\n1 values, 1 distinct\nsum 1",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "y",
+       "description": "text \u00b7 unique",
+       "tooltip": "y: text\n2 values, 2 distinct\nlongest 3 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:2",
+       "label": "z",
+       "description": "integer \u00b7 3 \u2026 3 \u00b7 1 empty \u00b7 unique",
+       "tooltip": "z: integer\n1 values, 1 distinct\nsum 3",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "2 rows \u00b7 3 columns \u00b7 pipe separated"
+    }
+   ],
+   "message": "2 rows \u00b7 3 columns \u00b7 pipe separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": "|",
+  "rows": [
+   [
+    "x",
+    "y",
+    "z"
+   ],
+   [
+    "1",
+    "2",
+    "3"
+   ],
+   [
+    "",
+    "q|r",
+    ""
+   ]
+  ],
+  "header": true,
+  "table": "x \u2502 y   \u2502 z\n\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\n1 \u2502 2   \u2502 3\n  \u2502 q|r \u2502\n",
+  "json": "[\n  {\n    \"x\": 1,\n    \"y\": \"2\",\n    \"z\": 3\n  },\n  {\n    \"x\": null,\n    \"y\": \"q|r\",\n    \"z\": null\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 3
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 1
+    }
+   ]
+  ],
+  "values": {
+   "": [
+    "empty",
+    "empty",
+    "null",
+    "null",
+    null
+   ],
+   "q|r": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "y": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "3": [
+    "integer",
+    "integer",
+    "3.0",
+    "3.0",
+    null
+   ],
+   "z": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "x": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "mac.csv",
+  "bytes": "YSxiDWMsZA0=",
+  "text": "a,b\rc,d\r",
+  "truncated": false,
+  "tree_error": "Error: new-line character seen in unquoted field - do you need to open the file with newline=''?",
+  "sep": ",",
+  "error": "Error: new-line character seen in unquoted field - do you need to open the file with newline=''?"
+ },
+ {
+  "name": "blank.csv",
+  "bytes": "CgogLCAKCmEsYgoKMSwyCiAgIAo=",
+  "text": "\n\n , \n\na,b\n\n1,2\n   \n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "blank.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a",
+       "description": "integer \u00b7 1 \u2026 1 \u00b7 1 distinct",
+       "tooltip": "a: integer\n1 values, 1 distinct\nsum 1",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "b",
+       "description": "integer \u00b7 2 \u2026 2 \u00b7 1 distinct",
+       "tooltip": "b: integer\n1 values, 1 distinct\nsum 2",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "1 rows \u00b7 2 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "1 rows \u00b7 2 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "a",
+    "b"
+   ],
+   [
+    "1",
+    "2"
+   ]
+  ],
+  "header": true,
+  "table": "a \u2502 b\n\u2500\u2500\u253c\u2500\u2500\n1 \u2502 2\n",
+  "json": "[\n  {\n    \"a\": 1,\n    \"b\": 2\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ]
+  ],
+  "values": {
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "ragged.csv",
+  "bytes": "aDEsaDIsaDMKMQoxLDIsMyw0LDUKLCwK",
+  "text": "h1,h2,h3\n1\n1,2,3,4,5\n,,\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "ragged.csv",
+     "header": true,
+     "expanded": true,
+     "count": 3,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "h1",
+       "description": "integer \u00b7 1 \u2026 1 \u00b7 1 distinct",
+       "tooltip": "h1: integer\n2 values, 1 distinct\nsum 2",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "h2",
+       "description": "integer \u00b7 2 \u2026 2 \u00b7 1 empty \u00b7 unique",
+       "tooltip": "h2: integer\n1 values, 1 distinct\nsum 2",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:2",
+       "label": "h3",
+       "description": "integer \u00b7 3 \u2026 3 \u00b7 1 empty \u00b7 unique",
+       "tooltip": "h3: integer\n1 values, 1 distinct\nsum 3",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "2 rows \u00b7 3 columns \u00b7 comma separated \u00b7 rows have 1\u20135 fields"
+    }
+   ],
+   "message": "2 rows \u00b7 3 columns \u00b7 comma separated \u00b7 rows have 1\u20135 fields",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "h1",
+    "h2",
+    "h3"
+   ],
+   [
+    "1"
+   ],
+   [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5"
+   ]
+  ],
+  "header": true,
+  "table": "h1 \u2502 h2 \u2502 h3 \u2502   \u2502\n\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u253c\u2500\u2500\n 1 \u2502    \u2502    \u2502   \u2502\n 1 \u2502  2 \u2502  3 \u2502 4 \u2502 5\n",
+  "json": "[\n  {\n    \"h1\": 1,\n    \"h2\": null,\n    \"h3\": null\n  },\n  {\n    \"h1\": 1,\n    \"h2\": 2,\n    \"h3\": 3\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 2 distinct",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 3,
+     "longest": 2
+    },
+    {
+     "describe": "text \u00b7 2 distinct",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 3,
+     "longest": 2
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 2
+    },
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 2
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 2
+    },
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 2
+    }
+   ],
+   [
+    {
+     "describe": "integer \u00b7 4 \u2026 4 \u00b7 2 empty \u00b7 unique",
+     "type": "integer",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "sum": "4",
+     "min": "4",
+     "max": "4"
+    },
+    {
+     "describe": "integer \u00b7 4 \u2026 4 \u00b7 2 empty \u00b7 unique",
+     "type": "integer",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "sum": "4",
+     "min": "4",
+     "max": "4"
+    }
+   ],
+   [
+    {
+     "describe": "integer \u00b7 5 \u2026 5 \u00b7 2 empty \u00b7 unique",
+     "type": "integer",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "sum": "5",
+     "min": "5",
+     "max": "5"
+    },
+    {
+     "describe": "integer \u00b7 5 \u2026 5 \u00b7 2 empty \u00b7 unique",
+     "type": "integer",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "sum": "5",
+     "min": "5",
+     "max": "5"
+    }
+   ]
+  ],
+  "values": {
+   "h3": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "h1": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "3": [
+    "integer",
+    "integer",
+    "3.0",
+    "3.0",
+    null
+   ],
+   "h2": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "4": [
+    "integer",
+    "integer",
+    "4.0",
+    "4.0",
+    null
+   ],
+   "5": [
+    "integer",
+    "integer",
+    "5.0",
+    "5.0",
+    null
+   ]
+  }
+ },
+ {
+  "name": "bom.csv",
+  "bytes": "77u/Y29sLHZhbArDpCwxCg==",
+  "text": "col,val\n\u00e4,1\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "bom.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "col",
+       "description": "text \u00b7 1 distinct",
+       "tooltip": "col: text\n1 values, 1 distinct\nlongest 1 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:1",
+       "label": "val",
+       "description": "integer \u00b7 1 \u2026 1 \u00b7 1 distinct",
+       "tooltip": "val: integer\n1 values, 1 distinct\nsum 1",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "1 rows \u00b7 2 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "1 rows \u00b7 2 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "col",
+    "val"
+   ],
+   [
+    "\u00e4",
+    "1"
+   ]
+  ],
+  "header": true,
+  "table": "col \u2502 val\n\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\n\u00e4   \u2502   1\n",
+  "json": "[\n  {\n    \"col\": \"\u00e4\",\n    \"val\": 1\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    }
+   ]
+  ],
+  "values": {
+   "\u00e4": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "val": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "col": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "numbers.csv",
+  "bytes": "aW50LGRlYyxjb2RlLHRob3UsZXhwLG5lZyxzcGFjZSxhcG9zCjEsMS41LDAwNywiMSwyMzQiLDFlNSwtMywxIDIzNCwxJzIzNAoyLC41LDAwOCwiMSwyMzQsNTY3IiwyLjVFLTMsKzQsMTIgMzQ1LDEyJzM0NQozLDMuMjUsMCwiOTk5IiwxZTQwMCwtMCwxLDcK",
+  "text": "int,dec,code,thou,exp,neg,space,apos\n1,1.5,007,\"1,234\",1e5,-3,1 234,1'234\n2,.5,008,\"1,234,567\",2.5E-3,+4,12 345,12'345\n3,3.25,0,\"999\",1e400,-0,1,7\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "numbers.csv",
+     "header": true,
+     "expanded": true,
+     "count": 8,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "int",
+       "description": "integer \u00b7 1 \u2026 3 \u00b7 unique",
+       "tooltip": "int: integer\n3 values, 3 distinct\nsum 6",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "dec",
+       "description": "decimal \u00b7 0.5 \u2026 3.25 \u00b7 unique",
+       "tooltip": "dec: decimal\n3 values, 3 distinct\nsum 5.25",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:2",
+       "label": "code",
+       "description": "text \u00b7 unique",
+       "tooltip": "code: text\n3 values, 3 distinct\nlongest 3 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:3",
+       "label": "thou",
+       "description": "integer \u00b7 999 \u2026 1234567 \u00b7 unique",
+       "tooltip": "thou: integer\n3 values, 3 distinct\nsum 1236800",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:4",
+       "label": "exp",
+       "description": "decimal \u00b7 0.0025 \u2026 inf \u00b7 unique",
+       "tooltip": "exp: decimal\n3 values, 3 distinct\nsum inf",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:5",
+       "label": "neg",
+       "description": "integer \u00b7 -3 \u2026 4 \u00b7 unique",
+       "tooltip": "neg: integer\n3 values, 3 distinct\nsum 1",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:6",
+       "label": "space",
+       "description": "integer \u00b7 1 \u2026 12345 \u00b7 unique",
+       "tooltip": "space: integer\n3 values, 3 distinct\nsum 13580",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:7",
+       "label": "apos",
+       "description": "integer \u00b7 7 \u2026 12345 \u00b7 unique",
+       "tooltip": "apos: integer\n3 values, 3 distinct\nsum 13586",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "3 rows \u00b7 8 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "3 rows \u00b7 8 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "int",
+    "dec",
+    "code",
+    "thou",
+    "exp",
+    "neg",
+    "space",
+    "apos"
+   ],
+   [
+    "1",
+    "1.5",
+    "007",
+    "1,234",
+    "1e5",
+    "-3",
+    "1 234",
+    "1'234"
+   ],
+   [
+    "2",
+    ".5",
+    "008",
+    "1,234,567",
+    "2.5E-3",
+    "+4",
+    "12 345",
+    "12'345"
+   ],
+   [
+    "3",
+    "3.25",
+    "0",
+    "999",
+    "1e400",
+    "-0",
+    "1",
+    "7"
+   ]
+  ],
+  "header": true,
+  "table": "int \u2502 dec  \u2502 code \u2502 thou      \u2502 exp    \u2502 neg \u2502 space  \u2502 apos\n\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  1 \u2502  1.5 \u2502 007  \u2502     1,234 \u2502    1e5 \u2502  -3 \u2502  1 234 \u2502  1'234\n  2 \u2502   .5 \u2502 008  \u2502 1,234,567 \u2502 2.5E-3 \u2502  +4 \u2502 12 345 \u2502 12'345\n  3 \u2502 3.25 \u2502 0    \u2502       999 \u2502  1e400 \u2502  -0 \u2502      1 \u2502      7\n",
+  "json": "[\n  {\n    \"int\": 1,\n    \"dec\": 1.5,\n    \"code\": \"007\",\n    \"thou\": 1234,\n    \"exp\": 100000.0,\n    \"neg\": -3,\n    \"space\": 1234,\n    \"apos\": 1234\n  },\n  {\n    \"int\": 2,\n    \"dec\": 0.5,\n    \"code\": \"008\",\n    \"thou\": 1234567,\n    \"exp\": 0.0025,\n    \"neg\": 4,\n    \"space\": 12345,\n    \"apos\": 12345\n  },\n  {\n    \"int\": 3,\n    \"dec\": 3.25,\n    \"code\": \"0\",\n    \"thou\": 999,\n    \"exp\": Infinity,\n    \"neg\": 0,\n    \"space\": 1,\n    \"apos\": 7\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 3
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 4
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 4
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 4
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 4
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 9
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 9
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 6
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 6
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 3
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 6
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 6
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 6
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 6
+    }
+   ]
+  ],
+  "values": {
+   "-3": [
+    "integer",
+    "integer",
+    "-3.0",
+    "-3.0",
+    null
+   ],
+   "neg": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "+4": [
+    "integer",
+    "integer",
+    "4.0",
+    "4.0",
+    null
+   ],
+   "3": [
+    "integer",
+    "integer",
+    "3.0",
+    "3.0",
+    null
+   ],
+   "007": [
+    "text",
+    "text",
+    "7.0",
+    "7.0",
+    null
+   ],
+   "1,234": [
+    "integer",
+    "decimal",
+    "1234.0",
+    "1.234",
+    null
+   ],
+   "1'234": [
+    "integer",
+    "integer",
+    "1234.0",
+    "1234.0",
+    null
+   ],
+   "1.5": [
+    "decimal",
+    "decimal",
+    "1.5",
+    "1.5",
+    null
+   ],
+   "1e400": [
+    "decimal",
+    "decimal",
+    "Infinity",
+    "Infinity",
+    null
+   ],
+   "2.5E-3": [
+    "decimal",
+    "decimal",
+    "0.0025",
+    "0.0025",
+    null
+   ],
+   "code": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "7": [
+    "integer",
+    "integer",
+    "7.0",
+    "7.0",
+    null
+   ],
+   "1e5": [
+    "decimal",
+    "decimal",
+    "100000.0",
+    "100000.0",
+    null
+   ],
+   "space": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "3.25": [
+    "decimal",
+    "decimal",
+    "3.25",
+    "3.25",
+    null
+   ],
+   "int": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "12 345": [
+    "integer",
+    "integer",
+    "12345.0",
+    "12345.0",
+    null
+   ],
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "thou": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "exp": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "12'345": [
+    "integer",
+    "integer",
+    "12345.0",
+    "12345.0",
+    null
+   ],
+   "-0": [
+    "integer",
+    "integer",
+    "-0.0",
+    "-0.0",
+    null
+   ],
+   ".5": [
+    "decimal",
+    "decimal",
+    "0.5",
+    "0.5",
+    null
+   ],
+   "008": [
+    "text",
+    "text",
+    "8.0",
+    "8.0",
+    null
+   ],
+   "1,234,567": [
+    "integer",
+    "integer",
+    "1234567.0",
+    "1234567.0",
+    null
+   ],
+   "dec": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "0": [
+    "integer",
+    "integer",
+    "0.0",
+    "0.0",
+    null
+   ],
+   "apos": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1 234": [
+    "integer",
+    "integer",
+    "1234.0",
+    "1234.0",
+    null
+   ],
+   "999": [
+    "integer",
+    "integer",
+    "999.0",
+    "999.0",
+    null
+   ]
+  }
+ },
+ {
+  "name": "dates.csv",
+  "bytes": "ZCx0LGRlLHVzLGlzbwoyMDI0LTA1LTAxLDIwMjQtMDUtMDFUMTA6MDA6MDBaLDAxLjA1LjIwMjQgMTA6MDAsMDUvMDEvMjAyNCwyMDI0LTA1LTAxVDEwOjAwOjAwLjEyMyswMjowMAoyMDIzLTEyLTMxLDIwMjQtMDUtMDF0MDk6MDA6MDAsMzEuMDIuMjAyNCwxMy8wMS8yMDI0LDIwMjQtMDUtMDEgMTA6MDA6MDAKMjAyNC0xMy0wMSwyMDI0LTA1LTAxVDEwOjAwOjAwKzAxMDAsMS41LjIwMjQgOTowNTowNywxLzIvMjAyNCwyMDI0LzA1LzAxCg==",
+  "text": "d,t,de,us,iso\n2024-05-01,2024-05-01T10:00:00Z,01.05.2024 10:00,05/01/2024,2024-05-01T10:00:00.123+02:00\n2023-12-31,2024-05-01t09:00:00,31.02.2024,13/01/2024,2024-05-01 10:00:00\n2024-13-01,2024-05-01T10:00:00+0100,1.5.2024 9:05:07,1/2/2024,2024/05/01\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "dates.csv",
+     "header": true,
+     "expanded": true,
+     "count": 5,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "d",
+       "description": "text \u00b7 unique",
+       "tooltip": "d: text\n3 values, 3 distinct\nlongest 10 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:1",
+       "label": "t",
+       "description": "date \u00b7 2024-05-01 \u2026 2024-05-01 \u00b7 unique",
+       "tooltip": "t: date\n3 values, 3 distinct",
+       "icon": "fileConfig"
+      },
+      {
+       "id": "col:2",
+       "label": "de",
+       "description": "text \u00b7 unique",
+       "tooltip": "de: text\n3 values, 3 distinct\nlongest 16 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:3",
+       "label": "us",
+       "description": "date \u00b7 2024-01-02 \u2026 2024-05-01 \u00b7 unique",
+       "tooltip": "us: date\n3 values, 3 distinct",
+       "icon": "fileConfig"
+      },
+      {
+       "id": "col:4",
+       "label": "iso",
+       "description": "date \u00b7 2024-05-01 \u2026 2024-05-01 \u00b7 unique",
+       "tooltip": "iso: date\n3 values, 3 distinct",
+       "icon": "fileConfig"
+      }
+     ],
+     "description": "3 rows \u00b7 5 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "3 rows \u00b7 5 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "d",
+    "t",
+    "de",
+    "us",
+    "iso"
+   ],
+   [
+    "2024-05-01",
+    "2024-05-01T10:00:00Z",
+    "01.05.2024 10:00",
+    "05/01/2024",
+    "2024-05-01T10:00:00.123+02:00"
+   ],
+   [
+    "2023-12-31",
+    "2024-05-01t09:00:00",
+    "31.02.2024",
+    "13/01/2024",
+    "2024-05-01 10:00:00"
+   ],
+   [
+    "2024-13-01",
+    "2024-05-01T10:00:00+0100",
+    "1.5.2024 9:05:07",
+    "1/2/2024",
+    "2024/05/01"
+   ]
+  ],
+  "header": true,
+  "table": "d          \u2502 t                        \u2502 de               \u2502 us         \u2502 iso\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n2024-05-01 \u2502 2024-05-01T10:00:00Z     \u2502 01.05.2024 10:00 \u2502 05/01/2024 \u2502 2024-05-01T10:00:00.123+02:00\n2023-12-31 \u2502 2024-05-01t09:00:00      \u2502 31.02.2024       \u2502 13/01/2024 \u2502 2024-05-01 10:00:00\n2024-13-01 \u2502 2024-05-01T10:00:00+0100 \u2502 1.5.2024 9:05:07 \u2502 1/2/2024   \u2502 2024/05/01\n",
+  "json": "[\n  {\n    \"d\": \"2024-05-01\",\n    \"t\": \"2024-05-01T10:00:00Z\",\n    \"de\": \"01.05.2024 10:00\",\n    \"us\": \"05/01/2024\",\n    \"iso\": \"2024-05-01T10:00:00.123+02:00\"\n  },\n  {\n    \"d\": \"2023-12-31\",\n    \"t\": \"2024-05-01t09:00:00\",\n    \"de\": \"31.02.2024\",\n    \"us\": \"13/01/2024\",\n    \"iso\": \"2024-05-01 10:00:00\"\n  },\n  {\n    \"d\": \"2024-13-01\",\n    \"t\": \"2024-05-01T10:00:00+0100\",\n    \"de\": \"1.5.2024 9:05:07\",\n    \"us\": \"1/2/2024\",\n    \"iso\": \"2024/05/01\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 10
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 10
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 24
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 24
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 16
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 16
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 10
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 10
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 29
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 29
+    }
+   ]
+  ],
+  "values": {
+   "de": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "2023-12-31": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2023-12-31 00:00:00"
+   ],
+   "1/2/2024": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-01-02 00:00:00"
+   ],
+   "05/01/2024": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-01 00:00:00"
+   ],
+   "2024/05/01": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-01 00:00:00"
+   ],
+   "31.02.2024": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1.5.2024 9:05:07": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-01 09:05:07"
+   ],
+   "13/01/2024": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-01-13 00:00:00"
+   ],
+   "2024-05-01T10:00:00.123+02:00": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-01 10:00:00.123000"
+   ],
+   "2024-05-01T10:00:00+0100": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-01 10:00:00"
+   ],
+   "2024-05-01T10:00:00Z": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-01 10:00:00"
+   ],
+   "t": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "iso": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "d": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "us": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "2024-13-01": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "2024-05-01 10:00:00": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-01 10:00:00"
+   ],
+   "2024-05-01t09:00:00": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-01 09:00:00"
+   ],
+   "01.05.2024 10:00": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-01 10:00:00"
+   ],
+   "2024-05-01": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-01 00:00:00"
+   ]
+  }
+ },
+ {
+  "name": "bools.csv",
+  "bytes": "YSxiLGMKdHJ1ZSxKYSx5CkZBTFNFLG5laW4sbgp5ZXMsbWF5YmUsMQo=",
+  "text": "a,b,c\ntrue,Ja,y\nFALSE,nein,n\nyes,maybe,1\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "bools.csv",
+     "header": true,
+     "expanded": true,
+     "count": 3,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a",
+       "description": "boolean \u00b7 unique",
+       "tooltip": "a: boolean\n3 values, 3 distinct\nlongest 5 characters",
+       "icon": "check"
+      },
+      {
+       "id": "col:1",
+       "label": "b",
+       "description": "text \u00b7 unique",
+       "tooltip": "b: text\n3 values, 3 distinct\nlongest 5 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:2",
+       "label": "c",
+       "description": "mixed \u00b7 unique",
+       "tooltip": "c: mixed\n3 values, 3 distinct\nlongest 1 characters",
+       "icon": "warning"
+      }
+     ],
+     "description": "3 rows \u00b7 3 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "3 rows \u00b7 3 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "a",
+    "b",
+    "c"
+   ],
+   [
+    "true",
+    "Ja",
+    "y"
+   ],
+   [
+    "FALSE",
+    "nein",
+    "n"
+   ],
+   [
+    "yes",
+    "maybe",
+    "1"
+   ]
+  ],
+  "header": true,
+  "table": "a     \u2502 b     \u2502 c\n\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\ntrue  \u2502 Ja    \u2502 y\nFALSE \u2502 nein  \u2502 n\nyes   \u2502 maybe \u2502 1\n",
+  "json": "[\n  {\n    \"a\": true,\n    \"b\": \"Ja\",\n    \"c\": \"y\"\n  },\n  {\n    \"a\": false,\n    \"b\": \"nein\",\n    \"c\": \"n\"\n  },\n  {\n    \"a\": true,\n    \"b\": \"maybe\",\n    \"c\": \"1\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 5
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 5
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 5
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 5
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 1
+    }
+   ]
+  ],
+  "values": {
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "Ja": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "yes": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "true": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "FALSE": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "y": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "maybe": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "nein": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "c": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "n": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "emoji.csv",
+  "bytes": "bmFtZSx0ZXh0CvCfmIAgZmFjZSwibG9uZyDwn5iAIHRleHQgbG9uZyDwn5iAIHRleHQgbG9uZyDwn5iAIHRleHQgbG9uZyDwn5iAIHRleHQgbG9uZyDwn5iAIHRleHQgIgpiLCJsaW5lMQpsaW5lMiIK",
+  "text": "name,text\n\ud83d\ude00 face,\"long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text \"\nb,\"line1\nline2\"\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "emoji.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "name",
+       "description": "text \u00b7 unique",
+       "tooltip": "name: text\n2 values, 2 distinct\nlongest 6 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:1",
+       "label": "text",
+       "description": "text \u00b7 unique",
+       "tooltip": "text: text\n2 values, 2 distinct\nlongest 60 characters",
+       "icon": "fileText"
+      }
+     ],
+     "description": "2 rows \u00b7 2 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "2 rows \u00b7 2 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "name",
+    "text"
+   ],
+   [
+    "\ud83d\ude00 face",
+    "long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text "
+   ],
+   [
+    "b",
+    "line1\nline2"
+   ]
+  ],
+  "header": true,
+  "table": "name   \u2502 text\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\ud83d\ude00 face \u2502 long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text lon\u2026\nb      \u2502 line1 line2\n",
+  "json": "[\n  {\n    \"name\": \"\ud83d\ude00 face\",\n    \"text\": \"long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text \"\n  },\n  {\n    \"name\": \"b\",\n    \"text\": \"line1\\nline2\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 6
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 6
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 60
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 60
+    }
+   ]
+  ],
+  "values": {
+   "text": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "name": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text long \ud83d\ude00 text ": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "line1\nline2": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "\ud83d\ude00 face": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "single.csv",
+  "bytes": "b25seSxvbmUscm93Cg==",
+  "text": "only,one,row\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "single.csv",
+     "header": true,
+     "expanded": true,
+     "count": 3,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "only",
+       "description": "empty \u00b7 0 distinct",
+       "tooltip": "only: empty\n0 values, 0 distinct",
+       "icon": "remove"
+      },
+      {
+       "id": "col:1",
+       "label": "one",
+       "description": "empty \u00b7 0 distinct",
+       "tooltip": "one: empty\n0 values, 0 distinct",
+       "icon": "remove"
+      },
+      {
+       "id": "col:2",
+       "label": "row",
+       "description": "empty \u00b7 0 distinct",
+       "tooltip": "row: empty\n0 values, 0 distinct",
+       "icon": "remove"
+      }
+     ],
+     "description": "0 rows \u00b7 3 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "0 rows \u00b7 3 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "only",
+    "one",
+    "row"
+   ]
+  ],
+  "header": true,
+  "table": "only \u2502 one \u2502 row\n\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\n",
+  "json": "[]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 1 distinct",
+     "type": "text",
+     "empty": 0,
+     "distinct": 1,
+     "count": 1,
+     "longest": 4
+    },
+    {
+     "describe": "text \u00b7 1 distinct",
+     "type": "text",
+     "empty": 0,
+     "distinct": 1,
+     "count": 1,
+     "longest": 4
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 1 distinct",
+     "type": "text",
+     "empty": 0,
+     "distinct": 1,
+     "count": 1,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 1 distinct",
+     "type": "text",
+     "empty": 0,
+     "distinct": 1,
+     "count": 1,
+     "longest": 3
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 1 distinct",
+     "type": "text",
+     "empty": 0,
+     "distinct": 1,
+     "count": 1,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 1 distinct",
+     "type": "text",
+     "empty": 0,
+     "distinct": 1,
+     "count": 1,
+     "longest": 3
+    }
+   ]
+  ],
+  "values": {
+   "only": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "row": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "one": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "noheader.csv",
+  "bytes": "MSxBZGEsMy41CjIsTGludXMsNAozLEdyYWNlLAo=",
+  "text": "1,Ada,3.5\n2,Linus,4\n3,Grace,\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "noheader.csv",
+     "header": true,
+     "expanded": true,
+     "count": 3,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "Column 1",
+       "description": "integer \u00b7 1 \u2026 3 \u00b7 unique",
+       "tooltip": "Column 1: integer\n3 values, 3 distinct\nsum 6",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "Column 2",
+       "description": "text \u00b7 unique",
+       "tooltip": "Column 2: text\n3 values, 3 distinct\nlongest 5 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:2",
+       "label": "Column 3",
+       "description": "decimal \u00b7 3.5 \u2026 4 \u00b7 1 empty \u00b7 unique",
+       "tooltip": "Column 3: decimal\n2 values, 2 distinct\nsum 7.5",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "3 rows \u00b7 3 columns \u00b7 comma separated \u00b7 no header row"
+    }
+   ],
+   "message": "3 rows \u00b7 3 columns \u00b7 comma separated \u00b7 no header row",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "1",
+    "Ada",
+    "3.5"
+   ],
+   [
+    "2",
+    "Linus",
+    "4"
+   ],
+   [
+    "3",
+    "Grace",
+    ""
+   ]
+  ],
+  "header": false,
+  "table": "1 \u2502 Ada   \u2502 3.5\n2 \u2502 Linus \u2502   4\n3 \u2502 Grace \u2502\n",
+  "json": "[\n  {\n    \"column1\": 1,\n    \"column2\": \"Ada\",\n    \"column3\": 3.5\n  },\n  {\n    \"column1\": 2,\n    \"column2\": \"Linus\",\n    \"column3\": 4.0\n  },\n  {\n    \"column1\": 3,\n    \"column2\": \"Grace\",\n    \"column3\": null\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "integer \u00b7 1 \u2026 3 \u00b7 unique",
+     "type": "integer",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "sum": "6",
+     "min": "1",
+     "max": "3"
+    },
+    {
+     "describe": "integer \u00b7 1 \u2026 3 \u00b7 unique",
+     "type": "integer",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "sum": "6",
+     "min": "1",
+     "max": "3"
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 5
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 5
+    }
+   ],
+   [
+    {
+     "describe": "decimal \u00b7 3.5 \u2026 4 \u00b7 1 empty \u00b7 unique",
+     "type": "decimal",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "sum": "7.5",
+     "min": "3.5",
+     "max": "4"
+    },
+    {
+     "describe": "decimal \u00b7 3.5 \u2026 4 \u00b7 1 empty \u00b7 unique",
+     "type": "decimal",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "sum": "7.5",
+     "min": "3.5",
+     "max": "4"
+    }
+   ]
+  ],
+  "values": {
+   "": [
+    "empty",
+    "empty",
+    "null",
+    "null",
+    null
+   ],
+   "3.5": [
+    "decimal",
+    "decimal",
+    "3.5",
+    "3.5",
+    null
+   ],
+   "Grace": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "Ada": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "Linus": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "3": [
+    "integer",
+    "integer",
+    "3.0",
+    "3.0",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "4": [
+    "integer",
+    "integer",
+    "4.0",
+    "4.0",
+    null
+   ]
+  }
+ },
+ {
+  "name": "dupes.csv",
+  "bytes": "YSxhLGIKMSwyLDMKNCw1LDYK",
+  "text": "a,a,b\n1,2,3\n4,5,6\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "dupes.csv",
+     "header": true,
+     "expanded": true,
+     "count": 3,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "Column 1",
+       "description": "text \u00b7 unique",
+       "tooltip": "Column 1: text\n3 values, 3 distinct\nlongest 1 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:1",
+       "label": "Column 2",
+       "description": "text \u00b7 unique",
+       "tooltip": "Column 2: text\n3 values, 3 distinct\nlongest 1 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:2",
+       "label": "Column 3",
+       "description": "text \u00b7 unique",
+       "tooltip": "Column 3: text\n3 values, 3 distinct\nlongest 1 characters",
+       "icon": "fileText"
+      }
+     ],
+     "description": "3 rows \u00b7 3 columns \u00b7 comma separated \u00b7 no header row"
+    }
+   ],
+   "message": "3 rows \u00b7 3 columns \u00b7 comma separated \u00b7 no header row",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "a",
+    "a",
+    "b"
+   ],
+   [
+    "1",
+    "2",
+    "3"
+   ],
+   [
+    "4",
+    "5",
+    "6"
+   ]
+  ],
+  "header": false,
+  "table": "a \u2502 a \u2502 b\n1 \u2502 2 \u2502 3\n4 \u2502 5 \u2502 6\n",
+  "json": "[\n  {\n    \"column1\": \"a\",\n    \"column2\": \"a\",\n    \"column3\": \"b\"\n  },\n  {\n    \"column1\": \"1\",\n    \"column2\": \"2\",\n    \"column3\": \"3\"\n  },\n  {\n    \"column1\": \"4\",\n    \"column2\": \"5\",\n    \"column3\": \"6\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 1
+    }
+   ]
+  ],
+  "values": {
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "3": [
+    "integer",
+    "integer",
+    "3.0",
+    "3.0",
+    null
+   ],
+   "6": [
+    "integer",
+    "integer",
+    "6.0",
+    "6.0",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "4": [
+    "integer",
+    "integer",
+    "4.0",
+    "4.0",
+    null
+   ],
+   "5": [
+    "integer",
+    "integer",
+    "5.0",
+    "5.0",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "bignum.csv",
+  "bytes": "bgoxMjM0NTY3ODkwMTIzNDU2Nzg5MAo5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5Cg==",
+  "text": "n\n12345678901234567890\n9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "bignum.csv",
+     "header": true,
+     "expanded": true,
+     "count": 1,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "n",
+       "description": "integer \u00b7 1.23457e+19 \u2026 inf \u00b7 unique",
+       "tooltip": "n: integer\n2 values, 2 distinct\nsum inf",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "2 rows \u00b7 1 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "2 rows \u00b7 1 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "n"
+   ],
+   [
+    "12345678901234567890"
+   ],
+   [
+    "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+   ]
+  ],
+  "header": true,
+  "table": "n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n12345678901234567890\n999999999999999999999999999999999999999\u2026\n",
+  "json_error": "OverflowError: cannot convert float infinity to integer",
+  "columns": [
+   [
+    {
+     "describe": "mixed \u00b7 unique",
+     "type": "mixed",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 400
+    },
+    {
+     "describe": "mixed \u00b7 unique",
+     "type": "mixed",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 400
+    }
+   ]
+  ],
+  "values": {
+   "n": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999": [
+    "integer",
+    "integer",
+    "Infinity",
+    "Infinity",
+    null
+   ],
+   "12345678901234567890": [
+    "integer",
+    "integer",
+    "1.2345678901234567e+19",
+    "1.2345678901234567e+19",
+    null
+   ]
+  }
+ },
+ {
+  "name": "bigsum.csv",
+  "bytes": "eAoxZTE1CjIuNQoxZTE2CjAuMQowLjIK",
+  "text": "x\n1e15\n2.5\n1e16\n0.1\n0.2\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "bigsum.csv",
+     "header": true,
+     "expanded": true,
+     "count": 1,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "x",
+       "description": "decimal \u00b7 0.1 \u2026 1e+16 \u00b7 unique",
+       "tooltip": "x: decimal\n5 values, 5 distinct\nsum 1.1e+16",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "5 rows \u00b7 1 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "5 rows \u00b7 1 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "x"
+   ],
+   [
+    "1e15"
+   ],
+   [
+    "2.5"
+   ],
+   [
+    "1e16"
+   ],
+   [
+    "0.1"
+   ],
+   [
+    "0.2"
+   ]
+  ],
+  "header": true,
+  "table": "x\n\u2500\u2500\u2500\u2500\n1e15\n 2.5\n1e16\n 0.1\n 0.2\n",
+  "json": "[\n  {\n    \"x\": 1000000000000000.0\n  },\n  {\n    \"x\": 2.5\n  },\n  {\n    \"x\": 1e+16\n  },\n  {\n    \"x\": 0.1\n  },\n  {\n    \"x\": 0.2\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 6,
+     "count": 6,
+     "longest": 4
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 6,
+     "count": 6,
+     "longest": 4
+    }
+   ]
+  ],
+  "values": {
+   "0.1": [
+    "decimal",
+    "decimal",
+    "0.1",
+    "0.1",
+    null
+   ],
+   "1e16": [
+    "decimal",
+    "decimal",
+    "1e+16",
+    "1e+16",
+    null
+   ],
+   "0.2": [
+    "decimal",
+    "decimal",
+    "0.2",
+    "0.2",
+    null
+   ],
+   "2.5": [
+    "decimal",
+    "decimal",
+    "2.5",
+    "2.5",
+    null
+   ],
+   "x": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1e15": [
+    "decimal",
+    "decimal",
+    "1000000000000000.0",
+    "1000000000000000.0",
+    null
+   ]
+  }
+ },
+ {
+  "name": "whitespace.csv",
+  "bytes": "YSxiChwseArCoHnjgIAs4oCoego=",
+  "text": "a,b\n\u001c,x\n\u00a0y\u3000,\u2028z\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "whitespace.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a",
+       "description": "boolean \u00b7 1 empty \u00b7 unique",
+       "tooltip": "a: boolean\n1 values, 1 distinct\nlongest 3 characters",
+       "icon": "check"
+      },
+      {
+       "id": "col:1",
+       "label": "b",
+       "description": "text \u00b7 unique",
+       "tooltip": "b: text\n2 values, 2 distinct\nlongest 2 characters",
+       "icon": "fileText"
+      }
+     ],
+     "description": "2 rows \u00b7 2 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "2 rows \u00b7 2 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "a",
+    "b"
+   ],
+   [
+    "\u001c",
+    "x"
+   ],
+   [
+    "\u00a0y\u3000",
+    "\u2028z"
+   ]
+  ],
+  "header": true,
+  "table": "a   \u2502 b\n\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\n\u001c   \u2502 x\n\u00a0y\u3000 \u2502 \u2028z\n",
+  "json": "[\n  {\n    \"a\": null,\n    \"b\": \"x\"\n  },\n  {\n    \"a\": true,\n    \"b\": \"\u2028z\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 3
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 2
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 2
+    }
+   ]
+  ],
+  "values": {
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "\u001c": [
+    "empty",
+    "empty",
+    "null",
+    "null",
+    null
+   ],
+   "\u00a0y\u3000": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "x": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "\u2028z": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "nul.csv",
+  "bytes": "YSxiCngAeSwyCg==",
+  "text": "a,b\nx\u0000y,2\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "nul.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a",
+       "description": "text \u00b7 1 distinct",
+       "tooltip": "a: text\n1 values, 1 distinct\nlongest 3 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:1",
+       "label": "b",
+       "description": "integer \u00b7 2 \u2026 2 \u00b7 1 distinct",
+       "tooltip": "b: integer\n1 values, 1 distinct\nsum 2",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "1 rows \u00b7 2 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "1 rows \u00b7 2 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "a",
+    "b"
+   ],
+   [
+    "x\u0000y",
+    "2"
+   ]
+  ],
+  "header": true,
+  "table": "a   \u2502 b\n\u2500\u2500\u2500\u2500\u253c\u2500\u2500\nx\u0000y \u2502 2\n",
+  "json": "[\n  {\n    \"a\": \"x\\u0000y\",\n    \"b\": 2\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ]
+  ],
+  "values": {
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "x\u0000y": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "arabic.csv",
+  "bytes": "bixtCtmh2aLZoyzZpArZpSzZptmnCg==",
+  "text": "n,m\n\u0661\u0662\u0663,\u0664\n\u0665,\u0666\u0667\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "arabic.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "n",
+       "description": "integer \u00b7 5 \u2026 123 \u00b7 unique",
+       "tooltip": "n: integer\n2 values, 2 distinct\nsum 128",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "m",
+       "description": "integer \u00b7 4 \u2026 67 \u00b7 unique",
+       "tooltip": "m: integer\n2 values, 2 distinct\nsum 71",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "2 rows \u00b7 2 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "2 rows \u00b7 2 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "n",
+    "m"
+   ],
+   [
+    "\u0661\u0662\u0663",
+    "\u0664"
+   ],
+   [
+    "\u0665",
+    "\u0666\u0667"
+   ]
+  ],
+  "header": true,
+  "table": "n   \u2502 m\n\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\n\u0661\u0662\u0663 \u2502  \u0664\n  \u0665 \u2502 \u0666\u0667\n",
+  "json": "[\n  {\n    \"n\": 123,\n    \"m\": 4\n  },\n  {\n    \"n\": 5,\n    \"m\": 67\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "mixed \u00b7 unique",
+     "type": "mixed",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 3
+    },
+    {
+     "describe": "mixed \u00b7 unique",
+     "type": "mixed",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 3
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 2
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 2
+    }
+   ]
+  ],
+  "values": {
+   "\u0666\u0667": [
+    "integer",
+    "integer",
+    "67.0",
+    "67.0",
+    null
+   ],
+   "\u0665": [
+    "integer",
+    "integer",
+    "5.0",
+    "5.0",
+    null
+   ],
+   "\u0661\u0662\u0663": [
+    "integer",
+    "integer",
+    "123.0",
+    "123.0",
+    null
+   ],
+   "\u0664": [
+    "integer",
+    "integer",
+    "4.0",
+    "4.0",
+    null
+   ],
+   "m": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "n": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "ansi.csv",
+  "bytes": "YTtiCoF4O+QK",
+  "text": "a;b\n\u0081x;\u00e4\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "ansi.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a",
+       "description": "text \u00b7 1 distinct",
+       "tooltip": "a: text\n1 values, 1 distinct\nlongest 2 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:1",
+       "label": "b",
+       "description": "text \u00b7 1 distinct",
+       "tooltip": "b: text\n1 values, 1 distinct\nlongest 1 characters",
+       "icon": "fileText"
+      }
+     ],
+     "description": "1 rows \u00b7 2 columns \u00b7 semicolon separated"
+    }
+   ],
+   "message": "1 rows \u00b7 2 columns \u00b7 semicolon separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ";",
+  "rows": [
+   [
+    "a",
+    "b"
+   ],
+   [
+    "\u0081x",
+    "\u00e4"
+   ]
+  ],
+  "header": true,
+  "table": "a  \u2502 b\n\u2500\u2500\u2500\u253c\u2500\u2500\n\u0081x \u2502 \u00e4\n",
+  "json": "[\n  {\n    \"a\": \"\u0081x\",\n    \"b\": \"\u00e4\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 2
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 2
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ]
+  ],
+  "values": {
+   "\u00e4": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "\u0081x": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "cp1252.csv",
+  "bytes": "YTtiCoA75JNxlAo=",
+  "text": "a;b\n\u20ac;\u00e4\u201cq\u201d\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "cp1252.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a",
+       "description": "text \u00b7 1 distinct",
+       "tooltip": "a: text\n1 values, 1 distinct\nlongest 1 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:1",
+       "label": "b",
+       "description": "text \u00b7 1 distinct",
+       "tooltip": "b: text\n1 values, 1 distinct\nlongest 4 characters",
+       "icon": "fileText"
+      }
+     ],
+     "description": "1 rows \u00b7 2 columns \u00b7 semicolon separated"
+    }
+   ],
+   "message": "1 rows \u00b7 2 columns \u00b7 semicolon separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ";",
+  "rows": [
+   [
+    "a",
+    "b"
+   ],
+   [
+    "\u20ac",
+    "\u00e4\u201cq\u201d"
+   ]
+  ],
+  "header": true,
+  "table": "a \u2502 b\n\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\n\u20ac \u2502 \u00e4\u201cq\u201d\n",
+  "json": "[\n  {\n    \"a\": \"\u20ac\",\n    \"b\": \"\u00e4\u201cq\u201d\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 4
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 4
+    }
+   ]
+  ],
+  "values": {
+   "\u20ac": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "\u00e4\u201cq\u201d": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "ties.csv",
+  "bytes": "YTtiO2MsZAoxOzI7Myw0Cg==",
+  "text": "a;b;c,d\n1;2;3,4\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "ties.csv",
+     "header": true,
+     "expanded": true,
+     "count": 3,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a",
+       "description": "integer \u00b7 1 \u2026 1 \u00b7 1 distinct",
+       "tooltip": "a: integer\n1 values, 1 distinct\nsum 1",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "b",
+       "description": "integer \u00b7 2 \u2026 2 \u00b7 1 distinct",
+       "tooltip": "b: integer\n1 values, 1 distinct\nsum 2",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:2",
+       "label": "c,d",
+       "description": "decimal \u00b7 3.4 \u2026 3.4 \u00b7 1 distinct",
+       "tooltip": "c,d: decimal\n1 values, 1 distinct\nsum 3.4",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "1 rows \u00b7 3 columns \u00b7 semicolon separated"
+    }
+   ],
+   "message": "1 rows \u00b7 3 columns \u00b7 semicolon separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ";",
+  "rows": [
+   [
+    "a",
+    "b",
+    "c,d"
+   ],
+   [
+    "1",
+    "2",
+    "3,4"
+   ]
+  ],
+  "header": true,
+  "table": "a \u2502 b \u2502 c,d\n\u2500\u2500\u253c\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\n1 \u2502 2 \u2502 3,4\n",
+  "json": "[\n  {\n    \"a\": 1,\n    \"b\": 2,\n    \"c,d\": 3.4\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    }
+   ]
+  ],
+  "values": {
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "c,d": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "3,4": [
+    "decimal",
+    "decimal",
+    "3.4",
+    "3.4",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "ties2.csv",
+  "bytes": "YSxiLGMsZCxlLGYsZyxoLGksagp4O3k7egoxLDIK",
+  "text": "a,b,c,d,e,f,g,h,i,j\nx;y;z\n1,2\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "ties2.csv",
+     "header": true,
+     "expanded": true,
+     "count": 10,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a",
+       "description": "text \u00b7 unique",
+       "tooltip": "a: text\n2 values, 2 distinct\nlongest 5 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:1",
+       "label": "b",
+       "description": "integer \u00b7 2 \u2026 2 \u00b7 1 empty \u00b7 unique",
+       "tooltip": "b: integer\n1 values, 1 distinct\nsum 2",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:2",
+       "label": "c",
+       "description": "empty \u00b7 2 empty \u00b7 unique",
+       "tooltip": "c: empty\n0 values, 0 distinct",
+       "icon": "remove"
+      },
+      {
+       "id": "col:3",
+       "label": "d",
+       "description": "empty \u00b7 2 empty \u00b7 unique",
+       "tooltip": "d: empty\n0 values, 0 distinct",
+       "icon": "remove"
+      },
+      {
+       "id": "col:4",
+       "label": "e",
+       "description": "empty \u00b7 2 empty \u00b7 unique",
+       "tooltip": "e: empty\n0 values, 0 distinct",
+       "icon": "remove"
+      },
+      {
+       "id": "col:5",
+       "label": "f",
+       "description": "empty \u00b7 2 empty \u00b7 unique",
+       "tooltip": "f: empty\n0 values, 0 distinct",
+       "icon": "remove"
+      },
+      {
+       "id": "col:6",
+       "label": "g",
+       "description": "empty \u00b7 2 empty \u00b7 unique",
+       "tooltip": "g: empty\n0 values, 0 distinct",
+       "icon": "remove"
+      },
+      {
+       "id": "col:7",
+       "label": "h",
+       "description": "empty \u00b7 2 empty \u00b7 unique",
+       "tooltip": "h: empty\n0 values, 0 distinct",
+       "icon": "remove"
+      },
+      {
+       "id": "col:8",
+       "label": "i",
+       "description": "empty \u00b7 2 empty \u00b7 unique",
+       "tooltip": "i: empty\n0 values, 0 distinct",
+       "icon": "remove"
+      },
+      {
+       "id": "col:9",
+       "label": "j",
+       "description": "empty \u00b7 2 empty \u00b7 unique",
+       "tooltip": "j: empty\n0 values, 0 distinct",
+       "icon": "remove"
+      }
+     ],
+     "description": "2 rows \u00b7 10 columns \u00b7 comma separated \u00b7 rows have 1\u20132 fields"
+    }
+   ],
+   "message": "2 rows \u00b7 10 columns \u00b7 comma separated \u00b7 rows have 1\u20132 fields",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j"
+   ],
+   [
+    "x;y;z"
+   ],
+   [
+    "1",
+    "2"
+   ]
+  ],
+  "header": true,
+  "table": "a     \u2502 b \u2502 c \u2502 d \u2502 e \u2502 f \u2502 g \u2502 h \u2502 i \u2502 j\n\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u253c\u2500\u2500\nx;y;z \u2502   \u2502   \u2502   \u2502   \u2502   \u2502   \u2502   \u2502   \u2502\n1     \u2502 2 \u2502   \u2502   \u2502   \u2502   \u2502   \u2502   \u2502   \u2502\n",
+  "json": "[\n  {\n    \"a\": \"x;y;z\",\n    \"b\": null,\n    \"c\": null,\n    \"d\": null,\n    \"e\": null,\n    \"f\": null,\n    \"g\": null,\n    \"h\": null,\n    \"i\": null,\n    \"j\": null\n  },\n  {\n    \"a\": \"1\",\n    \"b\": 2,\n    \"c\": null,\n    \"d\": null,\n    \"e\": null,\n    \"f\": null,\n    \"g\": null,\n    \"h\": null,\n    \"i\": null,\n    \"j\": null\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 5
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 5
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 1 empty \u00b7 unique",
+     "type": "text",
+     "empty": 1,
+     "distinct": 2,
+     "count": 3,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 2 empty \u00b7 unique",
+     "type": "text",
+     "empty": 2,
+     "distinct": 1,
+     "count": 3,
+     "longest": 1
+    }
+   ]
+  ],
+  "values": {
+   "d": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "g": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "x;y;z": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "f": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "e": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "c": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "i": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "h": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "j": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "semi-dates.csv",
+  "bytes": "RGF0dW07QmV0cmFnCjAxLjA1LjIwMjQ7MS4yMzQsNTYKMDIuMDUuMjAyNDstMCw1Cg==",
+  "text": "Datum;Betrag\n01.05.2024;1.234,56\n02.05.2024;-0,5\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "semi-dates.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "Datum",
+       "description": "date \u00b7 2024-05-01 \u2026 2024-05-02 \u00b7 unique",
+       "tooltip": "Datum: date\n2 values, 2 distinct",
+       "icon": "fileConfig"
+      },
+      {
+       "id": "col:1",
+       "label": "Betrag",
+       "description": "decimal \u00b7 -0.5 \u2026 1234.56 \u00b7 unique",
+       "tooltip": "Betrag: decimal\n2 values, 2 distinct\nsum 1234.06",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "2 rows \u00b7 2 columns \u00b7 semicolon separated"
+    }
+   ],
+   "message": "2 rows \u00b7 2 columns \u00b7 semicolon separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ";",
+  "rows": [
+   [
+    "Datum",
+    "Betrag"
+   ],
+   [
+    "01.05.2024",
+    "1.234,56"
+   ],
+   [
+    "02.05.2024",
+    "-0,5"
+   ]
+  ],
+  "header": true,
+  "table": "Datum      \u2502 Betrag\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n01.05.2024 \u2502 1.234,56\n02.05.2024 \u2502     -0,5\n",
+  "json": "[\n  {\n    \"Datum\": \"01.05.2024\",\n    \"Betrag\": 1234.56\n  },\n  {\n    \"Datum\": \"02.05.2024\",\n    \"Betrag\": -0.5\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 10
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 10
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 8
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 8
+    }
+   ]
+  ],
+  "values": {
+   "Datum": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "Betrag": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "01.05.2024": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-01 00:00:00"
+   ],
+   "1.234,56": [
+    "decimal",
+    "decimal",
+    "1234.56",
+    "1234.56",
+    null
+   ],
+   "02.05.2024": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-05-02 00:00:00"
+   ],
+   "-0,5": [
+    "decimal",
+    "decimal",
+    "-0.5",
+    "-0.5",
+    null
+   ]
+  }
+ },
+ {
+  "name": "mixed.csv",
+  "bytes": "awoxCnRydWUKMjAyNC0wMS0wMQo=",
+  "text": "k\n1\ntrue\n2024-01-01\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "mixed.csv",
+     "header": true,
+     "expanded": true,
+     "count": 1,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "k",
+       "description": "mixed \u00b7 unique",
+       "tooltip": "k: mixed\n3 values, 3 distinct\nlongest 10 characters",
+       "icon": "warning"
+      }
+     ],
+     "description": "3 rows \u00b7 1 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "3 rows \u00b7 1 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "k"
+   ],
+   [
+    "1"
+   ],
+   [
+    "true"
+   ],
+   [
+    "2024-01-01"
+   ]
+  ],
+  "header": true,
+  "table": "k\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n1\ntrue\n2024-01-01\n",
+  "json": "[\n  {\n    \"k\": \"1\"\n  },\n  {\n    \"k\": \"true\"\n  },\n  {\n    \"k\": \"2024-01-01\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 10
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 10
+    }
+   ]
+  ],
+  "values": {
+   "2024-01-01": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-01-01 00:00:00"
+   ],
+   "true": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "k": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ]
+  }
+ },
+ {
+  "name": "crlf-quoted-end.csv",
+  "bytes": "YSwiYiINCiJjIiIiLGQNCg==",
+  "text": "a,\"b\"\r\n\"c\"\"\",d\r\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "crlf-quoted-end.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a",
+       "description": "text \u00b7 1 distinct",
+       "tooltip": "a: text\n1 values, 1 distinct\nlongest 2 characters",
+       "icon": "fileText"
+      },
+      {
+       "id": "col:1",
+       "label": "b",
+       "description": "text \u00b7 1 distinct",
+       "tooltip": "b: text\n1 values, 1 distinct\nlongest 1 characters",
+       "icon": "fileText"
+      }
+     ],
+     "description": "1 rows \u00b7 2 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "1 rows \u00b7 2 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "a",
+    "b"
+   ],
+   [
+    "c\"",
+    "d"
+   ]
+  ],
+  "header": true,
+  "table": "a  \u2502 b\n\u2500\u2500\u2500\u253c\u2500\u2500\nc\" \u2502 d\n",
+  "json": "[\n  {\n    \"a\": \"c\\\"\",\n    \"b\": \"d\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 2
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 2
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ]
+  ],
+  "values": {
+   "d": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "c\"": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "trailing-space.csv",
+  "bytes": "YSAsIGIgCjEgLDIgCg==",
+  "text": "a , b \n1 ,2 \n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "trailing-space.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a ",
+       "description": "integer \u00b7 1 \u2026 1 \u00b7 1 distinct",
+       "tooltip": "a : integer\n1 values, 1 distinct\nsum 1",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": " b ",
+       "description": "integer \u00b7 2 \u2026 2 \u00b7 1 distinct",
+       "tooltip": " b : integer\n1 values, 1 distinct\nsum 2",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "1 rows \u00b7 2 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "1 rows \u00b7 2 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "a ",
+    " b "
+   ],
+   [
+    "1 ",
+    "2 "
+   ]
+  ],
+  "header": true,
+  "table": "a  \u2502  b\n\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\n1  \u2502  2\n",
+  "json": "[\n  {\n    \"a \": 1,\n    \" b \": 2\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 2
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 2
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 3
+    }
+   ]
+  ],
+  "values": {
+   "a ": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   " b ": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1 ": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "2 ": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ]
+  }
+ },
+ {
+  "name": "empty.csv",
+  "bytes": "",
+  "text": "",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [],
+   "message": "The file is empty."
+  },
+  "sep": ",",
+  "rows": [],
+  "header": false
+ },
+ {
+  "name": "only-blank.csv",
+  "bytes": "CiwsCiAgCg==",
+  "text": "\n,,\n  \n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [],
+   "message": "The file is empty."
+  },
+  "sep": ",",
+  "rows": [],
+  "header": false
+ },
+ {
+  "name": "UPPER.TSV",
+  "bytes": "YQliCjEJMgo=",
+  "text": "a\tb\n1\t2\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "UPPER.TSV",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a",
+       "description": "integer \u00b7 1 \u2026 1 \u00b7 1 distinct",
+       "tooltip": "a: integer\n1 values, 1 distinct\nsum 1",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "b",
+       "description": "integer \u00b7 2 \u2026 2 \u00b7 1 distinct",
+       "tooltip": "b: integer\n1 values, 1 distinct\nsum 2",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "1 rows \u00b7 2 columns \u00b7 tab separated"
+    }
+   ],
+   "message": "1 rows \u00b7 2 columns \u00b7 tab separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": "\t",
+  "rows": [
+   [
+    "a",
+    "b"
+   ],
+   [
+    "1",
+    "2"
+   ]
+  ],
+  "header": true,
+  "table": "a \u2502 b\n\u2500\u2500\u253c\u2500\u2500\n1 \u2502 2\n",
+  "json": "[\n  {\n    \"a\": 1,\n    \"b\": 2\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ]
+  ],
+  "values": {
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": ".tsv",
+  "bytes": "YSxiCjEsMgo=",
+  "text": "a,b\n1,2\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": ".tsv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "a",
+       "description": "integer \u00b7 1 \u2026 1 \u00b7 1 distinct",
+       "tooltip": "a: integer\n1 values, 1 distinct\nsum 1",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "b",
+       "description": "integer \u00b7 2 \u2026 2 \u00b7 1 distinct",
+       "tooltip": "b: integer\n1 values, 1 distinct\nsum 2",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "1 rows \u00b7 2 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "1 rows \u00b7 2 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "a",
+    "b"
+   ],
+   [
+    "1",
+    "2"
+   ]
+  ],
+  "header": true,
+  "table": "a \u2502 b\n\u2500\u2500\u253c\u2500\u2500\n1 \u2502 2\n",
+  "json": "[\n  {\n    \"a\": 1,\n    \"b\": 2\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 2,
+     "count": 2,
+     "longest": 1
+    }
+   ]
+  ],
+  "values": {
+   "2": [
+    "integer",
+    "integer",
+    "2.0",
+    "2.0",
+    null
+   ],
+   "b": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "1": [
+    "integer",
+    "integer",
+    "1.0",
+    "1.0",
+    null
+   ],
+   "a": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ]
+  }
+ },
+ {
+  "name": "sci.csv",
+  "bytes": "dgoxMjM0NTY3LjUKMC4wMDAxCi0wLjAwMDAxCg==",
+  "text": "v\n1234567.5\n0.0001\n-0.00001\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "sci.csv",
+     "header": true,
+     "expanded": true,
+     "count": 1,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "v",
+       "description": "decimal \u00b7 -1e-05 \u2026 1.23457e+06 \u00b7 unique",
+       "tooltip": "v: decimal\n3 values, 3 distinct\nsum 1.23457e+06",
+       "icon": "fileBinary"
+      }
+     ],
+     "description": "3 rows \u00b7 1 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "3 rows \u00b7 1 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "v"
+   ],
+   [
+    "1234567.5"
+   ],
+   [
+    "0.0001"
+   ],
+   [
+    "-0.00001"
+   ]
+  ],
+  "header": true,
+  "table": "v\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n1234567.5\n   0.0001\n -0.00001\n",
+  "json": "[\n  {\n    \"v\": 1234567.5\n  },\n  {\n    \"v\": 0.0001\n  },\n  {\n    \"v\": -1e-05\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 9
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 4,
+     "count": 4,
+     "longest": 9
+    }
+   ]
+  ],
+  "values": {
+   "v": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "0.0001": [
+    "decimal",
+    "decimal",
+    "0.0001",
+    "0.0001",
+    null
+   ],
+   "1234567.5": [
+    "decimal",
+    "decimal",
+    "1234567.5",
+    "1234567.5",
+    null
+   ],
+   "-0.00001": [
+    "decimal",
+    "decimal",
+    "-1e-05",
+    "-1e-05",
+    null
+   ]
+  }
+ },
+ {
+  "name": "astral.csv",
+  "bytes": "bixtCvCdn4/wnZ+QLPCdn443CjMsMjAyNC0w8J2fky0wMQo=",
+  "text": "n,m\n\ud835\udfcf\ud835\udfd0,\ud835\udfce7\n3,2024-0\ud835\udfd3-01\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "astral.csv",
+     "header": true,
+     "expanded": true,
+     "count": 2,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "n",
+       "description": "integer \u00b7 3 \u2026 12 \u00b7 unique",
+       "tooltip": "n: integer\n2 values, 2 distinct\nsum 15",
+       "icon": "fileBinary"
+      },
+      {
+       "id": "col:1",
+       "label": "m",
+       "description": "text \u00b7 unique",
+       "tooltip": "m: text\n2 values, 2 distinct\nlongest 10 characters",
+       "icon": "fileText"
+      }
+     ],
+     "description": "2 rows \u00b7 2 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "2 rows \u00b7 2 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "n",
+    "m"
+   ],
+   [
+    "\ud835\udfcf\ud835\udfd0",
+    "\ud835\udfce7"
+   ],
+   [
+    "3",
+    "2024-0\ud835\udfd3-01"
+   ]
+  ],
+  "header": true,
+  "table": "n  \u2502 m\n\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\ud835\udfcf\ud835\udfd0 \u2502 \ud835\udfce7\n 3 \u2502 2024-0\ud835\udfd3-01\n",
+  "json": "[\n  {\n    \"n\": 12,\n    \"m\": \"\ud835\udfce7\"\n  },\n  {\n    \"n\": 3,\n    \"m\": \"2024-0\ud835\udfd3-01\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "mixed \u00b7 unique",
+     "type": "mixed",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 2
+    },
+    {
+     "describe": "mixed \u00b7 unique",
+     "type": "mixed",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 2
+    }
+   ],
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 10
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 10
+    }
+   ]
+  ],
+  "values": {
+   "2024-0\ud835\udfd3-01": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "\ud835\udfcf\ud835\udfd0": [
+    "integer",
+    "integer",
+    "12.0",
+    "12.0",
+    null
+   ],
+   "3": [
+    "integer",
+    "integer",
+    "3.0",
+    "3.0",
+    null
+   ],
+   "m": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "n": [
+    "boolean",
+    "boolean",
+    "null",
+    "null",
+    null
+   ],
+   "\ud835\udfce7": [
+    "integer",
+    "integer",
+    "7.0",
+    "7.0",
+    null
+   ]
+  }
+ },
+ {
+  "name": "frac.csv",
+  "bytes": "dAoyMDI0LTAxLTAxVDAwOjAwOjAwLjUKMjAyNC0wMS0wMVQwMDowMDowMC4wMDAwMDEK",
+  "text": "t\n2024-01-01T00:00:00.5\n2024-01-01T00:00:00.000001\n",
+  "truncated": false,
+  "tree": {
+   "type": "setTree",
+   "view": "csv",
+   "items": [
+    {
+     "id": "file",
+     "label": "frac.csv",
+     "header": true,
+     "expanded": true,
+     "count": 1,
+     "children": [
+      {
+       "id": "col:0",
+       "label": "t",
+       "description": "date \u00b7 2024-01-01 \u2026 2024-01-01 \u00b7 unique",
+       "tooltip": "t: date\n2 values, 2 distinct",
+       "icon": "fileConfig"
+      }
+     ],
+     "description": "2 rows \u00b7 1 columns \u00b7 comma separated"
+    }
+   ],
+   "message": "2 rows \u00b7 1 columns \u00b7 comma separated",
+   "actions": [
+    {
+     "id": "table",
+     "icon": "openPreview",
+     "tooltip": "Show as Table"
+    },
+    {
+     "id": "json",
+     "icon": "fileJson",
+     "tooltip": "Convert to JSON"
+    },
+    {
+     "id": "refresh",
+     "icon": "refresh",
+     "tooltip": "Refresh"
+    }
+   ]
+  },
+  "sep": ",",
+  "rows": [
+   [
+    "t"
+   ],
+   [
+    "2024-01-01T00:00:00.5"
+   ],
+   [
+    "2024-01-01T00:00:00.000001"
+   ]
+  ],
+  "header": true,
+  "table": "t\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n2024-01-01T00:00:00.5\n2024-01-01T00:00:00.000001\n",
+  "json": "[\n  {\n    \"t\": \"2024-01-01T00:00:00.5\"\n  },\n  {\n    \"t\": \"2024-01-01T00:00:00.000001\"\n  }\n]\n",
+  "columns": [
+   [
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 26
+    },
+    {
+     "describe": "text \u00b7 unique",
+     "type": "text",
+     "empty": 0,
+     "distinct": 3,
+     "count": 3,
+     "longest": 26
+    }
+   ]
+  ],
+  "values": {
+   "2024-01-01T00:00:00.000001": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-01-01 00:00:00.000001"
+   ],
+   "t": [
+    "text",
+    "text",
+    "null",
+    "null",
+    null
+   ],
+   "2024-01-01T00:00:00.5": [
+    "date",
+    "date",
+    "null",
+    "null",
+    "2024-01-01 00:00:00.500000"
+   ]
+  }
+ }
+]

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>ByteForge.Docker</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../sdk/ByteForge.Modules/ByteForge.Modules.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,13 +1,13 @@
 {
   "id": "byteforge.discord",
   "name": "Discord Rich Presence",
-  "version": "1.3.0",
+  "version": "2.0.0",
   "author": "DevStarByte",
   "authorUrl": "https://github.com/DevStarByte",
   "category": "Social",
   "description": "Shows what you're working on in your Discord status: the file you're editing, its language, the project and how long you've been at it. Needs the Discord desktop app. File and project names can be hidden in the settings.",
-  "command": "python3",
-  "args": ["discord_presence.py"],
+  "runtime": "dotnet",
+  "assembly": "bin/Discord.dll",
   "settings": [
     {"key": "discord.showFileName", "title": "Show the file name", "type": "boolean", "default": true,
      "description": "Off: \"Editing a C# file\" instead of the file's name."},
