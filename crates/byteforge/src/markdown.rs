@@ -3,6 +3,9 @@
 
 use gpui::{AnyElement, App, FontStyle, FontWeight, Hsla, SharedString, StyledText, TextRun, div, prelude::*, px};
 
+use std::cell::RefCell;
+
+use crate::markdown_preview::{Pos, TextRef};
 use crate::theme::Theme;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -203,7 +206,43 @@ fn entity(name: &str) -> Option<char> {
 
 /// Renders Markdown with the theme's fonts and token colors.
 pub fn render(markdown: &str, cx: &App) -> AnyElement {
+    render_selectable(markdown, None, cx)
+}
+
+/// Text that can be selected with the mouse (the hover popup): each drawn block of text is recorded in `out`
+/// for hit-testing, and `selection` is painted into it.
+pub struct Selectable<'a> {
+    pub out: &'a RefCell<Vec<TextRef>>,
+    pub selection: Option<(Pos, Pos)>,
+    pub background: Hsla,
+}
+
+impl Selectable<'_> {
+    /// Records a block of text, with the selection painted into it, and returns it to draw.
+    pub fn text(&self, text: String, runs: Vec<TextRun>) -> StyledText {
+        let index = self.out.borrow().len();
+        let runs = match self.selection {
+            Some((a, b)) if a.0 <= index && index <= b.0 => {
+                let start = if index == a.0 { a.1 } else { 0 };
+                let end = if index == b.0 { b.1 } else { text.len() };
+                crate::markdown_preview::highlight(runs, start.min(text.len())..end.min(text.len()), self.background)
+            }
+            _ => runs,
+        };
+        let text = SharedString::from(text);
+        let styled = StyledText::new(text.clone()).with_runs(runs);
+        self.out.borrow_mut().push(TextRef { layout: styled.layout().clone(), text, links: Vec::new() });
+        styled
+    }
+}
+
+/// [`render`], with the text selectable when `select` is given.
+pub fn render_selectable(markdown: &str, select: Option<&Selectable>, cx: &App) -> AnyElement {
     let t = Theme::global(cx);
+    let finish = |text: String, runs: Vec<TextRun>| match select {
+        Some(select) => select.text(text, runs),
+        None => StyledText::new(SharedString::from(text)).with_runs(runs),
+    };
     let fg = t.c("editorHoverWidget.foreground");
     let ui_font = gpui::font(t.ui_font.clone());
     let code_font = gpui::Font { weight: t.editor.font_weight, ..gpui::font(t.editor_font.clone()) };
@@ -229,7 +268,7 @@ pub fn render(markdown: &str, cx: &App) -> AnyElement {
                 strikethrough: None,
             });
         }
-        StyledText::new(SharedString::from(text)).with_runs(runs)
+        finish(text, runs)
     };
 
     let mut col = div().flex().flex_col().gap(px(6.));
@@ -242,7 +281,10 @@ pub fn render(markdown: &str, cx: &App) -> AnyElement {
                 .bg(code_bg)
                 .font_family(t.editor_font.clone())
                 .text_size(px(t.editor.font_size.min(14.0)))
-                .child(code_text(&text, language.as_deref(), &code_font, fg, &t))
+                .child({
+                    let runs = code_runs(&text, language.as_deref(), &code_font, fg, &t);
+                    finish(text, runs)
+                })
                 .into_any_element(),
             Block::Heading(items) => div().text_size(px(14.)).child(styled(&items, true)).into_any_element(),
             Block::Paragraph(items) => div().child(styled(&items, false)).into_any_element(),
@@ -253,12 +295,8 @@ pub fn render(markdown: &str, cx: &App) -> AnyElement {
     col.into_any_element()
 }
 
-/// A code block with syntax colors when the language is known (C#, Razor, JSON, XML, YAML, or a module's).
-pub(crate) fn code_text(text: &str, language: Option<&str>, font: &gpui::Font, fg: Hsla, t: &Theme) -> StyledText {
-    StyledText::new(SharedString::from(text.to_owned())).with_runs(code_runs(text, language, font, fg, t))
-}
-
-/// The colored runs of [`code_text`].
+/// The colored runs of a code block: syntax colors when the language is known (C#, Razor, JSON, XML, YAML, or
+/// a module's).
 pub(crate) fn code_runs(text: &str, language: Option<&str>, font: &gpui::Font, fg: Hsla, t: &Theme) -> Vec<TextRun> {
     let language = language.and_then(bf_syntax::Language::from_id);
     let run = |len: usize, color: Hsla, bold: bool, italic: bool| TextRun {

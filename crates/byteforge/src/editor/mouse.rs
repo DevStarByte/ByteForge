@@ -126,6 +126,17 @@ impl EditorView {
         let (x, y) = (f32::from(e.position.x), f32::from(e.position.y));
         match self.drag {
             DragMode::None => {
+                // Selecting text in the hover popup: the selection follows the mouse, also outside the popup.
+                if let Some(hover) = self.hover.as_mut()
+                    && hover.selecting
+                {
+                    if e.pressed_button == Some(MouseButton::Left) {
+                        hover.head = crate::markdown_preview::hit(&self.hover_texts.borrow(), e.position);
+                        cx.notify();
+                        return;
+                    }
+                    hover.selecting = false;
+                }
                 let over_minimap = self.in_minimap(x, y);
                 if over_minimap != self.minimap_hover {
                     self.minimap_hover = over_minimap;
@@ -223,6 +234,37 @@ impl EditorView {
 
     pub(super) fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
         self.drag = DragMode::None;
+        if let Some(hover) = self.hover.as_mut() {
+            hover.selecting = false;
+        }
+    }
+
+    /// A press in the hover popup: starts selecting its text (a double click selects a whole block).
+    pub(super) fn on_hover_mouse_down(&mut self, e: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        cx.stop_propagation();
+        window.focus(&self.focus);
+        let at = crate::markdown_preview::hit(&self.hover_texts.borrow(), e.position);
+        let block_len = at.and_then(|(i, _)| self.hover_texts.borrow().get(i).map(|t| t.text.len()));
+        let Some(hover) = self.hover.as_mut() else { return };
+        match (at, block_len) {
+            (Some((i, _)), Some(len)) if e.click_count >= 2 => {
+                hover.anchor = Some((i, 0));
+                hover.head = Some((i, len));
+            }
+            _ if e.modifiers.shift && hover.anchor.is_some() => hover.head = at,
+            _ => {
+                hover.anchor = at;
+                hover.head = at;
+            }
+        }
+        hover.selecting = true;
+        cx.notify();
+    }
+
+    /// The text selected in the hover popup, if any.
+    pub(super) fn hover_selected_text(&self) -> Option<String> {
+        let (a, b) = self.hover.as_ref()?.selection()?;
+        Some(crate::markdown_preview::selected_text(&self.hover_texts.borrow(), a, b)).filter(|t| !t.is_empty())
     }
 
     pub(super) fn on_scroll(&mut self, e: &ScrollWheelEvent, _: &mut Window, cx: &mut Context<Self>) {

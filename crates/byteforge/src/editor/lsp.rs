@@ -376,7 +376,7 @@ impl EditorView {
                 }
                 view.hover_pending = None;
                 if !text.trim().is_empty() || view.diagnostics_in(range).next().is_some() {
-                    view.hover = Some(Hover { range, text });
+                    view.hover = Some(Hover::new(range, text));
                     cx.notify();
                 }
             });

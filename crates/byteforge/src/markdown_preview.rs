@@ -394,8 +394,45 @@ impl Ctx<'_> {
     }
 }
 
+/// The text position at `p` (window coordinates) in drawn `texts`, or the nearest one.
+pub fn hit(texts: &[TextRef], p: gpui::Point<gpui::Pixels>) -> Option<Pos> {
+    let bounds: Vec<gpui::Bounds<gpui::Pixels>> = texts.iter().map(|t| t.layout.bounds()).collect();
+    // On a text block: the character there.
+    if let Some(i) = bounds.iter().position(|b| b.contains(&p)) {
+        let ix = texts[i].layout.index_for_position(p).unwrap_or_else(|closest| closest);
+        return Some((i, ix.min(texts[i].text.len())));
+    }
+    // In the same rows as a block (beside it, e.g. between table cells): its nearest end.
+    let beside = bounds.iter().enumerate().filter(|(_, b)| b.top() <= p.y && p.y <= b.bottom()).min_by(|(_, a), (_, b)| {
+        let d = |r: &gpui::Bounds<gpui::Pixels>| if p.x < r.left() { r.left() - p.x } else { p.x - r.right() };
+        d(a).partial_cmp(&d(b)).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    if let Some((i, b)) = beside {
+        return Some((i, if p.x < b.left() { 0 } else { texts[i].text.len() }));
+    }
+    // Between blocks: the end of the last one above, or the start of the first.
+    match bounds.iter().rposition(|b| b.bottom() < p.y) {
+        Some(i) => Some((i, texts[i].text.len())),
+        None => (!texts.is_empty()).then_some((0, 0)),
+    }
+}
+
+/// The text of drawn `texts` from `a` to `b` (`a` <= `b`), blocks joined by line breaks.
+pub fn selected_text(texts: &[TextRef], a: Pos, b: Pos) -> String {
+    let mut parts = Vec::new();
+    for i in a.0..=b.0 {
+        let Some(t) = texts.get(i) else { break };
+        let start = if i == a.0 { a.1 } else { 0 }.min(t.text.len());
+        let end = if i == b.0 { b.1 } else { t.text.len() }.min(t.text.len());
+        if let Some(s) = t.text.get(start..end) {
+            parts.push(s.replace('\u{a0}', " ").trim_matches(' ').to_owned());
+        }
+    }
+    parts.join("\n")
+}
+
 /// `runs` with `range` given the selection background.
-fn highlight(runs: Vec<TextRun>, range: Range<usize>, bg: Hsla) -> Vec<TextRun> {
+pub(crate) fn highlight(runs: Vec<TextRun>, range: Range<usize>, bg: Hsla) -> Vec<TextRun> {
     if range.is_empty() {
         return runs;
     }

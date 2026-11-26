@@ -141,6 +141,23 @@ struct Hover {
     range: (Point, Point),
     /// Markdown from the language server (empty when only diagnostics are shown).
     text: String,
+    /// Text selected in the popup with the mouse (for Ctrl+C): where the press was and where the mouse is.
+    anchor: Option<crate::markdown_preview::Pos>,
+    head: Option<crate::markdown_preview::Pos>,
+    /// The left button is down after a press in the popup (the selection follows the mouse).
+    selecting: bool,
+}
+
+impl Hover {
+    fn new(range: (Point, Point), text: String) -> Self {
+        Hover { range, text, anchor: None, head: None, selecting: false }
+    }
+
+    /// The selection, start first; None when nothing is selected.
+    fn selection(&self) -> Option<(crate::markdown_preview::Pos, crate::markdown_preview::Pos)> {
+        let (a, b) = (self.anchor?, self.head?);
+        (a != b).then(|| if a <= b { (a, b) } else { (b, a) })
+    }
 }
 
 /// Parameter hints for the call around the caret.
@@ -328,6 +345,8 @@ pub struct EditorView {
     hover_task: Option<Task<()>>,
     /// Where the hover popup was painted, so moving the pointer onto it doesn't close it.
     hover_bounds: std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<gpui::Pixels>>>>,
+    /// The blocks of text the hover popup drew, for selecting with the mouse.
+    hover_texts: std::cell::RefCell<Vec<crate::markdown_preview::TextRef>>,
     find: Option<FindState>,
 
     pub(crate) scroll: (f32, f32),
@@ -474,6 +493,7 @@ impl EditorView {
             hover_pending: None,
             hover_task: None,
             hover_bounds: Default::default(),
+            hover_texts: Default::default(),
             find: None,
             scroll: (0.0, 0.0),
             scroll_target: (0.0, 0.0),

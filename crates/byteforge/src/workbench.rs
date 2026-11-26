@@ -303,6 +303,8 @@ pub struct Workbench {
     active: Option<usize>,
     /// The tab shown in each editor group, and which group has focus.
     visible: [Option<usize>; 2],
+    /// Each group's tab strip scrolls sideways when its tabs don't fit; the tab last scrolled into view.
+    tab_scroll: [(gpui::ScrollHandle, Option<usize>); 2],
     focus_group: usize,
     untitled: usize,
     explorer: Entity<Explorer>,
@@ -624,6 +626,7 @@ impl Workbench {
             tabs: Vec::new(),
             active: None,
             visible: [None, None],
+            tab_scroll: Default::default(),
             focus_group: 0,
             untitled: 0,
             explorer,

@@ -210,6 +210,10 @@ impl Workbench {
             self.active = Some(ix);
             let group = self.tabs[ix].group;
             self.visible[group] = Some(ix);
+            // Its tab is scrolled into view on the next draw (also when it was already the active one).
+            if let Some(scroll) = self.tab_scroll.get_mut(group) {
+                scroll.1 = None;
+            }
             self.focus_group = group;
             let editor = self.tabs[ix].editor.clone();
             match &self.tabs[ix].page {
@@ -664,6 +668,36 @@ mod tests {
         let (a, b) = (bounds(cx, "tab-0-a.txt".into()), bounds(cx, "tab-0-b.txt".into()));
         drag(cx, a.center(), b.center());
         assert_eq!(tabs(&wb, cx), vec![(0, "c.txt".into()), (0, "b.txt".into()), (0, "a.txt".into())]);
+        drop(guard);
+    }
+
+    /// Many tabs keep their width (names in full, close buttons there) and the strip scrolls: the active tab is
+    /// scrolled into view, the wheel scrolls the tabs sideways.
+    #[gpui::test]
+    fn many_tabs_keep_their_width_and_scroll(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "many-tabs");
+        let names: Vec<String> = (0..30).map(|i| format!("JiraPlanningBoard{i:02}.cs")).collect();
+        let names: Vec<&str> = names.iter().map(String::as_str).collect();
+        open_files(&wb, cx, &guard.dir.join("ws"), &names);
+        let strip = bounds(cx, "tab-strip-tabs-0".into());
+        let first = bounds(cx, format!("tab-0-{}", names[0]));
+        let last = bounds(cx, format!("tab-0-{}", names[29]));
+        assert!(first.size.width > px(120.), "a tab isn't squeezed: {:?}", first.size.width);
+        assert_eq!(first.size.width, last.size.width, "tabs with names of one length are as wide");
+        // The last opened (active) tab is in view; the first one is scrolled out to the left.
+        assert!(last.left() >= strip.left() && last.right() <= strip.right() + px(1.), "the active tab is shown: {last:?} in {strip:?}");
+        assert!(first.right() <= strip.left(), "the first tab is scrolled away: {first:?}");
+        // The wheel (up) scrolls back to the left.
+        cx.simulate_event(gpui::ScrollWheelEvent { position: strip.center(), delta: gpui::ScrollDelta::Pixels(gpui::point(px(0.), px(100_000.))), ..Default::default() });
+        let first = bounds(cx, format!("tab-0-{}", names[0]));
+        assert_eq!(first.left(), strip.left(), "scrolled to the start");
+        // Activating a tab out of view scrolls it into view.
+        wb.update_in(cx, |wb, window, cx| {
+            let ix = wb.tabs.iter().position(|t| t.title == names[29]).unwrap();
+            wb.activate(ix, window, cx);
+        });
+        let last = bounds(cx, format!("tab-0-{}", names[29]));
+        assert!(last.left() >= strip.left() && last.right() <= strip.right() + px(1.), "activated, it is shown: {last:?} in {strip:?}");
         drop(guard);
     }
 

@@ -92,42 +92,12 @@ impl MarkdownView {
     /// The selected text, blocks joined by line breaks.
     pub(super) fn selected_text(&self) -> String {
         let Some((a, b)) = self.selection() else { return String::new() };
-        let rendered = self.rendered.borrow();
-        let mut parts = Vec::new();
-        for i in a.0..=b.0 {
-            let Some(t) = rendered.texts.get(i) else { break };
-            let start = if i == a.0 { a.1 } else { 0 }.min(t.text.len());
-            let end = if i == b.0 { b.1 } else { t.text.len() }.min(t.text.len());
-            if let Some(s) = t.text.get(start..end) {
-                parts.push(s.replace('\u{a0}', " ").trim_matches(' ').to_owned());
-            }
-        }
-        parts.join("\n")
+        markdown_preview::selected_text(&self.rendered.borrow().texts, a, b)
     }
 
     /// The text position at `p` (window coordinates), or the nearest one.
     fn hit(&self, p: Point<Pixels>) -> Option<Pos> {
-        let rendered = self.rendered.borrow();
-        let texts = &rendered.texts;
-        let bounds: Vec<gpui::Bounds<Pixels>> = texts.iter().map(|t| t.layout.bounds()).collect();
-        // On a text block: the character there.
-        if let Some(i) = bounds.iter().position(|b| b.contains(&p)) {
-            let ix = texts[i].layout.index_for_position(p).unwrap_or_else(|closest| closest);
-            return Some((i, ix.min(texts[i].text.len())));
-        }
-        // In the same rows as a block (beside it, e.g. between table cells): its nearest end.
-        let beside = bounds.iter().enumerate().filter(|(_, b)| b.top() <= p.y && p.y <= b.bottom()).min_by(|(_, a), (_, b)| {
-            let d = |r: &gpui::Bounds<Pixels>| if p.x < r.left() { r.left() - p.x } else { p.x - r.right() };
-            d(a).partial_cmp(&d(b)).unwrap_or(std::cmp::Ordering::Equal)
-        });
-        if let Some((i, b)) = beside {
-            return Some((i, if p.x < b.left() { 0 } else { texts[i].text.len() }));
-        }
-        // Between blocks: the end of the last one above, or the start of the first.
-        match bounds.iter().rposition(|b| b.bottom() < p.y) {
-            Some(i) => Some((i, texts[i].text.len())),
-            None => (!texts.is_empty()).then_some((0, 0)),
-        }
+        markdown_preview::hit(&self.rendered.borrow().texts, p)
     }
 
     /// The link at `p`, if the mouse is over one.

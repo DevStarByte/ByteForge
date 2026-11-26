@@ -97,7 +97,11 @@ impl EditorView {
                 }
             }))
             .on_action(cx.listener(|v, _: &SelectAll, _, cx| v.mv(cx, |s| s.select_all())))
-            .on_action(cx.listener(|v, _: &Copy, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(v.state.copy_text()))))
+            .on_action(cx.listener(|v, _: &Copy, _, cx| {
+                // Text selected in the hover popup goes first.
+                let text = v.hover_selected_text().unwrap_or_else(|| v.state.copy_text());
+                cx.write_to_clipboard(ClipboardItem::new_string(text))
+            }))
             .on_action(cx.listener(|v, _: &Cut, _, cx| {
                 if v.read_only {
                     return;

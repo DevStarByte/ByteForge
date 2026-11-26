@@ -3,6 +3,16 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.4.2
+
+- The hover popup no longer scrolls: it takes the room there is above or below the line (no longer at most
+  360 pixels), and the mouse wheel over it does nothing. Its text can now be selected with the mouse (drag, or
+  double-click for a whole block) and copied with Ctrl+C; without a selection in it, Ctrl+C copies the
+  editor's selection as before.
+- Many open tabs no longer squeeze each other until their names run into one another and the close buttons are
+  gone: tabs keep their width and the tab strip scrolls (the mouse wheel scrolls it sideways), a tab that's
+  activated is scrolled into view, and the buttons at the strip's right end (designer, preview) stay in place.
+
 ## 1.4.1
 
 - Keyboard Shortcuts on macOS: keys recorded there (gpui writes them as `alt-cmd-b`) are now compared with the

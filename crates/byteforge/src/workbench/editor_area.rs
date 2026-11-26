@@ -141,6 +141,15 @@ impl Workbench {
         let form_source = active.and_then(|i| self.tabs.get(i)).filter(|t| t.is_document()).and_then(|t| t.path.clone()).is_some_and(|p| self.is_designable(&p));
         let drop_color = t.c("focusBorder");
         let group_ix = group;
+        // Tabs keep their width; when they don't fit, the strip scrolls (the wheel scrolls it sideways) and
+        // a newly active tab is scrolled into view.
+        let scroll = self.tab_scroll[group].0.clone();
+        if self.tab_scroll[group].1 != active {
+            self.tab_scroll[group].1 = active;
+            if let Some(pos) = active.and_then(|a| self.tabs.iter().filter(|tab| tab.group == group).position(|tab| std::ptr::eq(tab, &self.tabs[a]))) {
+                scroll.scroll_to_item(pos);
+            }
+        }
         let tab_els: Vec<_> = self
             .tabs
             .iter()
@@ -188,6 +197,7 @@ impl Workbench {
                     .debug_selector(|| format!("tab-{group_ix}-{}", tab.title))
                     .group(SharedString::from(format!("tab-{i}")))
                     .relative()
+                    .flex_none()
                     .h_full()
                     .min_w(t.m("tab.minWidth", 90.0))
                     .mt(margin.top)
@@ -235,28 +245,52 @@ impl Workbench {
             .h(t.m("tab.height", 35.0))
             .w_full()
             .flex()
-            .gap(t.m("tab.spacing", 0.0))
             .px(t.edges("tabStrip.padding", 0.0).left)
-            .overflow_x_scroll()
             .bg(t.bg("editorGroupHeader.background"))
             .map(|d| {
                 let b = px(f32::from(t.edges("editorGroupHeader.borderThickness", 1.0).bottom));
                 if at_bottom { d.border_t(b) } else { d.border_b(b) }
             })
             .border_color(t.c("editorGroupHeader.border"))
-            .children(tab_els)
-            // Double click on the empty space after the tabs: a new untitled editor in this group.
-            .child(div().flex_1().h_full().on_mouse_down(
-                MouseButton::Left,
-                cx.listener(move |wb, ev: &MouseDownEvent, w, cx| {
-                    if ev.click_count == 2 {
-                        if wb.focus_group != group_ix {
-                            wb.focus_group(group_ix, w, cx);
+            .child({
+                let wheel = scroll.clone();
+                div()
+                    .id(SharedString::from(format!("tab-strip-tabs-{group}")))
+                    .debug_selector(move || format!("tab-strip-tabs-{group}"))
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .flex()
+                    .gap(t.m("tab.spacing", 0.0))
+                    .overflow_x_scroll()
+                    .track_scroll(&scroll)
+                    // The wheel scrolls the tabs sideways (up: left, down: right).
+                    .on_scroll_wheel(move |ev, window, cx| {
+                        let delta = ev.delta.pixel_delta(px(40.));
+                        let step = if delta.x != px(0.) { delta.x } else { delta.y };
+                        let max = wheel.max_offset().width;
+                        let offset = wheel.offset();
+                        let x = (offset.x + step).clamp(-max, px(0.));
+                        if x != offset.x {
+                            wheel.set_offset(gpui::point(x, offset.y));
+                            window.refresh();
                         }
-                        wb.new_file(w, cx);
-                    }
-                }),
-            ))
+                        cx.stop_propagation();
+                    })
+                    .children(tab_els)
+                    // Double click on the empty space after the tabs: a new untitled editor in this group.
+                    .child(div().flex_1().min_w(px(24.)).h_full().on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |wb, ev: &MouseDownEvent, w, cx| {
+                            if ev.click_count == 2 {
+                                if wb.focus_group != group_ix {
+                                    wb.focus_group(group_ix, w, cx);
+                                }
+                                wb.new_file(w, cx);
+                            }
+                        }),
+                    ))
+            })
             // Empty space of the strip: to the end of this group.
             .on_drop(cx.listener(move |wb, d: &DraggedTab, w, cx| wb.move_tab(d.index, group_ix, None, w, cx)))
             .when(form_source, |d| {
