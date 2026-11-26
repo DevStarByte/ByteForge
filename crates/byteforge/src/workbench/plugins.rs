@@ -5,7 +5,6 @@ use super::*;
 impl Workbench {
     pub(super) fn start_plugins(&mut self, _event_tx: flume::Sender<AppEvent>, cx: &mut Context<Self>) {
         let disabled: Vec<String> = self.settings.get("modules.disabled", Vec::new());
-        self.preinstall_modules();
         bf_core::modulehost::set_host_dll(self.paths.module_host());
         self.modules = discover(&self.paths.user_modules());
         let (tx, rx) = flume::unbounded::<PluginMessage>();
@@ -18,6 +17,7 @@ impl Workbench {
             self.start_module(manifest);
         }
         self.refresh_module_contributions(cx);
+        self.install_at_start(cx);
         self._tasks.push(cx.spawn(async move |this, cx| {
             while let Ok(message) = rx.recv_async().await {
                 if this.update(cx, |wb, cx| wb.on_plugin_message(message, cx)).is_err() {
@@ -30,6 +30,9 @@ impl Workbench {
     pub(super) fn start_module(&mut self, manifest: ModuleManifest) {
         if !manifest.is_runnable() {
             return; // only declares things (file icons), nothing to run
+        }
+        if manifest.is_legacy() {
+            return; // a Python module: its .NET version is being installed (see `install_at_start`)
         }
         let Some(tx) = self.plugin_tx.clone() else { return };
         match PluginHandle::start(manifest.clone(), tx) {
@@ -234,13 +237,14 @@ impl Workbench {
         match message {
             PluginMessage::RegisterCommand { module, id, title, category, keybinding } => {
                 let action = RunModuleCommand { id: id.clone() };
-                if let Some(key) = keybinding
-                    && let Ok(b) = KeyBinding::load(&key, Box::new(action.clone()), None, false, None, cx.keyboard_mapper().as_ref())
+                let category: &'static str = Box::leak(category.unwrap_or_else(|| "Module".into()).into_boxed_str());
+                cx.global_mut::<Commands>().list.push(CommandInfo { id: id.clone(), title, category, action: Box::new(action.clone()), default_key: keybinding });
+                // Its key (or the user's for it), bound after the others as before.
+                if let Some(key) = cx.global::<Commands>().key(&id)
+                    && let Ok(b) = KeyBinding::load(&key, Box::new(action), None, false, None, cx.keyboard_mapper().as_ref())
                 {
                     cx.bind_keys([b]);
                 }
-                let category: &'static str = Box::leak(category.unwrap_or_else(|| "Module".into()).into_boxed_str());
-                cx.global_mut::<Commands>().list.push(CommandInfo { id: id.clone(), title, category, action: Box::new(action) });
                 self.plugin_commands.insert(id, module);
             }
             PluginMessage::Status { module, id, text, tooltip, command, right } => {

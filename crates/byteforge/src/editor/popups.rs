@@ -264,7 +264,7 @@ impl EditorView {
         let mut entries: Vec<Option<MenuEntry>> = Vec::new();
         let command = |entries: &mut Vec<_>, id: &str| {
             if let Some(cmd) = commands.get(id) {
-                entries.push(Some((cmd.title.clone(), cmd.action.boxed_clone(), crate::workbench::default_key(id))));
+                entries.push(Some((cmd.title.clone(), cmd.action.boxed_clone(), crate::workbench::command_key_label(cx, id))));
             }
         };
         if !self.read_only && !self.conflict_entries().is_empty() {

@@ -9,7 +9,7 @@ actions!(
     [
         NewFile, OpenFile, OpenFolder, Save, SaveAs, SaveAll, CloseEditor, CloseAllEditors, Quit, CommandPalette, QuickOpen, GoToLine,
         ToggleSideBar, ResetActivityBarOrder, TogglePanel, ShowExplorer, ShowSearch, ShowProblems, ShowOutput, ShowModules, NextEditor, PreviousEditor,
-        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, OpenSettingsJson, About, CheckForUpdates, Build, Run, RunWithWatch, RestartWatch, SelectLaunchProfile, NewProject, NewItem, ManageUserSecrets, Test, Clean, Restore, Stop,
+        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, OpenSettingsJson, OpenKeyboardShortcuts, About, CheckForUpdates, Build, Run, RunWithWatch, RestartWatch, SelectLaunchProfile, NewProject, NewItem, ManageUserSecrets, Test, Clean, Restore, Stop,
         ToggleLineEnding, ReloadCSharp, InstallRoslyn, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
         GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
         FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup,
@@ -265,6 +265,8 @@ pub struct CommandInfo {
     pub title: String,
     pub category: &'static str,
     pub action: Box<dyn Action>,
+    /// Its key without the user's change ("ctrl-shift-p", the platform's form; a module's own keybinding).
+    pub default_key: Option<String>,
 }
 
 impl CommandInfo {
@@ -355,6 +357,7 @@ fn builtin() -> Vec<Builtin> {
         ("theme.reload", "Reload Theme", "Preferences", Box::new(ReloadTheme), None),
         ("settings.open", "Settings", "Preferences", Box::new(OpenSettings), Some("ctrl-,")),
         ("settings.openJson", "Open Settings (JSON)", "Preferences", Box::new(OpenSettingsJson), None),
+        ("settings.keyboardShortcuts", "Keyboard Shortcuts", "Preferences", Box::new(OpenKeyboardShortcuts), None),
         ("app.about", "About ByteForge", "Help", Box::new(About), None),
         ("app.checkForUpdates", "Check for Updates…", "Help", Box::new(CheckForUpdates), None),
         ("dotnet.build", "Build", "Run", Box::new(Build), Some("ctrl-shift-b")),
@@ -469,6 +472,8 @@ fn builtin() -> Vec<Builtin> {
 #[derive(Default)]
 pub struct Commands {
     pub list: Vec<CommandInfo>,
+    /// The user's keys ("keybindings" in settings.json): command id to keys, "" for none.
+    pub overrides: HashMap<String, String>,
 }
 
 impl gpui::Global for Commands {}
@@ -476,6 +481,16 @@ impl gpui::Global for Commands {}
 impl Commands {
     pub fn get(&self, id: &str) -> Option<&CommandInfo> {
         self.list.iter().find(|c| c.id == id)
+    }
+
+    /// The keys a command runs with: the user's, else its default; None when it has none (or the user
+    /// removed it).
+    pub fn key(&self, id: &str) -> Option<String> {
+        match self.overrides.get(id) {
+            Some(k) if k.trim().is_empty() => None,
+            Some(k) => Some(k.trim().to_owned()),
+            None => self.get(id).and_then(|c| c.default_key.clone()),
+        }
     }
 }
 
@@ -488,30 +503,43 @@ const EXPLORER: &str = "Explorer";
 /// even though some are IDE shortcuts elsewhere. Ctrl+P and Ctrl+J stay with the IDE, like in VS Code.
 const SHELL_KEYS: &str = "abcdefghklmnoqrstuvwxyz";
 
-/// Installs default bindings, then user overrides from settings ("keybindings": { "view.quickOpen": "ctrl-e" }).
+/// Installs the commands with their default keys, then binds every key with the user's changes ("keybindings":
+/// { "view.quickOpen": "ctrl-e" }).
 pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
     let mut commands = Commands::default();
-    let mut bindings = Vec::new();
     for (id, title, category, action, key) in builtin() {
-        // User overrides are taken as written ("secondary-" means Cmd on macOS, Ctrl elsewhere).
-        let key = match overrides.get(id) {
-            Some(k) if k.trim().is_empty() => None,
-            Some(k) => Some(k.clone()),
-            None => key.map(platform_keys),
-        };
-        if let Some(key) = key {
-            let mapper = cx.keyboard_mapper().clone();
-            match KeyBinding::load(&key, action.boxed_clone(), None, false, None, mapper.as_ref()) {
-                Ok(binding) => bindings.push(binding),
-                Err(e) => log::warn!("invalid keybinding '{key}' for {id}: {e}"),
-            }
+        commands.list.push(CommandInfo { id: id.into(), title: title.into(), category, action, default_key: key.map(platform_keys) });
+    }
+    cx.set_global(commands);
+    bind_all(cx, overrides);
+}
+
+/// Binds every key again from scratch: the commands' keys (the user's, else their defaults; module commands
+/// too) and the fixed ones (editor, terminal, inputs). So a changed or removed key takes effect at once and the
+/// old one stops working.
+pub fn bind_all(cx: &mut App, overrides: &HashMap<String, String>) {
+    cx.clear_key_bindings();
+    cx.global_mut::<Commands>().overrides = overrides.clone();
+    let mapper = cx.keyboard_mapper().clone();
+    let commands = cx.global::<Commands>();
+    let mut bindings = Vec::new();
+    for cmd in &commands.list {
+        // User keys are taken as written ("secondary-" means Cmd on macOS, Ctrl elsewhere).
+        let Some(key) = commands.key(&cmd.id) else { continue };
+        match KeyBinding::load(&key, cmd.action.boxed_clone(), None, false, None, mapper.as_ref()) {
+            Ok(binding) => bindings.push(binding),
+            Err(e) => log::warn!("invalid keybinding '{key}' for {}: {e}", cmd.id),
         }
-        commands.list.push(CommandInfo { id: id.into(), title: title.into(), category, action });
     }
     // F1 first so Ctrl+Shift+P stays the displayed (highest-precedence) binding.
     cx.bind_keys([kb("f1", CommandPalette, None)]);
     cx.bind_keys(bindings);
     cx.bind_keys([kb("ctrl-pageup", PreviousEditor, None), kb("ctrl-pagedown", NextEditor, None)]);
+    bind_fixed(cx);
+}
+
+/// The keys that aren't commands' (moving the caret, the terminal's, inputs'); not changeable.
+fn bind_fixed(cx: &mut App) {
 
     let e = Some(EDITOR);
     cx.bind_keys([
@@ -684,8 +712,6 @@ pub fn install(cx: &mut App, overrides: &HashMap<String, String>) {
     // Dropdowns that take the keyboard (the breadcrumbs'): the input's actions, no typing.
     let m = Some("Menu");
     cx.bind_keys([kb("up", InputUp, m), kb("down", InputDown, m), kb("enter", Confirm, m), kb("escape", InputCancel, m)]);
-
-    cx.set_global(commands);
 }
 
 /// A built-in binding, translated for the platform (see [`platform_keys`]).

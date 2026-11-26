@@ -79,21 +79,6 @@ impl AppPaths {
         if dev.is_dir() { dev } else { beside }
     }
 
-    /// Built-in modules: next to the executable (or in the app bundle's Resources), or the source tree when running via `cargo run`.
-    pub fn builtin_modules(&self) -> PathBuf {
-        let beside = self.install_dir.join("modules");
-        if beside.is_dir() {
-            return beside;
-        }
-        // Inside a macOS app bundle: Contents/MacOS/byteforge, Contents/Resources/modules.
-        let bundled = self.install_dir.join("../Resources/modules");
-        if bundled.is_dir() {
-            return bundled;
-        }
-        let dev = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../modules");
-        if dev.is_dir() { dev } else { beside }
-    }
-
     /// The .NET module host (`ByteForge.ModuleHost.dll`): in `modulehost/` next to the executable (or in the
     /// app bundle's Resources), or `modulehost/bin/` of the source tree after `dotnet build modulehost`.
     pub fn module_host(&self) -> PathBuf {

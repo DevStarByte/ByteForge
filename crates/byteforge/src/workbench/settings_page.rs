@@ -101,7 +101,7 @@ pub(super) fn all_settings() -> Vec<SettingInfo> {
         s!("Terminal", "terminal.args", "Shell arguments", List, Vec::<String>::new(), "Arguments for the shell, comma-separated."),
         s!("Updates", "update.checkAutomatically", "Check for updates", Bool, true, "Look for a new version every time ByteForge starts (Windows and macOS)."),
         s!("Updates", "update.includePrereleases", "Include betas", Bool, false, "Offer beta versions too."),
-        s!("Keyboard", "keybindings", "Key bindings", Special, json!({}), "Change a command's key in settings.json, e.g. \"view.quickOpen\": \"ctrl-e\" (\"\" unbinds)."),
+        s!("Keyboard", "keybindings", "Key bindings", Special, json!({}), "Each command's keys: change them on the Keyboard Shortcuts page (Preferences), or in settings.json, e.g. \"view.quickOpen\": \"ctrl-e\" (\"\" unbinds)."),
     ]
 }
 
@@ -511,6 +511,19 @@ impl Workbench {
                 .text_size(px(12.))
                 .child(format!("{} …", value_text(&value)))
                 .on_click(cx.listener(|_, _, w, cx| w.dispatch_action(Box::new(SelectTheme), cx)))
+                .into_any_element(),
+            Kind::Special if key == "keybindings" => div()
+                .id(("setting-shortcuts", i))
+                .px_2()
+                .py(px(3.))
+                .rounded(px(5.))
+                .border_1()
+                .border_color(rule)
+                .cursor_pointer()
+                .hover(move |s| s.bg(hover))
+                .text_size(px(12.))
+                .child("Keyboard Shortcuts …")
+                .on_click(cx.listener(|_, _, w, cx| w.dispatch_action(Box::new(crate::actions::OpenKeyboardShortcuts), cx)))
                 .into_any_element(),
             Kind::Special => div()
                 .id(("setting-json", i))

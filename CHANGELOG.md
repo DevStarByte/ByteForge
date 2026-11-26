@@ -9,12 +9,23 @@ on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
   host, each in its own load context. Turning a module off, updating or uninstalling it unloads it without
   touching the others; a module that fails stops alone and its error goes to the Output; the host keeps no
   module file open, so an uninstall on Windows never finds them locked. Modules are written against the module
-  SDK on the packages branch (docs/modules.md, "Writing a module"); they need .NET 10 or newer. Python modules
-  still work as before. First ported: CSharpier and the Windows, macOS and Caelestia themes.
+  SDK on the packages branch (docs/modules.md, "Writing a module"); they need .NET 10 or newer. Every module is
+  now .NET, and ByteForge no longer runs Python modules: at start it replaces installed ones with their .NET
+  versions from the registry, so Python isn't needed any more (on Windows that also ends the trouble with the
+  Microsoft Store's python3 and with PATHEXT).
+- The GUID Generator module is gone from the registry.
+- The ReSharper Formatter is no longer bundled with ByteForge: it's installed from the registry on the first
+  start (once; uninstalled, it stays uninstalled).
 - A module's themes belong to it: a module writes them into its own `themes/` folder, ByteForge lists them
   while the module is installed and turned on, and drops them with it. Uninstalling the Windows Theme left the
   "Windows" theme behind (and in use); now the theme goes too, and ByteForge switches to ByteForge Dark (or
   Light). The new theme modules remove the copy their old versions wrote into the general themes folder.
+- Keyboard Shortcuts (Preferences → Keyboard Shortcuts, also from the Settings screen): every command with its
+  keys, searchable by name or by keys ("ctrl+s"), with a filter for the changed ones. Click a command's keys
+  and press the new ones (two presses make a chord such as Ctrl+K Ctrl+S; Enter saves, Escape cancels);
+  Remove takes them away, Reset brings the default back, and keys another command has too are pointed out.
+  It writes `"keybindings"` in settings.json (one entry per line now) and every change takes effect at once:
+  the old keys stop working too, which a change in settings.json didn't do before. Menus show the changed keys.
 - The Run menu was taller than the screen; it's now four menus, as in Visual Studio: Run (start, run, watch,
   stop, launch profile, user secrets, tasks), Debug (stepping, breakpoints, attach), Build (build, test, clean,
   restore, reload C#, EF Core migrations) and Test (tests, benchmarks, live metrics). A theme that lists its

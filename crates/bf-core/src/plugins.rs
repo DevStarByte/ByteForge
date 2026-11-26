@@ -1,28 +1,24 @@
-//! Out-of-process modules. A module is a folder in `modules/` containing `module.json`:
+//! Modules. A module is a folder in `modules/` containing `module.json`:
 //!
 //! ```json
-//! { "id": "me.hello", "name": "Hello", "command": "python", "args": ["hello.py"] }
+//! { "id": "me.hello", "name": "Hello", "runtime": "dotnet", "assembly": "bin/Hello.dll" }
 //! ```
 //!
-//! The host starts the command in the module folder and talks newline-delimited JSON over stdio.
+//! .NET modules all run in one shared module host (see [`crate::modulehost`]), each in its own load context,
+//! and talk newline-delimited JSON (docs/modules.md, "Protocol"):
 //! Module → host: `registerCommand {id,title,category?,keybinding?}`, `status {id,text,tooltip?,command?,alignment?}`,
 //! `log {text}`, `openFile {path,line?,column?}`, `showView {id}`, `insertText {text}` (at the caret(s) of the active editor), `setTheme {name}`,
 //! `registerFormatter {id,name,extensions}`, `formatResult {requestId,text?|error?}`.
 //! Host → module: `activate {workspace}`, `executeCommand {id}`, `event {name, path?}` (folderOpened, fileSaved, themeChanged, editorChanged),
-//! `format {requestId,path,text}`.
-//! Modules can be written in any language and cannot crash the IDE. A .NET module (`"runtime": "dotnet"`,
-//! `"assembly": "bin/X.dll"`) runs in the shared .NET module host instead of a process of its own
-//! (see [`crate::modulehost`]).
+//! `format {requestId,path,text}`. A module can't crash the IDE.
 //!
-//! A module can also contribute file icons and settings declaratively (`"fileIcons"` and `"settings"` in
-//! `module.json`); a module with only declarations leaves out `"command"` and isn't started.
+//! A module can also contribute file icons, languages, views and settings declaratively (in `module.json`); a
+//! module with only declarations has no `"runtime"` and isn't started. Modules of the old kind (a `"command"`,
+//! Python scripts) aren't run any more: ByteForge updates them to their .NET versions from the registry.
 
-use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, Stdio};
 use std::sync::Arc;
 
-use parking_lot::Mutex;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -30,7 +26,7 @@ use serde_json::{Value, json};
 pub struct ModuleManifest {
     pub id: String,
     pub name: String,
-    /// The program to start; empty for a module that only declares things like file icons.
+    /// What an old (Python) module ran; modules are .NET now (`runtime`), so a module with one isn't started.
     #[serde(default)]
     pub command: String,
     #[serde(default)]
@@ -74,7 +70,12 @@ impl ModuleManifest {
 
     /// Whether there is something to run (a module may only declare things like file icons).
     pub fn is_runnable(&self) -> bool {
-        self.is_dotnet() || !self.command.trim().is_empty()
+        self.is_dotnet() || self.is_legacy()
+    }
+
+    /// A module of the old kind: a program to start (a Python script) instead of a .NET assembly.
+    pub fn is_legacy(&self) -> bool {
+        !self.is_dotnet() && !self.command.trim().is_empty()
     }
 }
 
@@ -331,101 +332,26 @@ pub fn discover(dir: &Path) -> Vec<ModuleManifest> {
     found
 }
 
-/// A running module: a process of its own, or a .NET module in the shared host.
+/// A running module: a .NET module in the shared module host.
 #[derive(Clone)]
 pub struct PluginHandle {
     pub manifest: ModuleManifest,
-    transport: Transport,
-}
-
-#[derive(Clone)]
-enum Transport {
-    Process { stdin: Arc<Mutex<Option<ChildStdin>>>, child: Arc<Mutex<Option<Child>>> },
-    Hosted(Arc<crate::modulehost::HostedModule>),
-}
-
-/// The program to start for a module's `command`, with arguments to put first. Windows has no `python3`
-/// unless Python came from the Microsoft Store: a python.org install has `python` and the `py` launcher,
-/// and `WindowsApps\python3.exe` is only a placeholder that opens the Store. So there `python3` and
-/// `python` become a real interpreter on PATH, else `py -3`. Elsewhere, and for other commands, the
-/// command as written.
-pub fn resolve_program(command: &str) -> (String, Vec<String>) {
-    if cfg!(windows) && matches!(command, "python3" | "python") {
-        let dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
-        let real = ["python3.exe", "python.exe"]
-            .iter()
-            .find_map(|exe| dirs.iter().filter(|d| !is_store_alias_dir(d)).map(|d| d.join(exe)).find(|p| p.is_file()));
-        if let Some(python) = real {
-            return (python.to_string_lossy().into_owned(), Vec::new());
-        }
-        if let Some(py) = dirs.iter().map(|d| d.join("py.exe")).find(|p| p.is_file()) {
-            return (py.to_string_lossy().into_owned(), vec!["-3".to_owned()]);
-        }
-    }
-    (command.to_owned(), Vec::new())
-}
-
-/// `%LOCALAPPDATA%\Microsoft\WindowsApps`: app execution aliases, among them the Store's Python placeholders.
-fn is_store_alias_dir(dir: &Path) -> bool {
-    let s = dir.to_string_lossy().to_lowercase().replace('/', r"\");
-    s.trim_end_matches('\\').ends_with(r"\microsoft\windowsapps")
+    module: Arc<crate::modulehost::HostedModule>,
 }
 
 impl PluginHandle {
+    /// Loads the module into the .NET module host. A module of the old kind (a `"command"` such as a Python
+    /// script) isn't run: modules are .NET now, and the registry has the new version.
     pub fn start(manifest: ModuleManifest, events: flume::Sender<PluginMessage>) -> anyhow::Result<Self> {
-        if manifest.is_dotnet() {
-            let hosted = crate::modulehost::HostedModule::load(&manifest, events)?;
-            return Ok(Self { manifest, transport: Transport::Hosted(Arc::new(hosted)) });
+        if !manifest.is_dotnet() {
+            anyhow::bail!("it's an old (Python) module; ByteForge runs .NET modules now. Update it in the Modules view");
         }
-        let (program, mut args) = resolve_program(&manifest.command);
-        args.extend(manifest.args.iter().cloned());
-        let mut command = crate::process::command(&program);
-        command.args(&args).current_dir(&manifest.dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-        // A module runs in its own folder. Windows searches the current folder first when a program is looked up
-        // (Python's `shutil.which`, `cmd`), with every extension in PATHEXT, which often has `.PY`: a module
-        // `csharpier.py` looking for `csharpier` found itself and failed to start it ("not a valid Win32
-        // application"). Programs come from PATH only.
-        #[cfg(windows)]
-        command.env("NoDefaultCurrentDirectoryInExePath", "1");
-        let mut child = command.spawn()?;
-        let stdout = child.stdout.take().ok_or_else(|| anyhow::anyhow!("no stdout"))?;
-        let stderr = child.stderr.take();
-        let stdin = child.stdin.take();
-        let module = manifest.id.clone();
-
-        {
-            let module = module.clone();
-            let events = events.clone();
-            std::thread::spawn(move || {
-                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                    if let Some(message) = parse(&module, &line) {
-                        let _ = events.send(message);
-                    }
-                }
-                let _ = events.send(PluginMessage::Exited { module, reason: "process ended".into() });
-            });
-        }
-        if let Some(stderr) = stderr {
-            let module = module.clone();
-            std::thread::spawn(move || {
-                for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                    let _ = events.send(PluginMessage::Log { module: module.clone(), text: line });
-                }
-            });
-        }
-        Ok(Self { manifest, transport: Transport::Process { stdin: Arc::new(Mutex::new(stdin)), child: Arc::new(Mutex::new(Some(child))) } })
+        let module = crate::modulehost::HostedModule::load(&manifest, events)?;
+        Ok(Self { manifest, module: Arc::new(module) })
     }
 
     pub fn send(&self, message: Value) {
-        match &self.transport {
-            Transport::Process { stdin, .. } => {
-                if let Some(stdin) = stdin.lock().as_mut() {
-                    let _ = writeln!(stdin, "{message}");
-                    let _ = stdin.flush();
-                }
-            }
-            Transport::Hosted(module) => module.send(&message),
-        }
+        self.module.send(&message);
     }
 
     pub fn activate(&self, workspace: Option<&Path>, settings: &Value) {
@@ -466,18 +392,10 @@ impl PluginHandle {
         self.send(json!({ "type": "event", "name": name, "path": path }));
     }
 
-    /// Ends the module's process and waits for it (a kill takes effect at once; waiting lets go of its
-    /// folder, which an update replaces next). A .NET module is unloaded from the host.
+    /// Unloads the module from the host and waits (briefly) until it has let go, so its folder can be replaced
+    /// or removed next.
     pub fn stop(&self) {
-        match &self.transport {
-            Transport::Process { child, .. } => {
-                if let Some(mut child) = child.lock().take() {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                }
-            }
-            Transport::Hosted(module) => module.stop(),
-        }
+        self.module.stop();
     }
 }
 
@@ -571,48 +489,6 @@ mod tests {
         assert_eq!(item.actions[0].menu_label(), "Remove…");
         assert!(item.menu[0].is_separator());
         assert_eq!(item.menu[1].menu_label(), "Copy ID");
-    }
-
-    #[test]
-    fn python_is_found_where_windows_puts_it() {
-        assert!(super::is_store_alias_dir(std::path::Path::new(r"C:\Users\me\AppData\Local\Microsoft\WindowsApps\")));
-        assert!(!super::is_store_alias_dir(std::path::Path::new(r"C:\Python314")));
-        assert_eq!(super::resolve_program("node"), ("node".to_owned(), Vec::new()));
-        if !cfg!(windows) {
-            assert_eq!(super::resolve_program("python3"), ("python3".to_owned(), Vec::new()));
-        }
-    }
-
-    /// A module looking up a program named like its own script finds the program, not the script (Windows
-    /// searches the current folder first, and PATHEXT often has `.PY`).
-    #[test]
-    fn a_module_does_not_find_its_own_script_as_a_program() {
-        let (python, _) = super::resolve_program("python3");
-        if std::process::Command::new(&python).arg("--version").output().map_or(true, |o| !o.status.success()) {
-            return; // no Python here
-        }
-        let dir = std::env::temp_dir().join(format!("bf-module-which-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(
-            dir.join("probe.py"),
-            "import json, shutil
-print(json.dumps({'type': 'log', 'text': 'found:' + str(shutil.which('probe'))}), flush=True)
-",
-        )
-        .unwrap();
-        let mut manifest: super::ModuleManifest = json5::from_str(r#"{ id: "x.probe", name: "Probe", command: "python3", args: ["probe.py"] }"#).unwrap();
-        manifest.dir = dir.clone();
-        let (tx, rx) = flume::unbounded();
-        let _handle = super::PluginHandle::start(manifest, tx).unwrap();
-        let text = loop {
-            match rx.recv_timeout(std::time::Duration::from_secs(30)).expect("the module answers") {
-                super::PluginMessage::Log { text, .. } if text.starts_with("found:") => break text,
-                super::PluginMessage::Exited { reason, .. } => panic!("module ended: {reason}"),
-                _ => {}
-            }
-        };
-        let _ = std::fs::remove_dir_all(&dir);
-        assert!(!text.to_lowercase().contains("probe.py"), "{text}");
     }
 
     #[test]

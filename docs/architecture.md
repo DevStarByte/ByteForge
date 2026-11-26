@@ -9,8 +9,6 @@ crates/
   bf-core     paths, settings, themes (inheritance, hot reload), workspace index/watcher, search, dotnet runner,
               debug helpers (launch profiles, target assembly, build diagnostics), module host
   byteforge   the GPUI app: workbench, editor element, palette, explorer, search, theme → GPUI mapping, icons
-modules/      the preinstalled modules, shipped with every download (the ReSharper Formatter); all others live in
-              the registry: modules/ on the `packages` branch
 modulehost/   the .NET module host (C#): one process that runs every .NET module, each in its own collectible load
               context; shipped in every download as modulehost/ByteForge.ModuleHost.dll (bf-core/src/modulehost.rs
               talks to it). The module SDK lives with the modules on the `packages` branch (sdk/)

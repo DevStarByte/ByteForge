@@ -28,7 +28,7 @@ pub struct PackageInfo {
     pub dir: String,
     /// Files to download, relative to `dir` (`module.json` among them).
     pub files: Vec<String>,
-    /// Programs the module needs on PATH (e.g. `python3`, `dotnet`), shown before installing.
+    /// Programs the module needs on PATH (e.g. `dotnet`, `git`, `docker`), shown before installing.
     #[serde(default)]
     pub requires: Vec<String>,
     #[serde(default)]
@@ -153,34 +153,21 @@ pub fn uninstall(modules_dir: &Path, module_dir: &Path) -> anyhow::Result<()> {
 }
 
 /// The bundled modules that are preinstalled; the others are installed from the Modules view.
+/// Modules installed from the registry the first time ByteForge starts (once: one that is uninstalled later
+/// stays uninstalled).
 pub const PREINSTALLED: &[&str] = &["byteforge.resharper-format"];
 
-/// Copies the [`PREINSTALLED`] modules bundled with ByteForge (`<install dir>/modules`) into the user's
-/// modules folder, once per module: ids in `done` were preinstalled before (and may have been uninstalled
-/// since). Returns the ids preinstalled now.
-pub fn preinstall(bundled: &Path, modules_dir: &Path, done: &[String]) -> Vec<String> {
-    let mut installed = Vec::new();
-    let Ok(entries) = std::fs::read_dir(bundled) else { return installed };
-    for entry in entries.flatten() {
-        let src = entry.path();
-        let Some(id) = std::fs::read_to_string(src.join("module.json"))
-            .ok()
-            .and_then(|t| json5::from_str::<serde_json::Value>(&t).ok())
-            .and_then(|v| v.get("id").and_then(|i| i.as_str()).map(str::to_owned))
-        else {
-            continue;
-        };
-        if !PREINSTALLED.contains(&id.as_str()) || done.contains(&id) {
-            continue;
-        }
-        let dest = modules_dir.join(entry.file_name());
-        if !dest.exists() && copy_dir(&src, &dest).is_err() {
-            let _ = std::fs::remove_dir_all(&dest);
-            continue;
-        }
-        installed.push(id);
-    }
-    installed
+/// What to install from the registry at start: the [`PREINSTALLED`] modules not installed before (`done`), and
+/// the installed modules of the old kind (Python), whose .NET versions replace them.
+pub fn to_install_at_start(installed: &[crate::plugins::ModuleManifest], done: &[String]) -> Vec<String> {
+    let mut ids: Vec<String> = PREINSTALLED
+        .iter()
+        .filter(|id| !done.iter().any(|d| d == *id) && !installed.iter().any(|m| m.id == **id))
+        .map(|id| (*id).to_owned())
+        .collect();
+    ids.extend(installed.iter().filter(|m| m.is_legacy()).map(|m| m.id.clone()));
+    ids.dedup();
+    ids
 }
 
 fn copy_dir(src: &Path, dest: &Path) -> std::io::Result<()> {

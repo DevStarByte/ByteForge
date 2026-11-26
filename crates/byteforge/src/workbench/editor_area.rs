@@ -124,6 +124,7 @@ impl Workbench {
             Some(Page::Markdown(path)) => self.render_markdown_page(&path, cx).into_any_element(),
             Some(Page::Diff(diff)) => diff.into_any_element(),
             Some(Page::Settings) => self.render_settings_page(cx).into_any_element(),
+            Some(Page::Shortcuts) => self.render_shortcuts_page(cx).into_any_element(),
             Some(Page::Merge(merge)) => merge.into_any_element(),
             Some(Page::Secrets { project, file }) => self.render_secrets_page(&project, &file, cx).into_any_element(),
             Some(Page::Resx(view)) => view.into_any_element(),

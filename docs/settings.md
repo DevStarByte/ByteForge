@@ -35,7 +35,7 @@ comments when the settings screen changes a value:
   "update.checkAutomatically": true,                   // update check at every start (default: on for Windows and macOS)
   "update.includePrereleases": false,                  // also offer betas
   "explorer.nativeIcons": true,                        // macOS: Finder's file and folder icons (false: the theme's)
-  "keybindings": { "view.quickOpen": "ctrl-e", "theme.select": "" },   // "" unbinds
+  "keybindings": { "view.quickOpen": "ctrl-e", "theme.select": "" },   // "" unbinds; Preferences → Keyboard Shortcuts edits these
   "modules.disabled": ["me.hello"]
 }
 ```

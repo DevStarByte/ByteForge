@@ -152,7 +152,6 @@ jobs:
           New-Item -ItemType Directory -Force "$dir\themes" | Out-Null
           Copy-Item target\release\byteforge.exe $dir
           Copy-Item themes\*.json "$dir\themes"
-          Copy-Item -Recurse modules "$dir\modules"
           # The .NET module host (framework-dependent: one build for every platform).
           dotnet publish modulehost\ByteForge.ModuleHost.csproj -c Release -o "$dir\modulehost" -nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

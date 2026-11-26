@@ -12,10 +12,9 @@ opens its details (full description, version, requirements, the file types it fo
 | **CSharpier** | C# / MSBuild formatter (a .NET module); install it from the Modules view |
 | **Docker** | the Docker view, Docker commands, Dockerfile highlighting and Docker file icons; install it from the Modules view |
 | **Aspire** | the Aspire view: AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and run / new / init / add / publish / deploy commands; needs the [Aspire CLI](https://aspire.dev); install it from the Modules view |
-| **SQL** | the Database view: connections from `"sql.connections"` in settings, appsettings.json `ConnectionStrings` and SQLite files, with their tables, views and columns; "SQL: Run File" (Ctrl+Shift+Enter), Select Top 100, a shell per connection, SQL highlighting and a keyword-case formatter. SQLite needs only Python; PostgreSQL, MySQL / MariaDB and SQL Server use `psql`, `mysql` and `sqlcmd`; install it from the Modules view |
+| **SQL** | the Database view: connections from `"sql.connections"` in settings, appsettings.json `ConnectionStrings` and SQLite files, with their tables, views and columns; "SQL: Run File" (Ctrl+Shift+Enter), Select Top 100, a shell per connection, SQL highlighting and a keyword-case formatter. SQLite works as is; PostgreSQL, MySQL / MariaDB and SQL Server use `psql`, `mysql` and `sqlcmd`; install it from the Modules view |
 | TODO Finder | TODO / FIXME / HACK comments: count in the status bar, "TODOs: List All" with clickable locations |
 | JSON Formatter | Format Document for `.json` files; leaves JSON with comments alone |
-| GUID Generator | "GUID: Insert New GUID" (Ctrl+Alt+G), uppercase, `{braced}` and `new Guid("…")` variants |
 | .NET Project Files | "Files: Add .gitignore / .editorconfig / Directory.Build.props / global.json / .gitattributes" |
 | Focus Timer | a Pomodoro countdown in the status bar, with desktop notifications |
 
@@ -23,12 +22,13 @@ The registry is the `modules/` folder of the `packages` branch (`modules/index.j
 their files; a workflow regenerates it). `"modules.registry"` in settings points ByteForge at another one (also
 `file://`). Downloads use `curl`; installed modules live in `~/.config/byteforge/modules/<name>/`.
 
-Only the ReSharper Formatter is preinstalled: `<install dir>/modules/resharper-format` is copied into the user's
-modules folder once, and isn't copied again after it's uninstalled. Every other module comes from the registry
-(CSharpier, preinstalled before 0.10.0, stays installed for those who have it). The ReSharper module uses a version
+Only the ReSharper Formatter comes by itself: ByteForge installs it from the registry the first time it starts,
+and not again after it's uninstalled. Every other module is installed from the Modules view. Modules are .NET
+assemblies; a module of the old kind (Python, before 1.4.0) isn't run, and ByteForge replaces it with its .NET
+version from the registry when it starts. The ReSharper module uses a version
 of the tools pinned in the project's dotnet tool manifest (`dotnet tool install JetBrains.ReSharper.GlobalTools` in
 the repository), else a global one; "ReSharper: Install" installs them globally. `"resharper.profile"` picks the
-cleanup profile (default `Built-in: Reformat Code`). It needs `python3` and the .NET SDK.
+cleanup profile (default `Built-in: Reformat Code`). It needs the .NET SDK.
 
 The SQL module's settings: `"sql.connections"` (a list of `{ "name", "driver", "connectionString" }`, or
 `host`, `port`, `database`, `user`, `password`, `file` for SQLite, `integratedSecurity` and
@@ -88,8 +88,6 @@ on PATH (never in the current folder) and `Programs.RunAsync` runs one. `ModuleH
 is a small complete example with tests. On the packages branch a workflow builds each module into its `bin/`,
 runs the tests and lists `module.json` and `bin/` in the registry.
 
-A module with a `"command"` instead (`"command": "python3", "args": ["hello.py"]`) is started as a process of
-its own and speaks the same protocol over stdin and stdout; the modules that are still in Python work that way.
 
 **Themes:** a module that makes a color theme writes it into its own `themes/` folder
 (`Path.Combine(ModuleDir, "themes", "mine.json")`). ByteForge lists those themes while the module is installed
@@ -125,9 +123,8 @@ it's installed and turned on. The [Docker module](https://github.com/DevStarByte
 
 ## Protocol
 
-One JSON object per line. A .NET module reads them from `input` and writes its own to `output`; a module with a
-`"command"` is started in its own folder and uses stdin and stdout. (Between ByteForge and the .NET host each line
-is `<module id>	<message>`, which the host strips; see `modulehost/Program.cs`.)
+One JSON object per line: a module reads them from `input` and writes its own to `output`. (Between ByteForge
+and the .NET host each line is `<module id>\t<message>`, which the host strips; see `modulehost/Program.cs`.)
 
 **Module → IDE**
 

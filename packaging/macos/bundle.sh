@@ -53,7 +53,6 @@ install -m755 "$BIN" "$APP/Contents/MacOS/byteforge"
 sed "s/@VERSION@/${VERSION%%-*}/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
 cp packaging/macos/ByteForge.icns "$APP/Contents/Resources/"
 cp themes/*.json "$APP/Contents/Resources/themes/"
-cp -R modules "$APP/Contents/Resources/modules"
 # The .NET module host (framework-dependent: the same build for arm64 and x64).
 dotnet publish modulehost/ByteForge.ModuleHost.csproj -c Release -o "$APP/Contents/Resources/modulehost" -nologo
 cp README.md LICENSE "$APP/Contents/Resources/"

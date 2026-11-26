@@ -156,14 +156,17 @@ Section 1 above is what still has to be checked by hand; this is what the releas
 
 ## 8. Later
 
-- [ ] Modules in C# instead of Python: the .NET module host and SDK are built (1.4.0) and CSharpier and the three
-      theme modules ported; the other 19 modules follow, then Python support goes.
+- [x] Modules in C# instead of Python: one .NET module host runs them (each in its own load context), the module
+      SDK lives with the modules on the packages branch, every module is ported, and ByteForge no longer runs
+      Python modules (installed ones are replaced by their .NET versions at start).
 - [ ] Code coverage in the gutter.
 - [x] Sticky scroll: the first lines of the blocks the top of the view is in (from the fold regions, without
       comment runs and `using` blocks) pinned at the top, pushed out by their block's end; click: go there.
       `"editor.stickyScroll.enabled"`, `"editor.stickyScroll.maxLineCount"` (5).
 - [ ] An AI assistant panel.
-- [ ] A keyboard shortcuts editor (today: `"keybindings"` in settings.json).
+- [x] A keyboard shortcuts editor: Preferences → Keyboard Shortcuts lists every command with its keys (search by
+      name or keys); click the keys and press new ones (two presses for a chord), Remove, Reset; keys another
+      command has too are pointed out. Writes `"keybindings"` in settings.json; changes take effect at once.
 - [ ] Vim mode.
 - [ ] Remote development: SSH, WSL, dev containers.
 - [ ] Profiling: `dotnet-counters` / `dotnet-trace` from the Run menu.

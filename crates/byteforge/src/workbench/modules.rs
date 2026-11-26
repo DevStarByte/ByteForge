@@ -1,5 +1,6 @@
 //! Module packages in the workbench: the Modules view (installed and available packages), installing,
-//! updating, disabling and uninstalling, and preinstalling the modules that ship with ByteForge.
+//! updating, disabling and uninstalling, and at start installing the ReSharper Formatter once and updating
+//! modules of the old (Python) kind to their .NET versions.
 
 use bf_core::registry::{self, PackageInfo};
 use gpui::Hsla;
@@ -18,18 +19,65 @@ impl Workbench {
         self.settings.get_string("modules.registry").filter(|u| !u.trim().is_empty()).unwrap_or_else(|| registry::DEFAULT_REGISTRY.to_owned())
     }
 
-    /// Copies the bundled modules into the user's modules folder the first time ByteForge sees them, so
-    /// they're ordinary packages afterwards (an uninstalled one stays uninstalled).
-    pub(super) fn preinstall_modules(&mut self) {
+    /// In the background at start: installs the [`registry::PREINSTALLED`] modules from the registry the first
+    /// time (an uninstalled one stays uninstalled), and replaces installed modules of the old kind (Python, which
+    /// ByteForge no longer runs) with their .NET versions. Each starts once it's installed.
+    pub(super) fn install_at_start(&mut self, cx: &mut Context<Self>) {
         let done: Vec<String> = self.state.get("modules.preinstalled").and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
-        let added = registry::preinstall(&self.paths.builtin_modules(), &self.paths.user_modules(), &done);
-        if !added.is_empty() {
-            for id in &added {
-                self.log(format!("Preinstalled the module {id}."));
-            }
-            let all: Vec<String> = done.into_iter().chain(added).collect();
-            self.state.set("modules.preinstalled", Some(&serde_json::to_string(&all).unwrap_or_default()));
+        let wanted = registry::to_install_at_start(&self.modules, &done);
+        if wanted.is_empty() {
+            return;
         }
+        let (url, dir) = (self.registry_url(), self.paths.user_modules());
+        let task = cx.background_spawn(async move {
+            let packages = registry::fetch_index(&url)?;
+            let results: Vec<(String, anyhow::Result<()>)> = wanted
+                .into_iter()
+                .map(|id| {
+                    let result = match packages.iter().find(|p| p.id == id) {
+                        Some(p) => registry::install(&url, p, &dir).map(|_| ()),
+                        None => Err(anyhow::anyhow!("the registry has no {id}")),
+                    };
+                    (id, result)
+                })
+                .collect();
+            anyhow::Ok(results)
+        });
+        self._tasks.push(cx.spawn(async move |this, cx| {
+            let outcome = task.await;
+            let _ = this.update(cx, |wb, cx| {
+                let results = match outcome {
+                    Ok(results) => results,
+                    Err(e) => {
+                        wb.log(format!("Could not reach the module registry to install or update modules: {e:#}"));
+                        return;
+                    }
+                };
+                let disabled: Vec<String> = wb.settings.get("modules.disabled", Vec::new());
+                wb.modules = discover(&wb.paths.user_modules());
+                let mut done: Vec<String> = wb.state.get("modules.preinstalled").and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+                for (id, result) in results {
+                    match result {
+                        Ok(()) => {
+                            if registry::PREINSTALLED.contains(&id.as_str()) && !done.contains(&id) {
+                                done.push(id.clone());
+                            }
+                            let module = wb.modules.iter().find(|m| m.id == id).cloned();
+                            if let Some(m) = module {
+                                wb.log(format!("Installed the module '{}' {}.", m.name, m.version.clone().unwrap_or_default()));
+                                if !disabled.contains(&m.id) && !wb.plugins.iter().any(|p| p.manifest.id == m.id) {
+                                    wb.start_module(m);
+                                }
+                            }
+                        }
+                        Err(e) => wb.log(format!("Could not install the module {id}: {e:#}")),
+                    }
+                }
+                wb.state.set("modules.preinstalled", Some(&serde_json::to_string(&done).unwrap_or_default()));
+                wb.refresh_module_contributions(cx);
+                cx.notify();
+            });
+        }));
     }
 
     pub(super) fn refresh_registry(&mut self, cx: &mut Context<Self>) {
@@ -875,4 +923,61 @@ fn describe_icon_rule(rule: &bf_core::plugins::FileIconRule) -> String {
     let mut what: Vec<String> = rule.names.iter().chain(&rule.patterns).cloned().collect();
     what.extend(rule.extensions.iter().map(|e| format!(".{} files", e.trim_start_matches('.'))));
     format!("File icon for {}", what.join(", "))
+}
+
+#[cfg(test)]
+mod start_tests {
+    use crate::workbench::settings_page::view_tests::workbench;
+
+    fn write(path: &std::path::Path, text: &str) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
+
+    /// First start: the ReSharper Formatter comes from the registry, and an installed Python module is replaced by
+    /// its .NET version (the registry's packages here only declare things, so nothing needs the module host).
+    #[gpui::test]
+    fn the_first_start_installs_from_the_registry(cx: &mut gpui::TestAppContext) {
+        if std::process::Command::new("curl").arg("--version").output().is_err() {
+            return; // downloads use curl
+        }
+        let (guard, wb, cx) = workbench(cx, "install-at-start");
+        let registry = guard.dir.join("registry");
+        write(
+            &registry.join("index.json"),
+            r#"{"modules":[{"id":"byteforge.resharper-format","name":"ReSharper","version":"2.0.0","dir":"resharper-format","files":["module.json"]},
+                           {"id":"byteforge.csharpier","name":"CSharpier","version":"2.0.0","dir":"csharpier","files":["module.json"]}]}"#,
+        );
+        write(&registry.join("resharper-format/module.json"), r#"{ "id": "byteforge.resharper-format", "name": "ReSharper", "version": "2.0.0" }"#);
+        write(&registry.join("csharpier/module.json"), r#"{ "id": "byteforge.csharpier", "name": "CSharpier", "version": "2.0.0" }"#);
+        let modules = guard.dir.join("config/modules");
+        write(&modules.join("csharpier/module.json"), r#"{ "id": "byteforge.csharpier", "name": "CSharpier", "version": "1.0.2", "command": "python3", "args": ["csharpier.py"] }"#);
+        write(&modules.join("csharpier/csharpier.py"), "print('old')\n");
+        let url = format!("file://{}", registry.display());
+        wb.update(cx, |wb, cx| {
+            wb.settings.set("modules.registry", serde_json::json!(url));
+            wb.modules = bf_core::plugins::discover(&wb.paths.user_modules());
+            wb.install_at_start(cx);
+        });
+        // The downloads run in the background (curl).
+        for _ in 0..200 {
+            cx.run_until_parked();
+            if wb.read_with(cx, |wb, _| wb.modules.len() == 2) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        wb.update(cx, |wb, _| {
+            let versions: Vec<(String, Option<String>)> = wb.modules.iter().map(|m| (m.id.clone(), m.version.clone())).collect();
+            assert!(versions.contains(&("byteforge.resharper-format".into(), Some("2.0.0".into()))), "{versions:?}");
+            assert!(versions.contains(&("byteforge.csharpier".into(), Some("2.0.0".into()))), "{versions:?}");
+            assert!(!modules.join("csharpier/csharpier.py").exists(), "the Python module is gone");
+            let done = wb.state.get("modules.preinstalled").unwrap_or_default();
+            assert!(done.contains("byteforge.resharper-format"), "{done}");
+            // Next start: nothing to do.
+            let done: Vec<String> = serde_json::from_str(&done).unwrap();
+            assert!(bf_core::registry::to_install_at_start(&wb.modules, &done).is_empty());
+        });
+        drop(guard);
+    }
 }

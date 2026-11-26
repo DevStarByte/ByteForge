@@ -20,7 +20,6 @@ optdepends=('ttf-jetbrains-mono: default editor font'
             'aspnet-targeting-pack: build ASP.NET Core, Razor and Blazor projects'
             'docker: Docker view'
             'docker-compose: Compose up/down'
-            'python: CSharpier formatter module'
             'vulkan-radeon: AMD Vulkan driver'
             'vulkan-intel: Intel Vulkan driver'
             'nvidia-utils: NVIDIA Vulkan driver')
@@ -41,7 +40,6 @@ package() {
   install -Dm755 "$srcdir/target/release/byteforge" "$pkgdir/usr/lib/byteforge/byteforge"
   install -dm755 "$pkgdir/usr/lib/byteforge/themes"
   install -m644 "$root"/themes/*.json "$pkgdir/usr/lib/byteforge/themes/"
-  cp -r --no-preserve=ownership "$root/modules" "$pkgdir/usr/lib/byteforge/modules"
   cp -r --no-preserve=ownership "$srcdir/modulehost" "$pkgdir/usr/lib/byteforge/modulehost"
   install -dm755 "$pkgdir/usr/bin"
   ln -s /usr/lib/byteforge/byteforge "$pkgdir/usr/bin/byteforge"

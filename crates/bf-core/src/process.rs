@@ -1,6 +1,6 @@
 //! Starting programs. Everything ByteForge starts goes through [`command`]: on Windows the program runs
 //! without a console window. ByteForge is a GUI app without a console of its own, so each console program it
-//! starts (git, dotnet, curl, taskkill, a module's python, …) would otherwise pop up a console window.
+//! starts (git, dotnet, curl, taskkill, the module host, …) would otherwise pop up a console window.
 //!
 //! The program still gets a console, just an invisible one, and whatever it starts in turn shares it: a
 //! module's own tools (`jb cleanupcode`, `sqlcmd`, …) stay hidden too.

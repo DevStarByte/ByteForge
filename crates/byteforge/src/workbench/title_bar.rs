@@ -317,7 +317,7 @@ impl Workbench {
                 let cmd = commands.get(id)?;
                 let action = cmd.action.boxed_clone();
                 Some(
-                    crate::menu::item(&t, ix, cmd.title.clone(), Some(default_key(id).into()))
+                    crate::menu::item(&t, ix, cmd.title.clone(), Some(command_key_label(cx, id).into()))
                         .on_click(cx.listener(move |wb, _, w, cx| {
                             wb.menu_open = None;
                             w.dispatch_action(action.boxed_clone(), cx);

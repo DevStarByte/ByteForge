@@ -1,6 +1,6 @@
 ; Inno Setup script for the Windows installer. Built by .github/workflows/release.yml:
 ;   iscc /DAppVersion=0.3.2 /DSourceDir=dist\ByteForge /DOutputDir=out packaging\windows\byteforge.iss
-; SourceDir holds byteforge.exe with themes\ and modules\ beside it (the layout AppPaths expects).
+; SourceDir holds byteforge.exe with themes\ and modulehost\ beside it (the layout AppPaths expects).
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -52,7 +52,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [InstallDelete]
-; drop bundled themes and modules from older versions so removed ones don't linger
+; drop bundled themes and modules from older versions so removed ones don't linger (modules\ isn't bundled any more)
 Type: filesandordirs; Name: "{app}\themes"
 Type: filesandordirs; Name: "{app}\modules"
 Type: filesandordirs; Name: "{app}\modulehost"

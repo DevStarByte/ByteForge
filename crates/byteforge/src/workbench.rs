@@ -26,6 +26,7 @@ mod resx;
 mod render;
 pub(crate) mod session;
 mod settings_page;
+mod shortcuts;
 mod solution;
 mod symbols;
 mod tabs;
@@ -100,6 +101,8 @@ enum Page {
     Diff(Entity<crate::diff_view::DiffView>),
     /// The settings screen.
     Settings,
+    /// The Keyboard Shortcuts page.
+    Shortcuts,
     /// The tab's file in the merge editor: its two sides above, the file's own editor as the result.
     Merge(Entity<crate::merge_view::MergeView>),
     /// The user secrets of a project, as a form (`file` is its secrets.json).
@@ -285,7 +288,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
         "benchmark.runAtCursor", "view.benchmarks", "view.metrics",
     ]),
-    ("Preferences", &["settings.open", "settings.openJson", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
+    ("Preferences", &["settings.open", "settings.openJson", "settings.keyboardShortcuts", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
     ("Help", &["view.modules", "-", "app.checkForUpdates", "app.about"]),
 ];
 
@@ -367,6 +370,8 @@ pub struct Workbench {
     settings_scroll: gpui::ScrollHandle,
     /// The section last picked in that column.
     settings_nav_clicked: Option<usize>,
+    /// The Keyboard Shortcuts page (see `workbench/shortcuts.rs`).
+    shortcuts: shortcuts::ShortcutsState,
     /// User-secrets pages showing their values (hidden by default).
     secrets_shown: std::collections::HashSet<PathBuf>,
     /// The project the running (or last) `dotnet watch` was started for, so it can be restarted.
@@ -670,6 +675,7 @@ impl Workbench {
             settings_search: None,
             settings_scroll: gpui::ScrollHandle::new(),
             settings_nav_clicked: None,
+            shortcuts: Default::default(),
             build_problems: Vec::new(),
             resx_problems: Vec::new(),
             resx_check: None,
@@ -839,17 +845,9 @@ impl Workbench {
         crate::explorer::set_native_icons(self.settings.get("explorer.nativeIcons", true));
         self.refresh_status_profile();
         let overrides: HashMap<String, String> = self.settings.get("keybindings", HashMap::new());
-        let mut bindings = Vec::new();
-        let commands = cx.global::<Commands>();
-        for (id, key) in &overrides {
-            if let Some(cmd) = commands.get(id)
-                && !key.trim().is_empty()
-                && let Ok(b) = KeyBinding::load(key, cmd.action.boxed_clone(), None, false, None, cx.keyboard_mapper().as_ref())
-            {
-                bindings.push(b);
-            }
+        if overrides != cx.global::<Commands>().overrides {
+            crate::actions::bind_all(cx, &overrides);
         }
-        cx.bind_keys(bindings);
         let inlay_hints = self.settings.get("editor.inlayHints", true);
         let code_lens = self.settings.get("editor.codeLens", true);
         for tab in &self.tabs {
@@ -1161,6 +1159,18 @@ fn side_view_named(name: &str) -> Option<SideView> {
         "ef" | "efcore" => Some(SideView::EfCore),
         "modules" => Some(SideView::Modules),
         _ => None,
+    }
+}
+
+/// The key shown next to a command in menus: the user's (none when they removed it), else its default.
+pub(crate) fn command_key_label(cx: &App, id: &str) -> String {
+    let commands = cx.global::<Commands>();
+    if commands.overrides.contains_key(id) {
+        return commands.key(id).map(|k| crate::actions::pretty_keys(&k)).unwrap_or_default();
+    }
+    match commands.get(id).and_then(|c| c.default_key.as_deref()) {
+        Some(key) => crate::actions::pretty_keys(key),
+        None => default_key(id),
     }
 }
 

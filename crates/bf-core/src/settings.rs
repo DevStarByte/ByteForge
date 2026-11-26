@@ -230,13 +230,15 @@ fn members(text: &str) -> Option<(Vec<Member>, usize)> {
 /// `None` when the text isn't an object.
 pub fn set_in_text(text: &str, key: &str, value: Option<&Value>) -> Option<String> {
     let (list, close) = members(text)?;
-    let rendered = value.map(|v| serde_json::to_string(v).unwrap_or_default());
     let found = list.iter().position(|m| m.key == key);
     let mut out = text.to_owned();
-    match (found, rendered) {
+    match (found, value) {
         (Some(i), Some(v)) => {
             let m = &list[i];
-            out.replace_range(m.value.0..m.value.1, &v);
+            let line_start = text[..m.start].rfind('\n').map_or(0, |n| n + 1);
+            let indent = &text[line_start..m.start];
+            let indent = if indent.trim().is_empty() { indent } else { "" };
+            out.replace_range(m.value.0..m.value.1, &render_value(v, indent));
         }
         (Some(i), None) => {
             let m = &list[i];
@@ -262,7 +264,7 @@ pub fn set_in_text(text: &str, key: &str, value: Option<&Value>) -> Option<Strin
                 text[line_start..m.start].to_owned()
             });
             let indent = indent.filter(|i| i.trim().is_empty()).unwrap_or_else(|| "  ".to_owned());
-            let entry = format!("{indent}{}: {v}", serde_json::to_string(key).unwrap_or_default());
+            let entry = format!("{indent}{}: {}", serde_json::to_string(key).unwrap_or_default(), render_value(v, &indent));
             match list.last() {
                 // After the last member (adding its missing comma).
                 Some(last) => {
@@ -287,6 +289,22 @@ pub fn set_in_text(text: &str, key: &str, value: Option<&Value>) -> Option<Strin
         (None, None) => {}
     }
     Some(out)
+}
+
+/// A value as written into settings.json: an object with entries one per line, indented under its key at
+/// `indent` (`"keybindings": {` / `"view.quickOpen": "ctrl-e"` / `}`); anything else on one line.
+fn render_value(value: &Value, indent: &str) -> String {
+    match value {
+        Value::Object(map) if !map.is_empty() => {
+            let inner = format!("{indent}  ");
+            let entries: Vec<String> = map
+                .iter()
+                .map(|(k, v)| format!("{inner}{}: {}", serde_json::to_string(k).unwrap_or_default(), serde_json::to_string(v).unwrap_or_default()))
+                .collect();
+            format!("{{\n{}\n{indent}}}", entries.join(",\n"))
+        }
+        other => serde_json::to_string(other).unwrap_or_default(),
+    }
 }
 
 /// Like [`set_in_text`] for a configuration key (`Db:Password`, keys matched without case): it edits the
@@ -375,6 +393,31 @@ mod edit_tests {
         let out = set_in_text(FILE, "files.exclude", Some(&json!(["bin"]))).unwrap();
         assert!(out.contains("// My theme") && out.contains("/* block */") && out.contains("[\"bin\"]\n}"), "{out}");
         assert_eq!(parse(&out)["files.exclude"], json!(["bin"]));
+    }
+
+    #[test]
+    fn objects_are_written_one_entry_per_line() {
+        let text = "{
+  // mine
+  \"editor.tabSize\": 4
+}
+";
+        let added = set_in_text(text, "keybindings", Some(&serde_json::json!({ "file.save": "ctrl-alt-s", "a.b": "" }))).unwrap();
+        assert_eq!(added, "{
+  // mine
+  \"editor.tabSize\": 4,
+  \"keybindings\": {
+    \"file.save\": \"ctrl-alt-s\",
+    \"a.b\": \"\"
+  }
+}
+");
+        let changed = set_in_text(&added, "keybindings", Some(&serde_json::json!({ "a.b": "f2" }))).unwrap();
+        assert!(changed.contains("  \"keybindings\": {
+    \"a.b\": \"f2\"
+  }
+}"), "{changed}");
+        assert!(set_in_text(text, "files.exclude", Some(&serde_json::json!(["bin", "obj"]))).unwrap().contains("\"files.exclude\": [\"bin\",\"obj\"]"), "arrays stay on one line");
     }
 
     #[test]
