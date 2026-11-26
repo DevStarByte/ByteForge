@@ -3,18 +3,20 @@
     {
       "id": "byteforge.aspire",
       "name": "Aspire",
-      "version": "0.2.1",
-      "description": "Aspire view with your AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and commands to run, create, add integrations, publish and deploy Aspire apps. Needs the Aspire CLI (aspire.dev) and python3.",
+      "version": "0.3.0",
+      "description": "Aspire view with your AppHosts and their running resources (state, health, endpoints, start / stop / restart, logs), the dashboard, and commands to run, create, add integrations, publish and deploy Aspire apps. Needs the Aspire CLI (aspire.dev) and .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Tools",
       "dir": "aspire",
       "files": [
-        "aspire.py",
+        "bin/Aspire.deps.json",
+        "bin/Aspire.dll",
+        "bin/ByteForge.Modules.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
@@ -72,225 +74,231 @@
     {
       "id": "byteforge.csv",
       "name": "CSV",
-      "version": "0.1.0",
-      "description": "Rainbow columns for .csv, .tsv and .psv files: each column in its own color (20 columns, then the colors repeat), quoted fields kept together, and semicolon files as Excel writes them in Germany or France split at the semicolons. A CSV view lists the active file's columns with their type (integer, decimal, date, boolean, text), range, empty and distinct values; the separator, header row, decimal commas and ANSI files are recognized by themselves. \"CSV: Show as Table\" opens an aligned table (numbers right-aligned), \"CSV: Convert to JSON\" an array of objects with numbers and booleans as JSON values. Needs python3.",
+      "version": "0.2.0",
+      "description": "Rainbow columns for .csv, .tsv and .psv files: each column in its own color (20 columns, then the colors repeat), quoted fields kept together, and semicolon files as Excel writes them in Germany or France split at the semicolons. A CSV view lists the active file's columns with their type (integer, decimal, date, boolean, text), range, empty and distinct values; the separator, header row, decimal commas and ANSI files are recognized by themselves. \"CSV: Show as Table\" opens an aligned table (numbers right-aligned), \"CSV: Convert to JSON\" an array of objects with numbers and booleans as JSON values. Needs .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Languages",
       "dir": "csv",
       "files": [
-        "csv_tools.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/Csv.deps.json",
+        "bin/Csv.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.discord",
       "name": "Discord Rich Presence",
-      "version": "1.3.0",
+      "version": "2.0.0",
       "description": "Shows what you're working on in your Discord status: the file you're editing, its language, the project and how long you've been at it. Needs the Discord desktop app. File and project names can be hidden in the settings.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Social",
       "dir": "discord",
       "files": [
-        "byteforge.png",
-        "discord_presence.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/Discord.deps.json",
+        "bin/Discord.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.docker",
       "name": "Docker",
-      "version": "1.2.1",
+      "version": "2.0.0",
       "description": "Docker view for containers (with their ports, volumes and networks), images, volumes, networks and the workspace's Dockerfiles and Compose files, setup checks with one-click fixes, and build, Compose and .NET Docker support commands, Dockerfile highlighting and file icons.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Languages",
       "dir": "docker",
       "files": [
-        "docker.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/Docker.deps.json",
+        "bin/Docker.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.dotnet-files",
       "name": ".NET Project Files",
-      "version": "1.0.1",
+      "version": "2.0.0",
       "description": "Adds the files every .NET repo wants: .gitignore, .editorconfig (C# style and naming rules), Directory.Build.props, global.json (pinned to your SDK) and a .gitattributes. \"Files: Add …\" in the command palette; existing files are never overwritten.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": ".NET",
       "dir": "dotnet-files",
       "files": [
-        "dotnet_files.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/DotnetFiles.deps.json",
+        "bin/DotnetFiles.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.fake-data",
       "name": "Fake Data",
-      "version": "0.1.0",
-      "description": "Realistic test data at the cursor. \"Fake Data: Insert…\" (Ctrl+Alt+F) inserts a name, email, user name, phone number, address, company, job, IBAN, test credit card, VAT ID, product, SKU, price, order number, GUID, date, URL, IP or MAC address, password, color, coordinates, user agent or lorem ipsum; \"Insert Again\" gives a new one of the same kind. \"Fake Data: Insert Records…\" inserts 3 to 100 people, customers, user accounts, products, orders or companies as JSON, C# (new List<T> { … }), CSV, SQL INSERT or YAML: seed data, tests and .http bodies. German or English data (\"fakeData.locale\"), repeatable with \"fakeData.seed\". Nothing reaches a real person: example.com emails, the phone numbers reserved for films and TV, payment providers' test cards, documentation IP ranges. Needs python3.",
+      "version": "0.2.0",
+      "description": "Realistic test data at the cursor. \"Fake Data: Insert…\" (Ctrl+Alt+F) inserts a name, email, user name, phone number, address, company, job, IBAN, test credit card, VAT ID, product, SKU, price, order number, GUID, date, URL, IP or MAC address, password, color, coordinates, user agent or lorem ipsum; \"Insert Again\" gives a new one of the same kind. \"Fake Data: Insert Records…\" inserts 3 to 100 people, customers, user accounts, products, orders or companies as JSON, C# (new List<T> { … }), CSV, SQL INSERT or YAML: seed data, tests and .http bodies. German or English data (\"fakeData.locale\"), repeatable with \"fakeData.seed\". Nothing reaches a real person: example.com emails, the phone numbers reserved for films and TV, payment providers' test cards, documentation IP ranges. Needs .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Snippets",
       "dir": "fake-data",
       "files": [
-        "fake_data.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/FakeData.deps.json",
+        "bin/FakeData.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.focus",
       "name": "Focus Timer",
-      "version": "1.0.1",
-      "description": "A Pomodoro timer in the status bar: 25 minutes of focus, 5 minutes of break (every 4th: 15). Click it to start, pause or resume; a desktop notification (notify-send) says when time's up.",
+      "version": "2.0.0",
+      "description": "A Pomodoro timer in the status bar: 25 minutes of focus, 5 minutes of break (every 4th: 15). Click it to start, pause or resume; a desktop notification (notify-send) says when time's up. Needs .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Productivity",
       "dir": "focus",
       "files": [
-        "focus.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/Focus.deps.json",
+        "bin/Focus.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.git-hooks",
       "name": "Git Hooks",
-      "version": "0.1.0",
-      "description": "A Git Hooks view with the repository's hooks (from core.hooksPath or .git/hooks, so Husky's .husky folder too): which are active, off or not executable. Click to open one; run it in a terminal with the arguments git gives it; turn it off and on (renamed to <hook>.off); make it executable; delete it. \"New Hook…\" writes one from a template: dotnet format check, dotnet build, dotnet test before a push, a Conventional Commits message check, the issue number from the branch name, dotnet restore after a pull, or an empty one. Husky.NET tasks (.husky/task-runner.json) are listed by group and run with dotnet husky run. Needs python3 and git.",
+      "version": "0.2.0",
+      "description": "A Git Hooks view with the repository's hooks (from core.hooksPath or .git/hooks, so Husky's .husky folder too): which are active, off or not executable. Click to open one; run it in a terminal with the arguments git gives it; turn it off and on (renamed to <hook>.off); make it executable; delete it. \"New Hook…\" writes one from a template: dotnet format check, dotnet build, dotnet test before a push, a Conventional Commits message check, the issue number from the branch name, dotnet restore after a pull, or an empty one. Husky.NET tasks (.husky/task-runner.json) are listed by group and run with dotnet husky run. Needs .NET 10 and git.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Source Control",
       "dir": "git-hooks",
       "files": [
-        "git_hooks.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/GitHooks.deps.json",
+        "bin/GitHooks.dll",
         "module.json"
       ],
       "requires": [
-        "python3",
+        "dotnet",
         "git"
       ]
     },
     {
       "id": "byteforge.github-actions",
       "name": "GitHub",
-      "version": "0.2.0",
-      "description": "A GitHub view for the folder's repository. Pipelines: the current branch's workflow runs and every workflow's latest runs with state, trigger, age and duration (refreshed while runs are going; the badge counts them); click a run for its jobs and steps, a job for its log in an editor at the first error; re-run, re-run failed jobs, cancel, \"GitHub: Run Workflow…\". Pull requests: the open ones (the current branch's first), click for their checks (an Actions check opens its log), Check Out, Open in Browser. Issues: the open ones (yours first), \"Create Branch\" (feature/123-title). Releases: the latest five with their downloads. The status bar shows the branch's latest run and its pull request with the checks' state. Public repositories work without a token; logs, re-running, cancelling, starting workflows and private repositories need one (\"github.token\", GH_TOKEN, or a logged-in gh). Needs python3 and git.",
+      "version": "0.3.0",
+      "description": "A GitHub view for the folder's repository. Pipelines: the current branch's workflow runs and every workflow's latest runs with state, trigger, age and duration (refreshed while runs are going; the badge counts them); click a run for its jobs and steps, a job for its log in an editor at the first error; re-run, re-run failed jobs, cancel, \"GitHub: Run Workflow…\". Pull requests: the open ones (the current branch's first), click for their checks (an Actions check opens its log), Check Out, Open in Browser. Issues: the open ones (yours first), \"Create Branch\" (feature/123-title). Releases: the latest five with their downloads. The status bar shows the branch's latest run and its pull request with the checks' state. Public repositories work without a token; logs, re-running, cancelling, starting workflows and private repositories need one (\"github.token\", GH_TOKEN, or a logged-in gh). Needs .NET 10 and git.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Source Control",
       "dir": "github-actions",
       "files": [
-        "github_actions.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/GithubActions.deps.json",
+        "bin/GithubActions.dll",
         "module.json"
       ],
       "requires": [
-        "python3",
+        "dotnet",
         "git"
-      ]
-    },
-    {
-      "id": "byteforge.guid",
-      "name": "GUID Generator",
-      "version": "1.0.1",
-      "description": "Inserts a new GUID at the cursor: \"GUID: Insert New GUID\" (Ctrl+Alt+G), plus uppercase, braced ({…}) and C# (new Guid(\"…\")) variants.",
-      "author": "DevStarByte",
-      "authorUrl": "https://github.com/DevStarByte",
-      "category": "Snippets",
-      "dir": "guid",
-      "files": [
-        "guid.py",
-        "module.json"
-      ],
-      "requires": [
-        "python3"
       ]
     },
     {
       "id": "byteforge.http-client",
       "name": "HTTP Client",
-      "version": "0.1.0",
-      "description": "Sends the requests in .http and .rest files, the format Visual Studio and Rider use for ASP.NET Core APIs: an HTTP view lists every request in the workspace (click to send), \"HTTP: Send Request…\" (Ctrl+Alt+Enter) picks one from the active file, \"Send All Requests in File\" sends them in order. Variables (@host = …), environments from http-client.env.json and http-client.private.env.json (pick one in the status bar), values from earlier responses ({{login.response.body.$.token}}), {{$guid}}, {{$timestamp}}, {{$datetime …}}, {{$processEnv NAME}} and {{$dotenv NAME}}. Each response opens in an editor with its status, headers, timing and pretty-printed JSON. Highlighting and a file icon for .http files. Needs python3.",
+      "version": "0.2.0",
+      "description": "Sends the requests in .http and .rest files, the format Visual Studio and Rider use for ASP.NET Core APIs: an HTTP view lists every request in the workspace (click to send), \"HTTP: Send Request…\" (Ctrl+Alt+Enter) picks one from the active file, \"Send All Requests in File\" sends them in order. Variables (@host = …), environments from http-client.env.json and http-client.private.env.json (pick one in the status bar), values from earlier responses ({{login.response.body.$.token}}), {{$guid}}, {{$timestamp}}, {{$datetime …}}, {{$processEnv NAME}} and {{$dotenv NAME}}. Each response opens in an editor with its status, headers, timing and pretty-printed JSON. Highlighting and a file icon for .http files. Needs .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Web",
       "dir": "http-client",
       "files": [
-        "http_client.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/HttpClientModule.deps.json",
+        "bin/HttpClientModule.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.json-format",
       "name": "JSON Formatter",
-      "version": "1.0.1",
+      "version": "2.0.0",
       "description": "Formats .json files (appsettings.json, launchSettings.json, global.json, …) with Format Document. Keeps comments and trailing commas out of the way: files with comments are left as they are.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Formatter",
       "dir": "json-format",
       "files": [
-        "json_format.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/JsonFormat.deps.json",
+        "bin/JsonFormat.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.log-files",
       "name": "Log Files",
-      "version": "0.1.0",
-      "description": "Highlighting for .log files (also app.log.1 and app.log.2024-05-01): levels in the theme's error, warning and info colors with debug and trace dimmed, timestamps, exception types, .NET, Java, JavaScript and Python stack frames (file and line), GUIDs, URLs, IPs, HTTP methods and status codes, key=value pairs, quoted strings. Understands ASP.NET Core's console logger (fail: / warn: / info:), Serilog ([ERR] [WRN]), NLog, log4net, syslog and GitHub Actions logs (##[error]). \"Log: List Errors\" puts every error with its exception in the Output (click to go there), \"Log: Filter…\" opens only errors, warnings and up, everything but debug and trace, or the exceptions; \"Log: Follow\" runs tail -f in a terminal. The status bar counts errors and warnings of the open log. Needs python3.",
+      "version": "0.2.0",
+      "description": "Highlighting for .log files (also app.log.1 and app.log.2024-05-01): levels in the theme's error, warning and info colors with debug and trace dimmed, timestamps, exception types, .NET, Java, JavaScript and Python stack frames (file and line), GUIDs, URLs, IPs, HTTP methods and status codes, key=value pairs, quoted strings. Understands ASP.NET Core's console logger (fail: / warn: / info:), Serilog ([ERR] [WRN]), NLog, log4net, syslog and GitHub Actions logs (##[error]). \"Log: List Errors\" puts every error with its exception in the Output (click to go there), \"Log: Filter…\" opens only errors, warnings and up, everything but debug and trace, or the exceptions; \"Log: Follow\" runs tail -f in a terminal. The status bar counts errors and warnings of the open log. Needs .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Languages",
       "dir": "log-files",
       "files": [
-        "log_files.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/LogFiles.deps.json",
+        "bin/LogFiles.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.lua",
       "name": "Lua",
-      "version": "0.2.2",
-      "description": "Lua support: highlighting for .lua, .rockspec and .luacheckrc files (keywords, functions, locals, the standard library, strings and long strings, comments, numbers), a Lua file icon, \"Lua: Run File\" in a terminal, \"Lua: Check Syntax\" (goes to the error) and Format Document with StyLua. Runs files with lua, luajit or the interpreter in \"lua.interpreter\". Needs python3.",
+      "version": "0.3.0",
+      "description": "Lua support: highlighting for .lua, .rockspec and .luacheckrc files (keywords, functions, locals, the standard library, strings and long strings, comments, numbers), a Lua file icon, \"Lua: Run File\" in a terminal, \"Lua: Check Syntax\" (goes to the error) and Format Document with StyLua. Runs files with lua, luajit or the interpreter in \"lua.interpreter\". Needs .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Languages",
       "dir": "lua",
       "files": [
-        "lua.py",
+        "bin/ByteForge.Modules.dll",
+        "bin/Lua.deps.json",
+        "bin/Lua.dll",
         "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
@@ -315,70 +323,90 @@
     {
       "id": "byteforge.protobuf",
       "name": "Protocol Buffers",
-      "version": "0.1.0",
-      "description": "Protocol Buffers support for gRPC: highlighting for .proto files (syntax, packages, imports, options, messages, enums, services and rpc methods, field types and numbers, comments and strings), a .proto file icon, and Format Document with buf or clang-format, whichever is installed (\"protobuf.formatter\"). Needs python3 for formatting.",
+      "version": "0.2.0",
+      "description": "Protocol Buffers support for gRPC: highlighting for .proto files (syntax, packages, imports, options, messages, enums, services and rpc methods, field types and numbers, comments and strings), a .proto file icon, and Format Document with buf or clang-format, whichever is installed (\"protobuf.formatter\"). Needs .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Languages",
       "dir": "protobuf",
       "files": [
-        "module.json",
-        "protobuf.py"
+        "bin/ByteForge.Modules.dll",
+        "bin/Protobuf.deps.json",
+        "bin/Protobuf.dll",
+        "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.resharper-format",
       "name": "ReSharper Formatter",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "description": "Formats C# with JetBrains' ReSharper command line tools (jb cleanupcode), the same engine as Rider and ReSharper. It follows your .editorconfig and the solution's .DotSettings. Pick it with \"Format Document With…\" or \"editor.defaultFormatter\": \"resharper\". \"resharper.profile\" picks the cleanup profile (default \"Built-in: Reformat Code\"). \"ReSharper: Install\" installs the tools (dotnet tool install -g JetBrains.ReSharper.GlobalTools).",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Formatter",
       "dir": "resharper-format",
       "files": [
-        "module.json",
-        "resharper_format.py"
+        "bin/ByteForge.Modules.dll",
+        "bin/ResharperFormat.deps.json",
+        "bin/ResharperFormat.dll",
+        "module.json"
       ],
       "requires": [
-        "python3",
         "dotnet"
       ]
     },
     {
       "id": "byteforge.sql",
       "name": "SQL",
-      "version": "0.3.0",
-      "description": "SQL highlighting and formatting, and a Database view with your connections (from settings, appsettings.json ConnectionStrings and SQLite files in the workspace) and their tables, views and columns. Run .sql files (Ctrl+Shift+Enter), select the top rows of a table, or open a shell. SQLite works out of the box; PostgreSQL, MySQL / MariaDB and SQL Server use psql, mysql and sqlcmd. Needs python3.",
+      "version": "0.4.0",
+      "description": "SQL highlighting and formatting, and a Database view with your connections (from settings, appsettings.json ConnectionStrings and SQLite files in the workspace) and their tables, views and columns. Run .sql files (Ctrl+Shift+Enter), select the top rows of a table, or open a shell. SQLite works out of the box; PostgreSQL, MySQL / MariaDB and SQL Server use psql, mysql and sqlcmd. Needs .NET 10.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Languages",
       "dir": "sql",
       "files": [
-        "module.json",
-        "sql.py"
+        "bin/ByteForge.Modules.dll",
+        "bin/Microsoft.Data.Sqlite.dll",
+        "bin/SQLitePCLRaw.batteries_v2.dll",
+        "bin/SQLitePCLRaw.core.dll",
+        "bin/SQLitePCLRaw.provider.e_sqlite3.dll",
+        "bin/Sql.deps.json",
+        "bin/Sql.dll",
+        "bin/Sql.runtimeconfig.json",
+        "bin/runtimes/linux-arm64/native/libe_sqlite3.so",
+        "bin/runtimes/linux-musl-arm64/native/libe_sqlite3.so",
+        "bin/runtimes/linux-musl-x64/native/libe_sqlite3.so",
+        "bin/runtimes/linux-x64/native/libe_sqlite3.so",
+        "bin/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+        "bin/runtimes/osx-x64/native/libe_sqlite3.dylib",
+        "bin/runtimes/win-arm64/native/e_sqlite3.dll",
+        "bin/runtimes/win-x64/native/e_sqlite3.dll",
+        "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
       "id": "byteforge.todos",
       "name": "TODO Finder",
-      "version": "1.0.1",
+      "version": "2.0.0",
       "description": "Finds TODO, FIXME, HACK and BUG comments in the workspace. \"TODOs: List All\" prints them with clickable locations; the count stays in the status bar and updates when you save.",
       "author": "DevStarByte",
       "authorUrl": "https://github.com/DevStarByte",
       "category": "Productivity",
       "dir": "todos",
       "files": [
-        "module.json",
-        "todos.py"
+        "bin/ByteForge.Modules.dll",
+        "bin/Todos.deps.json",
+        "bin/Todos.dll",
+        "module.json"
       ],
       "requires": [
-        "python3"
+        "dotnet"
       ]
     },
     {
