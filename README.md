@@ -54,6 +54,8 @@ live, and modules written in any language can extend it.
   with the change since the last run
 - **Live metrics:** CPU, memory, GC, thread pool, exceptions and requests of a running .NET app as sparklines
   (through `dotnet-counters`), and the app's CPU and memory in the status bar while it runs
+- **AI Assistant:** a chat in the side bar (Ctrl+Alt+I) with Claude, or with a model on your own machine (Ollama, LM
+  Studio). It reads and searches the workspace itself; each change it proposes shows as a diff to accept or reject
 - **Profiler:** record a CPU profile of a running .NET app (through `dotnet-trace`) and see its hot methods, call tree
   and flame graph, a click away from the source; memory snapshots (through `dotnet-gcdump`) list what's on the heap
   and what grew since the snapshot before

@@ -3,6 +3,20 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.7.0
+
+- AI Assistant: a new side bar view (the sparkle in the activity bar, Ctrl+Alt+I, View → AI Assistant). Chat with
+  **Claude** through the Anthropic API (`claude-opus-5-5` by default, `ai.model`; your key from `ANTHROPIC_API_KEY`
+  or `ai.apiKey`), or with a **model on your own machine** through Ollama, LM Studio or llama.cpp's server (`ai.provider`:
+  `local`, `ai.local.url`, `ai.local.model`; `qwen3.5` by default). The assistant reads, lists and searches the
+  workspace itself; every change it wants to make, an edit or a new file, shows as a diff with **Accept** and
+  **Reject**: accepted edits go into the open editor (unsaved, one undo step) or straight into the file (its line
+  endings and BOM kept), new files open. The active file and selection go along with each message (click the line
+  under the input to turn that off). Ctrl+Enter sends, Stop stops an answer, New Chat starts over. Claude's
+  reasoning summary can be opened above its answer; a refusal or a cut-off answer is said plainly. With the
+  `anthropic` provider your messages and the code the assistant reads go to Anthropic (see the privacy statement);
+  with `local` they stay on your machine.
+
 ## 1.6.0
 
 - Profiler: a new PROFILER panel tab (Test → Profiler, Start or Stop Recording a CPU Profile, Take Memory

@@ -32,6 +32,10 @@ ByteForge sends no telemetry and collects no personal data. It connects to the i
   session when none is installed, and the Roslyn language server (Microsoft's `roslyn-language-server`
   package) from nuget.org when you install or update it. ByteForge starts that server with its
   telemetry turned off;
+- to Anthropic's API (`api.anthropic.com`) when you use the AI Assistant with the `anthropic` provider: your
+  messages, the active file and selection when attached, and what the assistant reads from the workspace with its
+  tools go to Anthropic under your own API key and Anthropic's terms. With the `local` provider they go only to the
+  local model server you configure (Ollama by default); without using the assistant nothing is sent;
 - through the tools you run from it, such as `dotnet` (NuGet restore, and `dotnet tool install` of
   `dotnet-counters`, `dotnet-trace` and `dotnet-gcdump` when you click Install in Live Metrics or the
   Profiler), `git` and `docker`, which follow their own privacy policies. Profiles and memory snapshots

@@ -35,6 +35,11 @@ comments when the settings screen changes a value:
   "update.checkAutomatically": true,                   // update check at every start (default: on for Windows and macOS)
   "update.includePrereleases": false,                  // also offer betas
   "explorer.nativeIcons": true,                        // macOS: Finder's file and folder icons (false: the theme's)
+  "ai.provider": "anthropic",                          // AI Assistant: "anthropic" (Claude) or "local" (Ollama, LM Studio, …)
+  "ai.model": "claude-opus-5-5", "ai.effort": "high",  // the Claude model, and how hard it thinks (low … max)
+  "ai.apiKey": "",                                     // only when ANTHROPIC_API_KEY isn't set (plain text here: prefer the variable)
+  "ai.local.url": "http://localhost:11434/v1",         // the local server's OpenAI-compatible endpoint (LM Studio: http://localhost:1234/v1)
+  "ai.local.model": "qwen3.5", "ai.local.apiKey": "",  // the local model (ollama list); a key only if the server wants one
   "keybindings": { "view.quickOpen": "ctrl-e", "theme.select": "" },   // "" unbinds; Preferences → Keyboard Shortcuts edits these
   "modules.disabled": ["me.hello"]
 }

@@ -300,6 +300,8 @@ impl Render for Workbench {
             .on_action(cx.listener(|wb, _: &ShowBenchmarks, _, cx| wb.show_panel(PanelView::Benchmarks, cx)))
             .on_action(cx.listener(|wb, _: &ShowMetrics, _, cx| wb.show_metrics(cx)))
             .on_action(cx.listener(|wb, _: &ShowProfiler, _, cx| wb.show_profiler(cx)))
+            .on_action(cx.listener(|wb, _: &ShowAssistant, w, cx| wb.show_assistant(w, cx)))
+            .on_action(cx.listener(|wb, _: &NewAssistantChat, _, cx| wb.new_assistant_chat(cx)))
             .on_action(cx.listener(|wb, _: &RecordCpuProfile, _, cx| wb.toggle_cpu_profile(cx)))
             .on_action(cx.listener(|wb, _: &TakeMemorySnapshot, _, cx| wb.take_memory_snapshot(cx)))
             .on_action(cx.listener(|wb, _: &RunTaskPicker, _, cx| wb.open_task_picker(cx)))

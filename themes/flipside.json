@@ -27,7 +27,7 @@
     "titleBar.center": ["menu"],
     "titleBar.right": ["branch", "command:dotnet.build:build", "command:dotnet.run:play", "themePicker", "togglePanel", "windowControls"],
 
-    "activityBar.items": ["explorer", "search", "scm", "debug", "docker", "modules", "spacer", "command:view.commandPalette:search", "settings"],
+    "activityBar.items": ["explorer", "search", "scm", "debug", "docker", "assistant", "modules", "spacer", "command:view.commandPalette:search", "settings"],
 
     "statusBar.left": ["position", "language", "eol"],
     "statusBar.center": ["branch", "sync"],

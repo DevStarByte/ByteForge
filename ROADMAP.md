@@ -167,7 +167,13 @@ Section 1 above is what still has to be checked by hand; this is what the releas
 - [x] Sticky scroll: the first lines of the blocks the top of the view is in (from the fold regions, without
       comment runs and `using` blocks) pinned at the top, pushed out by their block's end; click: go there.
       `"editor.stickyScroll.enabled"`, `"editor.stickyScroll.maxLineCount"` (5).
-- [ ] An AI assistant panel.
+- [x] An AI assistant panel: a side bar view (Ctrl+Alt+I) chatting with Claude (Anthropic Messages API, streamed;
+      adaptive thinking with its summary shown, prompt caching, fallbacks on a refusal) or a local model (Ollama, LM
+      Studio, llama.cpp: the OpenAI-compatible chat API), switched by `ai.provider`. Requests go through `curl` with
+      the key on stdin. Tools: read_file, list_files and search run at once inside the workspace; edit_file and
+      create_file are proposals shown as a diff to accept (into the open editor, unsaved, or the file) or reject.
+      The active file and selection go along as context (click to turn off). Models that write a tool call as text
+      (qwen2.5-coder) still work.
 - [x] A keyboard shortcuts editor: Preferences → Keyboard Shortcuts lists every command with its keys (search by
       name or keys); click the keys and press new ones (two presses for a chord), Remove, Reset; keys another
       command has too are pointed out. Writes `"keybindings"` in settings.json; changes take effect at once.

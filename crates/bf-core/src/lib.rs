@@ -2,6 +2,7 @@
 //! search, the dotnet CLI runner, .NET debugging helpers and the out-of-process module (plugin) host.
 
 pub mod conflicts;
+pub mod ai;
 pub mod benchmarks;
 pub mod container;
 pub mod coverage;

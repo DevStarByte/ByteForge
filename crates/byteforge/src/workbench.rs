@@ -1,5 +1,6 @@
 //! The workbench: window layout, tabs, panels, title bar, menus, status bar and all workbench commands.
 
+mod assistant;
 mod bars;
 mod benchmarks;
 mod debug;
@@ -58,6 +59,7 @@ use crate::actions::*;
 use benchmarks::BenchmarksState;
 use metrics::MetricsState;
 use profiler::ProfilerState;
+use assistant::AssistantState;
 use ef_view::EfViewState;
 use tasks::TasksState;
 use crate::assets::{self, icon};
@@ -167,6 +169,7 @@ enum SideView {
     /// A module's view (which one: `module_view`).
     Module,
     Modules,
+    Assistant,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -373,6 +376,7 @@ pub struct Workbench {
     /// Live metrics (see `workbench/metrics.rs`).
     metrics: MetricsState,
     profiler: ProfilerState,
+    assistant: AssistantState,
     dotnet: Option<DotnetProcess>,
     /// The running dotnet process was stopped with Shift+F5 (a test queue ends there instead of going on).
     dotnet_stopped: bool,
@@ -685,6 +689,7 @@ impl Workbench {
             benchmarks: BenchmarksState::default(),
             metrics: MetricsState::default(),
             profiler: ProfilerState::default(),
+            assistant: AssistantState::default(),
             dotnet: None,
             dotnet_stopped: false,
             dotnet_task: None,
@@ -1156,6 +1161,7 @@ fn default_command_icon(id: &str) -> &'static str {
         "profiler.recordCpu" => "record",
         "profiler.memorySnapshot" => "memory",
         "view.profiler" => "flame",
+        "view.assistant" | "assistant.newChat" => "sparkle",
         "test.runAll" | "test.runAtCursor" => "play",
         "view.testing" | "test.refresh" => "beaker",
         "test.debugAtCursor" => "debug",
@@ -1180,6 +1186,7 @@ fn side_view_named(name: &str) -> Option<SideView> {
         "tasks" => Some(SideView::Tasks),
         "ef" | "efcore" => Some(SideView::EfCore),
         "modules" => Some(SideView::Modules),
+        "assistant" | "ai" => Some(SideView::Assistant),
         _ => None,
     }
 }

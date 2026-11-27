@@ -521,7 +521,7 @@
 
     // Activity bar items: explorer, search, scm, debug, testing, solution, modules, settings, spacer, commands, and the
     // id of a module's view (e.g. "docker"); module views not listed go before the first spacer.
-    // "activityBar.items": ["explorer", "search", "scm", "debug", "testing", "solution", "tasks", "ef", "modules", "spacer", "settings"],
+    // "activityBar.items": ["explorer", "search", "scm", "debug", "testing", "solution", "tasks", "ef", "assistant", "modules", "spacer", "settings"],
 
     // Status bar zones. Parts: branch, sync, file, path, problems (errors + warnings), errors, warnings, run, modules
     // (module items, placed by their alignment), position, indent, encoding, eol, language, lsp, spacer, commands.

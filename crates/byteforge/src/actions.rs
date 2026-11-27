@@ -109,6 +109,7 @@ actions!(benchmark, [RunBenchmarkAtCursor, ShowBenchmarks]);
 
 actions!(metrics, [ShowMetrics]);
 actions!(profiler, [ShowProfiler, RecordCpuProfile, TakeMemorySnapshot]);
+actions!(assistant, [ShowAssistant, NewAssistantChat]);
 
 /// Runs the task with this key (`bf_core::tasks::Task::key`), picked in "Tasks: Run Task…".
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
@@ -406,6 +407,8 @@ fn builtin() -> Vec<Builtin> {
         ("view.benchmarks", "Benchmarks", "View", Box::new(ShowBenchmarks), None),
         ("view.metrics", "Live Metrics", "View", Box::new(ShowMetrics), None),
         ("view.profiler", "Profiler", "View", Box::new(ShowProfiler), None),
+        ("view.assistant", "AI Assistant", "View", Box::new(ShowAssistant), Some("ctrl-alt-i")),
+        ("assistant.newChat", "New Chat", "AI Assistant", Box::new(NewAssistantChat), None),
         ("profiler.recordCpu", "Start or Stop Recording a CPU Profile", "Profiler", Box::new(RecordCpuProfile), None),
         ("profiler.memorySnapshot", "Take Memory Snapshot", "Profiler", Box::new(TakeMemorySnapshot), None),
         ("benchmark.runAtCursor", "Run Benchmark at Cursor", "Benchmark", Box::new(RunBenchmarkAtCursor), None),

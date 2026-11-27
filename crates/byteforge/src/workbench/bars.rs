@@ -347,6 +347,7 @@ impl Workbench {
                 "tasks" => Some((SideView::Tasks, "tasks", "Tasks".to_owned(), "Tasks")),
                 "ef" => Some((SideView::EfCore, "database", "EF Core".to_owned(), "EF Core")),
                 "modules" => Some((SideView::Modules, "puzzle", "Modules".to_owned(), "Modules")),
+                "assistant" | "ai" => Some((SideView::Assistant, "sparkle", "AI Assistant".to_owned(), "AI")),
                 _ => None,
             };
             if let Some((view, icon_name, tip, label)) = view {
@@ -384,6 +385,7 @@ impl Workbench {
             SideView::EfCore => "EF Core".into(),
             SideView::Module => self.module_views.iter().find(|v| Some(&v.id) == self.module_view.as_ref()).map_or("Module".into(), |v| v.title.clone()),
             SideView::Modules => "Modules".into(),
+            SideView::Assistant => "AI Assistant".into(),
         };
         let title: SharedString = t.transform("sideBarTitle", &title).into();
         let mut content: Option<gpui::AnyElement> = Some(match self.side {
@@ -397,6 +399,7 @@ impl Workbench {
             SideView::EfCore => self.render_ef_view(cx),
             SideView::Module => self.render_module_view(cx),
             SideView::Modules => self.render_modules(cx).into_any_element(),
+            SideView::Assistant => self.render_assistant(cx),
         });
         let sash_hover = t.c("sash.hoverBorder");
         let width = self.side_width;
