@@ -173,4 +173,10 @@ Section 1 above is what still has to be checked by hand; this is what the releas
       command has too are pointed out. Writes `"keybindings"` in settings.json; changes take effect at once.
 - [ ] Vim mode.
 - [ ] Remote development: SSH, WSL, dev containers.
-- [ ] Profiling: `dotnet-counters` / `dotnet-trace` from the Run menu.
+- [x] Profiling: a Profiler panel tab (Test menu: Record CPU Profile, Take Memory Snapshot). A CPU profile of a
+      running .NET process (the app being run, or one picked from the list) is recorded with `dotnet-trace`
+      until Stop, which presses Enter in its console (it runs on a hidden terminal, so it resolves the method
+      names before it ends); its Speedscope export is read into Hot Methods (own and total time), a Call Tree
+      opened along the hot path and a Flame Graph that zooms; CPU time or all time (also waiting), Only my
+      code; a click opens a method's source (workspace symbols). Memory snapshots with `dotnet-gcdump`: types
+      by size and count, and the change since the snapshot before. Offers to install the tools.

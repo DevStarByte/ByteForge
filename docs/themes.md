@@ -51,6 +51,9 @@ from the base theme.
 - **code coverage** (in `colors`): `editorGutter.coveredBackground`, `editorGutter.partiallyCoveredBackground` (a
   branch not taken), `editorGutter.uncoveredBackground` (the bars in the gutter after a test run with coverage); sizes in
   `metrics`: `editorGutter.coverageWidth` (the bar, 3) and `editorGutter.coverageGap` (room on each side of it, 3).
+- **profiler** (in `colors`): `profiler.flame.userCode` and `profiler.flame.otherCode` (flame graph frames of the
+  workspace's code and of the rest), `profiler.flame.foreground` (their text), `profiler.barBackground` (the
+  own-time bars in Hot Methods), `profiler.grew` and `profiler.shrank` (the change between memory snapshots).
 - **Windows Forms designer** (in `colors`): `formDesigner.background` (the canvas around the form),
   `formDesigner.foreground`, `formDesigner.border`, `formDesigner.selectionBorder`,
   `formDesigner.handleBackground` / `handleBorder` (resize handles), `formDesigner.dropTargetBorder`,

@@ -54,6 +54,9 @@ live, and modules written in any language can extend it.
   with the change since the last run
 - **Live metrics:** CPU, memory, GC, thread pool, exceptions and requests of a running .NET app as sparklines
   (through `dotnet-counters`), and the app's CPU and memory in the status bar while it runs
+- **Profiler:** record a CPU profile of a running .NET app (through `dotnet-trace`) and see its hot methods, call tree
+  and flame graph, a click away from the source; memory snapshots (through `dotnet-gcdump`) list what's on the heap
+  and what grew since the snapshot before
 - **Tasks:** `.byteforge/tasks.json`, package.json scripts, Makefile targets and justfile recipes in a Tasks view
   and "Run Task…", each in a terminal
 - **Windows Forms designer:** View Designer (Shift+F7, or the button on a form's tab) shows the form of a

@@ -21,6 +21,7 @@ mod palette;
 mod panel;
 mod plugins;
 mod preview;
+mod profiler;
 mod references;
 mod resx;
 mod render;
@@ -56,6 +57,7 @@ use serde_json::json;
 use crate::actions::*;
 use benchmarks::BenchmarksState;
 use metrics::MetricsState;
+use profiler::ProfilerState;
 use ef_view::EfViewState;
 use tasks::TasksState;
 use crate::assets::{self, icon};
@@ -177,6 +179,7 @@ enum PanelView {
     Hierarchy,
     Benchmarks,
     Metrics,
+    Profiler,
 }
 
 #[derive(Clone, Copy)]
@@ -287,7 +290,8 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
     ("Test", &[
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
         "test.runAllWithCoverage", "test.runAtCursorWithCoverage", "test.toggleCoverage", "test.clearCoverage", "-",
-        "benchmark.runAtCursor", "view.benchmarks", "view.metrics",
+        "benchmark.runAtCursor", "view.benchmarks", "view.metrics", "-",
+        "profiler.recordCpu", "profiler.memorySnapshot", "view.profiler",
     ]),
     ("Preferences", &["settings.open", "settings.openJson", "settings.keyboardShortcuts", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
     ("Help", &["view.modules", "-", "app.checkForUpdates", "app.about"]),
@@ -368,6 +372,7 @@ pub struct Workbench {
     benchmarks: BenchmarksState,
     /// Live metrics (see `workbench/metrics.rs`).
     metrics: MetricsState,
+    profiler: ProfilerState,
     dotnet: Option<DotnetProcess>,
     /// The running dotnet process was stopped with Shift+F5 (a test queue ends there instead of going on).
     dotnet_stopped: bool,
@@ -679,6 +684,7 @@ impl Workbench {
             ef_view: EfViewState::default(),
             benchmarks: BenchmarksState::default(),
             metrics: MetricsState::default(),
+            profiler: ProfilerState::default(),
             dotnet: None,
             dotnet_stopped: false,
             dotnet_task: None,
@@ -1051,7 +1057,7 @@ impl Workbench {
         if view == PanelView::Benchmarks && self.panel != PanelView::Benchmarks {
             self.reload_benchmarks(cx);
         }
-        if view == PanelView::Metrics && self.panel != PanelView::Metrics {
+        if matches!(view, PanelView::Metrics | PanelView::Profiler) && self.panel != view {
             self.list_metrics_processes(cx);
         }
         self.panel = view;
@@ -1147,6 +1153,9 @@ fn default_command_icon(id: &str) -> &'static str {
         "view.toggleSideBar" => "layoutSideBar",
         "view.togglePanel" | "view.problems" | "view.output" => "layoutPanel",
         "view.modules" => "puzzle",
+        "profiler.recordCpu" => "record",
+        "profiler.memorySnapshot" => "memory",
+        "view.profiler" => "flame",
         "test.runAll" | "test.runAtCursor" => "play",
         "view.testing" | "test.refresh" => "beaker",
         "test.debugAtCursor" => "debug",

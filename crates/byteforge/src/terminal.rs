@@ -265,6 +265,22 @@ impl TerminalView {
         self.input(bytes, cx);
     }
 
+    /// What the screen shows, line by line (trailing blanks trimmed); for reporting what a program said.
+    pub fn screen_text(&self) -> String {
+        let term = self.term.lock();
+        let grid = term.grid();
+        let mut lines: Vec<String> = (0..self.size.lines as i32)
+            .map(|l| {
+                let row = &grid[Line(l)];
+                (0..self.size.columns).map(|c| row[Column(c)].c).collect::<String>().trim_end().to_owned()
+            })
+            .collect();
+        while lines.last().is_some_and(String::is_empty) {
+            lines.pop();
+        }
+        lines.join("\n")
+    }
+
     /// The tab name: the fixed label, else the shell's title.
     pub fn display_title(&self) -> &str {
         self.label.as_deref().unwrap_or(&self.title)

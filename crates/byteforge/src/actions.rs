@@ -108,6 +108,7 @@ actions!(ef_view, [ShowEfCore]);
 actions!(benchmark, [RunBenchmarkAtCursor, ShowBenchmarks]);
 
 actions!(metrics, [ShowMetrics]);
+actions!(profiler, [ShowProfiler, RecordCpuProfile, TakeMemorySnapshot]);
 
 /// Runs the task with this key (`bf_core::tasks::Task::key`), picked in "Tasks: Run Task…".
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
@@ -404,6 +405,9 @@ fn builtin() -> Vec<Builtin> {
         ("view.efCore", "EF Core", "View", Box::new(ShowEfCore), None),
         ("view.benchmarks", "Benchmarks", "View", Box::new(ShowBenchmarks), None),
         ("view.metrics", "Live Metrics", "View", Box::new(ShowMetrics), None),
+        ("view.profiler", "Profiler", "View", Box::new(ShowProfiler), None),
+        ("profiler.recordCpu", "Start or Stop Recording a CPU Profile", "Profiler", Box::new(RecordCpuProfile), None),
+        ("profiler.memorySnapshot", "Take Memory Snapshot", "Profiler", Box::new(TakeMemorySnapshot), None),
         ("benchmark.runAtCursor", "Run Benchmark at Cursor", "Benchmark", Box::new(RunBenchmarkAtCursor), None),
         ("tasks.run", "Run Task…", "Tasks", Box::new(RunTaskPicker), None),
         ("tasks.rerun", "Rerun Last Task", "Tasks", Box::new(RerunLastTask), None),

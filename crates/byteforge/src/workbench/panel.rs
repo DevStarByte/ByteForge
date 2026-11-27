@@ -29,6 +29,7 @@ impl Workbench {
             PanelView::Hierarchy => self.render_hierarchy(cx),
             PanelView::Benchmarks => self.render_benchmarks(cx),
             PanelView::Metrics => self.render_metrics(cx),
+            PanelView::Profiler => self.render_profiler(cx),
             PanelView::Terminal => match self.terminals.get(self.active_terminal) {
                 Some((terminal, _)) => terminal.clone().into_any_element(),
                 None => div().p_3().text_color(t.c("foreground.muted")).child(format!("No terminal is open. Press {} to start one.", crate::actions::key_label("ctrl-shift-`"))).into_any_element(),
@@ -122,8 +123,19 @@ impl Workbench {
         if (self.metrics.has_subject() || self.panel == PanelView::Metrics) && !panel_tabs.iter().any(|n| n == "metrics") {
             panel_tabs.push("metrics".into());
         }
+        // Profiler, once it has something (or it was asked for).
+        if (self.profiler.has_content() || self.panel == PanelView::Profiler) && !panel_tabs.iter().any(|n| n == "profiler") {
+            panel_tabs.push("profiler".into());
+        }
         for name in &panel_tabs {
             match name.as_str() {
+                "profiler" => {
+                    let label = if self.profiler.is_recording() { "PROFILER ●" } else { "PROFILER" };
+                    header = header.child(
+                        tab("ptab-profiler".into(), label.into(), self.panel == PanelView::Profiler)
+                            .on_click(cx.listener(|wb, _, _, cx| wb.show_panel(PanelView::Profiler, cx))),
+                    );
+                }
                 "references" => {
                     let count = self.references.as_ref().map_or(0, |r| r.items.len());
                     header = header.child(

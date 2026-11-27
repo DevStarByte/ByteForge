@@ -18,6 +18,7 @@ pub mod modulehost;
 pub mod nuget;
 pub mod paths;
 pub mod plugins;
+pub mod profiling;
 pub mod process;
 pub mod roslyn;
 pub mod registry;

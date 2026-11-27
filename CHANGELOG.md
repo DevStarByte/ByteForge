@@ -3,6 +3,20 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.6.0
+
+- Profiler: a new PROFILER panel tab (Test → Profiler, Start or Stop Recording a CPU Profile, Take Memory
+  Snapshot). Pick a .NET process on the left (the app you run or debug is picked by itself), press Record CPU
+  Profile, do the slow thing, press Stop. `dotnet-trace` samples the threads meanwhile; the result shows as
+  **Hot Methods** (time in the method itself and in everything it called), a **Call Tree** opened along the
+  hottest path, and a **Flame Graph** (click a frame to zoom in, a row above to zoom out). Count only time
+  running .NET code, or also time waiting; Only my code hides the framework. Clicking a method opens its
+  source. **Memory snapshots** (`dotnet-gcdump`) list the types on the heap by size and count; a second
+  snapshot of the same process shows what grew since (a leak keeps growing). ByteForge offers to install
+  `dotnet-trace` and `dotnet-gcdump` when they're missing. The trace file stays in the temp folder for other
+  tools (its path is in the Output). Theme keys: `profiler.flame.userCode`, `profiler.flame.otherCode`,
+  `profiler.flame.foreground`, `profiler.barBackground`, `profiler.grew`, `profiler.shrank`.
+
 ## 1.5.0
 
 - Code coverage in the gutter: "Run All Tests with Coverage" and "Run Test at Cursor with Coverage" (Test menu, and

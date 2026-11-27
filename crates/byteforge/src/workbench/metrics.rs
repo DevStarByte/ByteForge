@@ -90,6 +90,16 @@ impl Workbench {
         }));
     }
 
+    /// The running .NET processes, as last listed (the Profiler shows them too).
+    pub(super) fn metrics_processes(&self) -> &[RuntimeProcess] {
+        &self.metrics.processes
+    }
+
+    /// The process of the app being run or debugged, while it runs.
+    pub(super) fn metrics_app_pid(&self) -> Option<u32> {
+        self.metrics.app_pid.filter(|_| self.app_running())
+    }
+
     fn app_running(&self) -> bool {
         self.dotnet.as_ref().is_some_and(DotnetProcess::is_running) || self.debug.is_some()
     }

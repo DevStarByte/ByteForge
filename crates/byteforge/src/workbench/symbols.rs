@@ -10,7 +10,7 @@ fn note(text: impl Into<String>) -> PaletteItem {
 impl Workbench {
     /// Where an LSP position is in `path`: converted through the open editor's text when the file is open
     /// (columns are UTF-16 there), else taken as is.
-    fn symbol_point(&self, path: &Path, line: u32, character: u32, cx: &App) -> Point {
+    pub(super) fn symbol_point(&self, path: &Path, line: u32, character: u32, cx: &App) -> Point {
         match self.tabs.iter().find(|t| t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, path))) {
             Some(tab) => tab.editor.read(cx).state.buffer.utf16_to_point(line as usize, character as usize),
             None => Point::new(line as usize, character as usize),

@@ -32,8 +32,10 @@ ByteForge sends no telemetry and collects no personal data. It connects to the i
   session when none is installed, and the Roslyn language server (Microsoft's `roslyn-language-server`
   package) from nuget.org when you install or update it. ByteForge starts that server with its
   telemetry turned off;
-- through the tools you run from it, such as `dotnet` (NuGet restore), `git` and `docker`, which
-  follow their own privacy policies.
+- through the tools you run from it, such as `dotnet` (NuGet restore, and `dotnet tool install` of
+  `dotnet-counters`, `dotnet-trace` and `dotnet-gcdump` when you click Install in Live Metrics or the
+  Profiler), `git` and `docker`, which follow their own privacy policies. Profiles and memory snapshots
+  stay on your machine.
 
 ## Setup (maintainers)
 
