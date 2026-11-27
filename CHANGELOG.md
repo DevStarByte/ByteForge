@@ -3,6 +3,18 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.5.0
+
+- Code coverage in the gutter: "Run All Tests with Coverage" and "Run Test at Cursor with Coverage" (Test menu, and
+  a button in the Testing view) run the tests collecting coverage, with coverlet when the test project references
+  `coverlet.collector` (the xunit, NUnit and MSTest templates do), else with Microsoft's collector, which comes with
+  Microsoft.NET.Test.Sdk, so nothing needs installing. Each line the run measured gets a bar between the line
+  numbers and the folding arrows: covered, partly covered (a branch not taken) or not covered. Bars move with
+  their lines; a line you edit loses its bar. The Output shows the line and branch coverage of the code under test
+  (test projects aren't counted) and the least covered files. "Show or Hide Coverage" and "Clear Coverage". Theme
+  keys: `editorGutter.coveredBackground`, `partiallyCoveredBackground`, `uncoveredBackground`, `coverageWidth`,
+  `coverageGap`.
+
 ## 1.4.2
 
 - The hover popup no longer scrolls: it takes the room there is above or below the line (no longer at most

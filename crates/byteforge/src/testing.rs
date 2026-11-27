@@ -24,6 +24,8 @@ pub struct TestRun {
 pub enum TestEvent {
     /// Run these one after another (Run All runs every test project).
     Run(Vec<TestRun>),
+    /// Run these collecting code coverage.
+    RunWithCoverage(Vec<TestRun>),
     Debug(TestRun),
     OpenFile(PathBuf, usize),
     /// Discovery or results changed: the gutter markers need updating.
@@ -183,6 +185,11 @@ impl TestView {
                 cx.notify();
             });
         }));
+    }
+
+    /// The folders of the test projects (their files aren't counted in the coverage totals).
+    pub fn project_dirs(&self) -> Vec<PathBuf> {
+        self.projects.iter().filter_map(|p| p.path.parent().map(Path::to_path_buf)).collect()
     }
 
     pub fn is_discovered(&self) -> bool {
@@ -694,6 +701,12 @@ impl Render for TestView {
                             let runs = v.run_all();
                             if !runs.is_empty() {
                                 cx.emit(TestEvent::Run(runs));
+                            }
+                        })))
+                        .child(tool("tests-run-coverage", "coverage", "Run All Tests with Coverage").on_click(cx.listener(|v, _, _, cx| {
+                            let runs = v.run_all();
+                            if !runs.is_empty() {
+                                cx.emit(TestEvent::RunWithCoverage(runs));
                             }
                         })))
                         .when(failed > 0, |d| {

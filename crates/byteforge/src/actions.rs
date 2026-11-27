@@ -95,7 +95,10 @@ actions!(
 
 actions!(
     testing,
-    [ShowTesting, ShowSolution, RunAllTests, RerunFailedTests, RunTestAtCursor, DebugTestAtCursor, RefreshTests]
+    [
+        ShowTesting, ShowSolution, RunAllTests, RerunFailedTests, RunTestAtCursor, DebugTestAtCursor, RefreshTests, RunAllTestsWithCoverage,
+        RunTestAtCursorWithCoverage, ToggleCoverage, ClearCoverage
+    ]
 );
 
 actions!(tasks, [ShowTasks, RunTaskPicker, RerunLastTask, ConfigureTasks, RefreshTasks]);
@@ -412,6 +415,10 @@ fn builtin() -> Vec<Builtin> {
         ("test.rerunFailed", "Rerun Failed Tests", "Test", Box::new(RerunFailedTests), None),
         ("test.runAtCursor", "Run Test at Cursor", "Test", Box::new(RunTestAtCursor), None),
         ("test.debugAtCursor", "Debug Test at Cursor", "Test", Box::new(DebugTestAtCursor), None),
+        ("test.runAllWithCoverage", "Run All Tests with Coverage", "Test", Box::new(RunAllTestsWithCoverage), None),
+        ("test.runAtCursorWithCoverage", "Run Test at Cursor with Coverage", "Test", Box::new(RunTestAtCursorWithCoverage), None),
+        ("test.toggleCoverage", "Show or Hide Coverage", "Test", Box::new(ToggleCoverage), None),
+        ("test.clearCoverage", "Clear Coverage", "Test", Box::new(ClearCoverage), None),
         ("test.refresh", "Find Tests Again", "Test", Box::new(RefreshTests), None),
         ("terminal.toggle", "Toggle Terminal", "Terminal", Box::new(ToggleTerminal), Some("ctrl-`")),
         ("terminal.new", "New Terminal", "Terminal", Box::new(NewTerminal), Some("ctrl-shift-`")),

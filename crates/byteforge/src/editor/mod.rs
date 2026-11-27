@@ -198,6 +198,8 @@ struct FindState {
 
 #[cfg(test)]
 mod linked_tests;
+#[cfg(test)]
+mod coverage_tests;
 
 /// What an edit does, for linked editing (see [`EditorView::linked_edit`]).
 pub(crate) enum LinkedEdit<'a> {
@@ -237,6 +239,8 @@ pub(crate) struct Layout {
     pub minimap: f32,
     /// Width of the blame column, between the breakpoint margin and the line numbers (0 when hidden).
     pub blame: f32,
+    /// Width of the code coverage column, right of the line numbers (0 while no coverage is shown).
+    pub coverage: f32,
 }
 
 impl Layout {
@@ -325,6 +329,8 @@ pub struct EditorView {
     pub(crate) sticky_hover: Option<usize>,
     /// Test Explorer states of the tests (and test classes) declared in this file, by line.
     test_marks: Vec<(usize, crate::testing::TestState)>,
+    /// Code coverage of the last test run with coverage: each line's state (bars in the gutter).
+    pub(crate) coverage_marks: Vec<(usize, bf_core::coverage::LineState)>,
     minimap: Option<Arc<minimap::MiniMap>>,
     minimap_hover: bool,
     inlay_task: Option<Task<()>>,
@@ -477,6 +483,7 @@ impl EditorView {
             sticky: Vec::new(),
             sticky_hover: None,
             test_marks: Vec::new(),
+            coverage_marks: Vec::new(),
             minimap: None,
             minimap_hover: false,
             inlay_task: None,
@@ -622,6 +629,7 @@ impl EditorView {
                 session.shift(c);
             }
             shift_breakpoints(&mut self.breakpoints, c);
+            shift_coverage(&mut self.coverage_marks, c);
             if let Some((line, _)) = &mut self.exec_line
                 && *line > c.old_end.line
             {
@@ -726,6 +734,14 @@ impl EditorView {
         breakpoints.dedup_by_key(|b| b.line);
         if breakpoints != self.breakpoints {
             self.breakpoints = breakpoints;
+            cx.notify();
+        }
+    }
+
+    /// The coverage bars (empty: none, and no room taken for them).
+    pub fn set_coverage_marks(&mut self, marks: Vec<(usize, bf_core::coverage::LineState)>, cx: &mut Context<Self>) {
+        if marks != self.coverage_marks {
+            self.coverage_marks = marks;
             cx.notify();
         }
     }
@@ -1172,6 +1188,25 @@ fn shift_breakpoints(breakpoints: &mut Vec<Breakpoint>, c: &Change) {
     }
     breakpoints.sort_by_key(|b| b.line);
     breakpoints.dedup_by_key(|b| b.line);
+}
+
+/// Moves coverage marks with their lines. A line the change edits no longer has the coverage the run
+/// measured, so its mark goes. The line a change ends on keeps its text when the change ends at its start
+/// (whole lines inserted or deleted above it): it only moves.
+fn shift_coverage(marks: &mut Vec<(usize, bf_core::coverage::LineState)>, c: &Change) {
+    if marks.is_empty() {
+        return;
+    }
+    let delta = c.new_end.line as isize - c.old_end.line as isize;
+    let end_line_kept = c.old_end.col == 0 && c.new_end.col == 0 && (c.old_end.line > c.start.line || c.new_end.line > c.start.line);
+    marks.retain_mut(|(line, _)| {
+        if *line > c.old_end.line || (end_line_kept && *line == c.old_end.line) {
+            *line = (*line as isize + delta).max(0) as usize;
+            true
+        } else {
+            *line < c.start.line
+        }
+    });
 }
 
 fn shift_diagnostics(diags: &mut [Diagnostic], c: &Change) {

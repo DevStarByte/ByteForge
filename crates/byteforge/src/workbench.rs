@@ -286,6 +286,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
     ]),
     ("Test", &[
         "test.runAll", "test.rerunFailed", "test.runAtCursor", "test.debugAtCursor", "-",
+        "test.runAllWithCoverage", "test.runAtCursorWithCoverage", "test.toggleCoverage", "test.clearCoverage", "-",
         "benchmark.runAtCursor", "view.benchmarks", "view.metrics",
     ]),
     ("Preferences", &["settings.open", "settings.openJson", "settings.keyboardShortcuts", "-", "theme.select", "theme.customize", "theme.edit", "theme.reload"]),
@@ -314,6 +315,11 @@ pub struct Workbench {
     solution: Entity<SolutionView>,
     /// Numbers the results folders of test runs.
     test_runs: u64,
+    /// Code coverage of the last test run with coverage, and whether the gutters show it.
+    coverage: Option<bf_core::coverage::Coverage>,
+    coverage_visible: bool,
+    /// Reports of a coverage run still going (one per test project), merged.
+    coverage_pending: Option<bf_core::coverage::Coverage>,
     git_head: Option<Option<String>>,
     output: Entity<EditorView>,
     palette: Option<(Entity<Palette>, Subscription)>,
@@ -635,6 +641,9 @@ impl Workbench {
             tests,
             solution,
             test_runs: 0,
+            coverage: None,
+            coverage_visible: true,
+            coverage_pending: None,
             git_head: None,
             output,
             palette: None,
@@ -1142,6 +1151,7 @@ fn default_command_icon(id: &str) -> &'static str {
         "view.testing" | "test.refresh" => "beaker",
         "test.debugAtCursor" => "debug",
         "test.rerunFailed" => "refresh",
+        "test.runAllWithCoverage" | "test.runAtCursorWithCoverage" | "test.toggleCoverage" | "test.clearCoverage" => "coverage",
         "file.newFile" | "file.openFile" | "file.save" | "file.saveAs" | "file.saveAll" => "file",
         "file.openFolder" => "folderOpen",
         "file.close" | "file.closeAll" | "app.exit" => "close",

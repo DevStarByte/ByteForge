@@ -188,8 +188,15 @@ impl Element for EditorElement {
             let fold_width = if view.folding_enabled && view.show_line_numbers { (char_width * 1.6).round().max(12.0) } else { 0.0 };
             // The blame column: 26 characters in the line numbers' size, and a little room.
             let blame = if view.blame_gutter() { (26.0 * char_width * number_size / style.font_size).ceil() + 14.0 } else { 0.0 };
+            // The coverage bars, right of the line numbers, while a run's coverage is shown.
+            let coverage = if view.coverage_marks.is_empty() {
+                0.0
+            } else {
+                (theme.n("editorGutter.coverageWidth", 3.0) + 2.0 * theme.n("editorGutter.coverageGap", 3.0)).round()
+            };
             let gutter = glyph
                 + blame
+                + coverage
                 + fold_width
                 + if view.show_line_numbers {
                     (digits.max(3) as f32 * char_width * number_size / style.font_size).ceil() + style.gutter_left + style.gutter_right
@@ -211,6 +218,7 @@ impl Element for EditorElement {
                 fold_width,
                 minimap: if view.minimap_enabled && f32::from(bounds.size.width) > 500.0 { theme.n("minimap.width", 80.0).round() } else { 0.0 },
                 blame,
+                coverage,
             };
             if fold_width > 0.0 || view.sticky_enabled() {
                 // Cached per buffer version.
@@ -991,11 +999,29 @@ impl Element for EditorElement {
                 };
                 window.paint_quad(quad(rect, Corners::all(px(theme.n("editorGutter.changeRadius", 0.0))), theme.bg(key), 0.0, Hsla::default(), gpui::BorderStyle::Solid));
             }
+            // Code coverage bars between the line numbers and the folding chevrons: covered, partly covered
+            // (a branch not taken), not covered.
+            if l.coverage > 0.0 {
+                use bf_core::coverage::LineState;
+                let w = theme.n("editorGutter.coverageWidth", 3.0);
+                let x = l.fold_left - l.coverage + theme.n("editorGutter.coverageGap", 3.0);
+                let covered = theme.c_or("editorGutter.coveredBackground", 0x3fb95099);
+                let partial = theme.c_or("editorGutter.partiallyCoveredBackground", 0xd29922cc);
+                let uncovered = theme.c_or("editorGutter.uncoveredBackground", 0xf85149b3);
+                for &(line, state) in view.coverage_marks.iter().filter(|m| !view.is_hidden(m.0)) {
+                    let color = match state {
+                        LineState::Covered => covered,
+                        LineState::Partial => partial,
+                        LineState::Uncovered => uncovered,
+                    };
+                    window.paint_quad(fill(Bounds::new(point(px(x), line_top(line)), size(px(w), px(lh))), color));
+                }
+            }
             for (line, shaped) in &prepaint.blame {
                 let _ = shaped.paint(point(px(l.left + l.glyph + 6.0), line_top(*line)), px(lh), window, cx);
             }
             for (line, shaped, w) in &prepaint.numbers {
-                let x = gutter_right - style.gutter_right - l.fold_width - w;
+                let x = gutter_right - style.gutter_right - l.fold_width - l.coverage - w;
                 let y = line_top(*line as usize);
                 let _ = shaped.paint(point(px(x), y), px(lh), window, cx);
             }
@@ -1134,7 +1160,7 @@ impl Element for EditorElement {
                     }
                     let y = px(l.top + pinned.y);
                     if let Some((number, w)) = number {
-                        let x = gutter_right - style.gutter_right - l.fold_width - w;
+                        let x = gutter_right - style.gutter_right - l.fold_width - l.coverage - w;
                         let _ = number.paint(point(px(x), y), px(lh), window, cx);
                     }
                     let text_row = Bounds::new(point(full_text_clip.left(), px(top)), size(full_text_clip.size.width, px(bottom - top)));
@@ -1230,6 +1256,7 @@ struct Snap {
     range_backgrounds: Vec<(TPoint, TPoint, &'static str)>,
     breakpoints: Vec<super::Breakpoint>,
     test_marks: Vec<(usize, crate::testing::TestState)>,
+    coverage_marks: Vec<(usize, bf_core::coverage::LineState)>,
     exec_line: Option<(usize, bool)>,
     word_highlights: Vec<super::inlays::WordHighlight>,
     /// Inlay hints on the visible lines, sorted.
@@ -1287,6 +1314,7 @@ impl Snap {
             range_backgrounds: v.range_backgrounds.iter().filter(|(s, e, _)| e.line >= first && s.line <= last).copied().collect(),
             breakpoints: v.breakpoints.iter().filter(|b| b.line >= first && b.line <= last).cloned().collect(),
             test_marks: v.test_marks.iter().filter(|m| m.0 >= first && m.0 <= last).copied().collect(),
+            coverage_marks: v.coverage_marks.iter().filter(|m| m.0 >= first && m.0 <= last).copied().collect(),
             exec_line: v.exec_line,
             word_highlights: v.word_highlights.iter().filter(|h| h.end.line >= first && h.start.line <= last).copied().collect(),
             inlays: v.inlays.iter().filter(|h| h.at.line >= first && h.at.line <= last).cloned().collect(),

@@ -48,6 +48,9 @@ from the base theme.
 - **git colors** (in `colors`): `gitDecoration.*ResourceForeground`, `scmGraph.foreground1` … `foreground5` (the lanes of the commit graph in HISTORY, used in turn), `editorGutter.added/modified/deletedBackground`,
   `diffEditor.inserted/removedLineBackground`, `diffEditor.inserted/removedTextBackground` (changed words), `diffEditor.diagonalFill` (filler rows), `merge.current/incomingHeaderBackground`, `merge.current/incoming/commonContentBackground` (merge conflicts), `editorCodeLens.foreground` (blame, conflict notes and Code Lens), `activityBarBadge.*`, `badge.*`; sizes in `metrics`:
   `editorGutter.changeWidth/changeOffset/changeRadius`, `scm.iconSize`, `activityBarBadge.size`.
+- **code coverage** (in `colors`): `editorGutter.coveredBackground`, `editorGutter.partiallyCoveredBackground` (a
+  branch not taken), `editorGutter.uncoveredBackground` (the bars in the gutter after a test run with coverage); sizes in
+  `metrics`: `editorGutter.coverageWidth` (the bar, 3) and `editorGutter.coverageGap` (room on each side of it, 3).
 - **Windows Forms designer** (in `colors`): `formDesigner.background` (the canvas around the form),
   `formDesigner.foreground`, `formDesigner.border`, `formDesigner.selectionBorder`,
   `formDesigner.handleBackground` / `handleBorder` (resize handles), `formDesigner.dropTargetBorder`,

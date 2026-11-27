@@ -159,7 +159,11 @@ Section 1 above is what still has to be checked by hand; this is what the releas
 - [x] Modules in C# instead of Python: one .NET module host runs them (each in its own load context), the module
       SDK lives with the modules on the packages branch, every module is ported, and ByteForge no longer runs
       Python modules (installed ones are replaced by their .NET versions at start).
-- [ ] Code coverage in the gutter.
+- [x] Code coverage in the gutter: Run All Tests (or the test at the cursor) with Coverage, from the Test menu or
+      the Testing view, collects coverage (coverlet when the test project references it, else Microsoft's collector,
+      which comes with Microsoft.NET.Test.Sdk) and shows covered, partly covered (a branch not taken) and uncovered
+      lines as bars in the gutter; the Output sums it up (lines and branches, without the test projects) and lists
+      the least covered files. Show or Hide Coverage, Clear Coverage; edited lines lose their bar.
 - [x] Sticky scroll: the first lines of the blocks the top of the view is in (from the fold regions, without
       comment runs and `using` blocks) pinned at the top, pushed out by their block's end; click: go there.
       `"editor.stickyScroll.enabled"`, `"editor.stickyScroll.maxLineCount"` (5).

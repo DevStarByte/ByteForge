@@ -55,7 +55,11 @@ impl Workbench {
             let title = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
             self.add_tab(editor.clone(), Some(path.clone()), title, bom, window, cx);
             let marks = self.tests.read(cx).marks_for(&path);
-            editor.update(cx, |e, cx| e.set_test_marks(marks, cx));
+            let coverage = self.coverage_marks_for(&path);
+            editor.update(cx, |e, cx| {
+                e.set_test_marks(marks, cx);
+                e.set_coverage_marks(coverage, cx);
+            });
             self.load_git_base(editor, path.clone(), cx);
         }
         if let (Some(at), Some(editor)) = (at, self.active_editor()) {
@@ -130,8 +134,10 @@ impl Workbench {
         self.focus_group = to;
         self.add_tab(editor.clone(), Some(path.clone()), title, bom, window, cx);
         let marks = self.tests.read(cx).marks_for(&path);
+        let coverage = self.coverage_marks_for(&path);
         editor.update(cx, |e, cx| {
             e.set_test_marks(marks, cx);
+            e.set_coverage_marks(coverage, cx);
             e.go_to(caret, cx);
         });
         self.load_git_base(editor, path, cx);
