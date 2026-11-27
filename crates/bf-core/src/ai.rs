@@ -65,6 +65,56 @@ impl AiConfig {
     }
 }
 
+/// The Claude models offered in the settings: id, and when to pick it.
+pub const CLAUDE_MODELS: &[(&str, &str)] = &[
+    ("claude-opus-5-5", "The default: strong at coding and changes across files."),
+    ("claude-sonnet-5-5", "Faster and cheaper; good for everyday questions and smaller changes."),
+    ("claude-haiku-5-5", "The fastest and cheapest; for quick questions about the code."),
+    ("claude-fable-5-2", "The most capable for hard, long problems; costs the most."),
+];
+
+/// A model id as people say it: `claude-opus-5-5` → "Claude Opus 5.5"; other names stay as they are.
+pub fn display_name(id: &str) -> String {
+    let Some(rest) = id.strip_prefix("claude-") else { return id.to_owned() };
+    let mut parts = rest.split('-');
+    let Some(family) = parts.next() else { return id.to_owned() };
+    let version: Vec<&str> = parts.take_while(|p| p.len() <= 2 && p.chars().all(|c| c.is_ascii_digit())).collect();
+    let mut chars = family.chars();
+    let family: String = chars.next().map(|c| c.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default();
+    if version.is_empty() { format!("Claude {family}") } else { format!("Claude {family} {}", version.join(".")) }
+}
+
+/// The model names in an OpenAI-compatible `/models` answer (`{"data": [{"id": …}]}`), sorted.
+pub fn parse_model_list(json: &str) -> anyhow::Result<Vec<String>> {
+    let v: Value = serde_json::from_str(json)?;
+    if let Some(e) = v.get("error") {
+        anyhow::bail!("{}", e.get("message").and_then(Value::as_str).map(str::to_owned).unwrap_or_else(|| e.to_string()));
+    }
+    let data = v.get("data").and_then(Value::as_array).ok_or_else(|| anyhow::anyhow!("not a model list"))?;
+    let mut ids: Vec<String> = data.iter().filter_map(|m| m.get("id").and_then(Value::as_str)).map(str::to_owned).collect();
+    ids.sort();
+    Ok(ids)
+}
+
+/// The models the local server has (`GET {local_url}/models`; Ollama and LM Studio both answer it).
+pub fn list_local_models(cfg: &AiConfig) -> anyhow::Result<Vec<String>> {
+    let url = format!("{}/models", cfg.local_url.trim_end_matches('/'));
+    let mut config = format!("silent\nshow-error\nmax-time = 5\nurl = {}\n", config_string(&url));
+    if let Some(key) = cfg.local_key.as_deref().filter(|k| !k.trim().is_empty()) {
+        config.push_str(&format!("header = {}\n", config_string(&format!("Authorization: Bearer {}", key.trim()))));
+    }
+    let mut child = crate::process::command("curl").args(["--config", "-"]).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(config.as_bytes())?;
+    }
+    let out = child.wait_with_output()?;
+    if !out.status.success() {
+        let said = String::from_utf8_lossy(&out.stderr).trim().trim_start_matches("curl: ").to_owned();
+        anyhow::bail!("{}", if said.is_empty() { format!("no answer from {url}") } else { said });
+    }
+    parse_model_list(&String::from_utf8_lossy(&out.stdout))
+}
+
 // ───────────── the conversation ─────────────
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1127,6 +1177,18 @@ data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"out
         // Not a tool of ours, or prose around it: plain text.
         assert_eq!(text_tool_call("{\"name\": \"rm_rf\", \"arguments\": {}}"), None);
         assert_eq!(text_tool_call("Call {\"name\": \"read_file\", \"arguments\": {}} now"), None);
+    }
+
+    #[test]
+    fn model_names_and_lists() {
+        assert_eq!(display_name("claude-opus-5-5"), "Claude Opus 5.5");
+        assert_eq!(display_name("claude-sonnet-5"), "Claude Sonnet 5");
+        assert_eq!(display_name("claude-fable-5-2"), "Claude Fable 5.2");
+        assert_eq!(display_name("qwen3.5"), "qwen3.5");
+        assert!(CLAUDE_MODELS.iter().any(|(id, _)| *id == DEFAULT_CLAUDE_MODEL));
+        assert_eq!(parse_model_list(r#"{"object":"list","data":[{"id":"qwen3.5:latest"},{"id":"llama3.1:8b"}]}"#).unwrap(), ["llama3.1:8b", "qwen3.5:latest"]);
+        assert_eq!(parse_model_list(r#"{"error":{"message":"unauthorized"}}"#).unwrap_err().to_string(), "unauthorized");
+        assert!(parse_model_list("<html>").is_err());
     }
 
     #[test]

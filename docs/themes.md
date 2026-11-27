@@ -51,6 +51,13 @@ from the base theme.
 - **code coverage** (in `colors`): `editorGutter.coveredBackground`, `editorGutter.partiallyCoveredBackground` (a
   branch not taken), `editorGutter.uncoveredBackground` (the bars in the gutter after a test run with coverage); sizes in
   `metrics`: `editorGutter.coverageWidth` (the bar, 3) and `editorGutter.coverageGap` (room on each side of it, 3).
+- **AI assistant** (in `colors`; each falls back to the theme color in brackets): `assistant.userBorder` (the rule beside
+  your messages [`focusBorder`]), `assistant.composer.background` / `assistant.composer.border` (the input's frame
+  [`input.background` / `input.border`]), `assistant.starter.border` (the starter questions [`input.border`]), and for
+  a proposed change `assistant.change.background` [`editor.background`], `assistant.change.border`
+  [`editorWidget.border`], `assistant.change.lineNumber` [`editorLineNumber.foreground`],
+  `assistant.change.removedBackground` / `assistant.change.addedBackground` [`diffEditor.removedLineBackground` /
+  `diffEditor.insertedLineBackground`].
 - **profiler** (in `colors`): `profiler.flame.userCode` and `profiler.flame.otherCode` (flame graph frames of the
   workspace's code and of the rest), `profiler.flame.foreground` (their text), `profiler.barBackground` (the
   own-time bars in Hot Methods), `profiler.grew` and `profiler.shrank` (the change between memory snapshots).

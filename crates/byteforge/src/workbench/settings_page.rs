@@ -199,6 +199,11 @@ pub(super) fn parse_value(kind: &Kind, text: &str) -> Result<Value, String> {
     }
 }
 
+/// The AI settings of the provider not in use: Claude's under "local", the local server's under "anthropic".
+fn hidden_for_provider(key: &str, local: bool) -> bool {
+    if local { matches!(key, "ai.model" | "ai.effort" | "ai.apiKey") } else { key.starts_with("ai.local.") }
+}
+
 /// A choice's value as stored: debug.breakOnExceptions keeps a list of filters.
 fn choice_value(key: &str, choice: &str) -> Value {
     match (key, choice) {
@@ -220,7 +225,8 @@ impl Workbench {
     /// Every setting the screen lists: the built-in ones and those of the turned-on modules.
     pub(super) fn listed_settings(&self) -> Vec<SettingInfo> {
         let disabled: Vec<String> = self.settings.get("modules.disabled", Vec::new());
-        settings_with_modules(&self.modules, &disabled)
+        let local = self.settings.get_string("ai.provider").as_deref() == Some("local");
+        settings_with_modules(&self.modules, &disabled).into_iter().filter(|s| !hidden_for_provider(&s.key, local)).collect()
     }
 
     /// Ctrl+,: the settings screen in a tab (reused when it is open).
@@ -424,6 +430,91 @@ impl Workbench {
         div().id("settings-page").size_full().flex().bg(background).text_color(fg).text_size(px(13.)).child(nav).child(list)
     }
 
+    /// Under the model settings, the models to pick from: Claude's for "ai.model", the ones the local server
+    /// has for "ai.local.model". A click sets it.
+    fn render_model_suggestions(&mut self, key: &str, value: &Value, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        let t = Theme::global(cx);
+        let (muted, rule, hover) = (t.c("foreground.muted"), t.c("editorWidget.border"), t.c("toolbar.hoverBackground"));
+        let accent = t.c_or("button.background", 0x0e639cff);
+        let on_accent = t.c_or("button.foreground", 0xffffffff);
+        let current = value.as_str().unwrap_or("").to_owned();
+        let chip = |id: SharedString, label: String, tip: Option<String>, picked: bool| {
+            div()
+                .id(id.clone())
+                .debug_selector(move || id.to_string())
+                .px_2()
+                .py(px(2.))
+                .rounded(px(5.))
+                .border_1()
+                .border_color(if picked { accent } else { rule })
+                .text_size(px(12.))
+                .cursor_pointer()
+                .when(picked, |d| d.bg(accent).text_color(on_accent))
+                .when(!picked, |d| d.hover(move |s| s.bg(hover)))
+                .when_some(tip, |d, tip| d.tooltip(tooltip(tip)))
+                .child(label)
+        };
+        let models: Vec<(String, String, Option<String>)> = match key {
+            "ai.model" => bf_core::ai::CLAUDE_MODELS.iter().map(|(id, note)| ((*id).to_owned(), bf_core::ai::display_name(id), Some(format!("{id}\n{note}")))).collect(),
+            "ai.local.model" => {
+                let url = self.ai_local_url();
+                self.refresh_local_models(false, cx);
+                match self.assistant.local_models(&url).cloned() {
+                    Some(Ok(list)) if !list.is_empty() => list.into_iter().map(|m| (m.clone(), m, None)).collect(),
+                    Some(Ok(_)) => return Some(div().text_size(px(12.)).text_color(muted).child(format!("The server at {url} has no models yet (ollama pull qwen3.5).")).into_any_element()),
+                    Some(Err(e)) => {
+                        return Some(
+                            div()
+                                .flex()
+                                .flex_wrap()
+                                .items_center()
+                                .gap_2()
+                                .text_size(px(12.))
+                                .text_color(muted)
+                                .child(format!("No model list from {url}: {e}. Is the server running?"))
+                                .child(
+                                    div()
+                                        .id("setting-models-refresh")
+                                        .debug_selector(|| "setting-models-refresh".into())
+                                        .text_color(t.c_or("textLink.foreground", 0x3794ffff))
+                                        .cursor_pointer()
+                                        .child("Try again")
+                                        .on_click(cx.listener(|wb, _, _, cx| wb.refresh_local_models(true, cx))),
+                                )
+                                .into_any_element(),
+                        );
+                    }
+                    None => return Some(div().text_size(px(12.)).text_color(muted).child(format!("Asking {url} for its models…")).into_any_element()),
+                }
+            }
+            _ => return None,
+        };
+        let key_owned = key.to_owned();
+        let mut row = div().mt(px(4.)).flex().flex_wrap().items_center().gap(px(6.));
+        for (n, (id, label, tip)) in models.into_iter().enumerate() {
+            let picked = id == current;
+            let (k, v) = (key_owned.clone(), id.clone());
+            row = row.child(chip(SharedString::from(format!("setting-model-{key_owned}-{n}")), label, tip, picked).on_click(cx.listener(move |wb, _, _, cx| {
+                wb.settings.set(&k, json!(v));
+                cx.notify();
+            })));
+        }
+        if key == "ai.local.model" {
+            row = row.child(
+                div()
+                    .id("setting-models-refresh")
+                    .debug_selector(|| "setting-models-refresh".into())
+                    .text_size(px(12.))
+                    .text_color(t.c_or("textLink.foreground", 0x3794ffff))
+                    .cursor_pointer()
+                    .tooltip(tooltip("Ask the server again (after ollama pull)"))
+                    .child("Refresh")
+                    .on_click(cx.listener(|wb, _, _, cx| wb.refresh_local_models(true, cx))),
+            );
+        }
+        Some(row.into_any_element())
+    }
+
     /// One setting: its title, description and key, the control that changes it, and Reset when set.
     fn render_setting_row(&mut self, i: usize, info: SettingInfo, cx: &mut Context<Self>) -> gpui::Stateful<Div> {
         let t = Theme::global(cx);
@@ -575,6 +666,7 @@ impl Workbench {
                             .when(set, |d| d.child(div().w(px(6.)).h(px(6.)).rounded(px(3.)).bg(accent)).child(div().text_size(px(11.)).text_color(muted).child("changed"))),
                     )
                     .when(!info.description.is_empty(), |d| d.child(div().text_size(px(12.)).text_color(muted).child(info.description)))
+                    .children(self.render_model_suggestions(&key, &value, cx))
                     .child(div().text_size(px(11.)).text_color(muted).font_family(t.editor_font.clone()).child(key.clone())),
             )
             .child(control)

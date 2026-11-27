@@ -42,6 +42,8 @@ pub struct TextInput {
     line_height: Pixels,
     /// Multi-line: how far the text is scrolled up.
     scroll_y: Pixels,
+    /// No border or background of its own (it sits in a frame that draws them).
+    bare: bool,
 }
 
 #[derive(Clone)]
@@ -105,7 +107,14 @@ impl TextInput {
             paragraphs: Vec::new(),
             line_height: px(0.),
             scroll_y: px(0.),
+            bare: false,
         }
+    }
+
+    /// Without its own border and background, for an input placed inside a frame that draws them.
+    pub fn bare(mut self) -> Self {
+        self.bare = true;
+        self
     }
 
     /// A multi-line input: the text wraps, the box grows up to `max_lines` rows (then scrolls), Enter
@@ -448,12 +457,14 @@ impl Render for TextInput {
             // a row, so the text grows to fill the box even where a percentage width can't resolve
             .flex()
             .overflow_hidden()
-            .bg(t.bg("input.background"))
             .text_color(t.c("input.foreground"))
-            .border_color(t.c("input.border"))
-            .when(focused, |d| d.border_color(focused_border))
-            .border(px(t.edges("input.borderThickness", 1.0).top.into()))
-            .rounded(t.radius("input.radius", 4.0))
+            .when(!self.bare, |d| {
+                d.bg(t.bg("input.background"))
+                    .border_color(t.c("input.border"))
+                    .when(focused, |d| d.border_color(focused_border))
+                    .border(px(t.edges("input.borderThickness", 1.0).top.into()))
+                    .rounded(t.radius("input.radius", 4.0))
+            })
             .px(t.edges("input.padding", 6.0).left)
             .py(t.edges("input.padding", 4.0).top)
             .text_size(t.m("ui.size", 13.0))

@@ -3,6 +3,21 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.7.1
+
+- The AI assistant, redesigned. The conversation reads like notes beside the code: your messages carry a rule in the
+  theme's accent and the file and line they were about (click it to go there); answers flow as plain text under the
+  model's name, with the reasoning behind a "Show reasoning" toggle and the tools it used as one compact line. A
+  proposed change is drawn like code: the file, how many lines go and come, and the diff in the editor's font and
+  syntax colors with the file's own line numbers (common indentation taken away, long lines scroll), then Accept
+  and Reject. The input sits in a frame with the file it will be about (✕ leaves it out) and a round send button;
+  an empty chat offers three ways to start. The model's name heads the view, the tokens used are in its tooltip.
+  New theme keys under `assistant.*` (each falls back to an existing color).
+- Settings → AI Assistant suggests the models to pick, for the provider in use: with `anthropic` the current Claude
+  models (Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.2; hover one for when to choose it), with `local` the models the
+  local server has (asked from Ollama or LM Studio; Refresh after `ollama pull`). A click picks one. Only the chosen
+  provider's settings are listed: the Claude model, effort and key, or the local server, model and key.
+
 ## 1.7.0
 
 - AI Assistant: a new side bar view (the sparkle in the activity bar, Ctrl+Alt+I, View → AI Assistant). Chat with

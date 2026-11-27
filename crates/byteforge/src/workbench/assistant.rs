@@ -1,25 +1,38 @@
 //! The AI assistant side bar view: a chat with Claude (Anthropic API) or a local model (Ollama, LM Studio,
 //! llama.cpp; "ai.provider"), which reads and searches the workspace through tools and proposes edits and
 //! new files, each shown as a change to accept or reject. The loop runs here; see `bf_core::ai`.
+//!
+//! The conversation is quiet type in the side bar's own colors; a proposed change is the one thing drawn
+//! like code: a diff in the editor's font and syntax colors, with the file's line numbers.
 
 use std::collections::HashMap;
 #[cfg(test)]
 use std::collections::VecDeque;
 
 use bf_core::ai::{self, AiConfig, Part, Proposal, Provider, Role, Stop, StreamEvent, StreamHandle, ToolOutcome, Turn};
-use gpui::ScrollHandle;
+use bf_core::diff::RowKind;
+use gpui::{Hsla, ScrollHandle, StyledText};
 
 use super::*;
+
+/// The file and place a message was about.
+#[derive(Clone, Debug)]
+struct Context_ {
+    /// "Program.cs, line 12".
+    label: String,
+    path: PathBuf,
+    line: usize,
+}
 
 /// One row of the chat as shown.
 #[derive(Clone, Debug)]
 enum Entry {
-    User { text: String, context: Option<String> },
+    User { text: String, context: Option<Context_> },
     Assistant { text: String, thinking: String, show_thinking: bool },
     /// A tool the assistant used: what it did, whether it failed.
     Tool { label: String, failed: bool },
-    /// A change waiting for (or past) the user's decision.
-    Change { tool_id: String, proposal: Proposal, decided: Option<bool> },
+    /// A change waiting for (or past) the user's decision; `line` is where it starts in the file (1-based).
+    Change { tool_id: String, proposal: Proposal, line: usize, decided: Option<bool> },
     Notice { text: String, error: bool },
 }
 
@@ -27,6 +40,8 @@ enum Entry {
 pub(super) struct AssistantState {
     input: Option<Entity<TextInput>>,
     _input_sub: Option<Subscription>,
+    /// Whether the input has the keyboard (its frame shows it); set before each draw.
+    pub(super) input_focused: bool,
     /// The conversation as sent to the model.
     turns: Vec<Turn>,
     entries: Vec<Entry>,
@@ -37,10 +52,13 @@ pub(super) struct AssistantState {
     /// Results of the last answer's tool calls, collected while changes wait for the user.
     results: Vec<Part>,
     waiting: usize,
-    /// Attach the active file and selection to each message.
+    /// Don't attach the active file and selection to messages.
     no_context: bool,
     scroll: ScrollHandle,
     tokens: (u64, u64),
+    /// The local server's models, as last asked (for the settings): the server's URL and what it said.
+    local_models: Option<(String, Result<Vec<String>, String>)>,
+    local_models_task: Option<Task<()>>,
     /// Scripted answers instead of requests (tests).
     #[cfg(test)]
     script: VecDeque<Vec<StreamEvent>>,
@@ -52,6 +70,15 @@ impl AssistantState {
     pub(super) fn is_busy(&self) -> bool {
         self.request.is_some() || self.tools_task.is_some()
     }
+
+    pub(super) fn input(&self) -> Option<&Entity<TextInput>> {
+        self.input.as_ref()
+    }
+
+    /// The local server's models: None while not asked (or asking), else the list or why there's none.
+    pub(super) fn local_models(&self, url: &str) -> Option<&Result<Vec<String>, String>> {
+        self.local_models.as_ref().filter(|(u, _)| u == url).map(|(_, r)| r)
+    }
 }
 
 /// What a tool call did, for the chat.
@@ -62,9 +89,19 @@ fn tool_label(name: &str, input: &serde_json::Value) -> String {
         "list_files" => format!("Listed {}", if s("path").is_empty() { "the workspace".to_owned() } else { s("path") }),
         "search" => format!("Searched for “{}”", s("query")),
         "edit_file" => format!("Proposed a change to {}", s("path")),
-        "create_file" => format!("Proposed a new file {}", s("path")),
+        "create_file" => format!("Proposed {}", s("path")),
         other => format!("Called {other}"),
     }
+}
+
+/// A theme color, else another key's (the assistant's keys fall back to the rest of the theme).
+fn themed(t: &Theme, key: &str, fallback: &str) -> Hsla {
+    if t.has(key) { t.c(key) } else { t.c(fallback) }
+}
+
+/// Where `old_text` starts in `text` (1-based line), 1 when it isn't there.
+fn line_of(text: &str, old_text: &str) -> usize {
+    text.replace("\r\n", "\n").find(old_text).map_or(1, |at| text.replace("\r\n", "\n")[..at].matches('\n').count() + 1)
 }
 
 impl Workbench {
@@ -81,11 +118,36 @@ impl Workbench {
         }
     }
 
+    /// Asks the local server which models it has (once per server address, or again on Refresh).
+    pub(super) fn refresh_local_models(&mut self, force: bool, cx: &mut Context<Self>) {
+        let cfg = self.ai_config();
+        let fresh = self.assistant.local_models.as_ref().is_some_and(|(u, _)| *u == cfg.local_url);
+        if self.assistant.local_models_task.is_some() || (fresh && !force) {
+            return;
+        }
+        if force {
+            self.assistant.local_models = None;
+        }
+        let url = cfg.local_url.clone();
+        self.assistant.local_models_task = Some(cx.spawn(async move |this, cx| {
+            let result = cx.background_executor().spawn(async move { ai::list_local_models(&cfg).map_err(|e| format!("{e:#}")) }).await;
+            let _ = this.update(cx, |wb, cx| {
+                wb.assistant.local_models_task = None;
+                wb.assistant.local_models = Some((url, result));
+                cx.notify();
+            });
+        }));
+    }
+
+    pub(super) fn ai_local_url(&self) -> String {
+        self.settings.get_string("ai.local.url").unwrap_or_else(|| ai::DEFAULT_LOCAL_URL.into())
+    }
+
     fn ensure_assistant_input(&mut self, cx: &mut Context<Self>) -> Entity<TextInput> {
         if let Some(input) = &self.assistant.input {
             return input.clone();
         }
-        let input = cx.new(|cx| TextInput::multiline(format!("Ask about the code or ask for a change ({} sends)", crate::actions::key_label("ctrl-enter")), 8, cx));
+        let input = cx.new(|cx| TextInput::multiline("Ask about the code, or ask for a change", 10, cx).bare());
         let sub = cx.subscribe(&input, |wb: &mut Self, input, event: &InputEvent, cx| {
             if matches!(event, InputEvent::Confirmed) {
                 let text = input.read(cx).text().to_owned();
@@ -118,26 +180,29 @@ impl Workbench {
         cx.notify();
     }
 
-    /// The active file and selection, as context for a message: (what the chat shows, what the model gets).
-    fn assistant_context(&self, cx: &App) -> Option<(String, String)> {
+    /// The active file and selection, as context for a message: what the chat shows, and what the model gets.
+    fn assistant_context(&self, cx: &App) -> Option<(Context_, String)> {
         if self.assistant.no_context {
             return None;
         }
         let tab = self.active.and_then(|i| self.tabs.get(i)).filter(|t| t.is_document())?;
         let path = tab.path.clone()?;
         let rel = self.workspace.root().and_then(|r| path.strip_prefix(&r).ok().map(|p| p.to_string_lossy().replace('\\', "/"))).unwrap_or_else(|| path.display().to_string());
+        let name = path.file_name().map_or_else(|| rel.clone(), |n| n.to_string_lossy().into_owned());
         let editor = tab.editor.read(cx);
         let caret = editor.state.caret();
         let (start, end) = editor.state.selection();
         if start != end {
-            let text = editor.state.buffer.slice(start, end);
-            let text: String = text.chars().take(20_000).collect();
+            let text: String = editor.state.buffer.slice(start, end).chars().take(20_000).collect();
+            let (a, b) = (start.line + 1, end.line + 1);
+            let label = if a == b { format!("{name}, line {a} (selection)") } else { format!("{name}, lines {a}–{b}") };
             Some((
-                format!("{rel}, lines {}–{}", start.line + 1, end.line + 1),
-                format!("<context>\nThe user is in {rel} and has selected lines {}–{}:\n```\n{text}\n```\n</context>\n\n", start.line + 1, end.line + 1),
+                Context_ { label, path, line: a },
+                format!("<context>\nThe user is in {rel} and has selected lines {a}–{b}:\n```\n{text}\n```\n</context>\n\n"),
             ))
         } else {
-            Some((format!("{rel}, line {}", caret.line + 1), format!("<context>\nThe user is in {rel}, at line {}.\n</context>\n\n", caret.line + 1)))
+            let line = caret.line + 1;
+            Some((Context_ { label: format!("{name}, line {line}"), path, line }, format!("<context>\nThe user is in {rel}, at line {line}.\n</context>\n\n")))
         }
     }
 
@@ -146,7 +211,7 @@ impl Workbench {
         let mut parts = self.reject_waiting_changes("The user moved on without deciding; the change wasn't made.");
         let context = self.assistant_context(cx);
         parts.push(Part::Text(match &context {
-            Some((_, ctx)) => format!("{ctx}{text}"),
+            Some((_, prompt)) => format!("{prompt}{text}"),
             None => text.clone(),
         }));
         self.assistant.entries.push(Entry::User { text, context: context.map(|c| c.0) });
@@ -224,7 +289,9 @@ impl Workbench {
                 }
             }
             StreamEvent::ToolStarted(_) => {}
-            StreamEvent::FellBack(model) => self.assistant.entries.push(Entry::Notice { text: format!("The model declined part of this; {model} took over."), error: false }),
+            StreamEvent::FellBack(model) => {
+                self.assistant.entries.push(Entry::Notice { text: format!("{} took over after the model declined part of this.", ai::display_name(&model)), error: false })
+            }
             StreamEvent::Error(e) => {
                 self.assistant.request = None;
                 self.drop_empty_answer();
@@ -242,12 +309,12 @@ impl Workbench {
                 match stop {
                     Stop::Refusal(category) => self.assistant.entries.push(Entry::Notice {
                         text: match category {
-                            Some(c) => format!("The model declined to answer this ({c})."),
-                            None => "The model declined to answer this.".into(),
+                            Some(c) => format!("The model declined to answer this ({c}). Rephrase the request, or start a new chat."),
+                            None => "The model declined to answer this. Rephrase the request, or start a new chat.".into(),
                         },
                         error: true,
                     }),
-                    Stop::MaxTokens => self.assistant.entries.push(Entry::Notice { text: "The answer hit the length limit and was cut off.".into(), error: true }),
+                    Stop::MaxTokens => self.assistant.entries.push(Entry::Notice { text: "The answer hit the length limit and stops early. Ask it to continue.".into(), error: true }),
                     Stop::Other(why) => self.assistant.entries.push(Entry::Notice { text: format!("The answer stopped ({why})."), error: true }),
                     _ => {}
                 }
@@ -289,14 +356,21 @@ impl Workbench {
                             } else {
                                 ai::run_tool(&root, &name, &input, &read)
                             };
-                            (id, label, outcome)
+                            // Where a change starts, for the diff's line numbers.
+                            let line = match &outcome {
+                                ToolOutcome::Propose(Proposal::Edit { path, old_text, .. }) => {
+                                    read(path).or_else(|| std::fs::read_to_string(path).ok()).map_or(1, |text| line_of(&text, old_text))
+                                }
+                                _ => 1,
+                            };
+                            (id, label, outcome, line)
                         })
                         .collect::<Vec<_>>()
                 })
                 .await;
             let _ = this.update(cx, |wb, cx| {
                 wb.assistant.tools_task = None;
-                for (id, label, outcome) in outcomes {
+                for (id, label, outcome, line) in outcomes {
                     match outcome {
                         ToolOutcome::Done { content, is_error } => {
                             wb.assistant.entries.push(Entry::Tool { label: if is_error { format!("{label}: {}", content.lines().next().unwrap_or("")) } else { label }, failed: is_error });
@@ -304,11 +378,12 @@ impl Workbench {
                         }
                         ToolOutcome::Propose(proposal) => {
                             wb.assistant.waiting += 1;
-                            wb.assistant.entries.push(Entry::Change { tool_id: id, proposal, decided: None });
+                            wb.assistant.entries.push(Entry::Change { tool_id: id, proposal, line, decided: None });
                         }
                     }
                 }
                 wb.send_results_when_decided(cx);
+                wb.assistant.scroll.scroll_to_bottom();
                 cx.notify();
             });
         });
@@ -327,7 +402,7 @@ impl Workbench {
 
     /// The user's yes or no to a proposed change (the entry at `ix`).
     fn decide_change(&mut self, ix: usize, accept: bool, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(Entry::Change { tool_id, proposal, decided }) = self.assistant.entries.get(ix).cloned() else { return };
+        let Some(Entry::Change { tool_id, proposal, decided, .. }) = self.assistant.entries.get(ix).cloned() else { return };
         if decided.is_some() {
             return;
         }
@@ -395,6 +470,13 @@ impl Workbench {
         cx.notify();
     }
 
+    /// Puts a starter question in the input, ready to send or edit.
+    fn start_with(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let input = self.ensure_assistant_input(cx);
+        input.update(cx, |i, cx| i.set_text(text, cx));
+        window.focus(&input.focus_handle(cx));
+    }
+
     // ───────────── drawing ─────────────
 
     pub(super) fn render_assistant(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -403,87 +485,124 @@ impl Workbench {
         let muted = t.c("foreground.muted");
         let cfg = self.ai_config();
         let busy = self.assistant.is_busy();
-        let small = |id: &'static str, name: &str, tip: String| {
+        let speaker = match cfg.provider {
+            Provider::Anthropic => "Claude".to_owned(),
+            Provider::Local => cfg.local_model.clone(),
+        };
+        let user_rule = themed(&t, "assistant.userBorder", "focusBorder");
+        let icon_button = |id: &'static str, name: &str, tip: String| {
             div()
                 .id(id)
                 .debug_selector(move || id.to_owned())
-                .p(px(2.))
-                .rounded(px(3.))
+                .p(px(3.))
+                .rounded(px(4.))
                 .cursor_pointer()
                 .hover(|s| s.bg(t.c("toolbar.hoverBackground")))
                 .tooltip(tooltip(tip))
                 .child(icon(name, px(14.), t.c("icon.foreground")))
         };
+
+        // The model, quietly; how much this chat used is in its tooltip.
+        let (tin, tout) = self.assistant.tokens;
+        let model = match cfg.provider {
+            Provider::Anthropic => ai::display_name(&cfg.model),
+            Provider::Local => format!("{} on this machine", cfg.local_model),
+        };
+        let usage = if tin + tout > 0 { format!("This chat: {} tokens in, {} out", group_thousands(tin), group_thousands(tout)) } else { "Nothing sent yet".to_owned() };
         let header = div()
-            .px_3()
-            .py_1()
+            .pl_3()
+            .pr_2()
+            .py(px(4.))
             .flex()
             .items_center()
-            .gap_1()
-            .text_size(px(11.))
-            .text_color(muted)
-            .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().child(cfg.model_label()))
-            .when(self.assistant.tokens.0 + self.assistant.tokens.1 > 0, |d| {
-                d.child(div().flex_none().child(format!("{}k in · {}k out", self.assistant.tokens.0 / 1000, self.assistant.tokens.1 / 1000)))
-            })
-            .child(small("assistant-new", "add", "New Chat".into()).on_click(cx.listener(|wb, _, _, cx| wb.new_assistant_chat(cx))));
+            .gap_2()
+            .child(
+                div()
+                    .id("assistant-model")
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_size(px(12.))
+                    .text_color(muted)
+                    .tooltip(tooltip(usage))
+                    .child(model),
+            )
+            .child(icon_button("assistant-new", "add", "New chat".into()).on_click(cx.listener(|wb, _, _, cx| wb.new_assistant_chat(cx))));
 
-        let mut list = div().id("assistant-chat").track_scroll(&self.assistant.scroll).flex_1().min_h_0().overflow_y_scroll().flex().flex_col().gap_2().px_3().py_2();
+        let mut list = div().id("assistant-chat").track_scroll(&self.assistant.scroll).flex_1().min_h_0().overflow_y_scroll().flex().flex_col().px_3().pt_2().pb_3();
         if self.assistant.entries.is_empty() {
-            let hint = match cfg.problem() {
-                Some(p) => p,
-                None => match cfg.provider {
-                    Provider::Anthropic => "Ask about this code, or for a change. Claude reads and searches the workspace itself; every change it proposes shows up here to accept or reject.".into(),
-                    Provider::Local => format!("Talking to {} on {}. Tool use needs a model that supports it (Qwen 3.5, Llama 3.1 and later).", cfg.local_model, cfg.local_url),
-                },
-            };
-            list = list.child(div().text_size(px(12.)).text_color(muted).child(hint));
+            list = list.child(self.render_assistant_empty(&cfg, cx));
         }
         let entries = self.assistant.entries.clone();
         let last = entries.len().saturating_sub(1);
+        // A run of tool uses shows as one wrapping line; the speaker's name heads each of its turns.
+        let mut tools: Vec<(String, bool)> = Vec::new();
+        let mut after_user = true;
+        let flush = |list: gpui::Stateful<gpui::Div>, tools: &mut Vec<(String, bool)>| {
+            if tools.is_empty() {
+                return list;
+            }
+            let row = div().mt(px(6.)).flex().flex_wrap().gap_x(px(12.)).gap_y(px(2.)).text_size(px(11.)).children(tools.drain(..).map(|(label, failed)| {
+                let color = if failed { t.c("editorWarning.foreground") } else { muted };
+                div().flex().items_center().gap(px(4.)).text_color(color).child(icon(if failed { "warning" } else { "check" }, px(11.), color)).child(label)
+            }));
+            list.child(row)
+        };
         for (ix, entry) in entries.into_iter().enumerate() {
-            let el: gpui::AnyElement = match entry {
-                Entry::User { text, context } => div()
-                    .id(SharedString::from(format!("assistant-user-{ix}")))
-                    .p_2()
-                    .rounded(px(4.))
-                    .bg(t.c("input.background"))
-                    .flex()
-                    .flex_col()
-                    .gap_1()
-                    .when_some(context, |d, c| d.child(div().text_size(px(11.)).text_color(muted).child(c)))
-                    .child(div().whitespace_normal().child(text))
-                    .into_any_element(),
+            if let Entry::Tool { label, failed } = entry {
+                tools.push((label, failed));
+                continue;
+            }
+            list = flush(list, &mut tools);
+            match entry {
+                Entry::User { text, context } => {
+                    after_user = true;
+                    list = list.child(
+                        div()
+                            .id(SharedString::from(format!("assistant-user-{ix}")))
+                            .mt(if ix == 0 { px(0.) } else { px(18.) })
+                            .pl(px(10.))
+                            .border_l_2()
+                            .border_color(user_rule)
+                            .flex()
+                            .flex_col()
+                            .gap(px(3.))
+                            .child(div().whitespace_normal().child(text))
+                            .when_some(context, |d, c| {
+                                let (path, line) = (c.path.clone(), c.line);
+                                d.child(
+                                    div()
+                                        .id(SharedString::from(format!("assistant-ctx-{ix}")))
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(4.))
+                                        .text_size(px(11.))
+                                        .text_color(muted)
+                                        .cursor_pointer()
+                                        .hover(|s| s.text_color(t.c("textLink.foreground")))
+                                        .tooltip(tooltip("Open it there"))
+                                        .child(icon("file", px(11.), muted))
+                                        .child(c.label)
+                                        .on_click(cx.listener(move |wb, _, w, cx| wb.open_file(path.clone(), Some(Point::new(line.saturating_sub(1), 0)), w, cx))),
+                                )
+                            }),
+                    );
+                }
                 Entry::Assistant { text, thinking, show_thinking } => {
                     let streaming = busy && ix == last;
-                    div()
-                        .id(SharedString::from(format!("assistant-answer-{ix}")))
-                        .debug_selector(move || format!("assistant-answer-{ix}"))
-                        .flex()
-                        .flex_col()
-                        .gap_1()
-                        .when(!thinking.is_empty(), |d| {
-                            d.child(
-                                div()
-                                    .id(SharedString::from(format!("assistant-thinking-{ix}")))
-                                    .text_size(px(11.))
-                                    .text_color(muted)
-                                    .cursor_pointer()
-                                    .child(if show_thinking { format!("▾ Thinking\n{thinking}") } else { "▸ Thinking".into() })
-                                    .on_click(cx.listener(move |wb, _, _, cx| {
-                                        if let Some(Entry::Assistant { show_thinking, .. }) = wb.assistant.entries.get_mut(ix) {
-                                            *show_thinking = !*show_thinking;
-                                        }
-                                        cx.notify();
-                                    })),
-                            )
-                        })
-                        .when(!text.is_empty(), |d| d.child(crate::markdown::render(&text, cx)))
-                        .when(text.is_empty() && thinking.is_empty() && streaming, |d| d.child(div().text_color(muted).child("…")))
-                        .when(!text.is_empty() && !streaming, |d| {
-                            let copy = text.clone();
-                            d.child(
-                                div().flex().child(
+                    let finished = !streaming && !text.is_empty();
+                    let head = after_user.then(|| {
+                        let copy = text.clone();
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .child(div().text_size(px(12.)).font_weight(gpui::FontWeight::SEMIBOLD).child(speaker.clone()))
+                            .when(streaming, |d| d.child(div().text_size(px(12.)).text_color(muted).child(if thinking.is_empty() && text.is_empty() { "is working on it" } else { "is answering" })))
+                            .child(div().flex_1())
+                            .when(finished, |d| {
+                                d.child(
                                     div()
                                         .id(SharedString::from(format!("assistant-copy-{ix}")))
                                         .px_1()
@@ -492,54 +611,196 @@ impl Workbench {
                                         .text_color(muted)
                                         .cursor_pointer()
                                         .hover(|s| s.bg(t.c("toolbar.hoverBackground")))
+                                        .tooltip(tooltip("Copy the answer as Markdown"))
                                         .child("Copy")
                                         .on_click(move |_, _, cx| cx.write_to_clipboard(gpui::ClipboardItem::new_string(copy.clone()))),
-                                ),
-                            )
-                        })
-                        .into_any_element()
+                                )
+                            })
+                    });
+                    after_user = false;
+                    list = list.child(
+                        div()
+                            .id(SharedString::from(format!("assistant-answer-{ix}")))
+                            .debug_selector(move || format!("assistant-answer-{ix}"))
+                            .mt(px(if head.is_some() { 14. } else { 6. }))
+                            .flex()
+                            .flex_col()
+                            .gap(px(6.))
+                            .children(head)
+                            .when(!thinking.is_empty(), |d| {
+                                d.child(
+                                    div()
+                                        .flex()
+                                        .flex_col()
+                                        .gap(px(4.))
+                                        .child(
+                                            div()
+                                                .id(SharedString::from(format!("assistant-thinking-{ix}")))
+                                                .flex()
+                                                .items_center()
+                                                .gap(px(2.))
+                                                .text_size(px(11.))
+                                                .text_color(muted)
+                                                .cursor_pointer()
+                                                .child(icon(if show_thinking { "chevronDown" } else { "chevronRight" }, px(11.), muted))
+                                                .child(if show_thinking { "Hide reasoning" } else { "Show reasoning" })
+                                                .on_click(cx.listener(move |wb, _, _, cx| {
+                                                    if let Some(Entry::Assistant { show_thinking, .. }) = wb.assistant.entries.get_mut(ix) {
+                                                        *show_thinking = !*show_thinking;
+                                                    }
+                                                    cx.notify();
+                                                })),
+                                        )
+                                        .when(show_thinking, |d| d.child(div().pl(px(13.)).text_size(px(12.)).text_color(muted).italic().whitespace_normal().child(thinking.clone()))),
+                                )
+                            })
+                            .when(!text.is_empty(), |d| d.child(crate::markdown::render(&text, cx))),
+                    );
                 }
-                Entry::Tool { label, failed } => div()
+                Entry::Notice { text, error } => {
+                    let color = if error { t.c("editorError.foreground") } else { muted };
+                    list = list.child(
+                        div()
+                            .mt(px(8.))
+                            .flex()
+                            .gap(px(6.))
+                            .text_size(px(12.))
+                            .text_color(color)
+                            .child(div().flex_none().pt(px(2.)).child(icon(if error { "error" } else { "info" }, px(12.), color)))
+                            .child(div().flex_1().whitespace_normal().child(text)),
+                    );
+                }
+                Entry::Change { proposal, line, decided, .. } => {
+                    after_user = false;
+                    list = list.child(div().mt(px(10.)).child(self.render_change(ix, &proposal, line, decided, cx)));
+                }
+                Entry::Tool { .. } => {}
+            }
+        }
+        list = flush(list, &mut tools);
+
+        div().size_full().flex().flex_col().text_size(px(13.)).child(header).child(list).child(self.render_composer(input, cx)).into_any_element()
+    }
+
+    /// Before the first message: what the assistant can do, and three ways to start.
+    fn render_assistant_empty(&mut self, cfg: &AiConfig, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let t = Theme::global(cx);
+        let muted = t.c("foreground.muted");
+        if let Some(problem) = cfg.problem() {
+            return div()
+                .pt_2()
+                .flex()
+                .flex_col()
+                .gap_2()
+                .child(div().text_size(px(14.)).font_weight(gpui::FontWeight::SEMIBOLD).child("Connect a model"))
+                .child(div().text_size(px(12.)).text_color(muted).whitespace_normal().child(problem))
+                .into_any_element();
+        }
+        let about = match cfg.provider {
+            Provider::Anthropic => "Claude reads and searches this workspace on its own. Changes it suggests show up here as diffs you accept or reject.".to_owned(),
+            Provider::Local => format!(
+                "{} answers from {}; nothing leaves this machine. It reads and searches the workspace, and its changes show up here as diffs to accept or reject.",
+                cfg.local_model, cfg.local_url
+            ),
+        };
+        let starters = ["Explain the open file", "Write tests for the selection", "Find bugs in this file"];
+        div()
+            .pt_2()
+            .flex()
+            .flex_col()
+            .gap_3()
+            .child(div().text_size(px(14.)).font_weight(gpui::FontWeight::SEMIBOLD).child("Ask about this workspace"))
+            .child(div().text_size(px(12.)).text_color(muted).whitespace_normal().child(about))
+            .child(div().flex().flex_col().gap(px(4.)).children(starters.into_iter().enumerate().map(|(i, s)| {
+                div()
+                    .id(SharedString::from(format!("assistant-starter-{i}")))
+                    .debug_selector(move || format!("assistant-starter-{i}"))
+                    .px_2()
+                    .py(px(5.))
+                    .rounded(px(4.))
+                    .border_1()
+                    .border_color(themed(&t, "assistant.starter.border", "input.border"))
+                    .text_size(px(12.))
+                    .cursor_pointer()
+                    .hover(|st| st.bg(t.c("list.hoverBackground")))
+                    .child(s)
+                    .on_click(cx.listener(move |wb, _, w, cx| wb.start_with(s, w, cx)))
+            })))
+            .into_any_element()
+    }
+
+    /// The input in a frame, with the file it will be about above it and send (or stop) in its corner.
+    fn render_composer(&mut self, input: Entity<TextInput>, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let t = Theme::global(cx);
+        let muted = t.c("foreground.muted");
+        let busy = self.assistant.is_busy();
+        let streaming = self.assistant.request.is_some();
+        let context = self.assistant_context(cx).map(|c| c.0);
+        let border = if self.assistant.input_focused { t.c("focusBorder") } else { themed(&t, "assistant.composer.border", "input.border") };
+        let context_row = div().px_2().pt(px(6.)).flex().items_center().gap(px(4.)).text_size(px(11.)).text_color(muted).map(|d| match (&context, self.assistant.no_context) {
+            (Some(c), false) => d.child(icon("file", px(11.), muted)).child(div().min_w_0().overflow_hidden().whitespace_nowrap().child(c.label.clone())).child(
+                div()
+                    .id("assistant-context")
+                    .debug_selector(|| "assistant-context".into())
+                    .ml(px(2.))
+                    .rounded(px(3.))
+                    .cursor_pointer()
+                    .hover(|s| s.bg(t.c("toolbar.hoverBackground")))
+                    .tooltip(tooltip("Don't send the file along"))
+                    .child(icon("close", px(11.), muted))
+                    .on_click(cx.listener(|wb, _, _, cx| {
+                        wb.assistant.no_context = true;
+                        cx.notify();
+                    })),
+            ),
+            (_, true) => d.child(
+                div()
+                    .id("assistant-context")
+                    .debug_selector(|| "assistant-context".into())
                     .flex()
                     .items_center()
-                    .gap_1()
-                    .text_size(px(11.))
-                    .text_color(if failed { t.c("editorWarning.foreground") } else { muted })
-                    .child(icon(if failed { "warning" } else { "check" }, px(12.), if failed { t.c("editorWarning.foreground") } else { muted }))
-                    .child(div().min_w_0().overflow_hidden().whitespace_nowrap().child(label))
-                    .into_any_element(),
-                Entry::Notice { text, error } => {
-                    div().text_size(px(12.)).text_color(if error { t.c("editorError.foreground") } else { muted }).whitespace_normal().child(text).into_any_element()
-                }
-                Entry::Change { proposal, decided, .. } => self.render_change(ix, &proposal, decided, cx),
-            };
-            list = list.child(el);
-        }
-
-        let send_or_stop = if self.assistant.request.is_some() {
+                    .gap(px(4.))
+                    .cursor_pointer()
+                    .hover(|s| s.text_color(t.c("textLink.foreground")))
+                    .child(icon("add", px(11.), muted))
+                    .child("Send the open file along")
+                    .on_click(cx.listener(|wb, _, _, cx| {
+                        wb.assistant.no_context = false;
+                        cx.notify();
+                    })),
+            ),
+            (None, false) => d.child("No file open"),
+        });
+        let action = if streaming {
             div()
                 .id("assistant-stop")
                 .debug_selector(|| "assistant-stop".into())
-                .px_2()
-                .py(px(3.))
-                .rounded(px(3.))
+                .size(px(24.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded_full()
                 .cursor_pointer()
                 .bg(t.c("button.secondaryBackground"))
-                .child("Stop")
+                .tooltip(tooltip("Stop the answer"))
+                .child(icon("stop", px(12.), t.c("icon.foreground")))
                 .on_click(cx.listener(|wb, _, _, cx| wb.stop_assistant(cx)))
         } else {
+            let empty = input.read(cx).text().trim().is_empty();
             let input = input.clone();
             div()
                 .id("assistant-send")
                 .debug_selector(|| "assistant-send".into())
-                .px_2()
-                .py(px(3.))
-                .rounded(px(3.))
-                .cursor_pointer()
+                .size(px(24.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded_full()
                 .bg(t.c("button.background"))
-                .text_color(t.c("button.foreground"))
-                .when(busy, |d| d.opacity(0.5))
-                .child("Send")
+                .when(empty || busy, |d| d.opacity(0.4))
+                .when(!empty && !busy, |d| d.cursor_pointer())
+                .tooltip(tooltip(format!("Send ({})", crate::actions::key_label("ctrl-enter"))))
+                .child(icon("arrowUp", px(14.), t.c("button.foreground")))
                 .on_click(cx.listener(move |wb, _, _, cx| {
                     let text = input.read(cx).text().to_owned();
                     if !text.trim().is_empty() && !wb.assistant.is_busy() {
@@ -548,109 +809,183 @@ impl Workbench {
                     }
                 }))
         };
-        let context = self.assistant_context(cx).map(|c| c.0);
-        let footer = div()
-            .px_3()
-            .py_2()
-            .flex()
-            .flex_col()
-            .gap_1()
-            .border_t_1()
-            .border_color(t.c("panel.border"))
-            .child(div().rounded(px(3.)).border_1().border_color(t.c("input.border")).child(input))
+        div()
+            .p_2()
             .child(
                 div()
+                    .rounded(px(6.))
+                    .border_1()
+                    .border_color(border)
+                    .bg(themed(&t, "assistant.composer.background", "input.background"))
                     .flex()
-                    .items_center()
-                    .gap_2()
-                    .text_size(px(11.))
-                    .text_color(muted)
+                    .flex_col()
+                    .child(context_row)
+                    .child(input)
                     .child(
                         div()
-                            .id("assistant-context")
-                            .debug_selector(|| "assistant-context".into())
-                            .flex_1()
-                            .min_w_0()
-                            .overflow_hidden()
-                            .whitespace_nowrap()
-                            .cursor_pointer()
-                            .tooltip(tooltip("Click: send the active file and selection along with messages, or not"))
-                            .child(match (&context, self.assistant.no_context) {
-                                (_, true) => "No file context".to_owned(),
-                                (Some(c), _) => format!("With {c}"),
-                                (None, _) => "No file open".to_owned(),
-                            })
-                            .on_click(cx.listener(|wb, _, _, cx| {
-                                wb.assistant.no_context = !wb.assistant.no_context;
-                                cx.notify();
-                            })),
-                    )
-                    .child(send_or_stop),
-            );
-        div().size_full().flex().flex_col().text_size(px(13.)).child(header).child(list).child(footer).into_any_element()
+                            .px_2()
+                            .pb(px(6.))
+                            .flex()
+                            .items_center()
+                            .child(div().flex_1().text_size(px(11.)).text_color(muted).child(format!("{} to send", crate::actions::key_label("ctrl-enter"))))
+                            .child(action),
+                    ),
+            )
+            .into_any_element()
     }
 
-    /// A proposed change: the file, the lines that go and come, Accept and Reject (or what was decided).
-    fn render_change(&mut self, ix: usize, proposal: &Proposal, decided: Option<bool>, cx: &mut Context<Self>) -> gpui::AnyElement {
+    /// A proposed change, drawn like code: the file, how many lines go and come, the diff in the editor's
+    /// font and colors with the file's line numbers, then Accept and Reject (or what was decided).
+    fn render_change(&mut self, ix: usize, proposal: &Proposal, line: usize, decided: Option<bool>, cx: &mut Context<Self>) -> gpui::AnyElement {
         let t = Theme::global(cx);
         let muted = t.c("foreground.muted");
         let root = self.workspace.root();
         let rel = |p: &Path| root.as_deref().and_then(|r| p.strip_prefix(r).ok()).unwrap_or(p).to_string_lossy().replace('\\', "/");
-        let (title, removed, added) = match proposal {
-            Proposal::Edit { path, old_text, new_text } => (format!("Change {}", rel(path)), old_text.clone(), new_text.clone()),
-            Proposal::Create { path, content } => (format!("New file {}", rel(path)), String::new(), content.clone()),
+        let (path, title, old, new) = match proposal {
+            Proposal::Edit { path, old_text, new_text } => (path.clone(), rel(path), old_text.as_str(), new_text.as_str()),
+            Proposal::Create { path, content } => (path.clone(), format!("{} (new file)", rel(path)), "", content.as_str()),
         };
-        let line = |text: String, sign: &str, bg: gpui::Hsla| {
-            div().px_1().bg(bg).font_family(t.editor_font.clone()).text_size(px(12.)).whitespace_nowrap().overflow_hidden().child(format!("{sign} {text}"))
-        };
-        let removed_bg = t.c_or("diffEditor.removedLineBackground", 0xff000033);
-        let added_bg = t.c_or("diffEditor.insertedLineBackground", 0x00ff0033);
-        let mut diff = div().flex().flex_col().max_h(px(320.)).id(SharedString::from(format!("assistant-diff-{ix}"))).overflow_y_scroll();
-        const MAX: usize = 60;
-        for l in removed.lines().take(MAX) {
-            diff = diff.child(line(l.to_owned(), "-", removed_bg));
+        let diff = bf_core::diff::compare(old, new);
+        let pane = &diff.inline;
+        let language = bf_syntax::Language::from_path(&path).map(|l| l.id());
+        let fg = t.c("editor.foreground");
+        let code_font = gpui::Font { weight: t.editor.font_weight, ..gpui::font(t.editor_font.clone()) };
+        let size = px(t.editor.font_size.min(13.0) - 1.0);
+        let numbers = themed(&t, "assistant.change.lineNumber", "editorLineNumber.foreground");
+        let removed_bg = themed(&t, "assistant.change.removedBackground", "diffEditor.removedLineBackground");
+        let added_bg = themed(&t, "assistant.change.addedBackground", "diffEditor.insertedLineBackground");
+        let removed_fg = t.c_or("gitDecoration.deletedResourceForeground", 0xf85149ff);
+        let added_fg = t.c_or("gitDecoration.addedResourceForeground", 0x2ea043ff);
+        const MAX_ROWS: usize = 80;
+        // The indentation every shown line has goes: in a narrow side bar the code starts at the left.
+        let indent = pane.text.split('\n').filter(|l| !l.trim().is_empty()).map(|l| l.chars().take_while(|c| *c == ' ' || *c == '\t').count()).min().unwrap_or(0);
+        let mut body = div().id(SharedString::from(format!("assistant-diff-{ix}"))).max_h(px(360.)).overflow_scroll().flex().flex_col().py(px(4.));
+        for (row, text) in pane.text.split('\n').enumerate().take(MAX_ROWS) {
+            let text: String = text.chars().skip(indent).collect();
+            let text = text.as_str();
+            let kind = pane.kinds.get(row).copied().unwrap_or(RowKind::Unchanged);
+            let number = pane.numbers.get(row).copied().flatten().map(|n| (n + line - 1).to_string()).unwrap_or_default();
+            let (sign, bg, sign_fg) = match kind {
+                RowKind::Removed => ("−", Some(removed_bg), removed_fg),
+                RowKind::Added => ("+", Some(added_bg), added_fg),
+                _ => (" ", None, muted),
+            };
+            let runs = crate::markdown::code_runs(text, language, &code_font, fg, &t);
+            body = body.child(
+                div()
+                    .flex()
+                    .flex_none()
+                    .min_w_full()
+                    .pr_2()
+                    .when_some(bg, |d, bg| d.bg(bg))
+                    .font_family(t.editor_font.clone())
+                    .text_size(size)
+                    .whitespace_nowrap()
+                    .child(div().w(px(36.)).flex_none().pr(px(6.)).flex().justify_end().text_color(numbers).child(number))
+                    .child(div().w(px(14.)).flex_none().text_color(sign_fg).child(sign))
+                    .child(div().flex_none().child(StyledText::new(SharedString::from(text.to_owned())).with_runs(runs))),
+            );
         }
-        for l in added.lines().take(MAX) {
-            diff = diff.child(line(l.to_owned(), "+", added_bg));
-        }
-        if removed.lines().count() > MAX || added.lines().count() > MAX {
-            diff = diff.child(div().text_size(px(11.)).text_color(muted).child("…"));
+        if pane.kinds.len() > MAX_ROWS {
+            body = body.child(div().pl(px(50.)).text_size(px(11.)).text_color(muted).child(format!("{} more lines; accept to see them in the file", pane.kinds.len() - MAX_ROWS)));
         }
         let button = |id: String, label: &'static str, primary: bool| {
             div()
                 .id(SharedString::from(id.clone()))
                 .debug_selector(move || id.clone())
-                .px_2()
-                .py(px(2.))
-                .rounded(px(3.))
+                .px(px(10.))
+                .py(px(3.))
+                .rounded(px(4.))
+                .text_size(px(12.))
                 .cursor_pointer()
                 .when(primary, |d| d.bg(t.c("button.background")).text_color(t.c("button.foreground")))
-                .when(!primary, |d| d.bg(t.c("button.secondaryBackground")))
+                .when(!primary, |d| d.hover(|s| s.bg(t.c("toolbar.hoverBackground"))))
                 .child(label)
         };
+        let open_at = (path.clone(), line);
         div()
             .id(SharedString::from(format!("assistant-change-{ix}")))
-            .rounded(px(4.))
+            .rounded(px(6.))
             .border_1()
-            .border_color(t.c("panel.border"))
+            .border_color(themed(&t, "assistant.change.border", "editorWidget.border"))
+            .bg(themed(&t, "assistant.change.background", "editor.background"))
+            .overflow_hidden()
+            .when(decided == Some(false), |d| d.opacity(0.6))
             .flex()
             .flex_col()
-            .child(div().px_2().py_1().text_size(px(12.)).child(title))
-            .child(diff)
+            .child(
+                div()
+                    .px_2()
+                    .py(px(5.))
+                    .flex()
+                    .items_center()
+                    .gap(px(6.))
+                    .border_b_1()
+                    .border_color(themed(&t, "assistant.change.border", "editorWidget.border"))
+                    .text_size(px(12.))
+                    .child(
+                        div()
+                            .id(SharedString::from(format!("assistant-change-file-{ix}")))
+                            .flex_1()
+                            .min_w_0()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .cursor_pointer()
+                            .hover(|s| s.text_color(t.c("textLink.foreground")))
+                            .tooltip(tooltip("Open the file there"))
+                            .child(title)
+                            .on_click(cx.listener(move |wb, _, w, cx| {
+                                let (p, l) = open_at.clone();
+                                if p.exists() {
+                                    wb.open_file(p, Some(Point::new(l.saturating_sub(1), 0)), w, cx);
+                                }
+                            })),
+                    )
+                    .when(diff.added > 0, |d| d.child(div().text_color(added_fg).child(format!("+{}", diff.added))))
+                    .when(diff.removed > 0, |d| d.child(div().text_color(removed_fg).child(format!("−{}", diff.removed)))),
+            )
+            .child(body)
             .child(match decided {
-                Some(true) => div().px_2().py_1().text_size(px(11.)).text_color(muted).child("Accepted").into_any_element(),
-                Some(false) => div().px_2().py_1().text_size(px(11.)).text_color(muted).child("Rejected").into_any_element(),
                 None => div()
                     .px_2()
-                    .py_1()
+                    .py(px(6.))
                     .flex()
-                    .gap_2()
+                    .gap_1()
+                    .border_t_1()
+                    .border_color(themed(&t, "assistant.change.border", "editorWidget.border"))
                     .child(button(format!("assistant-accept-{ix}"), "Accept", true).on_click(cx.listener(move |wb, _, w, cx| wb.decide_change(ix, true, w, cx))))
                     .child(button(format!("assistant-reject-{ix}"), "Reject", false).on_click(cx.listener(move |wb, _, w, cx| wb.decide_change(ix, false, w, cx))))
+                    .into_any_element(),
+                Some(accepted) => div()
+                    .px_2()
+                    .py(px(5.))
+                    .flex()
+                    .items_center()
+                    .gap(px(4.))
+                    .border_t_1()
+                    .border_color(themed(&t, "assistant.change.border", "editorWidget.border"))
+                    .text_size(px(11.))
+                    .text_color(muted)
+                    .child(icon(if accepted { "check" } else { "close" }, px(11.), muted))
+                    .child(if accepted { "Accepted" } else { "Rejected" })
                     .into_any_element(),
             })
             .into_any_element()
     }
+}
+
+/// 12345 → "12,345".
+fn group_thousands(n: u64) -> String {
+    let s = n.to_string();
+    let mut out = String::new();
+    for (i, c) in s.chars().enumerate() {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
 }
 
 #[cfg(test)]
@@ -661,6 +996,13 @@ mod tests {
 
     fn done(parts: Vec<Part>, stop: Stop) -> StreamEvent {
         StreamEvent::Done { turn: Turn { role: Role::Assistant, parts }, stop, input_tokens: 1000, output_tokens: 200 }
+    }
+
+    #[test]
+    fn names_and_lines() {
+        assert_eq!(line_of("a\r\nb\r\nc", "c"), 3);
+        assert_eq!(line_of("a\nb", "zz"), 1);
+        assert_eq!(group_thousands(1_234_567), "1,234,567");
     }
 
     /// A conversation: the answer streams in; the model reads a file (with the active file as context), then
@@ -694,11 +1036,12 @@ mod tests {
         let (sent, entries) = wb.read_with(cx, |wb, _| (wb.assistant.sent.clone(), wb.assistant.entries.clone()));
         // The first message carries the active file as context.
         assert!(matches!(&sent[0][0].parts[0], Part::Text(t) if t.contains("The user is in A.cs") && t.ends_with("Rename Main to Run")));
+        assert!(matches!(&entries[0], Entry::User { context: Some(c), .. } if c.label == "A.cs, line 1" && c.line == 1));
         // read_file ran at once and its result went back with the file's lines.
         assert!(matches!(&sent[1][2].parts[0], Part::ToolResult { id, content, is_error: false } if id == "t1" && content.contains("void Main()")));
-        // The edit waits: no third request yet.
+        // The edit waits: no third request yet; its diff starts at the file's line 3.
         assert_eq!(sent.len(), 2);
-        let change = entries.iter().position(|e| matches!(e, Entry::Change { decided: None, .. })).expect("a change to decide");
+        let change = entries.iter().position(|e| matches!(e, Entry::Change { decided: None, line: 3, .. })).expect("a change to decide, at line 3");
         assert!(entries.iter().any(|e| matches!(e, Entry::Assistant { thinking, .. } if thinking == "Look first.")));
         // Accept (clicked): it lands in the open editor, unsaved, and the model is told.
         cx.run_until_parked();
@@ -761,6 +1104,76 @@ mod tests {
             wb.new_assistant_chat(cx);
             assert!(wb.assistant.entries.is_empty() && wb.assistant.turns.is_empty());
         });
+        drop(guard);
+    }
+
+    /// Settings → AI Assistant offers models to pick: Claude's with the anthropic provider, the local
+    /// server's with local; each provider's own settings only.
+    #[gpui::test]
+    fn the_settings_suggest_models_for_the_provider(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "assistant-models");
+        let draw = |cx: &mut gpui::VisualTestContext| {
+            cx.run_until_parked();
+            cx.update(|window, cx| {
+                window.refresh();
+                window.draw(cx).clear()
+            });
+        };
+        let click = |cx: &mut gpui::VisualTestContext, id: &str| {
+            draw(cx);
+            let id: &'static str = Box::leak(id.to_owned().into_boxed_str());
+            let at = cx.debug_bounds(id).unwrap_or_else(|| panic!("{id} is drawn")).center();
+            cx.simulate_click(at, gpui::Modifiers::none());
+            cx.run_until_parked();
+        };
+        let listed = |wb: &Entity<Workbench>, cx: &mut gpui::VisualTestContext| wb.read_with(cx, |wb, _| wb.listed_settings().into_iter().map(|s| s.key).filter(|k| k.starts_with("ai.")).collect::<Vec<_>>());
+        wb.update_in(cx, |wb, window, cx| wb.open_settings_page(window, cx));
+        // anthropic: the Claude models; picking Sonnet sets it.
+        assert_eq!(listed(&wb, cx), ["ai.provider", "ai.model", "ai.effort", "ai.apiKey"]);
+        let sonnet = ai::CLAUDE_MODELS.iter().position(|(id, _)| *id == "claude-sonnet-5-5").unwrap();
+        // The settings screen lists more than fits: search narrows it to the AI section.
+        wb.update(cx, |wb, cx| wb.settings_search.clone().unwrap().update(cx, |i, cx| i.set_text("ai.", cx)));
+        click(cx, &format!("setting-model-ai.model-{sonnet}"));
+        assert_eq!(wb.read_with(cx, |wb, _| wb.settings.get_string("ai.model")).as_deref(), Some("claude-sonnet-5-5"));
+
+        // local: Claude's settings go, the server's models show (as the server listed them).
+        wb.update(cx, |wb, cx| {
+            wb.settings.set("ai.provider", json!("local"));
+            let url = wb.ai_local_url();
+            wb.assistant.local_models = Some((url, Ok(vec!["llama3.1:8b".into(), "qwen3.5:latest".into()])));
+            cx.notify();
+        });
+        assert_eq!(listed(&wb, cx), ["ai.provider", "ai.local.url", "ai.local.model", "ai.local.apiKey"]);
+        click(cx, "setting-model-ai.local.model-1");
+        assert_eq!(wb.read_with(cx, |wb, _| wb.settings.get_string("ai.local.model")).as_deref(), Some("qwen3.5:latest"));
+        // A server that doesn't answer: said so, with a way to ask again.
+        wb.update(cx, |wb, cx| {
+            let url = wb.ai_local_url();
+            wb.assistant.local_models = Some((url, Err("Failed to connect".into())));
+            cx.notify();
+        });
+        draw(cx);
+        assert!(cx.debug_bounds("setting-models-refresh").is_some());
+        drop(guard);
+    }
+
+    /// The empty chat offers starters; clicking one puts it in the input.
+    #[gpui::test]
+    fn a_starter_fills_the_input(cx: &mut gpui::TestAppContext) {
+        let (guard, wb, cx) = workbench(cx, "assistant-empty");
+        wb.update_in(cx, |wb, window, cx| {
+            wb.settings.set("ai.provider", json!("local"));
+            wb.show_assistant(window, cx);
+        });
+        cx.run_until_parked();
+        cx.update(|window, cx| {
+            window.refresh();
+            window.draw(cx).clear()
+        });
+        let at = cx.debug_bounds("assistant-starter-0").expect("a starter").center();
+        cx.simulate_click(at, gpui::Modifiers::none());
+        cx.run_until_parked();
+        assert_eq!(wb.read_with(cx, |wb, cx| wb.assistant.input().unwrap().read(cx).text().to_owned()), "Explain the open file");
         drop(guard);
     }
 }

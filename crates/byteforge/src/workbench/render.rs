@@ -18,6 +18,8 @@ impl Render for Workbench {
         self.tests.update(cx, |t, cx| t.set_visible(tests_visible, cx));
         let solution_visible = self.side_visible && self.side == SideView::Solution;
         self.solution.update(cx, |s, cx| s.set_visible(solution_visible, cx));
+        // The assistant's input frame shows the focus the bare input inside it doesn't.
+        self.assistant.input_focused = self.assistant.input().is_some_and(|i| i.focus_handle(cx).is_focused(window));
 
         // Every region is placed by the theme layout (see layout.rs).
         let lay = &t.layout;
