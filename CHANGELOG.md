@@ -3,6 +3,13 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.7.3
+
+- Four new themes. **Paper**: ink on warm paper with a serif interface and a single red accent. **Abyss**: deep-sea
+  navy with a bioluminescent glow. **High Contrast**: black and white with solid borders, a yellow focus and a
+  steady, wider caret, for readability. **Zen**: just the editor: no activity bar or menu, the side bar hidden at
+  start, a quiet status bar and wide margins around the text.
+
 ## 1.7.2
 
 - The settings screen, tidied up. Each setting takes one line less: its settings.json key sits beside its name, the

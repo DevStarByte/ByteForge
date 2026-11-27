@@ -21,6 +21,10 @@ from the base theme.
 | Forge Midnight | a short partial theme: a few overrides plus a right-hand side bar |
 | Neovim | Neovim's default colors and look: lualine-style status line with a NORMAL block, buffer tabs, no activity bar, block cursor, monospace UI |
 | Flipside | layout showcase: activity bar inside the side bar, tabs at the bottom, panel as a right column, centered menus |
+| Paper | editorial light theme: ink on warm paper, serif interface, one vermilion accent, square corners, syntax by weight and italics more than color |
+| Abyss | deep-sea navy with bioluminescent cyan: top-down gradients, glowing widgets, gutter-only line highlight |
+| High Contrast | accessibility: pure black, solid white borders, yellow focus, thicker borders and caret, larger UI font, no blinking or transparency |
+| Zen | layout showcase for distraction-free work: no activity bar, side bar hidden at start, no menu or breadcrumbs, a three-item status bar, wide margins |
 | Rider Dark | JetBrains Rider's new UI: project badge, branch and run configuration with green Run and Debug in the toolbar, an icon-only tool window stripe, the file's path in the status bar, Rider's syntax colors |
 
 ## Theme sections
