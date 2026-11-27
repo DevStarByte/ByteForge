@@ -3,6 +3,15 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.7.2
+
+- The settings screen, tidied up. Each setting takes one line less: its settings.json key sits beside its name, the
+  description below, and the switch or value right next to them instead of at the far edge of the window. A changed
+  setting is marked like a changed line in the editor, by a bar at its edge, and goes back to the default with the
+  undo button beside it (its tooltip says what the default is). The column on the left counts the changed settings
+  of each section, so you see at once where your configuration differs. The title and search stay at the top while
+  the list scrolls. Theme keys: `settings.modifiedIndicator`, `settings.rowBorder`.
+
 ## 1.7.1
 
 - The AI assistant, redesigned. The conversation reads like notes beside the code: your messages carry a rule in the

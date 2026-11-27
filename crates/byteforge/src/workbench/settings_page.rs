@@ -35,6 +35,10 @@ pub(super) struct SettingInfo {
     pub default: Value,
 }
 
+/// How wide the settings list gets, and the column its controls sit in (beside the text they belong to).
+const WIDTH: f32 = 780.;
+const CONTROL: f32 = 260.;
+
 /// The category module settings are listed under, after the built-in ones.
 pub(super) const EXTENSIONS: &str = "Extensions";
 
@@ -271,8 +275,8 @@ impl Workbench {
     /// there when the list can't scroll that far (the last sections can be too short to reach the top).
     fn current_settings_section(&self, count: usize) -> usize {
         let handle = &self.settings_scroll;
-        // child 0 is the title and search box; section i is child i + 1
-        let top = handle.top_item().saturating_sub(1).min(count.saturating_sub(1));
+        // section i is child i of the list
+        let top = handle.top_item().min(count.saturating_sub(1));
         let max = handle.max_offset().height;
         let at_end = max <= px(0.) || -handle.offset().y >= max - px(1.);
         match self.settings_nav_clicked {
@@ -289,10 +293,16 @@ impl Workbench {
         let selected_bg = t.c_or("list.activeSelectionBackground", 0x04395eff);
         let accent = t.c_or("button.background", 0x0e639cff);
         let current = self.current_settings_section(sections.len());
-        let entry = |id: SharedString, label: String, indent: bool, active: bool, ix: usize, cx: &mut Context<Self>| {
+        // How many settings of each section differ from the default: where your configuration is.
+        let changed: Vec<usize> = sections.iter().map(|s| s.settings.iter().filter(|i| self.settings.is_set(&i.key)).count()).collect();
+        let modified = if t.has("settings.modifiedIndicator") { t.c("settings.modifiedIndicator") } else { t.c("editorGutter.modifiedBackground") };
+        let entry = |id: SharedString, label: String, indent: bool, active: bool, ix: usize, count: usize, cx: &mut Context<Self>| {
             div()
                 .id(id)
                 .relative()
+                .flex()
+                .items_center()
+                .gap_2()
                 .py(px(4.))
                 .pr_2()
                 .pl(px(if indent { 22. } else { 10. }))
@@ -303,9 +313,13 @@ impl Workbench {
                 .text_color(if active { fg } else { muted })
                 .when(active, |d| d.bg(selected_bg).child(div().absolute().left_0().top(px(6.)).w(px(3.)).h(px(14.)).rounded(px(2.)).bg(accent)))
                 .when(!active, |d| d.hover(move |s| s.bg(hover).text_color(fg)))
-                .child(label)
+                .child(div().flex_1().min_w_0().overflow_hidden().child(label))
+                .when(count > 0, |d| {
+                    d.tooltip(tooltip(if count == 1 { "1 setting changed from the default".to_owned() } else { format!("{count} settings changed from the default") }))
+                        .child(div().flex_none().flex().items_center().gap(px(4.)).text_size(px(11.)).child(div().size(px(6.)).rounded_full().bg(modified)).child(count.to_string()))
+                })
                 .on_click(cx.listener(move |wb, _, _, cx| {
-                    wb.settings_scroll.scroll_to_top_of_item(ix + 1);
+                    wb.settings_scroll.scroll_to_top_of_item(ix);
                     wb.settings_nav_clicked = Some(ix);
                     cx.notify();
                 }))
@@ -329,19 +343,19 @@ impl Workbench {
         for (ix, section) in sections.iter().enumerate() {
             let id: SharedString = format!("settings-nav-{ix}").into();
             match &section.module {
-                None => nav = nav.child(entry(id, section.category.clone(), false, current == ix, ix, cx)),
+                None => nav = nav.child(entry(id, section.category.clone(), false, current == ix, ix, changed[ix], cx)),
                 Some(module) => {
                     if !extensions_listed {
                         extensions_listed = true;
                         let inside = sections.get(current).is_some_and(|s| s.module.is_some());
                         nav = nav.child(
-                            entry("settings-nav-extensions".into(), EXTENSIONS.to_owned(), false, false, ix, cx)
+                            entry("settings-nav-extensions".into(), EXTENSIONS.to_owned(), false, false, ix, 0, cx)
                                 .mt_2()
                                 .font_weight(gpui::FontWeight::SEMIBOLD)
                                 .when(inside, |d| d.text_color(fg)),
                         );
                     }
-                    nav = nav.child(entry(id, module.clone(), true, current == ix, ix, cx));
+                    nav = nav.child(entry(id, module.clone(), true, current == ix, ix, changed[ix], cx));
                 }
             }
         }
@@ -380,34 +394,22 @@ impl Workbench {
                         wb.open_file(path, None, w, cx);
                     })),
             );
-        // The list's children are the title with the search box, then one per section; the column on the
-        // left scrolls to them by index.
-        let mut list = div()
-            .id("settings-list")
-            .flex_1()
-            .min_w_0()
-            .h_full()
-            .overflow_y_scroll()
-            .track_scroll(&self.settings_scroll)
-            .flex()
-            .flex_col()
-            .child(
-                div()
-                    .max_w(px(860.))
-                    .px_8()
-                    .pt_8()
-                    .flex()
-                    .flex_col()
-                    .gap_3()
-                    .child(header)
-                    // the input draws its own themed box, full width
-                    .children(self.settings_search.clone()),
-            );
+        // The title and the search stay above the list while it scrolls.
+        let top = div()
+            .flex_none()
+            .pt_6()
+            .pb_3()
+            .border_b_1()
+            .border_color(rule)
+            // the same width and padding as the sections below, so their edges line up
+            .child(div().max_w(px(WIDTH)).px_8().flex().flex_col().gap_3().child(header).children(self.settings_search.clone()));
+        // The list's children are the sections, one each; the column on the left scrolls to them by index.
+        let mut list = div().id("settings-list").flex_1().min_h_0().overflow_y_scroll().track_scroll(&self.settings_scroll).flex().flex_col();
         let count = sections.len();
         let mut row = 0usize;
         let mut extensions_shown = false;
         for (sx, section) in sections.into_iter().enumerate() {
-            let mut body = div().max_w(px(860.)).px_8().when(sx + 1 == count, |d| d.pb_8()).flex().flex_col().gap_1();
+            let mut body = div().max_w(px(WIDTH)).px_8().when(sx == 0, |d| d.pt_2()).when(sx + 1 == count, |d| d.pb_8()).flex().flex_col();
             if section.module.is_some() && !extensions_shown {
                 extensions_shown = true;
                 body = body
@@ -425,9 +427,17 @@ impl Workbench {
             list = list.child(body);
         }
         if count == 0 {
-            list = list.child(div().max_w(px(860.)).px_8().mt_4().text_color(muted).child(format!("No settings match “{query}”.")));
+            list = list.child(div().max_w(px(WIDTH)).px_8().mt_4().text_color(muted).child(format!("No settings match “{query}”. Try a word from its description, or its key.")));
         }
-        div().id("settings-page").size_full().flex().bg(background).text_color(fg).text_size(px(13.)).child(nav).child(list)
+        div()
+            .id("settings-page")
+            .size_full()
+            .flex()
+            .bg(background)
+            .text_color(fg)
+            .text_size(px(13.))
+            .child(nav)
+            .child(div().flex_1().min_w_0().h_full().flex().flex_col().child(top).child(list))
     }
 
     /// Under the model settings, the models to pick from: Claude's for "ai.model", the ones the local server
@@ -517,6 +527,10 @@ impl Workbench {
 
     /// One setting: its title, description and key, the control that changes it, and Reset when set.
     fn render_setting_row(&mut self, i: usize, info: SettingInfo, cx: &mut Context<Self>) -> gpui::Stateful<Div> {
+        let default_text = match value_text(&info.default) {
+            d if d.is_empty() => "empty".to_owned(),
+            d => d,
+        };
         let t = Theme::global(cx);
         let (fg, muted, rule) = (t.c("editor.foreground"), t.c("foreground.muted"), t.c("editorWidget.border"));
         let hover = t.c("toolbar.hoverBackground");
@@ -580,7 +594,7 @@ impl Workbench {
                 let key = key.clone();
                 div()
                     .id(("setting-edit", i))
-                    .max_w(px(320.))
+                    .max_w(px(CONTROL - 24.))
                     .px_2()
                     .py(px(3.))
                     .rounded(px(5.))
@@ -641,50 +655,58 @@ impl Workbench {
                 .into_any_element(),
         };
         let special = matches!(info.kind, Kind::Special);
+        // A changed setting is marked like a changed line in the editor: a bar at its edge.
+        let modified = if t.has("settings.modifiedIndicator") { t.c("settings.modifiedIndicator") } else { t.c("editorGutter.modifiedBackground") };
+        let row_rule = if t.has("settings.rowBorder") { t.c("settings.rowBorder") } else { rule.opacity(0.45) };
+        let reset = (set && !special).then(|| {
+            let key = key.clone();
+            div()
+                .id(("setting-reset", i))
+                .debug_selector(move || format!("setting-reset-{i}"))
+                .p(px(3.))
+                .rounded(px(4.))
+                .cursor_pointer()
+                .hover(move |s| s.bg(hover))
+                .tooltip(tooltip(format!("Reset to the default ({default_text})")))
+                .child(icon("discard", px(14.), muted))
+                .on_click(cx.listener(move |wb, _, _, cx| {
+                    wb.settings.remove(&key);
+                    cx.notify();
+                }))
+        });
         div()
             .id(("setting", i))
+            .relative()
             .flex()
-            .items_center()
-            .gap_4()
-            .py_2()
-            .px_3()
-            .rounded(px(6.))
-            .hover(move |s| s.bg(hover))
+            .items_start()
+            .gap_6()
+            .py(px(10.))
+            .pl(px(14.))
+            .pr_2()
+            .border_b_1()
+            .border_color(row_rule)
+            .hover(move |s| s.bg(hover.opacity(0.5)))
+            .when(set, |d| d.child(div().absolute().left_0().top(px(10.)).bottom(px(10.)).w(px(2.)).rounded(px(1.)).bg(modified)))
             .child(
                 div()
                     .flex_1()
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .gap(px(2.))
+                    .gap(px(3.))
                     .child(
                         div()
                             .flex()
-                            .items_center()
-                            .gap_2()
+                            .flex_wrap()
+                            .items_baseline()
+                            .gap_x_2()
                             .child(div().font_weight(gpui::FontWeight::MEDIUM).child(info.title))
-                            .when(set, |d| d.child(div().w(px(6.)).h(px(6.)).rounded(px(3.)).bg(accent)).child(div().text_size(px(11.)).text_color(muted).child("changed"))),
+                            .child(div().text_size(px(11.)).text_color(muted).font_family(t.editor_font.clone()).child(key.clone())),
                     )
-                    .when(!info.description.is_empty(), |d| d.child(div().text_size(px(12.)).text_color(muted).child(info.description)))
-                    .children(self.render_model_suggestions(&key, &value, cx))
-                    .child(div().text_size(px(11.)).text_color(muted).font_family(t.editor_font.clone()).child(key.clone())),
+                    .when(!info.description.is_empty(), |d| d.child(div().max_w(px(520.)).text_size(px(12.)).text_color(muted).child(info.description)))
+                    .children(self.render_model_suggestions(&key, &value, cx)),
             )
-            .child(control)
-            .when(set && !special, |d| {
-                d.child(
-                    div()
-                        .id(("setting-reset", i))
-                        .text_size(px(12.))
-                        .text_color(t.c_or("textLink.foreground", 0x3794ffff))
-                        .cursor_pointer()
-                        .child("Reset")
-                        .tooltip(tooltip("Back to the default (removes it from settings.json)"))
-                        .on_click(cx.listener(move |wb, _, _, cx| {
-                            wb.settings.remove(&key);
-                            cx.notify();
-                        })),
-                )
-            })
+            .child(div().flex_none().w(px(CONTROL)).flex().items_center().justify_end().gap_1().child(control).child(div().w(px(20.)).flex_none().children(reset)))
     }
 }
 

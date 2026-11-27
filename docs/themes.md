@@ -51,6 +51,9 @@ from the base theme.
 - **code coverage** (in `colors`): `editorGutter.coveredBackground`, `editorGutter.partiallyCoveredBackground` (a
   branch not taken), `editorGutter.uncoveredBackground` (the bars in the gutter after a test run with coverage); sizes in
   `metrics`: `editorGutter.coverageWidth` (the bar, 3) and `editorGutter.coverageGap` (room on each side of it, 3).
+- **settings screen** (in `colors`): `settings.modifiedIndicator` (the bar beside a changed setting and the dot by
+  each section's count of them [`editorGutter.modifiedBackground`]), `settings.rowBorder` (the lines between settings
+  [`editorWidget.border`, fainter]).
 - **AI assistant** (in `colors`; each falls back to the theme color in brackets): `assistant.userBorder` (the rule beside
   your messages [`focusBorder`]), `assistant.composer.background` / `assistant.composer.border` (the input's frame
   [`input.background` / `input.border`]), `assistant.starter.border` (the starter questions [`input.border`]), and for
