@@ -3,6 +3,12 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.9.1
+
+- A setting changed in ByteForge could briefly snap back: when the settings file was reloaded while a new
+  value was being written, the reload put back what the file said before. The write and the reload now take
+  turns.
+
 ## 1.9.0
 
 - An Avalonia designer for `.axaml` views: View Designer (Shift+F7, or the layers button on the tab) shows the view

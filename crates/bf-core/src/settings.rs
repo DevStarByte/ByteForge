@@ -48,7 +48,11 @@ impl Settings {
             path.parent().and_then(|dir| {
                 DebouncedWatcher::new(dir, false, Duration::from_millis(150), move |changed| {
                     if changed.iter().any(|p| p.file_name() == file.file_name()) {
-                        *values.write() = read(&file);
+                        // Read under the lock: `write` holds it until the file is written, so a reload
+                        // never puts back what the file said before a value was just set.
+                        let mut values = values.write();
+                        *values = read(&file);
+                        drop(values);
                         on_change();
                     }
                 })
@@ -104,13 +108,12 @@ impl Settings {
                 serde_json::to_string_pretty(&values).unwrap_or_default() + "\n"
             }
         };
-        {
-            let mut values = self.values.write();
-            match value {
-                Some(v) => values.insert(key.to_owned(), v),
-                None => values.remove(key),
-            };
-        }
+        // The file is written under the lock, so the watcher's reload can't read it half-way.
+        let mut values = self.values.write();
+        match value {
+            Some(v) => values.insert(key.to_owned(), v),
+            None => values.remove(key),
+        };
         let _ = std::fs::write(&self.path, text);
     }
 }
