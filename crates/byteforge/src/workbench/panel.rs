@@ -335,6 +335,17 @@ impl Workbench {
                         })
                         .into_iter()
                         .collect(),
+                    "startupProject" => self
+                        .status_startup
+                        .clone()
+                        .map(|project| {
+                            item(name, id("sp"), Some("fileProject"), project)
+                                .tooltip(tooltip("Startup project for F5 and Run (click to change)"))
+                                .on_click(cx.listener(|wb, _, w, cx| wb.open_startup_project_picker(w, cx)))
+                                .into_any_element()
+                        })
+                        .into_iter()
+                        .collect(),
                     "launchProfile" => self
                         .status_profile
                         .clone()

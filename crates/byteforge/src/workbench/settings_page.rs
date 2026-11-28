@@ -90,7 +90,7 @@ pub(super) fn all_settings() -> Vec<SettingInfo> {
         s!("C# and .NET", "csharp.server", "C# language server", choice(&["csharp-ls", "roslyn"]), "csharp-ls", "csharp-ls, or Microsoft's Roslyn server (the one VS Code uses: more fixes and analyzers; \"C#: Install or Update Roslyn Language Server\" installs it)."),
         s!("C# and .NET", "csharp.languageServer", "csharp-ls path", Text, "", "Path to csharp-ls (empty: found on PATH or in ~/.dotnet/tools)."),
         s!("C# and .NET", "metrics.statusBar", "App metrics in the status bar", Bool, true, "While the app runs, dotnet-counters (when installed) reports its CPU and memory to the status bar and the Metrics tab."),
-        s!("C# and .NET", "dotnet.project", "Startup project", Text, "", "The project F5 and Run start, relative to the folder (empty: found by itself)."),
+        s!("C# and .NET", "dotnet.project", "Startup project", Text, "", "The project F5 and Run start, relative to the folder (empty: found by itself). Select Startup Project… overrides it per folder."),
         s!("C# and .NET", "dotnet.launchProfile", "Launch profile", Text, "", "The launchSettings.json profile Run and F5 use (Select Launch Profile… sets it per project)."),
         s!("Refactoring", "refactor.previewMultiFileChanges", "Ask before changing several files", Bool, true, "A rename or refactoring that changes several files lists them first."),
         s!("Refactoring", "refactor.renameGenerated", "Rename what a refactoring made up", Bool, true, "After Extract Method and the like, the new name goes straight to Rename."),

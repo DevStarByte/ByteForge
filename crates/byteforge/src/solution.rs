@@ -38,6 +38,8 @@ pub enum SolutionEvent {
     EnableCpm,
     /// "Move to Directory.Packages.props": a project's own version of a package (project, package id).
     MoveToCentral(PathBuf, String),
+    /// "Set as Startup Project": F5 and Run start this project.
+    SetStartup(PathBuf),
 }
 
 #[derive(Clone)]
@@ -88,6 +90,8 @@ pub struct SolutionView {
     active: Option<PathBuf>,
     /// The packages as central package management sees them (read with the solution).
     cpm: Option<bf_core::cpm::Overview>,
+    /// The project F5 and Run start (set by the workbench).
+    startup: Option<PathBuf>,
 }
 
 impl EventEmitter<SolutionEvent> for SolutionView {}
@@ -111,7 +115,20 @@ impl SolutionView {
             hovered: None,
             active: None,
             cpm: None,
+            startup: None,
         }
+    }
+
+    pub fn set_startup(&mut self, startup: Option<PathBuf>, cx: &mut Context<Self>) {
+        if self.startup != startup {
+            self.startup = startup;
+            cx.notify();
+        }
+    }
+
+    #[cfg(test)]
+    pub fn startup(&self) -> Option<&PathBuf> {
+        self.startup.as_ref()
     }
 
     pub fn set_preferred(&mut self, preferred: Option<String>) {
@@ -602,6 +619,7 @@ impl Render for SolutionView {
                             let key = project_key(&project.path);
                             let open = !view.collapsed.contains(&key) && project.exists;
                             let path = project.path.clone();
+                            let is_startup = view.startup.as_ref() == Some(&project.path);
                             let emit = |event: fn(PathBuf) -> SolutionEvent| {
                                 let (e, path) = (entity.clone(), path.clone());
                                 move |_: &gpui::ClickEvent, _: &mut Window, cx: &mut gpui::App| {
@@ -615,6 +633,7 @@ impl Render for SolutionView {
                                 .flex_none()
                                 .when(hovered != Some(ix), |d| d.hidden())
                                 .when(project.exists, |d| d.child(small("build", "build", "Build").on_click(emit(SolutionEvent::Build))))
+                                .when(project.is_app && !is_startup, |d| d.child(small("startup", "check", "Set as Startup Project").on_click(emit(SolutionEvent::SetStartup))))
                                 .when(project.is_app, |d| d.child(small("run", "play", "Run").on_click(emit(SolutionEvent::Run))))
                                 .when(project.is_app, |d| d.child(small("watch", "flame", "Run with Watch (Hot Reload)").on_click(emit(SolutionEvent::Watch))))
                                 .when(project.is_test, |d| d.child(small("test", "beaker", "Run Tests").on_click(emit(SolutionEvent::Test))))
@@ -627,6 +646,15 @@ impl Render for SolutionView {
                                 .child(if project.exists { chevron(open).into_any_element() } else { blank().into_any_element() })
                                 .child(icon("fileProject", px(14.), color))
                                 .child(name_cell(project.name.clone()).font_weight(gpui::FontWeight::SEMIBOLD))
+                                .when(is_startup, |d| {
+                                    d.child(
+                                        div()
+                                            .id("startup-mark")
+                                            .flex_none()
+                                            .tooltip(tooltip("Startup project (F5 and Run start it)"))
+                                            .child(icon("play", px(12.), t.c_or("debugIcon.startForeground", 0x89d185ff))),
+                                    )
+                                })
                                 .child(detail(project.summary()))
                                 .child(buttons)
                                 .on_click(move |_, _, cx| e.update(cx, |v, cx| v.toggle_collapsed(key.clone(), cx)))

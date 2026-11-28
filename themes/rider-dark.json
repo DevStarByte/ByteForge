@@ -375,7 +375,7 @@
     // then Search Everywhere (the command palette) and Settings on the right. No centered search box.
     "titleBar.left": ["logo", "menu", "project", "branch"],
     "titleBar.center": [],
-    "titleBar.right": ["launchProfile", "run", "debug", "command:view.commandPalette:search", "command:settings.open:settings", "windowControls"],
+    "titleBar.right": ["startupProject", "launchProfile", "run", "debug", "command:view.commandPalette:search", "command:settings.open:settings", "windowControls"],
 
     // Tool window stripe: the main tool windows on top, the bottom ones (Terminal, Problems) below.
     "activityBar.items": ["solution", "explorer", "scm", "testing", "debug", "tasks", "ef", "assistant", "modules", "spacer", "command:terminal.toggle:terminal", "command:view.problems:warning"],

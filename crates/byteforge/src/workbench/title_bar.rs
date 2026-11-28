@@ -181,7 +181,21 @@ impl Workbench {
                             .into_any_element(),
                     );
                 }
-                // The startup project's launch profile, then Run and Debug: the run configuration widget.
+                // The startup project (when the folder has several), its launch profile, then Run and Debug:
+                // the run configuration widget.
+                "startupProject" => {
+                    if let Some(project) = self.status_startup.clone() {
+                        out.push(
+                            title_widget(&t, id, fg, hover)
+                                .child(icon("fileProject", icon_size, fg))
+                                .child(project)
+                                .child(icon("chevronDown", px(12.), fg))
+                                .tooltip(tooltip("Startup project for F5 and Run (click to change)"))
+                                .on_click(cx.listener(|wb, _, w, cx| wb.open_startup_project_picker(w, cx)))
+                                .into_any_element(),
+                        );
+                    }
+                }
                 "launchProfile" => {
                     if let Some(profile) = self.status_profile.clone() {
                         out.push(

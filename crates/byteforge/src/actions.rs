@@ -9,7 +9,7 @@ actions!(
     [
         NewFile, OpenFile, OpenFolder, Save, SaveAs, SaveAll, CloseEditor, CloseAllEditors, Quit, CommandPalette, QuickOpen, GoToLine,
         ToggleSideBar, ResetActivityBarOrder, TogglePanel, ShowExplorer, ShowSearch, ShowProblems, ShowOutput, ShowModules, NextEditor, PreviousEditor,
-        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, OpenSettingsJson, OpenKeyboardShortcuts, About, CheckForUpdates, Build, Run, RunWithWatch, RestartWatch, SelectLaunchProfile, NewProject, NewItem, ManageUserSecrets, Test, Clean, Restore, Stop,
+        SelectTheme, CustomizeTheme, EditTheme, ReloadTheme, OpenSettings, OpenSettingsJson, OpenKeyboardShortcuts, About, CheckForUpdates, Build, Run, RunWithWatch, RestartWatch, SelectLaunchProfile, SelectStartupProject, NewProject, NewItem, ManageUserSecrets, Test, Clean, Restore, Stop,
         ToggleLineEnding, ReloadCSharp, InstallRoslyn, ShowSourceControl, GitRefresh, GitCommit, GitStageAll, GitUnstageAll, GitPull, GitPush,
         GitFetch, GitSync, GitCheckout, GitCreateBranch, GitInit, GitOpenChanges, ShowDebug, ShowDebugConsole, FormatDocument,
         FormatDocumentWith, GoToSymbolInEditor, GoToSymbolInWorkspace, SplitEditor, FocusFirstGroup, FocusSecondGroup,
@@ -224,6 +224,13 @@ pub struct AttachToContainerPid {
     pub pid: u32,
 }
 
+/// Makes `project` (a .csproj) the one F5 and Run start in this folder (picked in "Select Startup Project").
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = workbench, no_json)]
+pub struct UseStartupProject {
+    pub project: String,
+}
+
 /// Makes `name` the launch profile for `project` (picked in "Select Launch Profile").
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
 #[action(namespace = workbench, no_json)]
@@ -369,6 +376,7 @@ fn builtin() -> Vec<Builtin> {
         ("dotnet.run", "Run Without Debugging", "Run", Box::new(Run), Some("ctrl-f5")),
         ("dotnet.watch", "Run with Watch (Hot Reload)", "Run", Box::new(RunWithWatch), Some("alt-f5")),
         ("dotnet.restartWatch", "Restart Watch (Rebuild and Run Again)", "Run", Box::new(RestartWatch), Some("shift-alt-f5")),
+        ("dotnet.selectStartupProject", "Select Startup Project…", "Run", Box::new(SelectStartupProject), None),
         ("dotnet.selectLaunchProfile", "Select Launch Profile…", "Run", Box::new(SelectLaunchProfile), None),
         ("dotnet.newProject", "New Project…", "File", Box::new(NewProject), None),
         ("dotnet.newItem", "New Item from Template…", "File", Box::new(NewItem), None),

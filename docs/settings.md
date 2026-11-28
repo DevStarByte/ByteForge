@@ -13,7 +13,7 @@ comments when the settings screen changes a value:
   "files.exclude": ["bin", "obj", ".git", "node_modules", "target"],
   "csharp.server": "csharp-ls",                        // or "roslyn": Microsoft's server (C#: Install or Update Roslyn Language Server)
   "csharp.languageServer": "",                         // custom path to csharp-ls (optional)
-  "dotnet.project": "src/MyApp/MyApp.csproj",          // build/run/debug target (optional)
+  "dotnet.project": "src/MyApp/MyApp.csproj",          // build/run/debug target (optional; "Select Startup Project…" overrides it per folder)
   "dotnet.launchProfile": "https",                     // launchSettings.json profile (default: first "Project" one; "Select Launch Profile…" overrides it per project)
   "debug.netcoredbgPath": "",                          // custom path to netcoredbg (optional; else PATH, the usual folders, or a download)
   "debug.browser": "",                                 // Edge, Chrome or Chromium for debugging Blazor WebAssembly apps (optional; found by itself)

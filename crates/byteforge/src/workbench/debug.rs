@@ -373,9 +373,7 @@ impl Workbench {
         if self.dotnet_busy(cx) {
             return;
         }
-        let configured = self.settings.get_string("dotnet.project");
-        let project = find_target(&root, configured.as_deref(), true).filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("csproj")));
-        let Some(project) = project else {
+        let Some(project) = self.startup_project() else {
             self.log(format!("No .csproj to debug in {}. Set \"dotnet.project\" to the project to start.", root.display()));
             self.show_panel(PanelView::Output, cx);
             return;

@@ -278,7 +278,7 @@ pub(crate) const MENUS: &[(&str, &[&str])] = &[
         "merge.editor", "merge.acceptCurrent", "merge.acceptIncoming", "merge.acceptBoth", "merge.next", "merge.previous", "-", "git.init"]),
     // Run, Debug, Build and Test were one long Run menu; split like Visual Studio's.
     ("Run", &[
-        "debug.start", "dotnet.run", "dotnet.watch", "dotnet.restartWatch", "debug.restart", "dotnet.stop", "-", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-",
+        "debug.start", "dotnet.run", "dotnet.watch", "dotnet.restartWatch", "debug.restart", "dotnet.stop", "-", "dotnet.selectStartupProject", "dotnet.selectLaunchProfile", "dotnet.userSecrets", "-",
         "tasks.run", "tasks.rerun", "tasks.configure",
     ]),
     ("Debug", &[
@@ -342,6 +342,8 @@ pub struct Workbench {
     template_task: Option<Task<()>>,
     /// The startup project's launch profile, shown in the status bar ("launchProfile").
     status_profile: Option<String>,
+    /// The startup project's name, shown in the status and title bar ("startupProject").
+    status_startup: Option<String>,
     update: update::UpdateState,
     update_task: Option<Task<()>>,
     prompt: Option<PromptKind>,
@@ -603,7 +605,7 @@ impl Workbench {
                         AppEvent::SettingsChanged => wb.apply_settings(window, cx),
                         AppEvent::FilesChanged => {
                             wb.explorer.update(cx, |e, cx| e.refresh(cx));
-                            wb.refresh_status_profile();
+                            wb.refresh_status_profile(cx);
                             for p in &wb.plugins {
                                 p.event("filesChanged", None);
                             }
@@ -664,6 +666,7 @@ impl Workbench {
             item_templates: None,
             template_task: None,
             status_profile: None,
+            status_startup: None,
             update: update::UpdateState::Idle,
             update_task: None,
             prompt: None,
@@ -757,7 +760,7 @@ impl Workbench {
         let auto_reveal = wb.settings.get("explorer.autoReveal", true);
         wb.explorer.update(cx, |e, _| e.auto_reveal = auto_reveal);
         crate::explorer::set_native_icons(wb.settings.get("explorer.nativeIcons", true));
-        wb.refresh_status_profile();
+        wb.refresh_status_profile(cx);
         wb.apply_window_effects(window, cx);
         wb.start_plugins(event_tx, cx);
 
@@ -866,7 +869,7 @@ impl Workbench {
         let auto_reveal = self.settings.get("explorer.autoReveal", true);
         self.explorer.update(cx, |e, _| e.auto_reveal = auto_reveal);
         crate::explorer::set_native_icons(self.settings.get("explorer.nativeIcons", true));
-        self.refresh_status_profile();
+        self.refresh_status_profile(cx);
         let overrides: HashMap<String, String> = self.settings.get("keybindings", HashMap::new());
         if overrides != cx.global::<Commands>().overrides {
             crate::actions::bind_all(cx, &overrides);
@@ -928,6 +931,7 @@ impl Workbench {
         self.scm.update(cx, |s, cx| s.open_folder(cx));
         self.tests.update(cx, |t, cx| t.open_folder(cx));
         self.solution.update(cx, |s, cx| s.open_folder(cx));
+        self.refresh_status_profile(cx);
         self.git_head = None;
         self.side = side_view_named(&Theme::global(cx).layout.side_default).unwrap_or(SideView::Explorer);
         self.build_problems.clear();
@@ -1131,6 +1135,7 @@ fn default_command_icon(id: &str) -> &'static str {
         "dotnet.run" | "debug.start" => "play",
         "dotnet.watch" => "flame",
         "dotnet.selectLaunchProfile" => "settings",
+        "dotnet.selectStartupProject" => "fileProject",
         "debug.restart" => "refresh",
         "debug.pause" => "pause",
         "debug.stepOver" => "stepOver",

@@ -98,7 +98,7 @@ comma-separated strings:
   "titleBar.left": ["logo", "menu"], "titleBar.center": ["commandCenter"],
   "titleBar.right": ["layoutControls", "windowControls"],
   "activityBar.items": ["explorer", "search", "scm", "modules", "spacer", "settings"],
-  "statusBar.left": ["branch", "sync", "problems", "run", "launchProfile", "modules"], "statusBar.center": [],
+  "statusBar.left": ["branch", "sync", "problems", "run", "startupProject", "launchProfile", "modules"], "statusBar.center": [],
   "statusBar.right": ["update", "modules", "position", "indent", "encoding", "eol", "language", "lsp"],
   "panel.tabs": ["problems", "output"], "menuBar.menus": ["File", "Edit", "View", "Go", "Git", "Run", "Debug", "Build", "Test", "Preferences", "Help"],
   "welcome.order": ["logo", "title", "shortcuts"], "welcome.title": "ByteForge",
@@ -111,12 +111,13 @@ comma-separated strings:
   themePicker), windowControls, spacer, and the widgets:
   - `project`: the opened folder as a badge with its initials (colored by its name; `projectBadge.background1..8`
     pick the colors, `projectBadge.size/radius/fontSize` in metrics) plus its name; it opens Open Folder.
-  - `launchProfile`: the launch profile with ▾ (it picks another one); `run`: Run, or Stop while running, colored
+  - `startupProject`: the startup project with ▾ when the folder has several (it picks another one);
+    `launchProfile`: the launch profile with ▾ (it picks another one); `run`: Run, or Stop while running, colored
     `titleBar.runForeground` / `titleBar.stopForeground`; `debug`: Start Debugging in `titleBar.debugForeground`.
   - `titleBar.branchChevron: 1` (metrics) adds ▾ to `branch`; `titleWidget.paddingX/spacing` (metrics) and
     `titleWidget.weight` (fonts) style the widgets.
 - **Status bar parts:** branch, sync, file, path (the file's folder › subfolders › file), problems, errors, warnings,
-  run, launchProfile, update, modules, position, indent, encoding, eol, language, lsp, spacer, and `text:<anything>`
+  run, startupProject, launchProfile, update, modules, position, indent, encoding, eol, language, lsp, spacer, and `text:<anything>`
   for fixed text. Each part can have its own colors and weight:
   `statusBarItem.<part>.background/foreground` (colors) and `statusBarItem.<part>.weight` (fonts).
   `statusBar.positionFormat` sets the cursor position text (`{line}`, `{col}`, `{lines}`).

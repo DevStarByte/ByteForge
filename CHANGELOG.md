@@ -3,6 +3,17 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.8.0
+
+- Pick the project to start. In a folder with several projects, **Run › Select Startup Project…** (also in the
+  command palette) lists them, apps first, and the one you pick is what F5, Ctrl+F5 and Run with Watch start from
+  then on. ByteForge remembers it per folder; when the project is gone it falls back to the first app again. The
+  startup project shows in the status bar (click it to change it) and is marked with ▶ in the Solution view, where
+  "Set as Startup Project" sits among a project's hover buttons. Themes can place it with the `startupProject`
+  status and title bar part (Rider Dark shows it beside the launch profile). The `dotnet.project` setting still
+  works as the default.
+- The launch profile in the status bar now updates as soon as a folder is opened.
+
 ## 1.7.3
 
 - Four new themes. **Paper**: ink on warm paper with a serif interface and a single red accent. **Abyss**: deep-sea

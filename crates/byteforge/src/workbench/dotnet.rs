@@ -14,7 +14,8 @@ impl Workbench {
         }
         let runnable = matches!(verb, "run" | "watch");
         let configured = self.settings.get_string("dotnet.project");
-        let Some(target) = find_target(&root, configured.as_deref(), runnable) else {
+        let target = if runnable { self.startup_project() } else { None };
+        let Some(target) = target.or_else(|| find_target(&root, configured.as_deref(), runnable)) else {
             self.log(format!("No .sln, .slnx or .csproj found in {}.", root.display()));
             self.show_panel(PanelView::Output, cx);
             return;
@@ -113,11 +114,75 @@ impl Workbench {
         bf_core::debug::launch_profiles(project).iter().any(|p| p.name == wanted).then_some(wanted)
     }
 
-    /// The project F5 and Ctrl+F5 start.
+    fn startup_project_key(root: &Path) -> String {
+        format!("startupProject:{}", root.display())
+    }
+
+    /// The project F5 and Ctrl+F5 start: the one picked in "Select Startup Project…" for this folder
+    /// (while it still exists), else the `dotnet.project` setting, else the first runnable .csproj.
     pub(super) fn startup_project(&self) -> Option<PathBuf> {
         let root = self.workspace.root()?;
+        let is_csproj = |p: &PathBuf| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("csproj"));
+        let picked = self.state.get(&Self::startup_project_key(&root)).filter(|p| !p.is_empty()).map(|p| root.join(p));
+        if let Some(picked) = picked.filter(|p| p.is_file() && is_csproj(p)) {
+            return Some(picked);
+        }
         let configured = self.settings.get_string("dotnet.project");
-        find_target(&root, configured.as_deref(), true).filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("csproj")))
+        find_target(&root, configured.as_deref(), true).filter(is_csproj)
+    }
+
+    /// "Select Startup Project…": the folder's projects, apps first (class libraries can't be started).
+    pub(super) fn open_startup_project_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(root) = self.workspace.root() else {
+            self.log("Open a folder containing a .NET project first.");
+            self.show_panel(PanelView::Output, cx);
+            return;
+        };
+        let projects: Vec<PathBuf> = bf_core::dotnet::projects(&root).into_iter().filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("csproj"))).collect();
+        if projects.is_empty() {
+            self.log(format!("No .csproj found in {}.", root.display()));
+            self.show_panel(PanelView::Output, cx);
+            return;
+        }
+        let current = self.startup_project();
+        let (mut apps, libraries): (Vec<_>, Vec<_>) = projects.into_iter().partition(|p| bf_core::dotnet::is_app(p));
+        let app_count = apps.len();
+        apps.extend(libraries);
+        let items = apps
+            .into_iter()
+            .enumerate()
+            .map(|(i, p)| {
+                let name = p.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let mark = if current.as_ref() == Some(&p) { "● " } else { "   " };
+                let relative = p.strip_prefix(&root).unwrap_or(&p).display().to_string();
+                let mut item = PaletteItem::new(format!("{mark}{name}"), PaletteAction::Command(Box::new(UseStartupProject { project: p.to_string_lossy().into_owned() })));
+                item.detail = Some(if i < app_count { relative } else { format!("{relative} · class library") });
+                item.search = Some(format!("{name} {}", p.strip_prefix(&root).unwrap_or(&p).display()));
+                item
+            })
+            .collect();
+        self.menu_open = None;
+        let palette = cx.new(|cx| Palette::new(Mode::Pick, items, &format!("Startup project (F5, {}, {})", crate::actions::key_label("ctrl-f5"), crate::actions::key_label("alt-f5")), "", window, cx));
+        let sub = cx.subscribe_in(&palette, window, Self::on_palette_event);
+        palette.update(cx, |p, cx| p.focus_input(window, cx));
+        self.palette = Some((palette, sub));
+        cx.notify();
+    }
+
+    /// Remembers `project` as this folder's startup project.
+    pub(super) fn use_startup_project(&mut self, project: &Path, cx: &mut Context<Self>) {
+        let Some(root) = self.workspace.root() else { return };
+        let relative = project.strip_prefix(&root).unwrap_or(project).to_string_lossy().into_owned();
+        self.state.set(&Self::startup_project_key(&root), Some(&relative));
+        let name = project.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if bf_core::dotnet::is_app(project) {
+            self.log(format!("{name} is now the startup project (F5, {}).", crate::actions::key_label("ctrl-f5")));
+        } else {
+            self.log(format!("{name} is now the startup project, but it is a class library: set <OutputType>Exe</OutputType> to run it."));
+            self.show_panel(PanelView::Output, cx);
+        }
+        self.refresh_status_profile(cx);
+        cx.notify();
     }
 
     /// "Select Launch Profile…": the startup project's profiles from Properties/launchSettings.json.
@@ -158,7 +223,7 @@ impl Workbench {
         self.state.set(&Self::launch_profile_key(project), Some(name));
         let project_name = project.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         self.log(format!("{project_name} now runs with launch profile \"{name}\"."));
-        self.refresh_status_profile();
+        self.refresh_status_profile(cx);
         cx.notify();
     }
 
@@ -376,5 +441,56 @@ mod tests {
         let d = bf_core::debug::parse_build_line(strip_watch_prefix(error), Path::new("/src/W")).unwrap();
         assert_eq!((d.line, d.column, d.code.as_deref()), (7, 9, Some("CS0029")));
         assert_eq!(strip_watch_prefix("Now listening on: http://localhost:5039"), "Now listening on: http://localhost:5039");
+    }
+
+    fn project(ws: &Path, name: &str, exe: bool) -> PathBuf {
+        let dir = ws.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        let output = if exe { "\n    <OutputType>Exe</OutputType>" } else { "" };
+        let csproj = dir.join(format!("{name}.csproj"));
+        std::fs::write(&csproj, format!("<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>{output}\n    <TargetFramework>net10.0</TargetFramework>\n  </PropertyGroup>\n</Project>\n")).unwrap();
+        csproj
+    }
+
+    #[gpui::test]
+    fn the_startup_project_is_picked_per_folder(cx: &mut gpui::TestAppContext) {
+        use crate::palette::{PaletteAction, PaletteEvent};
+        let (guard, wb, cx) = crate::workbench::settings_page::view_tests::workbench(cx, "startup");
+        let ws = guard.dir.join("ws");
+        let lib = project(&ws, "Core", false);
+        let api = project(&ws, "Api", true);
+        let worker = project(&ws, "Worker", true);
+        wb.update_in(cx, |wb, window, cx| wb.open_folder(ws.clone(), window, cx));
+        cx.run_until_parked();
+        assert_eq!(wb.read_with(cx, |wb, _| wb.startup_project()), Some(api.clone()), "the first app by default");
+        assert_eq!(wb.read_with(cx, |wb, _| wb.status_startup.clone()).as_deref(), Some("Api"));
+
+        // The picker lists the apps first, then the class library.
+        cx.dispatch_action(SelectStartupProject);
+        cx.run_until_parked();
+        let (palette, listed) = wb.update(cx, |wb, cx| {
+            let palette = wb.palette.as_ref().map(|(p, _)| p.clone()).expect("the startup project picker is open");
+            let listed: Vec<String> = palette.read(cx).items_for_test().into_iter().filter_map(|a| match a {
+                PaletteAction::Command(c) => c.as_any().downcast_ref::<UseStartupProject>().map(|u| u.project.clone()),
+                _ => None,
+            }).collect();
+            (palette, listed)
+        });
+        let as_string = |p: &PathBuf| p.to_string_lossy().into_owned();
+        assert_eq!(listed, [as_string(&api), as_string(&worker), as_string(&lib)]);
+        palette.update(cx, |_, cx| cx.emit(PaletteEvent::Accept(PaletteAction::Command(Box::new(UseStartupProject { project: as_string(&worker) })))));
+        cx.run_until_parked();
+
+        wb.read_with(cx, |wb, cx| {
+            assert_eq!(wb.startup_project(), Some(worker.clone()));
+            assert_eq!(wb.status_startup.as_deref(), Some("Worker"));
+            assert_eq!(wb.solution.read(cx).startup(), Some(&worker), "the Solution view marks it");
+            assert_eq!(wb.state.get(&format!("startupProject:{}", ws.display())).as_deref(), Some(Path::new("Worker").join("Worker.csproj").to_str().unwrap()), "kept relative to the folder");
+        });
+
+        // A picked project that is gone falls back to the first app.
+        std::fs::remove_dir_all(worker.parent().unwrap()).unwrap();
+        assert_eq!(wb.read_with(cx, |wb, _| wb.startup_project()), Some(api));
+        drop(guard);
     }
 }

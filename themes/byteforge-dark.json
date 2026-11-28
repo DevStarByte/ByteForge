@@ -525,7 +525,7 @@
 
     // Status bar zones. Parts: branch, sync, file, path, problems (errors + warnings), errors, warnings, run, modules
     // (module items, placed by their alignment), position, indent, encoding, eol, language, lsp, spacer, commands.
-    // "statusBar.left": ["branch", "sync", "problems", "run", "metrics", "launchProfile", "modules"],
+    // "statusBar.left": ["branch", "sync", "problems", "run", "metrics", "startupProject", "launchProfile", "modules"],
     // "statusBar.center": [],
     // "statusBar.right": ["update", "modules", "position", "indent", "encoding", "eol", "language", "lsp"],
 

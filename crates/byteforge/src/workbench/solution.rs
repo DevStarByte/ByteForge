@@ -13,6 +13,7 @@ impl Workbench {
             SolutionEvent::MoveToCentral(project, id) => self.move_to_central(project.clone(), id.clone(), window, cx),
             SolutionEvent::Build(path) => self.dotnet_on("build", path, window, cx),
             SolutionEvent::Run(path) => self.dotnet_on("run", path, window, cx),
+            SolutionEvent::SetStartup(path) => self.use_startup_project(path, cx),
             SolutionEvent::Watch(path) => self.dotnet_on("watch", path, window, cx),
             SolutionEvent::Test(path) => {
                 let label = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();

@@ -371,10 +371,15 @@ impl Workbench {
 
     // ───────────── launch profile in the status bar ─────────────
 
-    /// Re-reads the startup project's launch profile for the status bar (cheap enough for file changes,
-    /// too slow for every frame).
-    pub(super) fn refresh_status_profile(&mut self) {
-        self.status_profile = self.startup_project().and_then(|project| {
+    /// Re-reads the startup project and its launch profile for the status bar and the Solution view
+    /// (cheap enough for file changes, too slow for every frame).
+    pub(super) fn refresh_status_profile(&mut self, cx: &mut Context<Self>) {
+        let startup = self.startup_project();
+        // Only worth showing when there is a choice: more than one project in the folder.
+        let several = self.workspace.root().is_some_and(|root| bf_core::dotnet::projects(&root).len() > 1);
+        self.status_startup = startup.as_ref().filter(|_| several).and_then(|p| p.file_stem()).map(|n| n.to_string_lossy().into_owned());
+        self.solution.update(cx, |s, cx| s.set_startup(startup.clone(), cx));
+        self.status_profile = startup.and_then(|project| {
             let profiles = bf_core::debug::launch_profiles(&project);
             let first = profiles.first()?.name.clone();
             Some(self.chosen_launch_profile(&project).unwrap_or(first))
