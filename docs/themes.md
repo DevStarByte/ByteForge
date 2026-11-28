@@ -75,7 +75,8 @@ from the base theme.
   `formDesigner.trayBackground`, `formDesigner.windowTitleBackground` / `windowTitleForeground` /
   `windowBorder` (the form's frame); in `metrics`: `formDesigner.toolboxWidth`, `formDesigner.propertiesWidth`,
   `formDesigner.rowHeight`, `formDesigner.handleSize`. The controls themselves keep Windows' colors (they show
-  the form as it will run). Unset keys fall back to the editor, side bar and focus colors.
+  the form as it will run). Unset keys fall back to the editor, side bar and focus colors. The Avalonia designer
+  uses the same keys (its controls keep the Fluent theme's colors).
 - **effects**: window backdrop (`blur`, `transparent` or `none`) and shadows for the palette and other widgets.
 - **layout**: where every part of the window goes. Each container is an ordered list of parts: reorder
   parts to move them, leave them out to hide them (see [Layout](#layout) below).

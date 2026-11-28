@@ -69,6 +69,13 @@ live, and modules written in any language can extend it.
   form or into another one. Everything is written into
   `InitializeComponent` in the file's own style (.NET Framework or .NET 6+), so the designer file saves, undoes
   and diffs like any file; it works on Linux and macOS too, as ByteForge draws the form itself
+- **Avalonia designer:** View Designer (Shift+F7, or the button on the tab) on an `.axaml` view shows it laid out
+  the way Avalonia lays it out, in the Fluent theme's look (light or dark), with a toolbox, the document outline
+  and a property grid. Drop controls into a Grid cell, a place in a StackPanel or WrapPanel, a side of a
+  DockPanel, a point on a Canvas or an empty Border or Button; drag them elsewhere, resize them, nudge them with
+  the arrow keys, copy and paste them as XAML, set properties and hook events (double-click a control: its handler
+  in the `.axaml.cs`). Every change is a small edit of the XAML, comments and formatting kept, and typing in the
+  XAML shows in the designer at once (the code's caret selects the element it is on)
 - **Resource editor:** `.resx` files as one table per resource, a column per language: edit in place, add and
   remove keys everywhere at once, missing translations marked and in Problems
 - **Solution and NuGet:** a Solution view with the projects of the `.sln`/`.slnx`, their packages and project
@@ -211,6 +218,8 @@ themes and modules in that folder (to try a theme or a build without touching yo
   time (images, custom controls and the cells of table layouts are approximate). It edits data bindings as code
   only; in a localized form, fonts and images in the resources aren't shown, and controls added in the designer
   are set up in code (not in the `.resx` files).
+- The Avalonia designer draws controls itself, in the Fluent theme's sizes and colors: styles, resources, control
+  templates and bindings aren't applied (a binding shows as written), and custom controls show as a named box.
 - Windows downloads aren't code-signed yet and the macOS app isn't notarized (see [Install](#install)).
 - Very large solutions take a while before diagnostics appear.
 

@@ -15,7 +15,7 @@ impl Workbench {
     pub(super) fn open_file_text(&mut self, path: PathBuf, at: Option<Point>, window: &mut Window, cx: &mut Context<Self>) {
         let path = normalize_path(&path);
         // A form's designer holds its .Designer.cs, but opening that file shows its code.
-        let open = |t: &Tab| !matches!(t.page, Some(Page::Designer(_))) && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path));
+        let open = |t: &Tab| !matches!(t.page, Some(Page::Designer(_) | Page::Axaml(_))) && t.path.as_deref().is_some_and(|p| bf_core::paths::same_path(p, &path));
         // Open in both groups: the view in the focused group.
         let existing = self.tabs.iter().position(|t| t.group == self.focus_group && open(t)).or_else(|| self.tabs.iter().position(open));
         if let Some(i) = existing {
@@ -167,6 +167,7 @@ impl Workbench {
             }
             EditorEvent::CaretMoved => {
                 self.record_place(editor, cx);
+                self.follow_axaml_caret(editor, window, cx);
                 cx.notify();
             }
             EditorEvent::ApplyCodeAction(action, then) => self.apply_code_action((**action).clone(), *then, editor.downgrade(), window, cx),
@@ -224,6 +225,7 @@ impl Workbench {
             let editor = self.tabs[ix].editor.clone();
             match &self.tabs[ix].page {
                 Some(Page::Designer(d)) => d.read(cx).focus(window),
+                Some(Page::Axaml(d)) => d.read(cx).focus(window),
                 _ => editor.update(cx, |e, _| e.focus(window)),
             }
             let path = self.tabs[ix].path.clone();

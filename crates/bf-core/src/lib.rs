@@ -33,6 +33,7 @@ pub mod testing;
 pub mod templates;
 pub mod update;
 pub mod theme;
+pub mod avalonia;
 pub mod watch;
 pub mod winforms;
 pub mod workspace;

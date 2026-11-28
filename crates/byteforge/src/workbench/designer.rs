@@ -10,6 +10,9 @@ impl Workbench {
     /// Whether a file is a form or user control the designer can open: `Form1.cs` next to a
     /// `Form1.Designer.cs` with InitializeComponent (looked up once per path).
     pub(super) fn is_designable(&mut self, path: &Path) -> bool {
+        if crate::axaml_designer::is_axaml(path) {
+            return true;
+        }
         if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("cs")) {
             return false;
         }
@@ -24,16 +27,19 @@ impl Workbench {
     /// "View Designer": the designer of the current file's form.
     pub(super) fn open_form_designer(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(ix) = self.active else {
-            self.log("View Designer: open a form's .cs file first.");
+            self.log("View Designer: open a form's .cs file or an .axaml view first.");
             return;
         };
-        if matches!(self.tabs[ix].page, Some(Page::Designer(_))) {
+        if matches!(self.tabs[ix].page, Some(Page::Designer(_) | Page::Axaml(_))) {
             return;
         }
         let Some(path) = self.tabs[ix].path.clone().filter(|_| self.tabs[ix].is_document()) else {
-            self.log("View Designer: open a form's .cs file first.");
+            self.log("View Designer: open a form's .cs file or an .axaml view first.");
             return;
         };
+        if crate::axaml_designer::is_axaml(&path) {
+            return self.open_axaml_designer(path, window, cx);
+        }
         self.open_designer_for(path, window, cx);
     }
 
@@ -90,6 +96,7 @@ impl Workbench {
     pub(super) fn view_form_code(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let code = self.active.and_then(|ix| match &self.tabs[ix].page {
             Some(Page::Designer(d)) => Some(d.read(cx).code_path.clone()),
+            Some(Page::Axaml(d)) => Some(d.read(cx).path.clone()),
             _ => None,
         });
         match code {

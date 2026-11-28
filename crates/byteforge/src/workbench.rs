@@ -1,6 +1,7 @@
 //! The workbench: window layout, tabs, panels, title bar, menus, status bar and all workbench commands.
 
 mod assistant;
+mod axaml;
 mod bars;
 mod benchmarks;
 mod debug;
@@ -115,6 +116,8 @@ enum Page {
     Resx(Entity<crate::resx_view::ResxView>),
     /// The Windows Forms designer of a form (the tab's editor holds its .Designer.cs).
     Designer(Entity<crate::form_designer::FormDesigner>),
+    /// The Avalonia designer of an `.axaml` view (the tab's editor holds the view).
+    Axaml(Entity<crate::axaml_designer::AxamlDesigner>),
 }
 
 impl Tab {

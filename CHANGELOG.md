@@ -3,6 +3,23 @@
 What changed in each version of ByteForge. Versions before 1.0 are betas, published as pre-releases
 on the [Releases](https://github.com/DevStarByte/ByteForge/releases) page.
 
+## 1.9.0
+
+- An Avalonia designer for `.axaml` views: View Designer (Shift+F7, or the layers button on the tab) shows the view
+  laid out the way Avalonia does it (Grid rows and columns with Auto, star and pixel sizes, StackPanel, DockPanel,
+  WrapPanel, UniformGrid, Canvas, Border, ScrollViewer, TabControl, Expander, …), its controls in the Fluent
+  theme's look, light or dark (as the view or App.axaml asks, or switched in the toolbar), with zoom. The toolbox
+  places controls by click or drag: into a Grid cell (`Grid.Row` / `Grid.Column`), between the children of a
+  StackPanel (a line shows where), on a side of a DockPanel, at a point of a Canvas, or into an empty Border or
+  Button. Drag a control to move it (between panels too: its old panel's attached properties go), pull its handles
+  to resize it, nudge it with the arrow keys (pixels on a Canvas, cells in a Grid, places in a StackPanel), Delete,
+  Ctrl+C / Ctrl+X / Ctrl+V as XAML. The Outline tab lists every element (also the ones not shown); the property grid
+  has the control's properties by category, the attached ones of its panel and every other attribute as text; the
+  Events tab hooks up handlers (double-click a control: `Button_OnClick` in the `.axaml.cs`, its `using` added).
+  Every change is a small edit of the XAML: comments, formatting and attribute order stay. The view and the code
+  stay in step as you type; while the XAML has an error the designer keeps the last good view, and the code's caret
+  selects the element it is on. F7 goes back to the code at the selected element.
+
 ## 1.8.0
 
 - Pick the project to start. In a folder with several projects, **Run › Select Startup Project…** (also in the

@@ -129,6 +129,7 @@ impl Workbench {
             Some(Page::Secrets { project, file }) => self.render_secrets_page(&project, &file, cx).into_any_element(),
             Some(Page::Resx(view)) => view.into_any_element(),
             Some(Page::Designer(designer)) => designer.into_any_element(),
+            Some(Page::Axaml(designer)) => designer.into_any_element(),
             None => editor.into_any_element(),
         }
     }
